@@ -387,9 +387,9 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {isLimit 
-                              ? `Must not exceed ${r.currency || ''} ${r.amount || '0'} per ${mapTimeframe(r.timeframe || fullPolicy.spendLimitPeriod)}`
+                              ? `Must not exceed ${r.currency || ''} ${Number(r.amount || 0).toLocaleString()} per ${mapTimeframe(r.time_unit || r.timeframe || fullPolicy.spendLimitPeriod)}`
                               : (r.threshold || r.amount > 0)
-                                ? `Required for transactions above ${r.currency || ''} ${r.amount}`
+                                ? `Required for transactions above ${r.currency || ''} ${Number(r.amount).toLocaleString()}`
                                 : "Required for all transactions"
                             }
                           </p>

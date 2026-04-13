@@ -929,6 +929,7 @@ export default function PolicyCreationModal({
           const enforcementAction = r.enforcement as "block" | "warn";
           if (r.type === "spend_limit") return {
             type: "spend_limit" as const,
+            time_unit: r.timeframe || "day",
             amount: parseFloat(r.amount),
             currency: currencyCode,
             enforcementAction,
@@ -938,11 +939,8 @@ export default function PolicyCreationModal({
           const isThreshold = mode === "threshold";
           return {
             type: "receipt_requirement" as const,
-            threshold: isThreshold,
-            ...(isThreshold ? {
-              amount: parseFloat(r.amount),
-              currency: currencyCode,
-            } : {}),
+            amount: isThreshold && r.amount ? parseFloat(r.amount) : 0,
+            currency: currencyCode,
             enforcementAction,
           };
         }),
