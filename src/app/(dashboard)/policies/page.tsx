@@ -387,10 +387,12 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {isLimit 
-                              ? `Must not exceed ${r.currency || ''} ${Number(r.amount || 0).toLocaleString()} per ${mapTimeframe(r.time_unit || r.timeframe || fullPolicy.spendLimitPeriod)}`
-                              : (r.threshold || r.amount > 0)
-                                ? `Required for transactions above ${r.currency || ''} ${Number(r.amount).toLocaleString()}`
-                                : "Required for all transactions"
+                              ? `Must not exceed ${r.currency || ''} ${Number(r.amount || 0).toLocaleString()} per ${mapTimeframe(r.timeUnit || r.time_unit || r.timeframe || fullPolicy.spendLimitPeriod)}`
+                              : (r.receiptAmountThreshold || r.threshold || r.amount > 0)
+                                ? `Required for transactions above ${r.currency || ''} ${Number(r.receiptAmountThreshold || r.amount).toLocaleString()}`
+                                : (r.receiptNeeded || !r.receiptAmountThreshold) 
+                                  ? "Required for all transactions"
+                                  : "Policy rule active"
                             }
                           </p>
                         </div>
