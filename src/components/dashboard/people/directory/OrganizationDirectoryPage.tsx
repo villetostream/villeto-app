@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -275,259 +276,284 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
           <h1 className="text-xl font-semibold text-gray-900">Invite Employees from Directory</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Select people to invite to {businessName} as users.{" "}
-            <span className="text-[#00BFA5] font-medium">
-              Use the checkbox in the table header to select or deselect all.
-            </span>
+            {users.length > 0 && (
+              <span className="text-[#00BFA5] font-medium">
+                Use the checkbox in the table header to select or deselect all.
+              </span>
+            )}
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-4 flex-shrink-0">
-        <Input
-          placeholder="Search directory..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by department" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            {uniqueDepartments.map((dept) => (
-              <SelectItem key={dept} value={dept}>
-                {dept}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="overflow-x-auto rounded-md border bg-white">
-        <Table className="min-w-full divide-y divide-gray-200">
-          <TableHeader className="bg-gray-50 sticky top-0 z-10">
-            <TableRow>
-              <TableHead className="w-[40px] text-center px-4 py-3">
-                <Checkbox
-                  checked={isSomeSelected ? "indeterminate" : isAllSelected}
-                  onCheckedChange={handleSelectAllChange}
-                />
-              </TableHead>
-              <TableHead className="w-[50px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">S/N</TableHead>
-              <TableHead className="w-[250px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">DETAILS</TableHead>
-              <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">DEPARTMENT</TableHead>
-              <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">JOB TITLE</TableHead>
-              <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">REPORTS TO</TableHead>
-              <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider text-center">CORPORATE CARD</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody className="bg-white divide-y divide-gray-200">
-            {paginatedData.map((employee, index) => {
-              const firstName = employee.firstName || "";
-              const lastName = employee.lastName || "";
-              const fullName = `${firstName} ${lastName}`.trim() || "-";
-              const dept = getDepartmentName(employee.department);
-              const position = employee.position;
-              const jobTitle = employee.jobTitle;
-              const value = jobTitle || position;
-              let managerName = "—";
-              if (employee.manager && typeof employee.manager === "object") {
-                const first = formatName(employee.manager.firstName);
-                const last = formatName(employee.manager.lastName);
-                managerName = `${first} ${last}`.trim() || "—";
-              } else if (typeof employee.manager === "string" && employee.manager) {
-                managerName = formatName(employee.manager);
-              }
-              const rowNum = String(startIndex + index + 1).padStart(2, "0");
-
-              return (
-                <TableRow key={employee.userId}>
-                  <TableCell className="text-center px-4 py-2.5">
-                    <Checkbox
-                      checked={selected.has(employee.userId)}
-                      onCheckedChange={(checked) => handleSelectChange(employee.userId, !!checked)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-sm px-4 py-2.5 text-[#181D27]">{rowNum}</TableCell>
-                  <TableCell className="px-4 py-2.5 text-[#181D27]">
-                    <div className="flex flex-col">
-                      <p className="capitalize font-medium">{fullName}</p>
-                      <p className="text-xs text-muted-foreground">{employee.email}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="capitalize px-4 py-2.5 text-[#181D27]">{dept}</TableCell>
-                  <TableCell className="text-sm px-4 py-2.5 text-[#181D27]">{formatName(value)}</TableCell>
-                  <TableCell className="font-medium px-4 py-2.5 text-[#181D27]">{managerName}</TableCell>
-                  <TableCell className="px-4 py-2.5">
-                    <div className="flex justify-center">
-                      <Switch
-                        checked={corporateCardState[employee.userId] ?? false}
-                        onCheckedChange={() => handleCorporateCardToggle(employee.userId)}
-                      />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-            {paginatedData.length === 0 && (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={7} className="text-center py-20 text-lg hover:bg-transparent">
-                  Oops, No data available!!!
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Pagination — same style as DataTable */}
-      {totalItems > 0 && (
-        <div className="flex md:flex-row items-center justify-between bg-gray-50 py-2 px-4 rounded-b-md w-full">
-          <div className="flex items-center gap-2 w-full sm:w-auto mb-2 md:mb-0">
-            <span className="text-sm text-gray-700 whitespace-nowrap">
-              {totalItems > 0 ? (
-                <>
-                  Showing {startIndex + 1}-{endIndex} of {totalItems} entries
-                </>
-              ) : (
-                <>Showing 0 of 0 entries</>
-              )}
-            </span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(value) => {
-                paginationProps.setPageSize(Number(value));
-                paginationProps.setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-fit min-w-[80px]">
-                <SelectValue />
+      {users.length === 0 ? (
+        <div className="bg-white rounded-lg border mt-4 flex flex-col items-center justify-center py-24 px-6">
+          <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+            <Users className="w-10 h-10 text-gray-400" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No uninvited employees</h3>
+          <p className="text-gray-500 text-sm mb-6 text-center max-w-md">
+            It looks like everyone in your directory has already been invited or your directory is empty. To invite more employees, please update your directory.
+          </p>
+          <Button
+            onClick={() => {
+              if (onBack) onBack();
+              else router.push("/people?tab=directory");
+            }}
+            className="bg-[#00BFA5] hover:bg-[#00BFA5]/90 text-white px-6 py-2.5 rounded-lg"
+          >
+            Go to Directory Tab
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <Input
+              placeholder="Search directory..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-sm"
+            />
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by department" />
               </SelectTrigger>
               <SelectContent>
-                {PAGE_SIZE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                <SelectItem value="all">All</SelectItem>
+                {uniqueDepartments.map((dept) => (
+                  <SelectItem key={dept} value={dept}>
+                    {dept}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="flex w-full md:w-auto justify-end gap-2">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={(e) => {
-                      e.preventDefault();
-                      paginationProps.setPage(Math.max(1, currentPage - 1));
-                    }}
-                    href="#"
-                    isDisabled={currentPage === 1}
-                    isActive={currentPage > 1}
-                    size={"sm"}
-                  />
-                </PaginationItem>
+          <div className="overflow-x-auto rounded-md border bg-white">
+            <Table className="min-w-full divide-y divide-gray-200">
+              <TableHeader className="bg-gray-50 sticky top-0 z-10">
+                <TableRow>
+                  <TableHead className="w-[40px] text-center px-4 py-3">
+                    <Checkbox
+                      checked={isSomeSelected ? "indeterminate" : isAllSelected}
+                      onCheckedChange={handleSelectAllChange}
+                    />
+                  </TableHead>
+                  <TableHead className="w-[50px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">S/N</TableHead>
+                  <TableHead className="w-[250px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">DETAILS</TableHead>
+                  <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">DEPARTMENT</TableHead>
+                  <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">JOB TITLE</TableHead>
+                  <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">REPORTS TO</TableHead>
+                  <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider text-center">CORPORATE CARD</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="bg-white divide-y divide-gray-200">
+                {paginatedData.map((employee, index) => {
+                  const firstName = employee.firstName || "";
+                  const lastName = employee.lastName || "";
+                  const fullName = `${firstName} ${lastName}`.trim() || "-";
+                  const dept = getDepartmentName(employee.department);
+                  const position = employee.position;
+                  const jobTitle = employee.jobTitle;
+                  const value = jobTitle || position;
+                  let managerName = "—";
+                  if (employee.manager && typeof employee.manager === "object") {
+                    const first = formatName(employee.manager.firstName);
+                    const last = formatName(employee.manager.lastName);
+                    managerName = `${first} ${last}`.trim() || "—";
+                  } else if (typeof employee.manager === "string" && employee.manager) {
+                    managerName = formatName(employee.manager);
+                  }
+                  const rowNum = String(startIndex + index + 1).padStart(2, "0");
 
-                {/* First page + Ellipsis */}
-                {pageNumbers[0] > 1 && (
-                  <>
-                    <PaginationItem>
-                      <PaginationLink
-                        onClick={(e) => {
-                          e.preventDefault();
-                          paginationProps.setPage(1);
-                        }}
-                        href="#"
-                        isActive={1 === currentPage}
-                        size={"sm"}
-                      >
-                        1
-                      </PaginationLink>
-                    </PaginationItem>
-                    {pageNumbers[0] > 2 && (
-                      <PaginationItem>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    )}
-                  </>
+                  return (
+                    <TableRow key={employee.userId}>
+                      <TableCell className="text-center px-4 py-2.5">
+                        <Checkbox
+                          checked={selected.has(employee.userId)}
+                          onCheckedChange={(checked) => handleSelectChange(employee.userId, !!checked)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-sm px-4 py-2.5 text-[#181D27]">{rowNum}</TableCell>
+                      <TableCell className="px-4 py-2.5 text-[#181D27]">
+                        <div className="flex flex-col">
+                          <p className="capitalize font-medium">{fullName}</p>
+                          <p className="text-xs text-muted-foreground">{employee.email}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="capitalize px-4 py-2.5 text-[#181D27]">{dept}</TableCell>
+                      <TableCell className="text-sm px-4 py-2.5 text-[#181D27]">{formatName(value)}</TableCell>
+                      <TableCell className="font-medium px-4 py-2.5 text-[#181D27]">{managerName}</TableCell>
+                      <TableCell className="px-4 py-2.5">
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={corporateCardState[employee.userId] ?? false}
+                            onCheckedChange={() => handleCorporateCardToggle(employee.userId)}
+                          />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {paginatedData.length === 0 && users.length > 0 && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={7} className="text-center py-20 text-md text-gray-500 hover:bg-transparent">
+                      No users match your criteria.
+                    </TableCell>
+                  </TableRow>
                 )}
+              </TableBody>
+            </Table>
+          </div>
 
-                <div className="hidden md:flex">
-                  {pageNumbers.map((page) => (
-                    <PaginationItem key={page}>
-                      <PaginationLink
-                        className={`${currentPage !== page ? "text-muted-foreground" : ""}`}
+          {/* Pagination — same style as DataTable */}
+          {totalItems > 0 && (
+            <div className="flex md:flex-row items-center justify-between bg-gray-50 py-2 px-4 rounded-b-md w-full">
+              <div className="flex items-center gap-2 w-full sm:w-auto mb-2 md:mb-0">
+                <span className="text-sm text-gray-700 whitespace-nowrap">
+                  {totalItems > 0 ? (
+                    <>
+                      Showing {startIndex + 1}-{endIndex} of {totalItems} entries
+                    </>
+                  ) : (
+                    <>Showing 0 of 0 entries</>
+                  )}
+                </span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(value) => {
+                    paginationProps.setPageSize(Number(value));
+                    paginationProps.setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-fit min-w-[80px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex w-full md:w-auto justify-end gap-2">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
                         onClick={(e) => {
                           e.preventDefault();
-                          paginationProps.setPage(page);
+                          paginationProps.setPage(Math.max(1, currentPage - 1));
                         }}
                         href="#"
-                        isActive={page === currentPage}
+                        isDisabled={currentPage === 1}
+                        isActive={currentPage > 1}
                         size={"sm"}
-                      >
-                        {page}
-                      </PaginationLink>
+                      />
                     </PaginationItem>
-                  ))}
 
-                  {/* Ellipsis + Last page */}
-                  {pageNumbers[pageNumbers.length - 1] < totalPages && (
-                    <>
-                      {pageNumbers[pageNumbers.length - 1] < totalPages - 1 && (
+                    {/* First page + Ellipsis */}
+                    {pageNumbers[0] > 1 && (
+                      <>
                         <PaginationItem>
-                          <PaginationEllipsis />
+                          <PaginationLink
+                            onClick={(e) => {
+                              e.preventDefault();
+                              paginationProps.setPage(1);
+                            }}
+                            href="#"
+                            isActive={1 === currentPage}
+                            size={"sm"}
+                          >
+                            1
+                          </PaginationLink>
                         </PaginationItem>
+                        {pageNumbers[0] > 2 && (
+                          <PaginationItem>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        )}
+                      </>
+                    )}
+
+                    <div className="hidden md:flex">
+                      {pageNumbers.map((page) => (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            className={`${currentPage !== page ? "text-muted-foreground" : ""}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              paginationProps.setPage(page);
+                            }}
+                            href="#"
+                            isActive={page === currentPage}
+                            size={"sm"}
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
+
+                      {/* Ellipsis + Last page */}
+                      {pageNumbers[pageNumbers.length - 1] < totalPages && (
+                        <>
+                          {pageNumbers[pageNumbers.length - 1] < totalPages - 1 && (
+                            <PaginationItem>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          )}
+                          <PaginationItem>
+                            <PaginationLink
+                              href="#"
+                              size="sm"
+                              isActive={totalPages === currentPage}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                paginationProps.setPage(totalPages);
+                              }}
+                            >
+                              {totalPages}
+                            </PaginationLink>
+                          </PaginationItem>
+                        </>
                       )}
+                    </div>
+
+                    <div className="md:hidden block">
                       <PaginationItem>
-                        <PaginationLink
-                          href="#"
-                          size="sm"
-                          isActive={totalPages === currentPage}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            paginationProps.setPage(totalPages);
-                          }}
-                        >
-                          {totalPages}
+                        <PaginationLink isActive size="sm" href={""}>
+                          {currentPage}
                         </PaginationLink>
                       </PaginationItem>
-                    </>
-                  )}
-                </div>
+                    </div>
 
-                <div className="md:hidden block">
-                  <PaginationItem>
-                    <PaginationLink isActive size="sm" href={""}>
-                      {currentPage}
-                    </PaginationLink>
-                  </PaginationItem>
-                </div>
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={(e) => {
+                          e.preventDefault();
+                          paginationProps.setPage(currentPage + 1);
+                        }}
+                        href="#"
+                        size={"sm"}
+                        isActive={currentPage < totalPages}
+                        isDisabled={currentPage === totalPages}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            </div>
+          )}
 
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={(e) => {
-                      e.preventDefault();
-                      paginationProps.setPage(currentPage + 1);
-                    }}
-                    href="#"
-                    size={"sm"}
-                    isActive={currentPage < totalPages}
-                    isDisabled={currentPage === totalPages}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+          <div className="flex justify-end gap-3 pt-2 flex-shrink-0">
+            <Button onClick={handleInvite} className="bg-[#00BFA5] hover:bg-[#00BFA5]/90 min-w-[180px]" disabled={selectedCount === 0 || isInviting}>
+              {isInviting ? "Sending invites..." : `Invite ${selectedCount} User${selectedCount !== 1 ? "s" : ""}`}
+            </Button>
           </div>
-        </div>
+        </>
       )}
-
-      <div className="flex justify-end gap-3 pt-2 flex-shrink-0">
-        <Button onClick={handleInvite} className="bg-[#00BFA5] hover:bg-[#00BFA5]/90 min-w-[180px]" disabled={selectedCount === 0 || isInviting}>
-          {isInviting ? "Sending invites..." : `Invite ${selectedCount} User${selectedCount !== 1 ? "s" : ""}`}
-        </Button>
-      </div>
     </div>
   );
 };
