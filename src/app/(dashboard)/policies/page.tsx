@@ -714,11 +714,6 @@ export default function PoliciesPage() {
         </div>
       ),
     },
-    {
-      accessorKey: "category",
-      header: "Expense Category",
-      cell: ({ row }) => <span className="capitalize">{row.original.category}</span>,
-    },
     { accessorKey: "appliedTo", header: "Applied To" },
     {
       accessorKey: "createdBy",
@@ -974,6 +969,7 @@ export default function PoliciesPage() {
                   data={filteredPolicies}
                   columns={policyColumns}
                   height="auto"
+                  onRowClick={(row) => setDetailPolicy(row)}
                   paginationProps={{ ...policyTableProps.paginationProps, total: filteredPolicies.length }}
                 />
               </div>
@@ -1015,6 +1011,7 @@ export default function PoliciesPage() {
                   data={archivedPolicies}
                   columns={archivedColumns}
                   height="auto"
+                  onRowClick={(row) => setDetailPolicy(row)}
                   paginationProps={{ ...archivedTableProps.paginationProps, total: archivedPolicies.length }}
                 />
               </div>
