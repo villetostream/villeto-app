@@ -563,6 +563,24 @@ export default function PoliciesPage() {
     manualPagination: false,
   });
 
+  const expenseTableProps = useDataTable({
+    initialPage: 1,
+    initialPageSize: 10,
+    totalItems: 0,
+    manualSorting: false,
+    manualFiltering: false,
+    manualPagination: false,
+  });
+
+  const archivedTableProps = useDataTable({
+    initialPage: 1,
+    initialPageSize: 10,
+    totalItems: 0,
+    manualSorting: false,
+    manualFiltering: false,
+    manualPagination: false,
+  });
+
   const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
 
   const policies = useMemo<Policy[]>(() => {
@@ -969,15 +987,37 @@ export default function PoliciesPage() {
               columns={columns}
               height="auto"
               onRowClick={(row) => handleViewCategory(row.id)}
+              paginationProps={{ ...expenseTableProps.paginationProps, total: filteredCategories.length }}
             />
           </div>
         )}
 
         {/* ════ ARCHIVED TAB ════ */}
         {activeTab === "archived" && (
-          <div className="flex-1 border-t border-border overflow-hidden flex flex-col">
-            <DataTable data={archivedPolicies} columns={archivedColumns} height="auto" />
-          </div>
+          <>
+            {archivedPolicies.length === 0 ? (
+              <div className="border-t border-border flex justify-center items-center py-10 px-6">
+                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-border bg-primary/[0.02] py-10 px-8 flex flex-col items-center text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/[0.06] flex items-center justify-center mb-7">
+                    <Archive className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+                  </div>
+                  <h2 className="text-xl font-bold text-foreground mb-2">No archived policies</h2>
+                  <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+                    Policies that you archive will appear here for future reference.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 border-t border-border overflow-hidden flex flex-col">
+                <DataTable
+                  data={archivedPolicies}
+                  columns={archivedColumns}
+                  height="auto"
+                  paginationProps={{ ...archivedTableProps.paginationProps, total: archivedPolicies.length }}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 

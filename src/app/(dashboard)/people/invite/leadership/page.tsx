@@ -92,6 +92,12 @@ export default function InviteLeadershipPage() {
         const q = emailQuery.toLowerCase();
         const matches = directoryUsers
             .filter((u) => u.email?.toLowerCase().includes(q))
+            .filter((u) => {
+                const isInvited = u.status === "Active" || u.loginCount > 0;
+                const isExactMatch = u.email?.toLowerCase() === q;
+                // Only show uninvited users, OR if they typed the full email of an invited user
+                return !isInvited || isExactMatch;
+            })
             .slice(0, 8);
         setSuggestions(matches);
         setShowSuggestions(matches.length > 0);
