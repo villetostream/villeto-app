@@ -51,7 +51,9 @@ export function useAxios(): AxiosInstance {
           } catch (refreshError) {
             // logout on refresh failure
             // setUser(null);
-            router.replace("/login");
+            if (!window.location.pathname.includes('/onboarding')) {
+              router.replace("/login");
+            }
             return Promise.reject(refreshError);
           }
         }

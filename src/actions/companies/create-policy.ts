@@ -27,6 +27,7 @@ export type PolicyRule = SpendLimitRule | ReceiptRequirementRule;
 
 export interface PolicyScopeAll {
   type: "all";
+  location?: string;
 }
 
 export interface PolicyScopeSpecific {
