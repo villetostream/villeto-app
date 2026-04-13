@@ -4,6 +4,7 @@ export const API_KEYS = {
     EXISTING_ONBOARDING: "onboardings/fetch",
     START_ONBOARDING: "onboardings/start",
     ONBOARDING: "onboardings",
+    ONBOARDING_COMPLETE: (id: string) => `onboardings/${id}/complete` as const,
     ONBOARDING_COMPANY_DETAILS: (id: string) =>
       `onboardings/${id}/company-details` as const,
     ONBOARDING_LEADERS: (id: string) => `onboardings/${id}/leaders` as const,

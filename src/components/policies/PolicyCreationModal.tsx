@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, useMemo, useRef, useLayoutEffect } from "react";
+import { useState, useMemo, useRef, useLayoutEffect, useEffect } from "react";
 import {
   X, Plus, ChevronDown, ChevronUp, Loader2, UserCircle, Check, Trash2,
   MapPin, Users, Building2, Tag, ShieldCheck,
 } from "lucide-react";
 import { useGetCompanyRolesApi } from "@/actions/role/get-all-roles";
 import { useGetExpenseCategoriesApi } from "@/actions/companies/get-expense-categories";
-import { useGetDirectoryUsersApi } from "@/actions/users/get-all-users";
+import { useGetInvitedUsersApi } from "@/actions/users/get-all-users";
 import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
 import { useCreatePolicyApi, CreatePolicyPayload } from "@/actions/companies/create-policy";
+import { useUpdatePolicyApi } from "@/actions/companies/update-policy";
+import { useGetPolicyDetailsApi } from "@/actions/companies/get-policy-details";
+import { Policy } from "@/actions/companies/get-policies";
 import AddCategoryModal from "@/components/auth/AddCategoryModal";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
-import { getCountryName } from "@/lib/utils/countries";
 import { getCurrencyConfig } from "@/lib/utils/currency";
 
 /* ─── Types ───────────────────────────────────────────────── */
@@ -27,7 +29,7 @@ export interface CreatedPolicyData {
   scope: "all" | "specific";
   selectedRoles: string[];
   selectedDepts: string[];
-  locations: string[];
+  location: string;
   rules: PolicyRule[];
   approvers: string[];
 }
@@ -37,7 +39,9 @@ export interface PolicyRule {
   type: RuleType;
   amount: string;
   enforcement: string;
-  timeframe: "daily" | "weekly" | "monthly" | "per_transaction";
+  timeframe: "day" | "week" | "month" | "year";
+  /** receipt_requirement only — "all" = Required for All (no threshold), "threshold" = amount-gated */
+  receiptMode?: "all" | "threshold";
 }
 
 type RuleType = "spend_limit" | "receipt_requirement";
@@ -45,6 +49,7 @@ type RuleType = "spend_limit" | "receipt_requirement";
 interface DropdownOption {
   label: string;
   subLabel?: string;
+  sideBadge?: string;
   value: string;
 }
 
@@ -59,7 +64,7 @@ interface DropdownOption {
 
 const RULE_TYPE_LABELS: Record<RuleType, { label: string; amountLabel: string }> = {
   spend_limit:         { label: "Spend Limit",         amountLabel: "Limit amount" },
-  receipt_requirement: { label: "Receipt Requirement",  amountLabel: "Required above" },
+  receipt_requirement: { label: "Receipt Requirement",  amountLabel: "Required above amount" },
 };
 
 /* ─────────────────────────────────────────────────────────────
@@ -201,7 +206,12 @@ function DropdownList({
                   }`}
                 >
                   <div className="flex flex-col justify-center min-w-0">
-                    <span className="text-sm font-medium text-gray-800 text-left leading-snug truncate">{opt.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-800 text-left leading-snug truncate">{opt.label}</span>
+                      {opt.sideBadge && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-gray-100 text-[10px] font-medium text-gray-600 truncate max-w-[120px]">{opt.sideBadge}</span>
+                      )}
+                    </div>
                     {opt.subLabel && (
                       <span className="text-xs text-gray-400 text-left leading-snug truncate">{opt.subLabel}</span>
                     )}
@@ -389,6 +399,55 @@ function ThreeStepBar({ current }: { current: 1 | 2 | 3 }) {
 /* ─────────────────────────────────────────────────────────────
    RuleCard
 ───────────────────────────────────────────────────────────── */
+function ReceiptModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: "all" | "threshold";
+  onChange: (m: "all" | "threshold") => void;
+}) {
+  return (
+    <div className="flex rounded-xl border border-gray-200 overflow-hidden p-0.5 bg-gray-50 gap-0.5">
+      <button
+        type="button"
+        onClick={() => onChange("all")}
+        className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-[10px] text-sm font-medium transition-all ${
+          mode === "all"
+            ? "bg-[#03C3A6] text-white shadow-sm shadow-[#03C3A6]/30"
+            : "text-gray-500 hover:text-gray-700"
+        }`}
+      >
+        <span
+          className={`w-3 h-3 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+            mode === "all" ? "border-white" : "border-gray-300"
+          }`}
+        >
+          {mode === "all" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+        </span>
+        Always
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("threshold")}
+        className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-[10px] text-sm font-medium transition-all ${
+          mode === "threshold"
+            ? "bg-[#03C3A6] text-white shadow-sm shadow-[#03C3A6]/30"
+            : "text-gray-500 hover:text-gray-700"
+        }`}
+      >
+        <span
+          className={`w-3 h-3 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+            mode === "threshold" ? "border-white" : "border-gray-300"
+          }`}
+        >
+          {mode === "threshold" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+        </span>
+        Set Threshold
+      </button>
+    </div>
+  );
+}
+
 function RuleCard({
   rule, onChange, onDelete, canDelete,
 }: {
@@ -399,6 +458,10 @@ function RuleCard({
 }) {
   const meta = RULE_TYPE_LABELS[rule.type];
   const isSpendLimit = rule.type === "spend_limit";
+  const isReceipt = rule.type === "receipt_requirement";
+  const receiptMode = rule.receiptMode ?? "all";
+  const isThreshold = receiptMode === "threshold";
+
   return (
     <div className="rounded-2xl border border-border p-5 space-y-4 relative">
       <div className="flex items-center justify-between">
@@ -410,10 +473,44 @@ function RuleCard({
           </button>
         )}
       </div>
-      {/* Spend limit: 3 columns — Timeframe | Amount | Enforcement */}
-      {/* Receipt requirement: 2 columns — Amount | Enforcement */}
-      <div className={`grid gap-4 ${isSpendLimit ? "grid-cols-3" : "grid-cols-2"}`}>
-        {isSpendLimit && (
+
+      {/* Receipt Requirement — mode toggle + conditional amount */}
+      {isReceipt && (
+        <>
+          <div>
+            <FieldLabel>When is a receipt required?</FieldLabel>
+            <ReceiptModeToggle
+              mode={receiptMode}
+              onChange={(m) => onChange({ ...rule, receiptMode: m, amount: m === "all" ? "" : rule.amount })}
+            />
+            <p className="mt-2 text-xs text-gray-400 leading-snug">
+              {receiptMode === "all"
+                ? "Receipt is required on every transaction, regardless of the amount."
+                : "Receipt is only required when a transaction exceeds the amount you set below."}
+            </p>
+          </div>
+
+          <div className={`grid gap-4 ${isThreshold ? "grid-cols-2" : "grid-cols-1"}` }>
+            {/* Amount — only shown in threshold mode */}
+            {isThreshold && (
+              <div>
+                <FieldLabel>{meta.amountLabel}</FieldLabel>
+                <NumberInput value={rule.amount} onChange={(v) => onChange({ ...rule, amount: v })} />
+              </div>
+            )}
+            <div>
+              <FieldLabel>Enforcement</FieldLabel>
+              <SimpleDropdown placeholder="Select" value={rule.enforcement}
+                onChange={(v) => onChange({ ...rule, enforcement: v })}
+                options={WARNING_OPTIONS} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Spend Limit — unchanged layout */}
+      {isSpendLimit && (
+        <div className="grid gap-4 grid-cols-3">
           <div>
             <FieldLabel>Timeframe</FieldLabel>
             <SimpleDropdown
@@ -423,18 +520,18 @@ function RuleCard({
               options={TIMEFRAME_OPTIONS}
             />
           </div>
-        )}
-        <div>
-          <FieldLabel>{meta.amountLabel}</FieldLabel>
-          <NumberInput value={rule.amount} onChange={(v) => onChange({ ...rule, amount: v })} />
+          <div>
+            <FieldLabel>{meta.amountLabel}</FieldLabel>
+            <NumberInput value={rule.amount} onChange={(v) => onChange({ ...rule, amount: v })} />
+          </div>
+          <div>
+            <FieldLabel>Enforcement</FieldLabel>
+            <SimpleDropdown placeholder="Select" value={rule.enforcement}
+              onChange={(v) => onChange({ ...rule, enforcement: v })}
+              options={WARNING_OPTIONS} />
+          </div>
         </div>
-        <div>
-          <FieldLabel>Enforcement</FieldLabel>
-          <SimpleDropdown placeholder="Select" value={rule.enforcement}
-            onChange={(v) => onChange({ ...rule, enforcement: v })}
-            options={WARNING_OPTIONS} />
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -445,12 +542,12 @@ function RuleCard({
 function Preview({
   policyName, categories, scope, selectedRoles, roleOptions,
   selectedDepts, departmentOptions,
-  locations, rules, approvers, expenseCategoryOptions, adminOptions,
+  location, rules, approvers, expenseCategoryOptions, adminOptions,
 }: {
   policyName: string; categories: string[]; scope: "all" | "specific";
   selectedRoles: string[]; roleOptions: DropdownOption[];
   selectedDepts: string[]; departmentOptions: DropdownOption[];
-  locations: string[]; rules: PolicyRule[]; approvers: string[];
+  location: string; rules: PolicyRule[]; approvers: string[];
   expenseCategoryOptions: DropdownOption[];
   adminOptions: DropdownOption[];
 }) {
@@ -474,11 +571,14 @@ function Preview({
 
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Expense categories</p>
         <div className="flex flex-wrap gap-1.5 mb-4">
-          {categories.map((c: string) => (
-            <span key={c} className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-[#03C3A6]/10 text-[#03C3A6] text-[11px] font-semibold">
-              <Tag className="w-2.5 h-2.5" /> {expenseCategoryOptions.find((o: DropdownOption) => o.value === c)?.label ?? c}
-            </span>
-          ))}
+          {categories.map((c: string) => {
+            const label = expenseCategoryOptions.find((o: DropdownOption) => o.value === c)?.label ?? (typeof c === 'string' ? c : (c as any)?.name || 'Category');
+            return (
+              <span key={typeof c === 'string' ? c : (c as any)?.id || Math.random()} className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-[#03C3A6]/10 text-[#03C3A6] text-[11px] font-semibold">
+                <Tag className="w-2.5 h-2.5" /> {label}
+              </span>
+            );
+          })}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -494,7 +594,9 @@ function Preview({
               <MapPin className="w-3 h-3 text-gray-400" />
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Location</p>
             </div>
-            <p className="text-xs font-medium text-gray-700 leading-snug">{locations.join(", ")}</p>
+            <p className="text-xs font-medium text-gray-700 leading-snug">
+              {location ? LOCATION_OPTIONS.find(o => o.value === location)?.label || location : "All locations"}
+            </p>
           </div>
         </div>
       </div>
@@ -511,14 +613,21 @@ function Preview({
               className={`grid grid-cols-3 px-4 py-3 items-center ${i < rules.length - 1 ? "border-b border-border" : ""}`}>
               <p className="text-sm font-medium text-gray-800">{RULE_TYPE_LABELS[rule.type].label}</p>
               <p className="text-sm text-gray-700 tabular-nums">
-                {rule.amount ? `${currencySymbol}${rule.amount}` : <span className="text-gray-300">—</span>}
+                {rule.type === "receipt_requirement" && (rule.receiptMode ?? "all") === "all"
+                  ? <span className="inline-flex items-center gap-1 text-[#03C3A6] font-medium text-xs"><span className="w-1.5 h-1.5 rounded-full bg-[#03C3A6] inline-block" />All transactions</span>
+                  : rule.type === "receipt_requirement" && rule.receiptMode === "threshold"
+                    ? rule.amount
+                      ? <span className="text-gray-700 tabular-nums">Above <span className="font-semibold">{currencySymbol}{rule.amount}</span></span>
+                      : <span className="text-gray-300">—</span>
+                    : rule.amount ? `${currencySymbol}${rule.amount}` : <span className="text-gray-300">—</span>
+                }
               </p>
               <div>
                 {rule.enforcement ? (
                   <span className={`inline-flex h-5 px-2 rounded-full text-[10px] font-semibold items-center ${
-                    rule.enforcement === "Hard block" ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-600"
+                    rule.enforcement === "block" ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-600"
                   }`}>
-                    {rule.enforcement}
+                    {rule.enforcement === "block" ? "Hard block" : "Soft warning"}
                   </span>
                 ) : <span className="text-gray-300 text-sm">—</span>}
               </div>
@@ -540,7 +649,7 @@ function Preview({
                   <UserCircle className="w-3.5 h-3.5 text-[#03C3A6]" />
                 </div>
                 <span className="text-xs font-medium text-gray-700">
-                  {adminOptions.find(o => o.value === a)?.label ?? a}
+                  {adminOptions.find(o => o.value === a)?.label ?? (typeof a === 'string' ? a : (a?.firstName ? `${a.firstName} ${a.lastName || ''}` : a.email || 'User'))}
                 </span>
               </div>
             ))}
@@ -554,9 +663,32 @@ function Preview({
 /* ─── Static data ─────────────────────────────────────────── */
 // EXPENSE_OPTIONS is now dynamically built from API — see expenseCategoryOptions below
 
+/** Supported country locations — value matches the API payload format */
+const LOCATION_OPTIONS: DropdownOption[] = [
+  { value: "",            label: "None (optional)",  subLabel: "No location filter" },
+  { value: "nigeria",     label: "Nigeria" },
+  { value: "kenya",       label: "Kenya" },
+  { value: "ghana",       label: "Ghana" },
+  { value: "south_africa", label: "South Africa" },
+];
+
+/**
+ * Maps a company countryOfRegistration string (may be ISO code, full name, or
+ * already the API slug) to one of the four supported location values.
+ */
+function resolveDefaultLocation(countryRaw: string): string {
+  const c = (countryRaw ?? "").toLowerCase().replace(/\s+/g, "_");
+  if (c.includes("nigeria") || c === "ng")       return "nigeria";
+  if (c.includes("kenya")   || c === "ke")       return "kenya";
+  if (c.includes("ghana")   || c === "gh")       return "ghana";
+  if (c.includes("south_africa") || c.includes("southafrica") || c === "za") return "south_africa";
+  return ""; // unsupported / empty
+}
+
 const WARNING_OPTIONS: DropdownOption[] = [
-  { value: "Hard block",   label: "Hard block",   subLabel: "Transaction is declined" },
-  { value: "Soft warning", label: "Soft warning", subLabel: "User sees a caution prompt" },
+  { value: "block", label: "Hard block",   subLabel: "Transaction is declined" },
+  { value: "warn",  label: "Soft warning", subLabel: "User sees a caution prompt" },
+  // { value: "notify", label: "Notify", subLabel: "Purpose TBD" },
 ];
 
 const ADDABLE_RULE_TYPES: DropdownOption[] = [
@@ -565,10 +697,10 @@ const ADDABLE_RULE_TYPES: DropdownOption[] = [
 ];
 
 const TIMEFRAME_OPTIONS: DropdownOption[] = [
-  { value: "daily",           label: "Daily",           subLabel: "Resets every day" },
-  { value: "weekly",          label: "Weekly",          subLabel: "Resets every week" },
-  { value: "monthly",         label: "Monthly",         subLabel: "Resets every month" },
-  { value: "per_transaction", label: "Per Transaction", subLabel: "Applied to each transaction" },
+  { value: "day",   label: "Daily",   subLabel: "Resets every day" },
+  { value: "week",  label: "Weekly",  subLabel: "Resets every week" },
+  { value: "month", label: "Monthly", subLabel: "Resets every month" },
+  { value: "year",  label: "Yearly",  subLabel: "Resets every year" },
 ];
 
 const mkRule = (type: RuleType = "spend_limit"): PolicyRule => ({
@@ -576,18 +708,20 @@ const mkRule = (type: RuleType = "spend_limit"): PolicyRule => ({
   type,
   amount: "",
   enforcement: "",
-  timeframe: "daily",
+  timeframe: "day",
+  receiptMode: type === "receipt_requirement" ? "all" : undefined,
 });
 
 /* ═══════════════════════════════════════════════════════════
    MAIN MODAL
 ═══════════════════════════════════════════════════════════ */
 export default function PolicyCreationModal({
-  open, onOpenChange, onSuccess,
+  open, onOpenChange, onSuccess, policyId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: (data: CreatedPolicyData) => void;
+  policyId?: string | null;
 }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
@@ -602,10 +736,8 @@ export default function PolicyCreationModal({
   const [categories,    setCategories]    = useState<string[]>([]);
   
   const userCountry = useAuthStore(state => state.user?.company?.countryOfRegistration ?? "");
-  const [locations,     setLocations]     = useState<string[]>([getCountryName(userCountry)]);
-  
-  const [addingLoc,     setAddingLoc]     = useState(false);
-  const [newLoc,        setNewLoc]        = useState("");
+  const [location, setLocation] = useState<string>(() => resolveDefaultLocation(userCountry));
+
   const [isAddCatOpen,  setIsAddCatOpen]  = useState(false);
 
   // Step 3 — Rules
@@ -616,16 +748,69 @@ export default function PolicyCreationModal({
   const [showAddRule, setShowAddRule] = useState(false);
   const addRuleRef = useRef<HTMLButtonElement>(null);
 
-  // Step 4 — Approvers
-  const [approvers, setApprovers] = useState([""]);
+  // Step 4 — Approvers (multi-select IDs)
+  const [approvers, setApprovers] = useState<string[]>([]);
 
   const rolesApi         = useGetCompanyRolesApi({ enabled: open });
-  const directoryApi     = useGetDirectoryUsersApi({ enabled: open });
+  const invitedUsersApi  = useGetInvitedUsersApi({ enabled: open });
   const departmentsApi   = useGetAllDepartmentsApi({ enabled: open });
   const expCatApi        = useGetExpenseCategoriesApi({ enabled: open });
 
   const createPolicyMutation = useCreatePolicyApi();
-  const isLoading = createPolicyMutation.isPending;
+  const updatePolicyMutation = useUpdatePolicyApi();
+  const detailsApi = useGetPolicyDetailsApi(policyId || null, { enabled: open && !!policyId });
+
+  const isEditing = !!policyId;
+  const isFetchingDetails = isEditing && detailsApi.isLoading;
+  const isLoading = createPolicyMutation.isPending || updatePolicyMutation.isPending;
+
+  // Populate data when editing
+  useEffect(() => {
+    if (open && isEditing && detailsApi.data?.data) {
+      const data = detailsApi.data.data;
+      setPolicyName(data.name || "");
+      const scopeType = data.scope?.type === "all" || data.scope?.type === "all_employees" ? "all" : "specific";
+      setScope(scopeType);
+      
+      if (data.scope?.type === "specific") {
+        setSelectedDepts(data.scope.departments || []);
+        setSelectedRoles(data.scope.userRoles || []);
+        setLocation(data.scope.location || "");
+      } else {
+        // @ts-ignore
+        setLocation(data.scope?.location || "");
+      }
+
+      // Map expense categories to IDs if they are objects
+      const categoryIds = (data.expenseCategories || []).map((c: any) => typeof c === 'string' ? c : (c?.categoryId || c?.id || ''));
+      setCategories(categoryIds);
+      // Map approvers to IDs if they are objects
+      const approverIds = (data.approvers || []).map((a: any) => typeof a === 'string' ? a : (a?.userId || a?.id || '')).filter(Boolean);
+      setApprovers(approverIds);
+
+      if (data.rules?.length) {
+        setRules(data.rules.map((r: any) => {
+          const isReceipt = r.type === "receipt_requirement";
+          const rawAmount = (r.amount ?? r.requiredAboveAmount ?? "").toString();
+          // If requiredAboveAmount is 0 or empty it means "Required for All" mode
+          const receiptMode: "all" | "threshold" =
+            isReceipt && rawAmount !== "" && parseFloat(rawAmount) > 0
+              ? "threshold"
+              : "all";
+          return {
+            id: Math.random().toString(36).slice(2),
+            type: r.type,
+            amount: isReceipt && receiptMode === "all" ? "" : rawAmount,
+            enforcement: r.enforcementAction === "block" ? "block" : r.enforcementAction === "warn" ? "warn" : r.enforcementAction || "",
+            timeframe: r.timeframe || "day",
+            receiptMode: isReceipt ? receiptMode : undefined,
+          };
+        }));
+      }
+    } else if (open && !isEditing) {
+      reset();
+    }
+  }, [open, policyId, detailsApi.data]);
 
   const expenseCategoryOptions = useMemo<DropdownOption[]>(() =>
     (expCatApi.data?.data ?? []).map((c: any) => ({
@@ -643,16 +828,25 @@ export default function PolicyCreationModal({
   const currentUserId = useAuthStore(state => state.user?.userId);
 
   const adminOptions = useMemo<DropdownOption[]>(() =>
-    (directoryApi.data?.data ?? [])
+    (invitedUsersApi.data?.data ?? [])
       .filter((u: any) =>
-        !u.villetoRole?.name?.toLowerCase().includes("employee") &&
         u.userId !== currentUserId    // exclude self — a user cannot be their own approver
       )
-      .map((u: any) => ({
-        label: `${u.firstName} ${u.lastName}`,
-        value: u.userId ?? u.id,
-        subLabel: u.villetoRole?.name || "Administrator",
-      })), [directoryApi.data?.data, currentUserId]);
+      .map((u: any) => {
+        const rawRole = u.position ?? u.villetoRole?.name ?? "";
+        const villetoRoleName = rawRole
+          ? rawRole.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+          : "Administrator";
+
+        const jobTitle = u.jobTitle || u.role?.name || "";
+
+        return {
+          label: `${u.firstName} ${u.lastName}`,
+          value: u.userId ?? u.id,
+          sideBadge: villetoRoleName,
+          ...(jobTitle && { subLabel: jobTitle }),
+        };
+      }), [invitedUsersApi.data?.data, currentUserId]);
 
   const departmentOptions = useMemo<DropdownOption[]>(() =>
     (departmentsApi.data?.data ?? []).map((d: any) => ({
@@ -661,15 +855,12 @@ export default function PolicyCreationModal({
     })), [departmentsApi.data?.data]);
 
   const approverRequired = adminOptions.length > 0;
-  const approverFilled   = approvers.filter(Boolean).length > 0;
+  const approverFilled   = approvers.length > 0;
+  const togApprover = (v: string) => setApprovers((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
 
   const togCat  = (v: string) => setCategories((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
   const togDept = (v: string) => setSelectedDepts((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
   const togRole = (v: string) => setSelectedRoles((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
-
-  const addLocation = () => {
-    if (newLoc.trim()) { setLocations((l) => [...l, newLoc.trim()]); setNewLoc(""); setAddingLoc(false); }
-  };
 
   const updateRule = (id: string, updated: PolicyRule) => setRules((r) => r.map((x) => x.id === id ? updated : x));
   const deleteRule = (id: string) => setRules((r) => r.filter((x) => x.id !== id));
@@ -695,9 +886,9 @@ export default function PolicyCreationModal({
   const reset = () => {
     setStep(1); setPolicyName(""); setScope("all");
     setSelectedRoles([]); setSelectedDepts([]);
-    setCategories([]); setLocations([getCountryName(userCountry)]); setAddingLoc(false); setNewLoc("");
+    setCategories([]); setLocation(resolveDefaultLocation(userCountry));
     setRules([mkRule("spend_limit"), mkRule("receipt_requirement")]);
-    setApprovers([""]);
+    setApprovers([]);
   };
 
   const handleClose   = () => { onOpenChange(false); reset(); };
@@ -709,14 +900,15 @@ export default function PolicyCreationModal({
 
   const buildPayload = (): CreatePolicyPayload => {
     const currencyCode = getCurrencyConfig(userCountry).code;
-    const primaryLocation = locations.find((location) => location.trim().length > 0);
-    const location = primaryLocation?.trim();
+    const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
+    const formattedName = capitalizeName(policyName);
+    
     return {
-      name: policyName,
-      description: policyName,
+      name: formattedName,
+      description: formattedName,
       expenseCategories: categories,
       scope: scope === "all"
-        ? { type: "all" }
+        ? { type: "all", ...(location ? { location } : {}) }
         : {
             type: "specific",
             departments: selectedDepts,
@@ -724,24 +916,37 @@ export default function PolicyCreationModal({
             ...(location ? { location } : {}),
           },
       rules: rules
-        .filter(r => r.amount && r.enforcement)             // only send completed rules
+        .filter(r => {
+          if (r.type === "receipt_requirement") {
+            const mode = r.receiptMode ?? "all";
+            // threshold mode requires amount + enforcement; "always" mode only needs enforcement
+            return mode === "all" ? !!r.enforcement : !!(r.amount && r.enforcement);
+          }
+          return !!(r.amount && r.enforcement);
+        })
         .map(r => {
-          const enforcementAction = r.enforcement === "Hard block" ? "block" : "warning";
+          // enforcement values are already the API values: "block" | "warn"
+          const enforcementAction = r.enforcement as "block" | "warn";
           if (r.type === "spend_limit") return {
             type: "spend_limit" as const,
             amount: parseFloat(r.amount),
             currency: currencyCode,
             enforcementAction,
           };
+          // receipt_requirement
+          const mode = r.receiptMode ?? "all";
+          const isThreshold = mode === "threshold";
           return {
             type: "receipt_requirement" as const,
-            requiredAboveAmount: parseFloat(r.amount),
-            currency: currencyCode,
+            threshold: isThreshold,
+            ...(isThreshold ? {
+              amount: parseFloat(r.amount),
+              currency: currencyCode,
+            } : {}),
             enforcementAction,
           };
         }),
-      approvers: approvers
-        .filter(Boolean),
+      approvers: approvers.filter(Boolean),
     };
   };
 
@@ -759,17 +964,23 @@ export default function PolicyCreationModal({
   const handleConfirm = async () => {
     try {
       const payload = buildPayload();
-      await createPolicyMutation.mutateAsync(payload);
+      
+      if (isEditing && policyId) {
+        await updatePolicyMutation.mutateAsync({ id: policyId, payload });
+        toast.success("Policy updated successfully!");
+      } else {
+        await createPolicyMutation.mutateAsync(payload);
+        toast.success("Policy created successfully!");
+      }
 
       onSuccess?.({
         name: policyName, categories, scope,
         selectedRoles, selectedDepts,
-        locations, rules, approvers: approvers.filter(Boolean),
+        location, rules, approvers: approvers.filter(Boolean),
       });
       handleClose();
-      toast.success("Policy created successfully!");
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to create policy");
+      toast.error(error?.response?.data?.message || `Failed to ${isEditing ? 'update' : 'create'} policy`);
     }
   };
 
@@ -777,10 +988,19 @@ export default function PolicyCreationModal({
     categories.length > 0 &&
     (scope === "all" || (scope === "specific" && (selectedDepts.length > 0 || selectedRoles.length > 0)));
 
+  const rulesValid = rules.every(r => {
+    if (r.type === "receipt_requirement") {
+      const mode = r.receiptMode ?? "all";
+      return mode === "all" ? !!r.enforcement : !!(r.amount && r.enforcement);
+    }
+    return !!(r.amount && r.enforcement);
+  });
+
   const continueDisabled =
     isLoading ||
     (step === 1 && !policyName.trim()) ||
     (step === 2 && !scopeValid) ||
+    (step === 3 && !rulesValid) ||
     (step === 4 && approverRequired && !approverFilled);
 
   if (!open) return null;
@@ -793,6 +1013,13 @@ export default function PolicyCreationModal({
         <div className={`relative bg-white rounded-[1.75rem] shadow-2xl w-full flex flex-col ${
           step === 1 ? "max-w-[460px]" : step === 5 ? "max-w-[560px]" : "max-w-[540px]"
         }`} style={{ maxHeight: "92vh" }}>
+
+          {isFetchingDetails && (
+            <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center rounded-[1.75rem]">
+              <Loader2 className="w-8 h-8 text-[#03C3A6] animate-spin mb-4" />
+              <p className="text-sm font-medium text-gray-600">Loading policy details...</p>
+            </div>
+          )}
 
           {/* ════ STEP 1 — Name ════════════════════════════════ */}
           {step === 1 && (
@@ -990,28 +1217,19 @@ export default function PolicyCreationModal({
                         Location Filter{" "}
                         <span className="text-gray-400 font-normal text-xs">(Optional)</span>
                       </FieldLabel>
-                      {locations.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-3">
-                          {locations.map((loc, i) => (
-                            <Chip key={i} label={loc}
-                              onRemove={() => setLocations(locations.filter((_, j) => j !== i))} />
-                          ))}
-                        </div>
-                      )}
-                      {addingLoc ? (
-                        <div className="flex gap-2">
-                          <input autoFocus value={newLoc} onChange={(e) => setNewLoc(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && addLocation()} placeholder="Office name…"
-                            className="flex-1 h-10 px-3 rounded-xl border border-border text-sm focus:outline-none focus:border-[#03C3A6]" />
-                          <button onClick={addLocation} className="h-10 px-4 rounded-xl bg-[#03C3A6] text-white text-sm font-medium hover:bg-[#03C3A6]/90 transition-colors">Add</button>
-                          <button onClick={() => { setAddingLoc(false); setNewLoc(""); }}
-                            className="h-10 px-3 rounded-xl border border-border text-sm text-muted-foreground hover:bg-gray-50 transition-colors">Cancel</button>
-                        </div>
-                      ) : (
-                        <button type="button" onClick={() => setAddingLoc(true)}
-                          className="flex items-center gap-1.5 text-sm font-medium text-[#03C3A6] hover:underline">
-                          <Plus className="w-3.5 h-3.5" strokeWidth={2.5} /> Add Locations
-                        </button>
+                      <SimpleDropdown
+                        placeholder="Select location…"
+                        value={location}
+                        onChange={setLocation}
+                        options={LOCATION_OPTIONS}
+                      />
+                      {location && (
+                        <p className="mt-1.5 text-xs text-gray-400">
+                          Policy will apply to employees in{" "}
+                          <span className="font-medium text-gray-600">
+                            {LOCATION_OPTIONS.find(o => o.value === location)?.label}
+                          </span>.
+                        </p>
                       )}
                     </div>
                   </>
@@ -1030,19 +1248,28 @@ export default function PolicyCreationModal({
                           rule={rule}
                           onChange={(updated) => updateRule(rule.id, updated)}
                           onDelete={() => deleteRule(rule.id)}
-                          canDelete={rules.length > 1}
+                          canDelete={rule.type !== "spend_limit"}
                         />
                       ))}
                     </div>
                     <div className="relative">
-                      <button ref={addRuleRef} type="button" onClick={() => setShowAddRule((p) => !p)}
-                        className="flex items-center gap-1.5 text-sm font-medium text-[#03C3A6] hover:underline">
-                        <Plus className="w-3.5 h-3.5" strokeWidth={2.5} /> Add Another Rule
-                      </button>
-                      <PortalDropdown triggerRef={addRuleRef} open={showAddRule} onClose={() => setShowAddRule(false)}>
-                        <DropdownList options={ADDABLE_RULE_TYPES} selectedValues={[]} multiSelect={false}
-                          onSelect={(v) => addRule(v as RuleType)} />
-                      </PortalDropdown>
+                      {(() => {
+                        const usedTypes = new Set(rules.map((r) => r.type));
+                        const availableRuleTypes = ADDABLE_RULE_TYPES.filter((opt) => !usedTypes.has(opt.value as RuleType));
+                        if (availableRuleTypes.length === 0) return null;
+                        return (
+                          <>
+                            <button ref={addRuleRef} type="button" onClick={() => setShowAddRule((p) => !p)}
+                              className="flex items-center gap-1.5 text-sm font-medium text-[#03C3A6] hover:underline">
+                              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} /> Add Another Rule
+                            </button>
+                            <PortalDropdown triggerRef={addRuleRef} open={showAddRule} onClose={() => setShowAddRule(false)}>
+                              <DropdownList options={availableRuleTypes} selectedValues={[]} multiSelect={false}
+                                onSelect={(v) => addRule(v as RuleType)} />
+                            </PortalDropdown>
+                          </>
+                        );
+                      })()}
                     </div>
                   </>
                 )}
@@ -1052,7 +1279,7 @@ export default function PolicyCreationModal({
                   <div className="space-y-4">
                     {approverRequired ? (
                       <p className="text-sm text-gray-500 leading-relaxed">
-                        Assign an administrator to review this policy before it goes live.
+                        Assign one or more administrators to review this policy before it goes live.
                       </p>
                     ) : (
                       <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3">
@@ -1062,26 +1289,28 @@ export default function PolicyCreationModal({
                         </p>
                       </div>
                     )}
-                    {approverRequired && approvers.map((val, i) => (
-                      <div key={i} className="flex gap-2 items-center">
-                        <div className="flex-1">
-                          <SimpleDropdown placeholder="Select admin" value={val}
-                            onChange={(v) => { const n = [...approvers]; n[i] = v; setApprovers(n); }}
-                            options={adminOptions} isLoading={directoryApi.isLoading} searchable />
-                        </div>
-                        {approvers.length > 1 && (
-                          <button onClick={() => setApprovers(approvers.filter((_, j) => j !== i))}
-                            className="w-12 h-12 flex items-center justify-center rounded-xl border border-red-100 bg-red-50/50 text-red-400 hover:bg-red-50 hover:text-red-500 transition-colors shrink-0">
-                            <X className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
                     {approverRequired && (
-                      <button type="button" onClick={() => setApprovers([...approvers, ""])}
-                        className="flex items-center gap-1.5 text-sm font-medium text-[#03C3A6] hover:underline">
-                        <Plus className="w-3.5 h-3.5" strokeWidth={2.5} /> Add approver
-                      </button>
+                      <>
+                        <MultiDropdown
+                          placeholder="Select approver(s)"
+                          values={approvers}
+                          onToggle={togApprover}
+                          options={adminOptions}
+                          isLoading={invitedUsersApi.isLoading}
+                          searchable
+                        />
+                        {approvers.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {approvers.map((id) => (
+                              <Chip
+                                key={id}
+                                label={adminOptions.find((o) => o.value === id)?.label ?? id}
+                                onRemove={() => togApprover(id)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -1096,7 +1325,7 @@ export default function PolicyCreationModal({
                     roleOptions={roleOptions}
                     selectedDepts={selectedDepts}
                     departmentOptions={departmentOptions}
-                    locations={locations}
+                    location={location}
                     rules={rules}
                     approvers={approvers}
                     expenseCategoryOptions={expenseCategoryOptions}

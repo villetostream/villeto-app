@@ -36,16 +36,21 @@ export interface ReceiptRequirementRule {
 export type PolicyRule = SpendLimitRule | ReceiptRequirementRule;
 
 export interface Policy {
-  id: string;
+  policyId: string;
   name: string;
   description?: string;
-  status: "active" | "pending" | "draft";
+  status: "active" | "pending" | "draft" | "Inactive" | string;
+  isApplicableToAllRoles?: boolean;
+  enforcementAction?: string;
+  spendLimit?: string;
+  spendLimitPeriod?: string;
   scope: PolicyScope;
   rules: PolicyRule[];
-  approvers: string[];
+  approvers?: (string | any)[];
   expenseCategories?: string[];
   createdAt?: string;
   updatedAt?: string;
+  deletedAt?: string | null;
   createdBy?: string;
   version?: number;
 }

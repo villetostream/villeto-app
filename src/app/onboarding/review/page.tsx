@@ -20,6 +20,8 @@ import { useState } from "react";
 import { useUpdateOnboardinApi } from "@/actions/pre-onboarding/update-onboarding";
 import { toast } from "sonner";
 import { useInviteBeneficialOwners } from "@/hooks/useInviteBeneficialOwners";
+import { useAxios } from "@/hooks/useAxios";
+import { API_KEYS } from "@/lib/constants/apis";
 
 export default function ReviewConfirmation() {
   const {
@@ -31,15 +33,16 @@ export default function ReviewConfirmation() {
     bankConnected,
     connectedAccounts,
     contactEmail,
+    onboardingId,
   } = useOnboardingStore();
   useHydrateOnboardingData();
 
   const selectedProducts = villetoProducts.filter((p) => p.selected);
   const router = useRouter();
+  const axios = useAxios();
 
-  const [showCongratulations, setShowCongratulations] = useState(false);
-  const finalizeOnboarding = useUpdateOnboardinApi();
-  const isSubmitting = finalizeOnboarding.isPending;
+  const { setShowCongratulations } = useOnboardingStore();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { inviteBeneficialOwners } = useInviteBeneficialOwners();
 
   // Beneficial owners are those with an ownershipPercentage set
@@ -49,25 +52,37 @@ export default function ReviewConfirmation() {
 
   const handleSubmit = async () => {
     try {
-      // Endpoint to POST /onboardings doesn't exist yet, uncomment when ready
-      // await finalizeOnboarding.mutateAsync({ email: contactEmail });
+      setIsSubmitting(true);
       
-      // Fire beneficial owner invitations after successful finalization.
-      // Non-blocking: toast.error is shown inside the hook if it fails,
-      // but CongratulationsModal still opens so the user isn't blocked.
+      // Fire beneficial owner invitations BEFORE finalization, so the token is still valid.
+      // Non-blocking internally: toast.error is shown inside the hook if it fails.
       await inviteBeneficialOwners(beneficialOwners);
+
+      try {
+        // Patch to complete
+        await axios.patch(API_KEYS.ONBOARDING.ONBOARDING_COMPLETE(onboardingId));
+      } catch (err: any) {
+        // If the backend intentionally revokes the token and returns 401 upon completion,
+        // we treat it as a success and continue to show the modal.
+        if (err?.response?.status !== 401) {
+          throw err;
+        }
+      }
+
       setShowCongratulations(true);
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message ??
           "Submission failed. Please try again."
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="space-y-8">
-      {showCongratulations && <CongratulationsModal />}
+      <CongratulationsModal />
       {/* Header */}
       <div className="text-left mb-10 ">
         <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center">
