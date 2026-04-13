@@ -356,7 +356,7 @@ function DataTable<Data extends object, Value = unknown>(
                   <TableRow
                     key={row.id}
                     className={
-                      expensesClickMode || onRowClick ? "cursor-pointer hover:bg-gray-50" : undefined
+                      expensesClickMode || onRowClick ? "cursor-pointer" : undefined
                     }
                     onClick={(e) => {
                       const target = e.target as HTMLElement;
