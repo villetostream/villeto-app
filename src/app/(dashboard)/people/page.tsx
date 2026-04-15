@@ -73,6 +73,7 @@ function People() {
         if (activeTab === "all-users") {
             setAction({
                 label: "Invite Users",
+                dataTourId: "invite-button",
                 items: [
                     {
                         label: "Invite Employees",
@@ -92,6 +93,7 @@ function People() {
         } else if (activeTab === "directory") {
             setAction({
                 label: "Upload Directory",
+                dataTourId: "upload-directory-button",
                 iconName: "upload",
                 onClick: () => {
                     sessionStorage.setItem("uploadDirReferrer", "directory");
@@ -170,6 +172,7 @@ function People() {
                             <PermissionGuard requiredPermissions={["read:users"]}>
                                 <TabsTrigger
                                     value="directory"
+                                    data-tour="directory-tab"
                                     className="data-[state=active]:bg-background rounded-md px-6"
                                 >
                                     Directory

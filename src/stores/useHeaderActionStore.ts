@@ -13,12 +13,15 @@ export interface HeaderAction {
   items?: HeaderActionItem[];
   /** Optional icon name to override the default plus circle */
   iconName?: "plus" | "upload";
+  /** Optional data-tour attribute value for the tour guide to target */
+  dataTourId?: string;
   /** Optional secondary action button shown alongside */
   secondaryAction?: {
     label: string;
     onClick?: () => void;
     items?: HeaderActionItem[];
     iconName?: "plus" | "upload";
+    dataTourId?: string;
   };
 }
 
