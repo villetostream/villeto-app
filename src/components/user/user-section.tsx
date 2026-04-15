@@ -556,7 +556,9 @@ export function UserSection() {
               headerAction.secondaryAction.items ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="h-10 px-5 rounded-full border border-primary text-primary bg-transparent hover:bg-primary/5 text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap">
+                    <button
+                      data-tour={headerAction.secondaryAction.dataTourId}
+                      className="h-10 px-5 rounded-full border border-primary text-primary bg-transparent hover:bg-primary/5 text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap">
                       {headerAction.secondaryAction.iconName === "upload" ? (
                         <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
                       ) : (
@@ -578,6 +580,7 @@ export function UserSection() {
               ) : (
                 <button
                   onClick={headerAction.secondaryAction.onClick}
+                  data-tour={headerAction.secondaryAction.dataTourId}
                   className="h-10 px-5 rounded-full border border-primary text-primary bg-transparent hover:bg-primary/5 text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   {headerAction.secondaryAction.iconName === "upload" ? (
@@ -594,7 +597,9 @@ export function UserSection() {
             {headerAction.items ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap">
+                  <button
+                    data-tour={headerAction.dataTourId}
+                    className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap">
                     {headerAction.iconName === "upload" ? (
                       <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
                     ) : (
@@ -616,6 +621,7 @@ export function UserSection() {
             ) : (
               <button
                 onClick={headerAction.onClick}
+                data-tour={headerAction.dataTourId}
                 className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap"
               >
                 {headerAction.iconName === "upload" ? (

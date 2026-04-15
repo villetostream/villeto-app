@@ -8,6 +8,7 @@ import { useAuthStore, User } from "@/stores/auth-stores";
 import { useAxios } from "@/hooks/useAxios";
 import { usePathname, useRouter } from "next/navigation";
 import DashboardModals from "@/components/dashboard/layout/DashboardModals";
+import VilletoTourGuide from "@/components/tour/VilletoTourGuide";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -96,6 +97,7 @@ export default function DashboardLayoutContent({
 
       {/* Renders dynamic onboarding/password modals if the user meets the conditions */}
       <DashboardModals />
+      <VilletoTourGuide />
     </div>
   );
 }

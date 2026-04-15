@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   PlusCircle, ShieldCheck, MoreHorizontal, Pencil, Shield, Trash2,
   Search, SlidersHorizontal, RefreshCcw, ChevronDown,
@@ -226,8 +227,8 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
   onEdit: (p: Policy) => void; onArchive: (p: Policy) => void;
 }) {
   const { data: detailData, isLoading } = useGetPolicyDetailsApi(policy?.id || null);
-  const fullPolicy = detailData?.data; // The actual backend object
-  
+  const fullPolicy = detailData?.data;
+
   const rolesApi = useGetCompanyRolesApi({ enabled: !!policy });
   const departmentsApi = useGetAllDepartmentsApi({ enabled: !!policy });
 
@@ -235,11 +236,16 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
 
   const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
 
-  // Formatting helpers
   const formatUser = (userObj: any, fallbackStr?: string) => {
     if (!userObj) return fallbackStr || "—";
     if (typeof userObj === "string") return fallbackStr || userObj;
     return `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.email || "Unknown User";
+  };
+
+  const formatUserRole = (userObj: any) => {
+    if (!userObj || typeof userObj === "string") return "";
+    const role = userObj.villetoRole?.name || userObj.role?.name || userObj.jobTitle || userObj.position || "";
+    return role.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
   };
 
   const mapTimeframe = (tf?: string) => {
@@ -254,204 +260,203 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
 
   const getScopeText = () => {
     if (!fullPolicy?.scope) return policy.appliedTo;
-    if (fullPolicy.scope.type === "all" || fullPolicy.scope.type === "all_employees") {
-      return "All Employees";
-    }
-    
+    if (fullPolicy.scope.type === "all" || fullPolicy.scope.type === "all_employees") return "All Employees";
     const deptIds = fullPolicy.scope.departments || [];
     const roleIds = fullPolicy.scope.userRoles || fullPolicy.applicableRoles || [];
-    
     const depts = deptIds.map((d: string) => departmentsApi.data?.data?.find((o: any) => String(o.departmentId) === String(d))?.departmentName || d);
     const roles = roleIds.map((r: string) => rolesApi.data?.data?.find((o: any) => String(o.roleId) === String(r))?.name?.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) || r);
-
     const listFmt = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
-    
     if (depts.length === 0 && roles.length === 0) return "Specific Employees";
-
     const rolePart = roles.length > 0 ? listFmt.format(roles) : "";
     const deptPart = depts.length > 0 ? `the ${listFmt.format(depts)} department${depts.length > 1 ? "s" : ""}` : "";
-    
     if (rolePart && deptPart) return `${rolePart} in ${deptPart}`;
     if (rolePart) return `${rolePart} across all departments`;
     if (deptPart) return `All employees in ${deptPart}`;
-    
     return "Specific Employees";
   };
 
+  const formatDate = (dateStr?: string, fallback?: string) => {
+    if (!dateStr) return fallback || "—";
+    try { return new Date(dateStr).toISOString().split("T")[0]; } catch { return fallback || "—"; }
+  };
+
+  const policyName   = fullPolicy?.name   || policy.name;
+  const policyStatus = fullPolicy?.status || policy.status;
+  const policyVersion = fullPolicy?.version || policy.version;
+  const approvers    = fullPolicy?.approvers || policy.approvers || [];
+  const createdAt    = fullPolicy?.createdAt;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-[720px] overflow-hidden flex flex-col" style={{ maxHeight: '92vh' }}>
-        
-        {/* Header */}
-        <div className="px-10 py-8 shrink-0 flex justify-between items-start border-b border-border/40">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-[22px] font-bold text-foreground">{capitalizeName(fullPolicy?.name || policy.name)}</h2>
-              {fullPolicy?.version && (
-                <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-bold uppercase tracking-wider">
-                  v{fullPolicy.version}
-                </span>
-              )}
-              <StatusBadge status={fullPolicy?.status || policy.status} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-[500px] flex flex-col"
+        style={{ maxHeight: "92vh" }}
+      >
+        {/* ── Header ── */}
+        <div className="px-6 pt-6 shrink-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg font-bold text-foreground leading-tight">
+                  {capitalizeName(policyName)}
+                </h2>
+                <StatusBadge status={policyStatus} />
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">v{policyVersion}</p>
             </div>
-            {/* <p className="text-sm text-muted-foreground">{fullPolicy?.description || "No description provided."}</p> */}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-muted/40 hover:bg-muted/70 flex items-center justify-center transition-colors shrink-0 mt-0.5"
+            >
+              <X className="w-4 h-4 text-muted-foreground" />
+            </button>
           </div>
-          <button onClick={onClose} className="w-10 h-10 rounded-full bg-muted/40 hover:bg-muted/80 flex items-center justify-center transition-all">
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
+          <div className="h-px bg-border w-full mt-5 mb-4 opacity-60" />
         </div>
 
-        {/* Body */}
-        <div className="p-10 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-          <style>{`.hide-scroll::-webkit-scrollbar{display:none}`}</style>
+        {/* ── Scrollable body ── */}
+        <div
+          className="flex-1 overflow-y-auto px-6 pb-2 space-y-3"
+          style={{ scrollbarWidth: "none" }}
+        >
+          <style>{`div::-webkit-scrollbar{display:none}`}</style>
+
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-20 text-sm text-muted-foreground gap-4">
-              <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
-              <p>Loading policy details...</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-sm text-muted-foreground">
+              <Loader2 className="w-6 h-6 animate-spin text-primary/60" />
+              <p>Loading policy details…</p>
             </div>
           ) : (
-            <div className="space-y-8">
-              
-              {/* Creator info */}
-              <div className="flex items-center gap-8 bg-muted/20 px-7 py-4 rounded-2xl border border-border/40">
-                <div>
-                  <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                     <UserCircle className="w-3.5 h-3.5" /> Created By
-                  </p>
-                  <p className="text-sm font-semibold text-foreground">{formatUser(fullPolicy?.createdBy, policy.createdBy)}</p>
-                </div>
-                <div className="w-px h-8 bg-border/60" />
-                <div>
-                  <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                     <Clock className="w-3.5 h-3.5" /> Created On
-                  </p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {fullPolicy?.createdAt ? new Date(fullPolicy.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : policy.date}
-                  </p>
+            <>
+              {/* APPLIES TO */}
+              <div className="rounded-2xl border border-border/70 p-4">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.12em] mb-2.5">
+                  Applies To
+                </p>
+                <p className="text-sm text-foreground/80 leading-relaxed">{getScopeText()}</p>
+              </div>
+
+              {/* EXPENSE CATEGORY */}
+              <div className="rounded-2xl border border-border/70 p-4">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.12em] mb-2.5">
+                  Expense Category
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(fullPolicy?.expenseCategories || []).length > 0 ? (
+                    (fullPolicy?.expenseCategories || []).map((cat: any, i: number) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 rounded-full border border-border/60 bg-muted/30 text-foreground/70 text-xs font-medium"
+                      >
+                        {cat.name || cat.category || cat}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No specific categories attached.</p>
+                  )}
                 </div>
               </div>
 
-              {/* Scope & Categories */}
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                    <Users className="w-4 h-4 text-muted-foreground" /> Applies To
-                  </h3>
-                  <div className="p-5 rounded-2xl border border-border/60 bg-white space-y-3">
-                    <div className="flex items-center justify-between">
-                       <p className="text-sm font-medium text-foreground">{getScopeText()}</p>
-                    </div>
-                    {fullPolicy?.scope?.location && (
-                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium bg-muted/30 px-2.5 py-1 w-fit rounded-lg">
-                          <Globe className="w-3.5 h-3.5" />
-                          <span>Location: {fullPolicy.scope.location}</span>
-                       </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                    <Tag className="w-4 h-4 text-muted-foreground" /> Expense Categories
-                  </h3>
-                  <div className="p-5 rounded-2xl border border-border/60 bg-white min-h-[92px]">
-                    <div className="flex flex-wrap gap-2">
-                      {(fullPolicy?.expenseCategories || []).map((cat: any, i: number) => (
-                        <span key={i} className="px-3 py-1.5 bg-primary/5 border border-primary/10 text-primary rounded-[10px] text-xs font-semibold">
-                          {cat.name || cat.category || cat}
-                        </span>
-                      ))}
-                      {!fullPolicy?.expenseCategories?.length && (
-                        <p className="text-sm text-muted-foreground italic">No specific categories attached.</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Rules */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-muted-foreground" /> Enforcement Rules
-                </h3>
-                <div className="space-y-3">
-                  {fullPolicy?.rules?.map((r: any, i: number) => {
-                    const isLimit = r.type === "spend_limit";
-                    const enforcement = r.enforcementAction === "block" ? "Hard Block" : "Soft Warning";
-                    const isBlock = r.enforcementAction === "block";
-                    return (
-                      <div key={i} className="flex items-center justify-between p-5 rounded-2xl border border-border/60 bg-white shadow-sm">
-                        <div className="flex flex-col">
-                          <p className="text-sm font-bold text-foreground">
-                            {isLimit ? "Spend Limit" : "Receipt Requirement"}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {isLimit 
-                              ? `Must not exceed ${r.currency || ''} ${Number(r.amount || 0).toLocaleString()} per ${mapTimeframe(r.timeUnit || r.time_unit || r.timeframe || fullPolicy.spendLimitPeriod)}`
-                              : (r.receiptAmountThreshold || r.threshold || r.amount > 0)
-                                ? `Required for transactions above ${r.currency || ''} ${Number(r.receiptAmountThreshold || r.amount).toLocaleString()}`
-                                : (r.receiptNeeded || !r.receiptAmountThreshold) 
-                                  ? "Required for all transactions"
-                                  : "Policy rule active"
-                            }
-                          </p>
+              {/* ENFORCEMENT RULES */}
+              <div className="rounded-2xl border border-border/70 p-4">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.12em] mb-2.5">
+                  Enforcement Rules
+                </p>
+                <div className="space-y-2">
+                  {(fullPolicy?.rules || []).length > 0 ? (
+                    fullPolicy.rules.map((r: any, i: number) => {
+                      const isLimit = r.type === "spend_limit";
+                      const isBlock = r.enforcementAction === "block";
+                      const enforcement = isBlock ? "Hard Block" : "Soft Warning";
+                      const description = isLimit
+                        ? `Must not exceed ${r.currency || "NGN"} ${Number(r.amount || 0).toLocaleString()}/${mapTimeframe(r.timeUnit || r.time_unit || r.timeframe || fullPolicy.spendLimitPeriod)}`
+                        : (r.receiptAmountThreshold || r.threshold)
+                          ? `For transactions above ${r.currency || "NGN"} ${Number(r.receiptAmountThreshold || r.threshold).toLocaleString()}`
+                          : "Required for all transactions";
+                      return (
+                        <div key={i} className="rounded-xl border border-border/60 p-3.5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-semibold text-foreground">
+                              {isLimit ? "Spend Limit" : "Receipts requirement"}
+                            </p>
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                isBlock
+                                  ? "bg-red-50 text-red-500 border border-red-100"
+                                  : "bg-amber-50 text-amber-600 border border-amber-100"
+                              }`}
+                            >
+                              {enforcement}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{description}</p>
                         </div>
-                        <span className={`px-3 py-1.5 rounded-[10px] text-[10px] font-bold uppercase tracking-wider ${isBlock ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>
-                           {enforcement}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {!fullPolicy?.rules?.length && (
-                    <div className="p-6 rounded-2xl border border-dashed border-border text-center text-sm text-muted-foreground flex items-center justify-center">
-                      No specific rules enforced for this policy.
-                    </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic text-center py-3">
+                      No enforcement rules configured.
+                    </p>
                   )}
                 </div>
               </div>
-
-              {/* Approvers */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-muted-foreground" /> Required Approvers
-                </h3>
-                <div className="flex flex-wrap gap-3">
-                  {(fullPolicy?.approvers || policy.approvers).length > 0 ? (fullPolicy?.approvers || policy.approvers).map((a: any, i: number) => (
-                    <div key={i} className="flex items-center gap-3 pr-4 pl-3 py-2 bg-white rounded-2xl border border-border/60 shadow-sm min-w-[180px]">
-                      <div className="w-8 h-8 rounded-[10px] bg-muted/40 flex items-center justify-center shrink-0">
-                        <UserCircle className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-bold text-foreground truncate">{formatUser(a)}</span>
-                        {(a.villetoRole?.name || a.role?.name || a.jobTitle || a.position) && (
-                           <span className="text-[10px] text-muted-foreground leading-snug truncate">
-                             {(a.villetoRole?.name || a.role?.name || a.jobTitle || a.position).replace(/_/g, " ")}
-                           </span>
-                        )}
-                      </div>
-                    </div>
-                  )) : (
-                    <p className="text-sm text-muted-foreground italic bg-muted/20 px-5 py-3 rounded-xl">No manual approvers needed.</p>
-                  )}
-                </div>
-              </div>
-
-            </div>
+            </>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-10 py-5 bg-muted/10 border-t border-border/40 flex items-center justify-between shrink-0">
-          <button onClick={() => { onArchive(policy); onClose(); }}
-            className="text-sm font-bold text-muted-foreground hover:text-destructive transition-colors px-2 py-1">
-            Archive Policy
+        {/* ── Created / Approved by ── */}
+        {!isLoading && (
+          <div className="px-6 pt-3 pb-4 shrink-0">
+            <div className="flex justify-between gap-4">
+              {/* Created by */}
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1.5">Created by</p>
+                <p className="text-sm font-semibold text-foreground leading-tight">
+                  {formatUser(fullPolicy?.createdBy, policy.createdBy)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">{formatDate(createdAt, policy.date)}</p>
+              </div>
+              {/* Approved by */}
+              {approvers.length > 0 && (
+                <div className="text-right">
+                  <p className="text-[11px] text-muted-foreground mb-1.5">Approved by</p>
+                  <div className="space-y-2">
+                    {approvers.map((a: any, i: number) => {
+                      const roleLabel = formatUserRole(a);
+                      return (
+                        <div key={i}>
+                          <p className="text-sm font-semibold text-foreground leading-tight">
+                            {formatUser(a)}
+                            {roleLabel && (
+                              <span className="text-muted-foreground font-normal"> ({roleLabel})</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{formatDate(createdAt, policy.date)}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Footer buttons ── */}
+        <div className="px-6 pb-6 pt-1 shrink-0 flex gap-3">
+          <button
+            onClick={() => { onArchive(policy); onClose(); }}
+            className="flex-1 h-11 rounded-full border border-primary text-primary text-sm font-semibold hover:bg-primary/5 transition-colors"
+          >
+            Move to Archive
           </button>
-          <button onClick={() => { onEdit(policy); onClose(); }}
-            className="h-11 px-9 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:opacity-90 transition-opacity shadow-sm shadow-primary/20">
-            Edit Policy
+          <button
+            onClick={() => { onEdit(policy); onClose(); }}
+            className="flex-1 h-11 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+          >
+            Edit
           </button>
         </div>
-
       </div>
     </div>
   );
@@ -530,7 +535,16 @@ function ReviewPolicyModal({ policy, onClose, onApprove, onReject }: {
 
 export default function PoliciesPage() {
   const axios = useAxios();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab]           = useState<"policies" | "expense" | "archived">("policies");
+  
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "expense" || tab === "policies" || tab === "archived") {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
   const [isCreatePolicyOpen, setIsCreatePolicyOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen]   = useState(false);
   const [detailPolicy, setDetailPolicy]     = useState<Policy | null>(null);
@@ -630,9 +644,9 @@ export default function PoliciesPage() {
 
   useEffect(() => {
     if (activeTab === "policies") {
-      setAction({ label: "New Policy", onClick: () => setIsCreatePolicyOpen(true) });
+      setAction({ label: "New Policy", dataTourId: "new-policy-button", onClick: () => setIsCreatePolicyOpen(true) });
     } else if (activeTab === "expense") {
-      setAction({ label: "New Expense Category", onClick: () => setIsAddCategoryOpen(true) });
+      setAction({ label: "New Expense Category", dataTourId: "new-expense-category-button", onClick: () => setIsAddCategoryOpen(true) });
     } else {
       // Archived tab — no button
       clearAction();
@@ -901,17 +915,32 @@ export default function PoliciesPage() {
         <div className="flex items-center justify-between px-6 py-5 shrink-0 flex-wrap gap-3">
           {/* Pill tabs */}
           <div className="flex bg-muted rounded-xl p-1">
-            {(["policies", "expense", "archived"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => { setActiveTab(tab); setSearch(""); }}
-                className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                  activeTab === tab ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tab === "policies" ? "Policies" : tab === "expense" ? "Expense Category" : "Archived"}
-              </button>
-            ))}
+            <button
+              data-tour="policies-tab"
+              onClick={() => { setActiveTab("policies"); setSearch(""); }}
+              className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+                activeTab === "policies" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Policies
+            </button>
+            <button
+              data-tour="expense-category-tab"
+              onClick={() => { setActiveTab("expense"); setSearch(""); }}
+              className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+                activeTab === "expense" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Expense Category
+            </button>
+            <button
+              onClick={() => { setActiveTab("archived"); setSearch(""); }}
+              className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+                activeTab === "archived" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Archived
+            </button>
           </div>
 
           {/* Search + Filter + Refresh */}
