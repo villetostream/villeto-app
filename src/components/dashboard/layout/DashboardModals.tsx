@@ -62,12 +62,14 @@ export default function DashboardModals() {
 
   // ── Show password modal when needed ───────────────────────
   useEffect(() => {
-    if (hasCompletedFlow) return;
-    if (
-      user &&
-      ((isFirstLogin && isCompanyFounder) || mustChangePassword)
-    ) {
+    if (hasCompletedFlow || !user) return;
+    if ((isFirstLogin && isCompanyFounder) || mustChangePassword) {
       setShowPasswordModal(true);
+    } else {
+      // If no password change is needed, unblock the setup guide
+      setHasCompletedFlow(true);
+      setSetupGuideReady(true);
+      if (flowGuardKey) sessionStorage.setItem(flowGuardKey, "1");
     }
   }, [
     user,
@@ -75,6 +77,8 @@ export default function DashboardModals() {
     isCompanyFounder,
     mustChangePassword,
     hasCompletedFlow,
+    flowGuardKey,
+    setSetupGuideReady,
   ]);
 
   const markFlowComplete = () => {
