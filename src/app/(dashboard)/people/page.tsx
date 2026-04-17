@@ -61,12 +61,23 @@ function People() {
     // Register dynamic header CTA button
     const { setAction, clearAction } = useHeaderActionStore();
 
-    // Update URL when activeTab changes
+    // Sync external URL changes into state (e.g. from Setup Guide router.push)
     useEffect(() => {
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("tab", activeTab);
-        router.replace(`?${params.toString()}`, { scroll: false });
-    }, [activeTab]);
+        const tabFromUrl = searchParams.get("tab");
+        if (tabFromUrl && tabFromUrl !== activeTab) {
+            setActiveTab(tabFromUrl);
+        }
+    }, [searchParams, activeTab]);
+
+    // Update URL when activeTab changes internally
+    useEffect(() => {
+        const currentTab = searchParams.get("tab");
+        if (activeTab !== currentTab) {
+            const params = new URLSearchParams(searchParams.toString());
+            params.set("tab", activeTab);
+            router.replace(`?${params.toString()}`, { scroll: false });
+        }
+    }, [activeTab, router, searchParams]);
 
     // Register the correct header button per tab
     useEffect(() => {
