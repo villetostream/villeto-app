@@ -77,6 +77,7 @@ interface VilletoState {
     updateFinancialPulse: (data: Partial<FinancialPulse>) => void;
     toggleProduct: (productId: string) => void;
     submitApplication: () => void;
+    setShowCongratulations: (show: boolean) => void;
     closeCongratulations: () => void;
     setMonthlySpend: (spend: number, rangeLabel?: string) => void;
     setSpendRange: (range: string) => void;
@@ -187,6 +188,7 @@ export const useOnboardingStore = create<VilletoState & OnboardingState>()(
                 clearOnboardingCookies();
             },
 
+            setShowCongratulations: (show: boolean) => set({ showCongratulations: show }),
             closeCongratulations: () => set({ showCongratulations: false }),
             
             reset: () => { 
