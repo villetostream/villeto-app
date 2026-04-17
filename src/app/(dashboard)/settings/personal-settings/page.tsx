@@ -12,6 +12,7 @@ import { API_KEYS } from "@/lib/constants/apis";
 import { Roles } from "@/core/permissions/roles";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
+import { notifySetupGuide } from "@/lib/setupGuideEvents";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -87,6 +88,7 @@ function MyProfileTab() {
         city: form.city,
       });
       toast.success("Profile updated successfully");
+      notifySetupGuide("account-details");
       setIsEditing(false);
     } catch (err) {
       logger.error("Profile update error:", err);
@@ -136,7 +138,7 @@ function MyProfileTab() {
   );
 
   return (
-    <div className="bg-white rounded-xl border border-border p-6">
+    <div className="bg-white rounded-xl border border-border p-6" data-tour="account-details-section">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-base font-semibold text-foreground">My Profile Details</h2>
         {!isEditing ? (

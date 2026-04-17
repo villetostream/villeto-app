@@ -70,6 +70,7 @@ export default function EmployeeInviteFileUpload({
             </div>
             <div
                 {...getRootProps()}
+                data-tour="csv-upload-zone"
                 className={`
                     border-2 border-dashed rounded-lg py-6 px-6 text-center transition-all duration-200 ease-in-out
                     flex flex-col items-center justify-center gap-3

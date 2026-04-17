@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { logger } from "@/lib/logger";
+import { notifySetupGuide } from "@/lib/setupGuideEvents";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -384,7 +385,8 @@ export default function NewReportPage() {
 
       await axios.post(API_KEYS.EXPENSE.REPORTS, { reportTitle, status, expenses: expensesPayload });
 
-      toast.success(status === "draft" ? "Report saved as draft" : "Report submitted successfully");
+      toast.success(status === "draft" ? "Report saved as draft" : "Report submitted successfully!");
+      if (status === "pending") notifySetupGuide("report");
       queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES] });
 
       setTimeout(() => {

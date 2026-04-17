@@ -36,6 +36,18 @@ import { useTourStore } from "@/stores/useTourStore";
 
 type ArrowSide = "top" | "bottom" | "left" | "right" | "none";
 
+/** Overrides for spotlight/title/description when the user is on a sub-path */
+type StepSubState = {
+  /** Returns true when this sub-state should activate */
+  pathMatch: (pathname: string, sp: URLSearchParams) => boolean;
+  targetSelector?: string;
+  arrowSide?: ArrowSide;
+  title?: string;
+  description?: string;
+  allowInteraction?: boolean;
+  disableSpotlight?: boolean;
+};
+
 type SetupStep = {
   id: string;
   navigateTo: string;
@@ -48,6 +60,12 @@ type SetupStep = {
   description: string;
   /** Event key that silently marks this step done (dispatched after action) */
   completionEvent?: string;
+  /** Extra paths where the guide stays without redirecting the user back */
+  allowedSubPaths?: string[];
+  /** Alternate spotlight / title / description per sub-path of the upload flow */
+  subStates?: StepSubState[];
+  allowInteraction?: boolean;
+  disableSpotlight?: boolean;
 };
 
 // ─── Step definitions ─────────────────────────────────────────
@@ -62,8 +80,36 @@ const SETUP_STEPS: SetupStep[] = [
     arrowSide: "top",
     title: "Upload Employee Directory",
     description:
-      "Upload your employee directory (Excel/CSV) so you can assign policies and approval workflows across your organisation.",
+      "Let's get your team into Villeto. Click the \"Upload Directory\" button highlighted above to start importing your employee list.",
     completionEvent: "villeto:directory-uploaded",
+    // Stay in the upload flow — don't redirect back to /people
+    allowedSubPaths: ["/people/invite/employees"],
+    subStates: [
+      {
+        // File drop-zone page (step=upload or no step param)
+        pathMatch: (pn, sp) =>
+          pn.startsWith("/people/invite/employees") &&
+          (sp.get("step") === "upload" || !sp.get("step")),
+        targetSelector: '[data-tour="csv-upload-zone"]',
+        arrowSide: "top",
+        title: "Drop Your CSV File Here",
+        description:
+          "Drag your CSV or Excel file into the upload area — or click \"Browse File\" to pick it from your computer.\n\nYour file should include columns like first_name, last_name, email, and department_name.",
+      },
+      {
+        // Preview page (step=preview) — confirm & save
+        pathMatch: (pn, sp) =>
+          pn.startsWith("/people/invite/employees") &&
+          sp.get("step") === "preview",
+        targetSelector: '[data-tour="save-to-directory-button"]',
+        arrowSide: "top",
+        title: "Review & Save to Directory",
+        description:
+          "Your employees are loaded! Give them a quick look — remove any mistakes — then click \"Save to Directory\" to add them to your workspace.",
+        allowInteraction: true,
+        disableSpotlight: true,
+      },
+    ],
   },
   {
     id: "invitations",
@@ -290,9 +336,10 @@ function SpotlightOverlay({
   );
 }
 
-// ─── Animated pointer arrow ───────────────────────────────────
-// A bouncing arrow drawn on top of the spotlight to make it
-// unmistakably clear which button the user should click.
+// ─── Animated pointer arrow ─────────────────────────────────
+// Bounces toward the target from whichever side has enough space.
+// Auto-flips: e.g. a "top" step whose button is in the page header is
+// moved below the button automatically so it stays on screen.
 
 function PointerArrow({
   targetSelector,
@@ -301,32 +348,82 @@ function PointerArrow({
   targetSelector?: string;
   side?: ArrowSide;
 }) {
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [pos, setPos] = useState<{
+    x: number;
+    y: number;
+    effectiveSide: ArrowSide;
+  } | null>(null);
   const rafRef = useRef<number | null>(null);
 
   const compute = useCallback(() => {
-    if (!targetSelector) { setPos(null); return; }
+    if (!targetSelector || side === "none") { setPos(null); return; }
     const rect = measureEl(targetSelector);
     if (!rect) { setPos(null); return; }
 
-    // Position the arrow TIP just outside the spotlight border
-    const TP = 8; // must match SpotlightOverlay's TP
+    const TP  = 8;   // matches SpotlightOverlay padding
+    const GAP = 30;  // distance from target edge to arrow centre
+    const MIN = 50;  // min px from viewport edge for arrow to be visible
+    const vw  = window.innerWidth;
+    const vh  = window.innerHeight;
+
+    let x = 0, y = 0, effectiveSide: ArrowSide = side;
+
     switch (side) {
-      case "top":
-        setPos({ x: (rect.left + rect.right) / 2, y: rect.top - TP - 36 });
+      case "top": {
+        const yAbove = rect.top - TP - GAP;
+        if (yAbove > MIN) {
+          y = yAbove;
+          effectiveSide = "top";
+        } else {
+          // button too close to viewport top — flip below
+          y = rect.bottom + TP + GAP;
+          effectiveSide = "bottom";
+        }
+        x = Math.min(Math.max((rect.left + rect.right) / 2, MIN), vw - MIN);
         break;
-      case "bottom":
-        setPos({ x: (rect.left + rect.right) / 2, y: rect.bottom + TP + 36 });
+      }
+      case "bottom": {
+        const yBelow = rect.bottom + TP + GAP;
+        if (yBelow < vh - MIN) {
+          y = yBelow;
+          effectiveSide = "bottom";
+        } else {
+          y = rect.top - TP - GAP;
+          effectiveSide = "top";
+        }
+        x = Math.min(Math.max((rect.left + rect.right) / 2, MIN), vw - MIN);
         break;
-      case "left":
-        setPos({ x: rect.left - TP - 36, y: (rect.top + rect.bottom) / 2 });
+      }
+      case "left": {
+        const xLeft = rect.left - TP - GAP;
+        if (xLeft > MIN) {
+          x = xLeft;
+          effectiveSide = "left";
+        } else {
+          x = rect.right + TP + GAP;
+          effectiveSide = "right";
+        }
+        y = Math.min(Math.max((rect.top + rect.bottom) / 2, MIN), vh - MIN);
         break;
-      case "right":
-        setPos({ x: rect.right + TP + 36, y: (rect.top + rect.bottom) / 2 });
+      }
+      case "right": {
+        const xRight = rect.right + TP + GAP;
+        if (xRight < vw - MIN) {
+          x = xRight;
+          effectiveSide = "right";
+        } else {
+          x = rect.left - TP - GAP;
+          effectiveSide = "left";
+        }
+        y = Math.min(Math.max((rect.top + rect.bottom) / 2, MIN), vh - MIN);
         break;
+      }
       default:
         setPos(null);
+        return;
     }
+
+    setPos({ x, y, effectiveSide });
   }, [targetSelector, side]);
 
   useEffect(() => {
@@ -341,17 +438,25 @@ function PointerArrow({
 
   if (!pos) return null;
 
-  // SVG arrow pointing TOWARD the target
-  // For "top" side: arrow points downward ↓
-  const arrowPath = (s: ArrowSide) => {
+  // Arrow tip points TOWARD the target.
+  // "top"   = arrow is above target   → tip faces ↓ (down,  larger y)
+  // "bottom" = arrow is below target  → tip faces ↑ (up,    smaller y)
+  // "left"   = arrow is left of target → tip faces → (right, larger x)
+  // "right"  = arrow is right of target→ tip faces ← (left,  smaller x)
+  const arrowPath = (s: ArrowSide): string => {
     switch (s) {
-      case "top":    return "M0,-12 L10,12 L0,6 L-10,12 Z"; // ↓
-      case "bottom": return "M0,12 L10,-12 L0,-6 L-10,-12 Z"; // ↑
-      case "left":   return "M-12,0 L12,10 L6,0 L12,-10 Z"; // →
-      case "right":  return "M12,0 L-12,10 L-6,0 L-12,-10 Z"; // ←
+      case "top":    return "M0,14 L-11,-9 L0,-4 L11,-9 Z"; // ↓ tip at bottom
+      case "bottom": return "M0,-14 L-11,9 L0,4 L11,9 Z";  // ↑ tip at top
+      case "left":   return "M14,0 L-9,-11 L-4,0 L-9,11 Z"; // → tip at right
+      case "right":  return "M-14,0 L9,-11 L4,0 L9,11 Z";   // ← tip at left
       default:       return "";
     }
   };
+
+  // Bounce toward the target
+  const animName = `va-${pos.effectiveSide}`;
+  const dx = pos.effectiveSide === "top" || pos.effectiveSide === "bottom" ? 0 : 8;
+  const dy = pos.effectiveSide === "top" ? 6 : pos.effectiveSide === "bottom" ? -6 : 0;
 
   return (
     <svg
@@ -361,35 +466,99 @@ function PointerArrow({
         inset: 0,
         width: "100%",
         height: "100%",
-        zIndex: 9995,
+        zIndex: 9996,
         pointerEvents: "none",
         overflow: "visible",
       }}
     >
       <style>{`
-        @keyframes villeto-bounce-down  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(8px)} }
-        @keyframes villeto-bounce-up    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-        @keyframes villeto-bounce-right { 0%,100%{transform:translateX(0)} 50%{transform:translateX(8px)} }
-        @keyframes villeto-bounce-left  { 0%,100%{transform:translateX(0)} 50%{transform:translateX(-8px)} }
-        .va-top    { animation: villeto-bounce-down  1s ease-in-out infinite; transform-origin: ${pos.x}px ${pos.y}px; }
-        .va-bottom { animation: villeto-bounce-up    1s ease-in-out infinite; transform-origin: ${pos.x}px ${pos.y}px; }
-        .va-left   { animation: villeto-bounce-right 1s ease-in-out infinite; transform-origin: ${pos.x}px ${pos.y}px; }
-        .va-right  { animation: villeto-bounce-left  1s ease-in-out infinite; transform-origin: ${pos.x}px ${pos.y}px; }
+        @keyframes ${animName}-kf {
+          0%,100% { transform: translate(${pos.x}px, ${pos.y}px); }
+          50%      { transform: translate(${pos.x + (pos.effectiveSide === "left" ? 6 : pos.effectiveSide === "right" ? -6 : 0)}px,
+                                          ${pos.y + dy}px); }
+        }
+        .${animName}-arrow { animation: ${animName}-kf 1s ease-in-out infinite; }
       `}</style>
-      <g
-        className={`va-${side}`}
-        transform={`translate(${pos.x}, ${pos.y})`}
-      >
+      <g className={`${animName}-arrow`}>
         <path
-          d={arrowPath(side)}
+          d={arrowPath(pos.effectiveSide)}
           fill="#0d9488"
           stroke="white"
           strokeWidth="1.5"
           strokeLinejoin="round"
-          style={{ filter: "drop-shadow(0 2px 6px rgba(13,148,136,0.6))" }}
+          style={{ filter: "drop-shadow(0 2px 8px rgba(13,148,136,0.7))" }}
         />
       </g>
     </svg>
+  );
+}
+
+// ─── Four-panel click blocker ─────────────────────────────────
+// Surrounds the spotlighted target with four fixed panels (top / bottom /
+// left strip / right strip) that absorb stray clicks while leaving the
+// target rectangle itself completely unobstructed and fully interactive.
+// This makes every guide step fluid: the action button is always clickable.
+
+function FourPanelBlocker({ targetSelector }: { targetSelector?: string }) {
+  const [spot, setSpot] = useState<SpotRect | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const PAD = 8; // same padding as SpotlightOverlay
+
+  const measure = useCallback(() => {
+    setSpot(targetSelector ? measureEl(targetSelector) : null);
+  }, [targetSelector]);
+
+  useEffect(() => {
+    measure();
+    rafRef.current = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", measure);
+    };
+  }, [measure]);
+
+  const block = (e: React.MouseEvent) => e.stopPropagation();
+
+  const base: React.CSSProperties = {
+    position: "fixed",
+    zIndex: 9989,
+    pointerEvents: "all",
+    cursor: "default",
+  };
+
+  // No target selector → fall back to a single full-page blocker
+  if (!spot) {
+    return (
+      <div
+        aria-hidden
+        style={{ ...base, inset: 0 }}
+        onClick={block}
+        onMouseDown={block}
+      />
+    );
+  }
+
+  const t = Math.max(0, spot.top    - PAD); // top of clear zone
+  const b =            spot.bottom  + PAD;  // bottom of clear zone
+  const l = Math.max(0, spot.left   - PAD); // left of clear zone
+  const r =            spot.right   + PAD;  // right of clear zone
+
+  return (
+    <>
+      {/* Strip ABOVE the target */}
+      <div aria-hidden style={{ ...base, top: 0,    left: 0, right: 0, height: t }}
+           onClick={block} onMouseDown={block} />
+      {/* Strip BELOW the target */}
+      <div aria-hidden style={{ ...base, top: b,    left: 0, right: 0, bottom: 0 }}
+           onClick={block} onMouseDown={block} />
+      {/* Strip LEFT of the target (same vertical band as target) */}
+      <div aria-hidden style={{ ...base, top: t,    left: 0, width: l, height: b - t }}
+           onClick={block} onMouseDown={block} />
+      {/* Strip RIGHT of the target (same vertical band as target) */}
+      <div aria-hidden style={{ ...base, top: t,    left: r, right: 0, height: b - t }}
+           onClick={block} onMouseDown={block} />
+    </>
   );
 }
 
@@ -462,24 +631,114 @@ function SetupProgressWidget({
   current,
   onResume,
   isSkipped,
+  isActive,
 }: {
   steps: SetupStep[];
   completedIds: Set<string>;
   current: number;
   onResume: () => void;
   isSkipped: boolean;
+  /** True when the guide overlay is currently open and running */
+  isActive: boolean;
 }) {
   const done  = steps.filter((s) => completedIds.has(s.id)).length;
   const total = steps.length;
   const pct   = Math.round((done / total) * 100);
 
+  // ── INACTIVE STATE: compact pill ─────────────────────────────
+  // When the guide is not running (skipped, paused, or fresh re-login)
+  // show a small floating pill that sits just past the sidebar so it
+  // never blocks sidebar navigation or page action buttons.
+  if (!isActive) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onResume}
+        onKeyDown={(e) => e.key === "Enter" && onResume()}
+        style={{
+          position: "fixed",
+          bottom: 24,
+          // Sit just outside the sidebar — uses the shadcn CSS variable with px fallback
+          left: "calc(var(--sidebar-width, 240px) + 16px)",
+          zIndex: 200,
+          background: "white",
+          borderRadius: 99,
+          padding: "10px 12px 10px 16px",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06)",
+          border: "1px solid rgba(0,0,0,0.08)",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          cursor: "pointer",
+          transition: "box-shadow 0.2s, transform 0.15s",
+          userSelect: "none",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 24px rgba(13,148,136,0.18), 0 2px 6px rgba(0,0,0,0.08)";
+          (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06)";
+          (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+        }}
+      >
+        {/* Progress info */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 130 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Workspace Setup</span>
+            <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 8 }}>{done}/{total}</span>
+          </div>
+          <div style={{ height: 4, borderRadius: 99, background: "#e5f9f7", overflow: "hidden" }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${pct}%`,
+                background: "linear-gradient(90deg,#2dd4bf,#0d9488)",
+                borderRadius: 99,
+                transition: "width 0.5s ease",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Continue button */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onResume(); }}
+          style={{
+            flexShrink: 0,
+            height: 34,
+            borderRadius: 99,
+            border: "none",
+            background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)",
+            color: "white",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            padding: "0 14px",
+            boxShadow: "0 3px 10px rgba(13,148,136,0.35)",
+            whiteSpace: "nowrap",
+            transition: "opacity 0.15s",
+          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = "0.88")}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}
+        >
+          Continue Setup →
+        </button>
+      </div>
+    );
+  }
+
+  // ── ACTIVE STATE: full checklist widget ───────────────────────
+  // Shown when the guide overlay is running — sits at bottom-left
+  // above the overlay (z-index 9999) so the user can track progress.
   return (
     <div
       style={{
         position: "fixed",
         bottom: 24,
-        right: 24,
-        zIndex: isSkipped ? 200 : 9999,
+        left: 24,
+        zIndex: 9999,
         background: "white",
         borderRadius: 16,
         padding: "18px 22px",
@@ -512,10 +771,10 @@ function SetupProgressWidget({
       </div>
 
       {/* Checklist */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: isSkipped ? 14 : 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {steps.map((s, i) => {
-          const isDone    = completedIds.has(s.id);
-          const isActive  = !isSkipped && i === current && !isDone;
+          const isDone      = completedIds.has(s.id);
+          const isStepActive = i === current && !isDone;
           return (
             <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 9 }}>
               <div
@@ -523,29 +782,29 @@ function SetupProgressWidget({
                   width: 17,
                   height: 17,
                   borderRadius: "50%",
-                  border: `2px solid ${isDone ? "#0d9488" : isActive ? "#0d9488" : "#d1d5db"}`,
+                  border: `2px solid ${isDone ? "#0d9488" : isStepActive ? "#0d9488" : "#d1d5db"}`,
                   background: isDone ? "#0d9488" : "white",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
                   transition: "all 0.3s ease",
-                  boxShadow: isActive ? "0 0 0 3px rgba(13,148,136,0.15)" : "none",
+                  boxShadow: isStepActive ? "0 0 0 3px rgba(13,148,136,0.15)" : "none",
                 }}
               >
                 {isDone ? (
                   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
                     <path d="M1 4l2 2L7 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                ) : isActive ? (
+                ) : isStepActive ? (
                   <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#0d9488" }} />
                 ) : null}
               </div>
               <span
                 style={{
                   fontSize: 12,
-                  color: isDone ? "#9ca3af" : isActive ? "#0d9488" : "#374151",
-                  fontWeight: isDone ? 400 : isActive ? 600 : 500,
+                  color: isDone ? "#9ca3af" : isStepActive ? "#0d9488" : "#374151",
+                  fontWeight: isDone ? 400 : isStepActive ? 600 : 500,
                   textDecoration: isDone ? "line-through" : "none",
                 }}
               >
@@ -555,27 +814,6 @@ function SetupProgressWidget({
           );
         })}
       </div>
-
-      {/* Resume button – only shown when guide is skipped */}
-      {isSkipped && (
-        <button
-          onClick={onResume}
-          style={{
-            width: "100%",
-            height: 38,
-            borderRadius: 9,
-            border: "none",
-            background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)",
-            color: "white",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-            boxShadow: "0 4px 12px rgba(13,148,136,0.3)",
-          }}
-        >
-          Continue Setup →
-        </button>
-      )}
     </div>
   );
 }
@@ -802,7 +1040,7 @@ function SetupCard({
                 <path d="M8 6v4M8 11.5v.5" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
               <p style={{ fontSize: 12, color: "#92400e", lineHeight: 1.5, margin: 0 }}>
-                Complete this action first — the arrow above shows exactly which button to click.
+                Follow the arrow — it points to the exact button you need to click to complete this step.
               </p>
             </div>
           )}
@@ -933,13 +1171,13 @@ export default function VilletoSetupGuide() {
     if (!userId) return;
     const restored = new Set<string>();
     SETUP_STEPS.forEach((s) => {
-      if (sessionStorage.getItem(STEP_DONE_KEY(userId, s.id)) === "1")
+      if (localStorage.getItem(STEP_DONE_KEY(userId, s.id)) === "1")
         restored.add(s.id);
     });
     setCompletedIds(restored);
 
     // If user already finished all steps before this session, skip entirely
-    if (completedKey && sessionStorage.getItem(completedKey) === "1") {
+    if (completedKey && localStorage.getItem(completedKey) === "1") {
       setVisible(false);
       return;
     }
@@ -949,8 +1187,8 @@ export default function VilletoSetupGuide() {
     if (firstIncomplete === -1) return; // all done
     setStepIndex(firstIncomplete);
 
-    // Check if previously dismissed (skipped)
-    if (dismissedKey && sessionStorage.getItem(dismissedKey) === "1") {
+    // If previously dismissed, surface the widget so the user sees "Continue Setup"
+    if (dismissedKey && localStorage.getItem(dismissedKey) === "1") {
       setIsSkipped(true);
     }
   }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -958,8 +1196,8 @@ export default function VilletoSetupGuide() {
   // ── Start guide after password modal ──────────────────────
   useEffect(() => {
     if (!isEligible || !setupGuideReady) return;
-    if (dismissedKey && sessionStorage.getItem(dismissedKey) === "1") return;
-    if (completedKey && sessionStorage.getItem(completedKey) === "1") return;
+    if (dismissedKey && localStorage.getItem(dismissedKey) === "1") return;
+    if (completedKey && localStorage.getItem(completedKey) === "1") return;
 
     const t = setTimeout(() => {
       setVisible(true);
@@ -986,7 +1224,16 @@ export default function VilletoSetupGuide() {
     const targetTab = tabMatch ? tabMatch[1] : null;
     const currTab   = searchParams.get("tab");
 
-    if (pathname !== step.navigateTo || (targetTab && currTab !== targetTab)) {
+    // If the user is on an allowed sub-path for this step (e.g. the CSV
+    // upload flow), don't redirect them back — just update the spotlight.
+    const isOnAllowedSubPath = step.allowedSubPaths?.some((p) =>
+      pathname.startsWith(p)
+    ) ?? false;
+
+    if (
+      !isOnAllowedSubPath &&
+      (pathname !== step.navigateTo || (targetTab && currTab !== targetTab))
+    ) {
       router.push(targetUrl);
       return;
     }
@@ -1006,12 +1253,12 @@ export default function VilletoSetupGuide() {
         if (prev.has(stepId)) return prev;
         const next = new Set(prev);
         next.add(stepId);
-        if (userId) sessionStorage.setItem(STEP_DONE_KEY(userId, stepId), "1");
+        if (userId) localStorage.setItem(STEP_DONE_KEY(userId, stepId), "1");
 
         // Check if all done
         const allDone = SETUP_STEPS.every((s) => next.has(s.id));
         if (allDone) {
-          if (completedKey) sessionStorage.setItem(completedKey, "1");
+          if (completedKey) localStorage.setItem(completedKey, "1");
           setIsSkipped(false);
           setVisible(true);
           setTimeout(() => setShowDoneModal(true), 400);
@@ -1054,13 +1301,13 @@ export default function VilletoSetupGuide() {
     setCardVisible(false);
     setTimeout(() => {
       setIsSkipped(true);
-      if (dismissedKey) sessionStorage.setItem(dismissedKey, "1");
+      if (dismissedKey) localStorage.setItem(dismissedKey, "1");
     }, 300);
   }, [dismissedKey]);
 
   const resumeGuide = useCallback(() => {
     setIsSkipped(false);
-    if (dismissedKey) sessionStorage.removeItem(dismissedKey);
+    if (dismissedKey) localStorage.removeItem(dismissedKey);
     setVisible(true);
     requestAnimationFrame(() => setCardVisible(true));
   }, [dismissedKey]);
@@ -1076,11 +1323,48 @@ export default function VilletoSetupGuide() {
     return () => window.removeEventListener("keydown", onKey);
   }, [visible, isSkipped, skipGuide]);
 
+  // ── Active sub-state (e.g. the CSV upload sub-pages) ─────
+  // Detect which sub-state of the current step is active based on the URL,
+  // then merge its overrides into a derived step object.
+  const activeSubState = step?.subStates?.find((ss) =>
+    ss.pathMatch(pathname, new URLSearchParams(searchParams.toString()))
+  );
+
+  const activeStep: SetupStep | undefined = step
+    ? activeSubState
+      ? {
+          ...step,
+          targetSelector: activeSubState.targetSelector ?? step.targetSelector,
+          arrowSide:      activeSubState.arrowSide      ?? step.arrowSide,
+          title:          activeSubState.title          ?? step.title,
+          description:    activeSubState.description   ?? step.description,
+          allowInteraction: activeSubState.allowInteraction ?? step.allowInteraction,
+          disableSpotlight: activeSubState.disableSpotlight ?? step.disableSpotlight,
+        }
+      : step
+    : undefined;
+
   // ── Tooltip position ──────────────────────────────────────
   const pos = useTooltipPosition(
-    !isSkipped ? step?.targetSelector : undefined,
-    !isSkipped ? (step?.arrowSide ?? "none") : "none"
+    !isSkipped ? activeStep?.targetSelector : undefined,
+    !isSkipped ? (activeStep?.arrowSide ?? "none") : "none"
   );
+
+  // ── Scroll lock ─────────────────────────────────────────────
+  useEffect(() => {
+    const mainEl = document.querySelector('main');
+    if (visible && !isSkipped && activeStep && !activeStep.allowInteraction) {
+      document.body.style.overflow = "hidden";
+      if (mainEl) mainEl.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+      if (mainEl) mainEl.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+      if (mainEl) mainEl.style.overflow = "";
+    };
+  }, [visible, isSkipped, activeStep?.allowInteraction]);
 
   // ── Completion modal close ────────────────────────────────
   const handleDoneClose = useCallback(() => {
@@ -1095,7 +1379,9 @@ export default function VilletoSetupGuide() {
   const allDone = SETUP_STEPS.every((s) => completedIds.has(s.id));
   if (allDone && !showDoneModal) return null;
 
-  const showProgress = visible || isSkipped;
+  // Show the progress widget any time the guide is incomplete —
+  // visible (active), skipped, or just re-opened after a new login.
+  const showProgress = !allDone;
 
   return (
     <SetupGuideContext.Provider value={{ markStepDone }}>
@@ -1110,44 +1396,47 @@ export default function VilletoSetupGuide() {
           current={stepIndex}
           onResume={resumeGuide}
           isSkipped={isSkipped}
+          isActive={visible && !isSkipped}
         />
       )}
 
       {/* Only render overlay + card when guide is open (not skipped) */}
-      {visible && !isSkipped && step && (
+      {visible && !isSkipped && activeStep && (
         <>
-          {/* Click-blocking layer */}
-          <div
-            aria-hidden
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 9989,
-              pointerEvents: "all",
-              cursor: "default",
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-          />
+          {/* Global UI freeze to prevent background scroll drifting */}
+          {!activeStep.allowInteraction && (
+            <style>{`
+              body, main, .overflow-y-auto, .overflow-auto, .overflow-x-auto {
+                overflow: hidden !important;
+              }
+            `}</style>
+          )}
+
+          {/* Four-panel click blocker — leaves the target button open and clickable */}
+          {!activeStep.allowInteraction && (
+            <FourPanelBlocker targetSelector={activeStep.targetSelector} />
+          )}
 
           {/* SVG spotlight overlay */}
-          <SpotlightOverlay
-            sidebarHref={step.sidebarHref}
-            targetSelector={step.targetSelector}
-            visible={cardVisible}
-          />
+          {!activeStep.disableSpotlight && (
+            <SpotlightOverlay
+              sidebarHref={activeStep.sidebarHref}
+              targetSelector={activeStep.targetSelector}
+              visible={cardVisible}
+            />
+          )}
 
           {/* Bouncing pointer arrow */}
-          {step.targetSelector && step.arrowSide && step.arrowSide !== "none" && (
+          {activeStep.targetSelector && activeStep.arrowSide && activeStep.arrowSide !== "none" && (
             <PointerArrow
-              targetSelector={step.targetSelector}
-              side={step.arrowSide}
+              targetSelector={activeStep.targetSelector}
+              side={activeStep.arrowSide}
             />
           )}
 
           {/* Step card */}
           <SetupCard
-            step={step}
+            step={activeStep}
             stepNumber={stepIndex + 1}
             totalSteps={SETUP_STEPS.length}
             pos={pos}

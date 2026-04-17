@@ -356,6 +356,9 @@ function SpotlightOverlay({
 }
 
 // ─── Animated bouncing pointer arrow ──────────────────────────
+// Auto-flips to the opposite side when the preferred placement would
+// render off-screen (e.g. header buttons that sit at the very top).
+// Arrow tip always points TOWARD the target element.
 
 function PointerArrow({
   targetSelector,
@@ -364,7 +367,11 @@ function PointerArrow({
   targetSelector?: string;
   side?: ArrowSide;
 }) {
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [pos, setPos] = useState<{
+    x: number;
+    y: number;
+    effectiveSide: ArrowSide;
+  } | null>(null);
   const rafRef = useRef<number | null>(null);
 
   const compute = useCallback(() => {
@@ -372,14 +379,62 @@ function PointerArrow({
     const rect = measureEl(targetSelector);
     if (!rect) { setPos(null); return; }
 
-    const TP = 8;
+    const TP  = 8;   // matches SpotlightOverlay padding
+    const GAP = 30;  // distance from target edge to arrow centre
+    const MIN = 50;  // min px from viewport edge for arrow to be visible
+    const vw  = window.innerWidth;
+    const vh  = window.innerHeight;
+
+    let x = 0, y = 0, effectiveSide: ArrowSide = side;
+
     switch (side) {
-      case "top":    setPos({ x: (rect.left + rect.right) / 2, y: rect.top - TP - 32 }); break;
-      case "bottom": setPos({ x: (rect.left + rect.right) / 2, y: rect.bottom + TP + 32 }); break;
-      case "left":   setPos({ x: rect.left - TP - 32, y: (rect.top + rect.bottom) / 2 }); break;
-      case "right":  setPos({ x: rect.right + TP + 32, y: (rect.top + rect.bottom) / 2 }); break;
-      default:       setPos(null);
+      case "top": {
+        const yAbove = rect.top - TP - GAP;
+        if (yAbove > MIN) {
+          y = yAbove; effectiveSide = "top";
+        } else {
+          // button too close to viewport top — flip below
+          y = rect.bottom + TP + GAP; effectiveSide = "bottom";
+        }
+        x = Math.min(Math.max((rect.left + rect.right) / 2, MIN), vw - MIN);
+        break;
+      }
+      case "bottom": {
+        const yBelow = rect.bottom + TP + GAP;
+        if (yBelow < vh - MIN) {
+          y = yBelow; effectiveSide = "bottom";
+        } else {
+          y = rect.top - TP - GAP; effectiveSide = "top";
+        }
+        x = Math.min(Math.max((rect.left + rect.right) / 2, MIN), vw - MIN);
+        break;
+      }
+      case "left": {
+        const xLeft = rect.left - TP - GAP;
+        if (xLeft > MIN) {
+          x = xLeft; effectiveSide = "left";
+        } else {
+          x = rect.right + TP + GAP; effectiveSide = "right";
+        }
+        y = Math.min(Math.max((rect.top + rect.bottom) / 2, MIN), vh - MIN);
+        break;
+      }
+      case "right": {
+        const xRight = rect.right + TP + GAP;
+        if (xRight < vw - MIN) {
+          x = xRight; effectiveSide = "right";
+        } else {
+          x = rect.left - TP - GAP; effectiveSide = "left";
+        }
+        y = Math.min(Math.max((rect.top + rect.bottom) / 2, MIN), vh - MIN);
+        break;
+      }
+      default:
+        setPos(null);
+        return;
     }
+
+    setPos({ x, y, effectiveSide });
   }, [targetSelector, side]);
 
   useEffect(() => {
@@ -394,23 +449,24 @@ function PointerArrow({
 
   if (!pos || side === "none") return null;
 
-  const arrowPath = (s: ArrowSide) => {
+  // Arrow tip faces TOWARD the target:
+  // "top"    = arrow above target   → tip points ↓ (larger y = bottom of shape)
+  // "bottom" = arrow below target   → tip points ↑ (smaller y = top of shape)
+  // "left"   = arrow left of target → tip points → (larger x = right of shape)
+  // "right"  = arrow right of target→ tip points ← (smaller x = left of shape)
+  const arrowPath = (s: ArrowSide): string => {
     switch (s) {
-      case "top":    return "M0,-12 L10,12 L0,6 L-10,12 Z";
-      case "bottom": return "M0,12 L10,-12 L0,-6 L-10,-12 Z";
-      case "left":   return "M-12,0 L12,10 L6,0 L12,-10 Z";
-      case "right":  return "M12,0 L-12,10 L-6,0 L-12,-10 Z";
+      case "top":    return "M0,14 L-11,-9 L0,-4 L11,-9 Z"; // ↓ tip at bottom
+      case "bottom": return "M0,-14 L-11,9 L0,4 L11,9 Z";  // ↑ tip at top
+      case "left":   return "M14,0 L-9,-11 L-4,0 L-9,11 Z"; // → tip at right
+      case "right":  return "M-14,0 L9,-11 L4,0 L9,11 Z";   // ← tip at left
       default:       return "";
     }
   };
 
-  const animName = {
-    top: "villeto-tour-bounce-down",
-    bottom: "villeto-tour-bounce-up",
-    left: "villeto-tour-bounce-right",
-    right: "villeto-tour-bounce-left",
-    none: "",
-  }[side];
+  const animName = `vta-${pos.effectiveSide}`;
+  const dy = pos.effectiveSide === "top" ? 6 : pos.effectiveSide === "bottom" ? -6 : 0;
+  const dx = pos.effectiveSide === "left" ? 6 : pos.effectiveSide === "right" ? -6 : 0;
 
   return (
     <svg
@@ -420,26 +476,26 @@ function PointerArrow({
         inset: 0,
         width: "100%",
         height: "100%",
-        zIndex: 9995,
+        zIndex: 9996,
         pointerEvents: "none",
         overflow: "visible",
       }}
     >
       <style>{`
-        @keyframes villeto-tour-bounce-down  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(8px)} }
-        @keyframes villeto-tour-bounce-up    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-        @keyframes villeto-tour-bounce-right { 0%,100%{transform:translateX(0)} 50%{transform:translateX(8px)} }
-        @keyframes villeto-tour-bounce-left  { 0%,100%{transform:translateX(0)} 50%{transform:translateX(-8px)} }
-        .vta { animation: ${animName} 1s ease-in-out infinite; }
+        @keyframes ${animName}-kf {
+          0%,100% { transform: translate(${pos.x}px, ${pos.y}px); }
+          50%      { transform: translate(${pos.x + dx}px, ${pos.y + dy}px); }
+        }
+        .${animName}-arrow { animation: ${animName}-kf 1s ease-in-out infinite; }
       `}</style>
-      <g className="vta" transform={`translate(${pos.x}, ${pos.y})`}>
+      <g className={`${animName}-arrow`}>
         <path
-          d={arrowPath(side)}
+          d={arrowPath(pos.effectiveSide)}
           fill="#0d9488"
           stroke="white"
           strokeWidth="1.5"
           strokeLinejoin="round"
-          style={{ filter: "drop-shadow(0 2px 6px rgba(13,148,136,0.6))" }}
+          style={{ filter: "drop-shadow(0 2px 8px rgba(13,148,136,0.7))" }}
         />
       </g>
     </svg>
@@ -522,7 +578,7 @@ function WorkspaceProgress({
       style={{
         position: "fixed",
         bottom: 24,
-        right: 24,
+        left: 24,
         zIndex: 9999,
         background: "white",
         borderRadius: 14,

@@ -32,8 +32,10 @@ import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
 import { useDataTable } from "@/components/datatable/useDataTable";
+import { notifySetupGuide } from "@/lib/setupGuideEvents";
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
+
 
 type PolicyStatus = "active" | "pending" | "draft";
 
@@ -697,6 +699,7 @@ export default function PoliciesPage() {
   /* handlers */
   const handleCreated = (data: CreatedPolicyData) => {
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
+    notifySetupGuide("policy");
     setActiveTab("policies");
   };
 
@@ -1063,7 +1066,7 @@ export default function PoliciesPage() {
         open={isAddCategoryOpen}
         onOpenChange={setIsAddCategoryOpen}
         onSkip={() => setIsAddCategoryOpen(false)}
-        onSuccess={() => setIsAddCategoryOpen(false)}
+        onSuccess={() => { setIsAddCategoryOpen(false); notifySetupGuide("expense-category"); }}
         showOnboardingIntro={false}
       />
       <ExpenseCategoryDetailsModal
