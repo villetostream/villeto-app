@@ -5,101 +5,118 @@
  * ─────────────────────────────────────────────────────────────
  * Renders system-level modals that gate the dashboard.
  *
- * What changed (April 2026):
- *  • The AddCategoryModal after force-password-reset has been
- *    REMOVED for CONTROLLING_OFFICER first-timers.
- *    Expense category setup is now part of the VilletoTourGuide
- *    (step 4 — "Set Spend Rules").
- *  • Force-password-reset (SetPasswordModal) logic is UNCHANGED.
+ * What changed (April 2026 — Setup Guide update):
+ *  • After a successful force-password-reset, we now call
+ *    `setSetupGuideReady(true)` in useTourStore so that
+ *    VilletoSetupGuide knows the password modal is done and
+ *    it is safe to show the interactive setup guide.
+ *  • VilletoTourGuide is excluded for users who get the
+ *    Setup Guide (handled inside VilletoTourGuide itself).
  * ─────────────────────────────────────────────────────────────
  */
 
 import { useState, useEffect, useMemo } from "react";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useTourStore } from "@/stores/useTourStore";
 import SetPasswordModal from "@/components/invitation/SetPasswordModal";
 
 export default function DashboardModals() {
-    const user = useAuthStore((state) => state.user);
-    const shouldChangePassword =
-        (user as { shouldChangePassword?: boolean } | null)
-            ?.shouldChangePassword === true;
+  const user = useAuthStore((state) => state.user);
+  const setSetupGuideReady = useTourStore((s) => s.setSetupGuideReady);
 
-    const [showPasswordModal, setShowPasswordModal] = useState(false);
-    const [hasCompletedFlow, setHasCompletedFlow] = useState(false);
+  const shouldChangePassword =
+    (user as { shouldChangePassword?: boolean } | null)
+      ?.shouldChangePassword === true;
 
-    const flowGuardKey = useMemo(
-        () =>
-            user?.userId
-                ? `dashboard-modals-flow-complete:${user.userId}`
-                : null,
-        [user?.userId]
-    );
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [hasCompletedFlow,  setHasCompletedFlow]  = useState(false);
 
-    const isCompanyFounder =
-        user?.position === "CONTROLLING_OFFICER" &&
-        user?.createdAt === user?.company?.createdAt;
-    const isFirstLogin =
-        typeof user?.loginCount === "number" && user.loginCount < 1;
-    const mustChangePassword = shouldChangePassword;
+  const flowGuardKey = useMemo(
+    () =>
+      user?.userId
+        ? `dashboard-modals-flow-complete:${user.userId}`
+        : null,
+    [user?.userId]
+  );
 
-    useEffect(() => {
-        if (!flowGuardKey) return;
-        const done = sessionStorage.getItem(flowGuardKey) === "1";
-        if (done) setHasCompletedFlow(true);
-    }, [flowGuardKey]);
+  const isCompanyFounder =
+    user?.position === "CONTROLLING_OFFICER" &&
+    user?.createdAt === user?.company?.createdAt;
 
-    useEffect(() => {
-        if (hasCompletedFlow) return;
-        if (
-            user &&
-            ((isFirstLogin && isCompanyFounder) || mustChangePassword)
-        ) {
-            setShowPasswordModal(true);
-        }
-    }, [
-        user,
-        isFirstLogin,
-        isCompanyFounder,
-        mustChangePassword,
-        hasCompletedFlow,
-    ]);
+  const isFirstLogin =
+    typeof user?.loginCount === "number" && user.loginCount < 1;
 
-    const markFlowComplete = () => {
-        setHasCompletedFlow(true);
-        setShowPasswordModal(false);
-        if (flowGuardKey) sessionStorage.setItem(flowGuardKey, "1");
-    };
+  const mustChangePassword = shouldChangePassword;
 
-    /**
-     * After a successful password reset we mark the flow complete
-     * and let VilletoTourGuide take over for the workspace setup.
-     * (No more AddCategoryModal here.)
-     */
-    const handlePasswordSuccess = () => {
-        markFlowComplete();
+  // ── Restore session guard ──────────────────────────────────
+  useEffect(() => {
+    if (!flowGuardKey) return;
+    const done = sessionStorage.getItem(flowGuardKey) === "1";
+    if (done) {
+      setHasCompletedFlow(true);
+      // If flow was already complete in a previous render (page refresh),
+      // signal the setup guide immediately.
+      setSetupGuideReady(true);
+    }
+  }, [flowGuardKey, setSetupGuideReady]);
 
-        // Optimistically update the store so the modal doesn't re-open
-        useAuthStore.setState((state) => ({
-            user: state.user
-                ? {
-                      ...state.user,
-                      loginCount: 2,
-                      shouldChangePassword: false,
-                  }
-                : null,
-        }));
-    };
+  // ── Show password modal when needed ───────────────────────
+  useEffect(() => {
+    if (hasCompletedFlow) return;
+    if (
+      user &&
+      ((isFirstLogin && isCompanyFounder) || mustChangePassword)
+    ) {
+      setShowPasswordModal(true);
+    }
+  }, [
+    user,
+    isFirstLogin,
+    isCompanyFounder,
+    mustChangePassword,
+    hasCompletedFlow,
+  ]);
 
-    if (!user) return null;
+  const markFlowComplete = () => {
+    setHasCompletedFlow(true);
+    setShowPasswordModal(false);
+    if (flowGuardKey) sessionStorage.setItem(flowGuardKey, "1");
+  };
 
-    return (
-        <SetPasswordModal
-            open={showPasswordModal}
-            onOpenChange={setShowPasswordModal}
-            email={user.email}
-            onSuccess={handlePasswordSuccess}
-            preventDismiss={true}
-            requireOldPassword={true}
-        />
-    );
+  /**
+   * After a successful password reset:
+   *  1. Mark the modal flow complete so it won't re-open.
+   *  2. Optimistically update the store so no stale re-trigger.
+   *  3. Signal the Setup Guide that it can now appear.
+   */
+  const handlePasswordSuccess = () => {
+    markFlowComplete();
+
+    useAuthStore.setState((state) => ({
+      user: state.user
+        ? {
+            ...state.user,
+            loginCount: 2,
+            shouldChangePassword: false,
+          }
+        : null,
+    }));
+
+    // Small delay so the modal finishes its close animation
+    // before the Setup Guide overlay appears.
+    setTimeout(() => setSetupGuideReady(true), 500);
+  };
+
+  if (!user) return null;
+
+  return (
+    <SetPasswordModal
+      open={showPasswordModal}
+      onOpenChange={setShowPasswordModal}
+      email={user.email}
+      onSuccess={handlePasswordSuccess}
+      preventDismiss={true}
+      requireOldPassword={true}
+    />
+  );
 }
