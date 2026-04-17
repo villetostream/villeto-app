@@ -224,7 +224,6 @@ function SpotlightOverlay({
     (SpotRect & { sidebarW: number }) | null
   >(null);
   const [targetSpot, setTargetSpot] = useState<SpotRect | null>(null);
-  const rafRef = useRef<number | null>(null);
 
   const measure = useCallback(() => {
     setVp({ w: window.innerWidth, h: window.innerHeight });
@@ -259,10 +258,14 @@ function SpotlightOverlay({
 
   useEffect(() => {
     measure();
-    rafRef.current = requestAnimationFrame(measure);
+    // Poll continuously (same cadence as useTooltipPosition) so the spotlight
+    // hole and sidebar highlight re-measure after client-side navigation — the
+    // target element doesn't exist in the DOM until the new page renders, so a
+    // single requestAnimationFrame fired on mount would always miss it.
+    const interval = setInterval(measure, 150);
     window.addEventListener("resize", measure);
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      clearInterval(interval);
       window.removeEventListener("resize", measure);
     };
   }, [measure]);
@@ -353,7 +356,6 @@ function PointerArrow({
     y: number;
     effectiveSide: ArrowSide;
   } | null>(null);
-  const rafRef = useRef<number | null>(null);
 
   const compute = useCallback(() => {
     if (!targetSelector || side === "none") { setPos(null); return; }
@@ -428,10 +430,13 @@ function PointerArrow({
 
   useEffect(() => {
     compute();
-    rafRef.current = requestAnimationFrame(compute);
+    // Poll continuously so the arrow re-positions itself after client-side
+    // navigation — the target element won't be in the DOM until the new page
+    // renders, so a single requestAnimationFrame would always return null.
+    const interval = setInterval(compute, 150);
     window.addEventListener("resize", compute);
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      clearInterval(interval);
       window.removeEventListener("resize", compute);
     };
   }, [compute]);
@@ -493,74 +498,7 @@ function PointerArrow({
   );
 }
 
-// ─── Four-panel click blocker ─────────────────────────────────
-// Surrounds the spotlighted target with four fixed panels (top / bottom /
-// left strip / right strip) that absorb stray clicks while leaving the
-// target rectangle itself completely unobstructed and fully interactive.
-// This makes every guide step fluid: the action button is always clickable.
-
-function FourPanelBlocker({ targetSelector }: { targetSelector?: string }) {
-  const [spot, setSpot] = useState<SpotRect | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const PAD = 8; // same padding as SpotlightOverlay
-
-  const measure = useCallback(() => {
-    setSpot(targetSelector ? measureEl(targetSelector) : null);
-  }, [targetSelector]);
-
-  useEffect(() => {
-    measure();
-    rafRef.current = requestAnimationFrame(measure);
-    window.addEventListener("resize", measure);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      window.removeEventListener("resize", measure);
-    };
-  }, [measure]);
-
-  const block = (e: React.MouseEvent) => e.stopPropagation();
-
-  const base: React.CSSProperties = {
-    position: "fixed",
-    zIndex: 9989,
-    pointerEvents: "all",
-    cursor: "default",
-  };
-
-  // No target selector → fall back to a single full-page blocker
-  if (!spot) {
-    return (
-      <div
-        aria-hidden
-        style={{ ...base, inset: 0 }}
-        onClick={block}
-        onMouseDown={block}
-      />
-    );
-  }
-
-  const t = Math.max(0, spot.top    - PAD); // top of clear zone
-  const b =            spot.bottom  + PAD;  // bottom of clear zone
-  const l = Math.max(0, spot.left   - PAD); // left of clear zone
-  const r =            spot.right   + PAD;  // right of clear zone
-
-  return (
-    <>
-      {/* Strip ABOVE the target */}
-      <div aria-hidden style={{ ...base, top: 0,    left: 0, right: 0, height: t }}
-           onClick={block} onMouseDown={block} />
-      {/* Strip BELOW the target */}
-      <div aria-hidden style={{ ...base, top: b,    left: 0, right: 0, bottom: 0 }}
-           onClick={block} onMouseDown={block} />
-      {/* Strip LEFT of the target (same vertical band as target) */}
-      <div aria-hidden style={{ ...base, top: t,    left: 0, width: l, height: b - t }}
-           onClick={block} onMouseDown={block} />
-      {/* Strip RIGHT of the target (same vertical band as target) */}
-      <div aria-hidden style={{ ...base, top: t,    left: r, right: 0, height: b - t }}
-           onClick={block} onMouseDown={block} />
-    </>
-  );
-}
+// ─── FourPanelBlocker removed in favor of native CSS pointer-event routing ──────
 
 // ─── Tooltip position hook ────────────────────────────────────
 
@@ -1413,69 +1351,103 @@ export default function VilletoSetupGuide() {
 
   return (
     <SetupGuideContext.Provider value={{ markStepDone }}>
-      {/* Completion modal */}
-      {showDoneModal && <SetupCompleteModal onClose={handleDoneClose} />}
+      <div id="villeto-setup-root">
+        {/* Completion modal */}
+        {showDoneModal && <SetupCompleteModal onClose={handleDoneClose} />}
 
-      {/* Progress widget — always visible when guide is active or skipped */}
-      {showProgress && (
-        <SetupProgressWidget
-          steps={SETUP_STEPS}
-          completedIds={completedIds}
-          current={stepIndex}
-          onResume={resumeGuide}
-          isSkipped={isSkipped}
-          isActive={visible && !isSkipped}
-        />
-      )}
-
-      {/* Only render overlay + card when guide is open (not skipped) */}
-      {visible && !isSkipped && activeStep && (
-        <>
-          {/* Global UI freeze to prevent background scroll drifting */}
-          {!activeStep.allowInteraction && (
-            <style>{`
-              body, main, .overflow-y-auto, .overflow-auto, .overflow-x-auto {
-                overflow: hidden !important;
-              }
-            `}</style>
-          )}
-
-          {/* Four-panel click blocker — leaves the target button open and clickable */}
-          {!activeStep.allowInteraction && (
-            <FourPanelBlocker targetSelector={activeStep.targetSelector} />
-          )}
-
-          {/* SVG spotlight overlay */}
-          {!activeStep.disableSpotlight && (
-            <SpotlightOverlay
-              sidebarHref={activeStep.sidebarHref}
-              targetSelector={activeStep.targetSelector}
-              visible={cardVisible}
-            />
-          )}
-
-          {/* Bouncing pointer arrow */}
-          {activeStep.targetSelector && activeStep.arrowSide && activeStep.arrowSide !== "none" && (
-            <PointerArrow
-              targetSelector={activeStep.targetSelector}
-              side={activeStep.arrowSide}
-            />
-          )}
-
-          {/* Step card */}
-          <SetupCard
-            step={activeStep}
-            stepNumber={stepIndex + 1}
-            totalSteps={SETUP_STEPS.length}
-            pos={pos}
-            visible={cardVisible && !pos.targetMissing}
-            isDone={completedIds.has(step.id)}
-            waitingForAction={waitingForAction && !completedIds.has(step.id)}
-            onSkip={skipGuide}
-            onClose={handleClose}
+        {/* Progress widget — always visible when guide is active or skipped */}
+        {showProgress && (
+          <SetupProgressWidget
+            steps={SETUP_STEPS}
+            completedIds={completedIds}
+            current={stepIndex}
+            onResume={resumeGuide}
+            isSkipped={isSkipped}
+            isActive={visible && !isSkipped}
           />
-        </>
-      )}
+        )}
+
+        {/* Only render overlay + card when guide is open (not skipped) */}
+        {visible && !isSkipped && activeStep && (
+          <>
+            {/* Global UI freeze and strict interaction blocker */}
+            {!activeStep.allowInteraction && (
+              <style>{`
+                /* Freeze Background Scrolling */
+                body, main, .overflow-y-auto, .overflow-auto, .overflow-x-auto {
+                  overflow: hidden !important;
+                }
+
+                /* Natively intercept and block all background stray clicks */
+                body {
+                  pointer-events: none !important;
+                  user-select: none !important;
+                }
+
+                /* Whitelist the Setup Guide interface itself */
+                #villeto-setup-root, #villeto-setup-root * {
+                  pointer-events: auto !important;
+                }
+
+                /*
+                 * The broad rule above accidentally enables pointer-events on
+                 * the two full-screen SVG overlays (SpotlightOverlay z-9990,
+                 * PointerArrow z-9996), overriding their inline pointerEvents:"none".
+                 * Those SVGs sit above the entire page; with pointer-events:auto they
+                 * silently absorb every hover and click — so the target button never
+                 * sees cursor:pointer and clicks never reach it.
+                 *
+                 * Fix: re-silence SVGs and ALL their children with a more-specific
+                 * rule.  "svg" adds an element type, giving specificity (1,0,1) which
+                 * beats the universal (1,0,0) above even though both carry !important.
+                 */
+                #villeto-setup-root svg,
+                #villeto-setup-root svg * {
+                  pointer-events: none !important;
+                }
+
+                /* Whitelist the current active target button */
+                ${activeStep.targetSelector ? `
+                  ${activeStep.targetSelector}, ${activeStep.targetSelector} * {
+                    pointer-events: auto !important;
+                    cursor: pointer !important;
+                  }
+                ` : ""}
+              `}</style>
+            )}
+
+            {/* SVG spotlight overlay */}
+            {!activeStep.disableSpotlight && (
+              <SpotlightOverlay
+                sidebarHref={activeStep.sidebarHref}
+                targetSelector={activeStep.targetSelector}
+                visible={cardVisible}
+              />
+            )}
+
+            {/* Bouncing pointer arrow */}
+            {activeStep.targetSelector && activeStep.arrowSide && activeStep.arrowSide !== "none" && (
+              <PointerArrow
+                targetSelector={activeStep.targetSelector}
+                side={activeStep.arrowSide}
+              />
+            )}
+
+            {/* Step card */}
+            <SetupCard
+              step={activeStep}
+              stepNumber={stepIndex + 1}
+              totalSteps={SETUP_STEPS.length}
+              pos={pos}
+              visible={cardVisible && !pos.targetMissing}
+              isDone={completedIds.has(step.id)}
+              waitingForAction={waitingForAction && !completedIds.has(step.id)}
+              onSkip={skipGuide}
+              onClose={handleClose}
+            />
+          </>
+        )}
+      </div>
     </SetupGuideContext.Provider>
   );
 }
