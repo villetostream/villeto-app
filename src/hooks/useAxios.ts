@@ -32,28 +32,25 @@ export function useAxios(): AxiosInstance {
       async (error) => {
         const originalRequest = error.config;
         
-        // Handle 401 unauthorized errors with token refresh
+        // Handle 401 unauthorized errors with token refresh.
+        // Skip entirely on onboarding pages — no refresh token exists there
+        // and a failed refresh attempt would produce a second noisy 401.
+        const isOnboardingPath =
+          typeof window !== "undefined" &&
+          window.location.pathname.includes("/onboarding");
+
         if (
           error.response?.status === 401 &&
           !originalRequest._retry &&
-          !originalRequest.url.includes("auth")
+          !originalRequest.url.includes("auth") &&
+          !isOnboardingPath
         ) {
           originalRequest._retry = true;
           try {
             await axios.post(`${BASEURL}auth/refresh`);
-            // const refreshRes = await axios.post(`${BASEURL}auth/refresh`);
-            // const newToken = refreshRes.data.data.access_token;
-            // update store
-            // setUser({ ...(user || {}), access_token: newToken } as AuthUser);
-            // update header and retry
-            // originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
             return instance(originalRequest);
           } catch (refreshError) {
-            // logout on refresh failure
-            // setUser(null);
-            if (!window.location.pathname.includes('/onboarding')) {
-              router.replace("/login");
-            }
+            router.replace("/login");
             return Promise.reject(refreshError);
           }
         }
