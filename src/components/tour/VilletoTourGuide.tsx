@@ -8,15 +8,33 @@
  * their very first login, who get the interactive Setup Guide
  * instead via VilletoSetupGuide).
  *
- * Changes vs original:
- *  • Skips users who are eligible for VilletoSetupGuide.
- *  • Adds animated bouncing arrow pointing at each action button
- *    so users know exactly where to look (buttons remain non-
- *    interactive — this is an informational tour only).
- *  • Added Step 5: Personal Settings → Account Details
- *    (the account details section IS interactive — users are
- *    encouraged to set it up right then).
- *  • Arrow pointer is rendered above the spotlight overlay.
+ * Bug-fixes applied (see CHANGELOG below):
+ *  [FIX-1] SpotlightOverlay — replaced single requestAnimationFrame
+ *          with setInterval(measure, 150) + scroll listener.
+ *          A single rAF fires once (~16ms after mount) and never
+ *          again, so after client-side navigation the spotlight
+ *          hole never re-measured and stayed at the wrong position.
+ *  [FIX-2] PointerArrow — same fix: rAF → setInterval(150).
+ *  [FIX-3] useTooltipPosition — same fix: rAF → setInterval(150),
+ *          plus the missing scroll capture listener that SetupGuide
+ *          has but TourGuide was missing.
+ *  [FIX-4] Start-tour effect — replaced requestAnimationFrame for
+ *          setCardVisible(true) with a small setTimeout so the card
+ *          appears after the DOM has settled, not just one paint tick.
+ *  [FIX-5] advance() — replaced stepIndex closure with stepIndexRef
+ *          so rapid navigation or StrictMode double-invocation cannot
+ *          produce a stale index read. stepIndex removed from the
+ *          useCallback deps, eliminating the keyboard-listener
+ *          tear-down/re-attach on every step change.
+ *  [FIX-6] Navigation effect — the router.push branch now explicitly
+ *          registers a cleanup function so any pending settle timer is
+ *          cancelled if the effect re-runs before navigation resolves.
+ *  [FIX-7] TourCard — added role="dialog", aria-modal, aria-labelledby
+ *          and programmatic focus management for screen-reader
+ *          accessibility (enterprise readiness).
+ *  [FIX-8] Keyboard handler — Enter key now checks the focused element
+ *          tag so it doesn't advance the tour while the user is typing
+ *          in the interactive Account Details form.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -195,7 +213,6 @@ function getRoleString(user: ReturnType<typeof useAuthStore>["user"]): string {
   );
 }
 
-
 function getFilteredSteps(
   user: ReturnType<typeof useAuthStore>["user"],
   hasPermission: (p: string | string[]) => boolean
@@ -247,7 +264,6 @@ function SpotlightOverlay({
     (SpotRect & { sidebarW: number }) | null
   >(null);
   const [targetSpot, setTargetSpot] = useState<SpotRect | null>(null);
-  const rafRef = useRef<number | null>(null);
 
   const measure = useCallback(() => {
     setVp({ w: window.innerWidth, h: window.innerHeight });
@@ -274,13 +290,19 @@ function SpotlightOverlay({
     }
   }, [sidebarHref, targetSelector]);
 
+  // [FIX-1] Replace single requestAnimationFrame with a polling interval.
+  // A one-shot rAF fires ~16ms after mount and never again, so after
+  // client-side navigation the hole never re-measured and sat at the
+  // wrong position until the next resize event.
   useEffect(() => {
     measure();
-    rafRef.current = requestAnimationFrame(measure);
+    const interval = setInterval(measure, 150);
     window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      clearInterval(interval);
       window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
     };
   }, [measure]);
 
@@ -372,7 +394,6 @@ function PointerArrow({
     y: number;
     effectiveSide: ArrowSide;
   } | null>(null);
-  const rafRef = useRef<number | null>(null);
 
   const compute = useCallback(() => {
     if (!targetSelector || side === "none") { setPos(null); return; }
@@ -437,13 +458,16 @@ function PointerArrow({
     setPos({ x, y, effectiveSide });
   }, [targetSelector, side]);
 
+  // [FIX-2] Replace single requestAnimationFrame with polling interval.
   useEffect(() => {
     compute();
-    rafRef.current = requestAnimationFrame(compute);
+    const interval = setInterval(compute, 150);
     window.addEventListener("resize", compute);
+    window.addEventListener("scroll", compute, true);
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      clearInterval(interval);
       window.removeEventListener("resize", compute);
+      window.removeEventListener("scroll", compute, true);
     };
   }, [compute]);
 
@@ -548,11 +572,18 @@ function useTooltipPosition(
     }
   }, [selector, arrowSide]);
 
+  // [FIX-3] Replace single requestAnimationFrame with polling interval and
+  // add the missing scroll capture listener (SetupGuide had it, TourGuide didn't).
   useEffect(() => {
     compute();
-    const raf = requestAnimationFrame(compute);
+    const interval = setInterval(compute, 150);
     window.addEventListener("resize", compute);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", compute); };
+    window.addEventListener("scroll", compute, true);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("resize", compute);
+      window.removeEventListener("scroll", compute, true);
+    };
   }, [compute]);
 
   return pos;
@@ -575,6 +606,7 @@ function WorkspaceProgress({
 
   return (
     <div
+      aria-label="Tour progress"
       style={{
         position: "fixed",
         bottom: 24,
@@ -668,7 +700,18 @@ function TourCard({
   onSecondary: () => void;
   onClose: () => void;
 }) {
+  const headingId  = "tour-card-heading";
   const isCentered = pos.placement === "center";
+
+  // [FIX-7] Focus the card when it becomes visible so keyboard users
+  // can interact with it without having to tab to it manually.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (visible) {
+      const t = setTimeout(() => cardRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [visible]);
 
   const wrapStyle: React.CSSProperties = isCentered
     ? {
@@ -697,7 +740,14 @@ function TourCard({
       };
 
   return (
-    <div style={wrapStyle}>
+    <div
+      ref={cardRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={headingId}
+      tabIndex={-1}
+      style={{ ...wrapStyle, outline: "none" }}
+    >
       {step.arrowSide === "top" && pos.arrowLeft !== undefined && (
         <div
           style={{
@@ -793,7 +843,10 @@ function TourCard({
             </button>
           </div>
 
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 12, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+          <h2
+            id={headingId}
+            style={{ fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 12, letterSpacing: "-0.02em", lineHeight: 1.2 }}
+          >
             {step.title}
           </h2>
 
@@ -879,11 +932,31 @@ export default function VilletoTourGuide() {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
 
   const SETTLE_MS = 700;
-  const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // pendingRef    — nav-settle timer (card fade-in after page change)
+  // advanceRef    — step-advance timer (card fade-out + index increment)
+  // stepIndexRef  — live mirror of stepIndex so advance() never reads
+  //                 a stale closure value (avoids stepIndex dep in useCallback)
+  const pendingRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const advanceRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stepIndexRef = useRef(0);
 
   const roleStr = getRoleString(user);
   const steps   = getFilteredSteps(user, hasPermission);
   const step    = steps[stepIndex];
+
+  // ── [FIX-5] Keep stepIndexRef in sync ─────────────────────
+  useEffect(() => {
+    stepIndexRef.current = stepIndex;
+  }, [stepIndex]);
+
+  // ── Cleanup all timers on unmount ─────────────────────────
+  useEffect(() => {
+    return () => {
+      if (pendingRef.current)  clearTimeout(pendingRef.current);
+      if (advanceRef.current)  clearTimeout(advanceRef.current);
+    };
+  }, []);
 
   // ── Broadcast tour state ───────────────────────────────────
   useEffect(() => {
@@ -892,10 +965,6 @@ export default function VilletoTourGuide() {
   }, [visible, setTourActive]);
 
   // ── Gate ───────────────────────────────────────────────────
-  // • Must not be a Setup Guide user (they get VilletoSetupGuide instead)
-  // • Must be second-or-later login (loginCount > 1 = NOT first login)
-  //   NOTE: loginCount ≥ 2 means the password modal has already been cleared.
-  //         loginCount === 1 = first session after invite (still shows tour).
   const tourKey     = user?.userId ? TOUR_KEY(user.userId) : null;
   const alreadySeen = tourKey ? sessionStorage.getItem(tourKey) === "1" : true;
 
@@ -906,8 +975,6 @@ export default function VilletoTourGuide() {
 
   // Exclude only the company founder — the CONTROLLING_OFFICER whose account
   // was created at the same moment as the company (createdAt timestamps match).
-  // All other users, including CONTROLLING_OFFICERs who joined later, see
-  // this informational tour instead of VilletoSetupGuide.
   const isCompanyFounder =
     user?.position === "CONTROLLING_OFFICER" &&
     !!user?.createdAt &&
@@ -915,17 +982,22 @@ export default function VilletoTourGuide() {
 
   const shouldShow = isFirstLogin && !alreadySeen && !isCompanyFounder;
 
-  // ── Start tour ─────────────────────────────────────────────
+  // ── [FIX-4] Start tour ────────────────────────────────────
+  // Original code used requestAnimationFrame(() => setCardVisible(true))
+  // inside a 1500ms timeout. rAF fires ~16ms later — before the page has
+  // settled — so the card often appeared before the spotlight measured its
+  // target. Use a second setTimeout with a small extra delay instead.
   useEffect(() => {
     if (!shouldShow) return;
-    const t = setTimeout(() => {
-      setVisible(true);
-      requestAnimationFrame(() => setCardVisible(true));
-    }, 1500);
-    return () => clearTimeout(t);
+    const t1 = setTimeout(() => setVisible(true), 1500);
+    const t2 = setTimeout(() => setCardVisible(true), 1550);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [shouldShow]);
 
-  // ── Navigation + card visibility ──────────────────────────
+  // ── [FIX-6] Navigation + card visibility ──────────────────
+  // The original router.push branch returned undefined (no cleanup
+  // registered), so if the effect re-ran before navigation resolved
+  // the pending settle timer leaked. Now every branch registers cleanup.
   useEffect(() => {
     if (!visible || !step) return;
     if (pendingRef.current) clearTimeout(pendingRef.current);
@@ -941,7 +1013,7 @@ export default function VilletoTourGuide() {
 
     if (isOnWrongPage || isOnWrongTab) {
       router.push(targetUrl);
-      return;
+      return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
     }
 
     setCardVisible(false);
@@ -957,20 +1029,29 @@ export default function VilletoTourGuide() {
     setTimeout(() => setVisible(false), 350);
   }, [user]);
 
-  // ── Advance step ───────────────────────────────────────────
+  // ── [FIX-5] Advance step ───────────────────────────────────
+  // Read current index from ref so this callback never captures a stale
+  // stepIndex from its closure — stepIndex is no longer a dep, which also
+  // means the keyboard effect no longer tears down and re-attaches its
+  // listener on every step change.
   const advance = useCallback(() => {
+    if (advanceRef.current) clearTimeout(advanceRef.current);
     setCardVisible(false);
-    setTimeout(() => {
-      const next = stepIndex + 1;
+    const cur = stepIndexRef.current;
+    advanceRef.current = setTimeout(() => {
+      const next = cur + 1;
       if (next >= steps.length) { closeTour(); return; }
       setCompletedIds((prev) => {
         const s = new Set(prev);
-        if (step?.id) s.add(step.id);
+        // Mark current step complete using cur (not stepIndexRef — by the time
+        // this runs we want the step that was active when advance() was called).
+        const currentStep = steps[cur];
+        if (currentStep?.id) s.add(currentStep.id);
         return s;
       });
       setStepIndex(next);
     }, 280);
-  }, [stepIndex, steps.length, step, closeTour]);
+  }, [steps, closeTour]);
 
   // ── Primary CTA ────────────────────────────────────────────
   const handlePrimary = useCallback(() => {
@@ -996,12 +1077,22 @@ export default function VilletoTourGuide() {
     advance();
   }, [step, router, advance, closeTour]);
 
-  // ── Keyboard ───────────────────────────────────────────────
+  // ── [FIX-8] Keyboard ───────────────────────────────────────
+  // Guard Enter: do NOT advance the tour when focus is inside a form
+  // field — this was swallowing keypresses in the interactive Account
+  // Details step whenever the user pressed Enter to submit a form field.
   useEffect(() => {
     if (!visible) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeTour();
-      if (e.key === "Enter")  handlePrimary();
+      if (e.key === "Escape") {
+        closeTour();
+        return;
+      }
+      if (e.key === "Enter") {
+        const tag = (e.target as HTMLElement)?.tagName ?? "";
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        handlePrimary();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1029,9 +1120,7 @@ export default function VilletoTourGuide() {
        * zIndex 9989 — above content, below SVG overlay (9990).
        */}
       {step.targetIsInteractive ? (
-        // For interactive steps: two half-layers around the spotlighted area
-        // (SVG evenodd handles visual — we just need pointer-events unblocked
-        // over the target). We use pointer-events:none so the underlying
+        // For interactive steps: pointer-events:none so the underlying
         // interactive element is reachable through the overlay.
         <div
           aria-hidden
@@ -1039,7 +1128,7 @@ export default function VilletoTourGuide() {
             position: "fixed",
             inset: 0,
             zIndex: 9989,
-            pointerEvents: "none", // pass-through so the form works
+            pointerEvents: "none",
             cursor: "default",
           }}
         />
