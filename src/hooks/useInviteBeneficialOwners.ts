@@ -19,47 +19,48 @@ export function useInviteBeneficialOwners() {
   const inviteBeneficialOwners = async (
     beneficialOwners: UserProfile[]
   ): Promise<void> => {
-    if (beneficialOwners.length === 0) return;
-
-    try {
-      // Resolve the ORGANIZATION_OWNER roleId from the Villeto roles list.
-      // Fetch once here rather than on every render.
-      const rolesRes = await axios.get(API_KEYS.ROLE.ROLES_VILLETO);
-      const roles: any[] = rolesRes?.data?.data ?? [];
-
-      const ownerRole = roles.find(
-        (r: any) =>
-          r.name?.toUpperCase().includes("ORGANIZATION_OWNER") ||
-          r.name?.toUpperCase().includes("OWNER")
-      );
-
-      const ownerRoleId: string = ownerRole?.roleId ?? "";
-
-      if (!ownerRoleId) {
-        toast.error(
-          "Could not resolve the Organization Owner role. " +
-            "Beneficial owners were not invited — please invite them from the People section."
-        );
-        return;
-      }
-
-      const admins = beneficialOwners.map((owner) => ({
-        email: owner.email,
-        roleId: ownerRoleId,
-        ...(owner.ownershipPercentage !== undefined && {
-          percentageOfOwnership: owner.ownershipPercentage,
-        }),
-      }));
-
-      await axios.post(API_KEYS.COMPANY.ADMIN_INVITES, { admins });
-    } catch (error: any) {
-      // Non-blocking — inform the user but don't fail the overall onboarding submission
-      toast.error(
-        error?.response?.data?.message ??
-          "Failed to send beneficial owner invitations. " +
-            "You can retry from the People → Invite section."
-      );
-    }
+    // TODO: Re-enable once the /roles?type=villeto endpoint is authorised
+    // for the onboarding context.  The call currently returns 401 because
+    // the user has no valid access/refresh token at this stage of the flow.
+    //
+    // if (beneficialOwners.length === 0) return;
+    //
+    // try {
+    //   const rolesRes = await axios.get(API_KEYS.ROLE.ROLES_VILLETO);
+    //   const roles: any[] = rolesRes?.data?.data ?? [];
+    //
+    //   const ownerRole = roles.find(
+    //     (r: any) =>
+    //       r.name?.toUpperCase().includes("ORGANIZATION_OWNER") ||
+    //       r.name?.toUpperCase().includes("OWNER")
+    //   );
+    //
+    //   const ownerRoleId: string = ownerRole?.roleId ?? "";
+    //
+    //   if (!ownerRoleId) {
+    //     toast.error(
+    //       "Could not resolve the Organization Owner role. " +
+    //         "Beneficial owners were not invited — please invite them from the People section."
+    //     );
+    //     return;
+    //   }
+    //
+    //   const admins = beneficialOwners.map((owner) => ({
+    //     email: owner.email,
+    //     roleId: ownerRoleId,
+    //     ...(owner.ownershipPercentage !== undefined && {
+    //       percentageOfOwnership: owner.ownershipPercentage,
+    //     }),
+    //   }));
+    //
+    //   await axios.post(API_KEYS.COMPANY.ADMIN_INVITES, { admins });
+    // } catch (error: any) {
+    //   toast.error(
+    //     error?.response?.data?.message ??
+    //       "Failed to send beneficial owner invitations. " +
+    //         "You can retry from the People → Invite section."
+    //   );
+    // }
   };
 
   return { inviteBeneficialOwners };
