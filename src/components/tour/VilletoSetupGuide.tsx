@@ -143,6 +143,36 @@ const SETUP_STEPS: SetupStep[] = [
     description:
       "Invite employees and leadership so they can submit expenses and participate in approval workflows.",
     completionEvent: "villeto:invitation-sent",
+    allowedSubPaths: ["/people/invite/employees", "/people/invite/leadership"],
+    subStates: [
+      {
+        pathMatch: (pn, sp) => pn.startsWith("/people/invite/leadership"),
+        targetSelector: 'form button[type="submit"]',
+        arrowSide: "none",
+        title: "Invite Leadership",
+        description: "Enter the details for your leaders and admins. They'll receive an email with a link to join your workspace.",
+        allowInteraction: true,
+        disableSpotlight: true,
+      },
+      {
+        pathMatch: (pn, sp) => pn.startsWith("/people/invite/employees") && sp.get("step") !== "upload" && sp.get("step") !== "preview",
+        targetSelector: 'form button[type="submit"]',
+        arrowSide: "none",
+        title: "Invite Employees",
+        description: "Select employees from your directory or add them manually to send out invitations.",
+        allowInteraction: true,
+        disableSpotlight: true,
+      },
+      {
+        pathMatch: (pn, sp) => pn === "/people" && sp.get("tab") === "all-users",
+        targetSelector: '[data-tour="invite-button"]',
+        arrowSide: "top",
+        title: "Select Invite Type",
+        description: "Click \"Invite Users\" then select whether to invite Employees or Leadership. Follow the prompts to complete the process.",
+        allowInteraction: true,
+        disableSpotlight: false,
+      }
+    ],
   },
   {
     id: "expense-category",
@@ -1508,6 +1538,14 @@ export default function VilletoSetupGuide() {
 
                 /* Whitelist the Setup Guide interface itself */
                 #villeto-setup-root, #villeto-setup-root * {
+                  pointer-events: auto !important;
+                }
+
+                /* Whitelist Radix UI portals (dropdowns, dialogs, modals) */
+                [data-radix-popper-content-wrapper],
+                [data-radix-popper-content-wrapper] *,
+                [role="dialog"],
+                [role="dialog"] * {
                   pointer-events: auto !important;
                 }
 
