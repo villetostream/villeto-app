@@ -8,6 +8,7 @@ import EmployeePreviewTable, { EmployeeData } from "@/components/dashboard/peopl
 import { OrganizationDirectoryPage } from "@/components/dashboard/people/directory/OrganizationDirectoryPage";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useBulkImportApi } from "@/actions/users/bulk-import";
+import { notifySetupGuide } from "@/lib/setupGuideEvents";
 import { useGetDirectoryUsersApi } from "@/actions/users/get-all-users";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -155,6 +156,7 @@ export default function InviteEmployeesPage() {
         try {
             await bulkImportMutation.mutateAsync(fileToUpload);
             toast.success("Directory saved successfully!");
+            notifySetupGuide("directory");
 
             const currentReferrer = referrer;
             clearReferrer();
@@ -184,6 +186,8 @@ export default function InviteEmployeesPage() {
         try {
             await bulkImportMutation.mutateAsync(fileToUpload);
             toast.success("Directory saved! Select users to invite.");
+            notifySetupGuide("directory");
+            notifySetupGuide("invitations");
             // Mark that we just uploaded so the directory step renders
             // OrganizationDirectoryPage immediately without waiting for the
             // API count to refresh.

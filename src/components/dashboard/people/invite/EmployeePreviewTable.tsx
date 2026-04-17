@@ -353,6 +353,7 @@ export default function EmployeePreviewTable({
                         className={saveOnlyMode ? "bg-primary hover:bg-primary/90 text-white min-w-[160px]" : "border-primary text-primary hover:bg-primary/5 hover:text-primary min-w-[160px]"}
                         onClick={onSaveToDirectory}
                         disabled={isSaving || data.length === 0}
+                        data-tour="save-to-directory-button"
                     >
                         {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : "Save to Directory"}
                     </Button>
