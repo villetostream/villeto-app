@@ -1201,7 +1201,6 @@ export default function VilletoSetupGuide() {
 
     const t = setTimeout(() => {
       setVisible(true);
-      requestAnimationFrame(() => setCardVisible(true));
     }, 600);
     return () => clearTimeout(t);
   }, [isEligible, setupGuideReady]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1234,13 +1233,14 @@ export default function VilletoSetupGuide() {
       !isOnAllowedSubPath &&
       (pathname !== step.navigateTo || (targetTab && currTab !== targetTab))
     ) {
+      setCardVisible(false);
       router.push(targetUrl);
       return;
     }
 
     setCardVisible(false);
     setWaitingForAction(!completedIds.has(step.id));
-    pendingRef.current = setTimeout(() => setCardVisible(true), SETTLE_MS);
+    pendingRef.current = setTimeout(() => setCardVisible(true), 400);
     return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
   }, [pathname, searchParams, stepIndex, visible, isSkipped]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1309,7 +1309,6 @@ export default function VilletoSetupGuide() {
     setIsSkipped(false);
     if (dismissedKey) localStorage.removeItem(dismissedKey);
     setVisible(true);
-    requestAnimationFrame(() => setCardVisible(true));
   }, [dismissedKey]);
 
   // ── Close (X button) → same as skip ──────────────────────
@@ -1375,6 +1374,7 @@ export default function VilletoSetupGuide() {
 
   // ── Render guards ─────────────────────────────────────────
   if (!isEligible || !userId) return null;
+  if (!setupGuideReady) return null; // Wait for SetPasswordModal flow to resolve
 
   const allDone = SETUP_STEPS.every((s) => completedIds.has(s.id));
   if (allDone && !showDoneModal) return null;
