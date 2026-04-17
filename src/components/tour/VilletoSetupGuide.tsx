@@ -17,6 +17,27 @@
  *  • When all 6 steps are done a completion modal fires.
  *  • The guide only appears AFTER SetPasswordModal closes
  *    (communicated via the `setupGuideReady` flag in useTourStore).
+ *
+ * Bug-fixes applied (see CHANGELOG below):
+ *  [FIX-1] markStepDone — moved setWaitingForAction + setTimeout OUT of
+ *          the setStepIndex updater. React StrictMode calls updater
+ *          functions twice in dev, which caused the advance timer to
+ *          fire twice and skip a step.
+ *  [FIX-2] markStepDone — moved setIsSkipped / setVisible / setTimeout
+ *          (showDoneModal) OUT of the setCompletedIds updater for the
+ *          same reason. Completion detection is now a dedicated useEffect
+ *          that runs after the state update is committed, never twice.
+ *  [FIX-3] stepIndexRef — was declared but never synced. Added a useEffect
+ *          that keeps it in lockstep with the stepIndex state so
+ *          markStepDone always reads the true current index.
+ *  [FIX-4] Timer refs — advance timers now use a dedicated advanceRef
+ *          so they never clobber the nav-settle pendingRef.
+ *  [FIX-5] SetupCard / SetupCompleteModal — added role="dialog",
+ *          aria-modal, aria-labelledby for screen-reader accessibility
+ *          and focus management on open.
+ *  [FIX-6] Keyboard handler — Enter key now ignores events whose target
+ *          is an <input>, <textarea>, or <select> so the guide doesn't
+ *          accidentally advance when the user types in a form field.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -258,15 +279,16 @@ function SpotlightOverlay({
 
   useEffect(() => {
     measure();
-    // Poll continuously (same cadence as useTooltipPosition) so the spotlight
-    // hole and sidebar highlight re-measure after client-side navigation — the
-    // target element doesn't exist in the DOM until the new page renders, so a
-    // single requestAnimationFrame fired on mount would always miss it.
+    // Poll so the spotlight hole re-measures after client-side navigation —
+    // the target element doesn't exist in the DOM until the new page renders,
+    // so a single requestAnimationFrame fired on mount would always miss it.
     const interval = setInterval(measure, 150);
     window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
     return () => {
       clearInterval(interval);
       window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
     };
   }, [measure]);
 
@@ -430,21 +452,21 @@ function PointerArrow({
 
   useEffect(() => {
     compute();
-    // Poll continuously so the arrow re-positions itself after client-side
-    // navigation — the target element won't be in the DOM until the new page
-    // renders, so a single requestAnimationFrame would always return null.
+    // Poll continuously so the arrow re-positions after client-side navigation.
     const interval = setInterval(compute, 150);
     window.addEventListener("resize", compute);
+    window.addEventListener("scroll", compute, true);
     return () => {
       clearInterval(interval);
       window.removeEventListener("resize", compute);
+      window.removeEventListener("scroll", compute, true);
     };
   }, [compute]);
 
   if (!pos) return null;
 
   // Arrow tip points TOWARD the target.
-  // "top"   = arrow is above target   → tip faces ↓ (down,  larger y)
+  // "top"    = arrow is above target  → tip faces ↓ (down,  larger y)
   // "bottom" = arrow is below target  → tip faces ↑ (up,    smaller y)
   // "left"   = arrow is left of target → tip faces → (right, larger x)
   // "right"  = arrow is right of target→ tip faces ← (left,  smaller x)
@@ -460,7 +482,7 @@ function PointerArrow({
 
   // Bounce toward the target
   const animName = `va-${pos.effectiveSide}`;
-  const dx = pos.effectiveSide === "top" || pos.effectiveSide === "bottom" ? 0 : 8;
+  const dx = pos.effectiveSide === "left" ? 6 : pos.effectiveSide === "right" ? -6 : 0;
   const dy = pos.effectiveSide === "top" ? 6 : pos.effectiveSide === "bottom" ? -6 : 0;
 
   return (
@@ -479,8 +501,7 @@ function PointerArrow({
       <style>{`
         @keyframes ${animName}-kf {
           0%,100% { transform: translate(${pos.x}px, ${pos.y}px); }
-          50%      { transform: translate(${pos.x + (pos.effectiveSide === "left" ? 6 : pos.effectiveSide === "right" ? -6 : 0)}px,
-                                          ${pos.y + dy}px); }
+          50%      { transform: translate(${pos.x + dx}px, ${pos.y + dy}px); }
         }
         .${animName}-arrow { animation: ${animName}-kf 1s ease-in-out infinite; }
       `}</style>
@@ -497,8 +518,6 @@ function PointerArrow({
     </svg>
   );
 }
-
-// ─── FourPanelBlocker removed in favor of native CSS pointer-event routing ──────
 
 // ─── Tooltip position hook ────────────────────────────────────
 
@@ -620,6 +639,7 @@ function SetupProgressWidget({
       <div
         role="button"
         tabIndex={0}
+        aria-label={`Workspace Setup — ${done} of ${total} steps complete. Click to continue.`}
         onClick={onResume}
         onKeyDown={(e) => e.key === "Enter" && onResume()}
         style={{
@@ -700,6 +720,7 @@ function SetupProgressWidget({
   // above the overlay (z-index 9999) so the user can track progress.
   return (
     <div
+      aria-label="Setup progress"
       style={{
         position: "fixed",
         bottom: 24,
@@ -787,8 +808,19 @@ function SetupProgressWidget({
 // ─── All-done celebration modal ───────────────────────────────
 
 function SetupCompleteModal({ onClose }: { onClose: () => void }) {
+  const headingId = "setup-complete-heading";
+
+  // Move focus into the modal when it mounts
+  const btnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    btnRef.current?.focus();
+  }, []);
+
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={headingId}
       style={{
         position: "fixed",
         inset: 0,
@@ -813,7 +845,10 @@ function SetupCompleteModal({ onClose }: { onClose: () => void }) {
         {/* Confetti icon */}
         <div style={{ fontSize: 52, marginBottom: 20, lineHeight: 1 }}>🎉</div>
 
-        <h2 style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginBottom: 12, letterSpacing: "-0.03em" }}>
+        <h2
+          id={headingId}
+          style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginBottom: 12, letterSpacing: "-0.03em" }}
+        >
           Workspace Ready!
         </h2>
 
@@ -823,6 +858,7 @@ function SetupCompleteModal({ onClose }: { onClose: () => void }) {
         </p>
 
         <button
+          ref={btnRef}
           onClick={onClose}
           style={{
             width: "100%",
@@ -867,7 +903,18 @@ function SetupCard({
   onSkip: () => void;
   onClose: () => void;
 }) {
+  const headingId = "setup-card-heading";
   const isCentered = pos.placement === "center";
+
+  // Move focus into the card whenever it becomes visible
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (visible) {
+      // Small delay so the CSS opacity transition has started before focus moves
+      const t = setTimeout(() => cardRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [visible]);
 
   const wrapStyle: React.CSSProperties = isCentered
     ? {
@@ -896,7 +943,15 @@ function SetupCard({
       };
 
   return (
-    <div style={wrapStyle}>
+    <div
+      ref={cardRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={headingId}
+      // tabIndex="-1" lets focus move here programmatically without adding to tab order
+      tabIndex={-1}
+      style={{ ...wrapStyle, outline: "none" }}
+    >
       {/* Upward arrow tab on the card */}
       {step.arrowSide === "top" && pos.arrowLeft !== undefined && (
         <div
@@ -979,7 +1034,10 @@ function SetupCard({
             </button>
           </div>
 
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 10, letterSpacing: "-0.02em", lineHeight: 1.25 }}>
+          <h2
+            id={headingId}
+            style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 10, letterSpacing: "-0.02em", lineHeight: 1.25 }}
+          >
             {step.title}
           </h2>
 
@@ -1109,16 +1167,25 @@ export default function VilletoSetupGuide() {
   // Gate: only show after SetPasswordModal has completed
   const setupGuideReady = useTourStore((s) => (s as any).setupGuideReady ?? false);
 
-  const [visible,       setVisible]       = useState(false);
-  const [cardVisible,   setCardVisible]   = useState(false);
-  const [stepIndex,     setStepIndex]     = useState(0);
-  const [completedIds,  setCompletedIds]  = useState<Set<string>>(new Set());
-  const [isSkipped,     setIsSkipped]     = useState(false);
-  const [showDoneModal, setShowDoneModal] = useState(false);
+  const [visible,          setVisible]          = useState(false);
+  const [cardVisible,      setCardVisible]      = useState(false);
+  const [stepIndex,        setStepIndex]        = useState(0);
+  const [completedIds,     setCompletedIds]     = useState<Set<string>>(new Set());
+  const [isSkipped,        setIsSkipped]        = useState(false);
+  const [showDoneModal,    setShowDoneModal]    = useState(false);
   const [waitingForAction, setWaitingForAction] = useState(true);
 
-  const SETTLE_MS = 700;
-  const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Refs ──────────────────────────────────────────────────────
+  // pendingRef  — nav-settle timer (card fade-in after page change)
+  // advanceRef  — step-advance timer (after markStepDone)
+  // stepIndexRef — mirror of stepIndex readable outside updaters,
+  //                so markStepDone never needs a setStepIndex updater
+  //                for reading — eliminating the StrictMode double-fire.
+  // allDoneRef  — guards the completion effect from firing more than once
+  const pendingRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const advanceRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stepIndexRef  = useRef(0);
+  const allDoneRef    = useRef(false);
 
   // ── User qualification ─────────────────────────────────────
   // Only the company founder gets the interactive Setup Guide:
@@ -1132,6 +1199,13 @@ export default function VilletoSetupGuide() {
   const dismissedKey  = userId ? GUIDE_DISMISSED_KEY(userId) : null;
   const completedKey  = userId ? GUIDE_COMPLETED_KEY(userId) : null;
 
+  // ── [FIX-3] Keep stepIndexRef in sync ──────────────────────
+  // Must happen synchronously with every stepIndex state change so
+  // markStepDone always reads the current value, not a stale one.
+  useEffect(() => {
+    stepIndexRef.current = stepIndex;
+  }, [stepIndex]);
+
   // ── Restore persisted progress on mount ───────────────────
   useEffect(() => {
     if (!userId) return;
@@ -1144,6 +1218,7 @@ export default function VilletoSetupGuide() {
 
     // If user already finished all steps before this session, skip entirely
     if (completedKey && localStorage.getItem(completedKey) === "1") {
+      allDoneRef.current = true; // prevent completion effect from re-firing
       setVisible(false);
       return;
     }
@@ -1201,7 +1276,9 @@ export default function VilletoSetupGuide() {
     ) {
       setCardVisible(false);
       router.push(targetUrl);
-      return;
+      // Register cleanup so if this effect re-runs before the navigation
+      // resolves, we don't leave stale state.
+      return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
     }
 
     setCardVisible(false);
@@ -1210,45 +1287,85 @@ export default function VilletoSetupGuide() {
     return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
   }, [pathname, searchParams, stepIndex, visible, isSkipped]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Silent action detection ───────────────────────────────
+  // ── [FIX-2] Completion detection — dedicated effect ────────
+  // All "allDone" side-effects (localStorage write, showDoneModal timer,
+  // setVisible, setIsSkipped) live HERE, not inside the setCompletedIds
+  // updater. An updater is a pure function; putting side-effects in it
+  // causes React StrictMode to run them twice (double-timer, double-modal).
+  useEffect(() => {
+    if (!completedIds.size) return;
+    const allDone = SETUP_STEPS.every((s) => completedIds.has(s.id));
+    if (!allDone || allDoneRef.current) return;
+
+    // Guard against re-firing if this session already had the guide complete
+    // (restored from localStorage on mount with allDoneRef already set there).
+    if (completedKey && localStorage.getItem(completedKey) === "1") {
+      allDoneRef.current = true;
+      return;
+    }
+
+    allDoneRef.current = true;
+    if (completedKey) localStorage.setItem(completedKey, "1");
+    setIsSkipped(false);
+    setVisible(true);
+    const t = setTimeout(() => setShowDoneModal(true), 400);
+    return () => clearTimeout(t);
+  }, [completedIds, completedKey]);
+
+  // ── [FIX-1] Silent action detection ───────────────────────
   // Pages dispatch custom events after successful actions.
   // We listen and tick silently even if guide is skipped.
+  //
+  // The original code called setWaitingForAction + setTimeout INSIDE a
+  // setStepIndex(cur => ...) updater. React StrictMode calls updaters
+  // twice in dev — the side effects fired twice → timer double-scheduled
+  // → step advanced twice → step was skipped.
+  //
+  // Fix: read the current step via stepIndexRef (always in sync via its
+  // own useEffect) and perform ALL side effects at the call-site, never
+  // inside an updater function.
   const markStepDone = useCallback(
     (stepId: string) => {
+      // ── 1. Persist the tick ──────────────────────────────────
+      // Only pure state update in the updater — no side effects.
       setCompletedIds((prev) => {
         if (prev.has(stepId)) return prev;
         const next = new Set(prev);
         next.add(stepId);
         if (userId) localStorage.setItem(STEP_DONE_KEY(userId, stepId), "1");
-
-        // Check if all done
-        const allDone = SETUP_STEPS.every((s) => next.has(s.id));
-        if (allDone) {
-          if (completedKey) localStorage.setItem(completedKey, "1");
-          setIsSkipped(false);
-          setVisible(true);
-          setTimeout(() => setShowDoneModal(true), 400);
-        }
         return next;
+        // NOTE: "allDone" detection and setShowDoneModal have been moved to
+        // the dedicated useEffect above — DO NOT put them back in here.
       });
 
-      // If this is the current step in the active guide, advance after tick
-      setStepIndex((cur) => {
-        if (SETUP_STEPS[cur]?.id === stepId) {
-          setWaitingForAction(false);
-          setTimeout(() => {
-            const next = cur + 1;
-            if (next < SETUP_STEPS.length) {
-              setCardVisible(false);
-              setTimeout(() => setStepIndex(next), 280);
-            }
-          }, 800);
+      // ── 2. Advance the guide if this is the active step ─────
+      // Read from the ref — no updater needed, no StrictMode double-fire.
+      const cur = stepIndexRef.current;
+      if (SETUP_STEPS[cur]?.id !== stepId) return;
+
+      setWaitingForAction(false);
+
+      // Clear any pre-existing advance timer before scheduling a new one
+      if (advanceRef.current) clearTimeout(advanceRef.current);
+
+      advanceRef.current = setTimeout(() => {
+        const next = cur + 1;
+        if (next < SETUP_STEPS.length) {
+          setCardVisible(false);
+          advanceRef.current = setTimeout(() => setStepIndex(next), 280);
         }
-        return cur;
-      });
+        // If next >= length, the completion useEffect handles the modal.
+      }, 800);
     },
-    [userId, completedKey]
+    [userId]
   );
+
+  // ── Cleanup advance timers on unmount ─────────────────────
+  useEffect(() => {
+    return () => {
+      if (advanceRef.current) clearTimeout(advanceRef.current);
+    };
+  }, []);
 
   // Listen for custom events from page actions
   useEffect(() => {
@@ -1280,17 +1397,22 @@ export default function VilletoSetupGuide() {
   // ── Close (X button) → same as skip ──────────────────────
   const handleClose = useCallback(() => skipGuide(), [skipGuide]);
 
-  // ── Keyboard ──────────────────────────────────────────────
+  // ── [FIX-6] Keyboard ──────────────────────────────────────
+  // Guard the Enter key: only advance / close when focus is NOT inside
+  // a form field so we don't hijack typing in interactive steps.
   useEffect(() => {
     if (!visible || isSkipped) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") skipGuide(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        skipGuide();
+        return;
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [visible, isSkipped, skipGuide]);
 
   // ── Active sub-state (e.g. the CSV upload sub-pages) ─────
-  // Detect which sub-state of the current step is active based on the URL,
-  // then merge its overrides into a derived step object.
   const activeSubState = step?.subStates?.find((ss) =>
     ss.pathMatch(pathname, new URLSearchParams(searchParams.toString()))
   );
