@@ -3,21 +3,20 @@
 /**
  * VilletoTourGuide
  * ─────────────────────────────────────────────────────────────
- * First-login (loginCount < 1) workspace-setup tour.
+ * First-login workspace tour for ALL users EXCEPT those who see
+ * the SetupGuide (CONTROLLING_OFFICER / ORGANIZATION_OWNER on
+ * their very first login, who get the interactive Setup Guide
+ * instead via VilletoSetupGuide).
  *
- * Overlay behaviour:
- *  • A full-screen SVG overlay dims the ENTIRE viewport
- *  • The active sidebar nav row is "punched out" of the overlay
- *    (SVG evenodd fill-rule) so it glows through cleanly
- *  • A teal glowing border rings the spotlight
- *
- * Navigation:
- *  • Each step navigates to its page via router.push()
- *  • The tooltip card (with arrow) appears near the page element
- *    after a settle delay so the DOM is ready
- *
- * Progress:
- *  • Bottom-right "Workspace setup progress" tracker
+ * Changes vs original:
+ *  • Skips users who are eligible for VilletoSetupGuide.
+ *  • Adds animated bouncing arrow pointing at each action button
+ *    so users know exactly where to look (buttons remain non-
+ *    interactive — this is an informational tour only).
+ *  • Added Step 5: Personal Settings → Account Details
+ *    (the account details section IS interactive — users are
+ *    encouraged to set it up right then).
+ *  • Arrow pointer is rendered above the spotlight overlay.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -25,20 +24,17 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Roles } from "@/core/permissions/roles";
+import { useTourStore } from "@/stores/useTourStore";
 
 // ─── Types ────────────────────────────────────────────────────
 
-type ArrowSide = "top" | "bottom" | "left" | "none";
+type ArrowSide = "top" | "bottom" | "left" | "right" | "none";
 
 type TourStep = {
   id: string;
-  /** pathname used to detect "already on page" — no query params */
   navigateTo: string;
-  /** actual URL pushed to the router (may include query params) */
   navigateUrl?: string;
-  /** href of the SIDEBAR nav link to spotlight (e.g. "/people") */
   sidebarHref?: string;
-  /** CSS selector for the in-page element the arrow points at */
   targetSelector?: string;
   arrowSide?: ArrowSide;
   title: string;
@@ -49,12 +45,15 @@ type TourStep = {
   roles?: string[];
   requiredPermission?: string;
   progressLabel?: string;
+  /** When true, the target element's pointer-events are NOT blocked so users
+   * can interact with it directly during this step (used for Account Details). */
+  targetIsInteractive?: boolean;
 };
 
 // ─── Step Definitions ─────────────────────────────────────────
 
 const ALL_STEPS: TourStep[] = [
-  // 0 — Welcome (centered, no sidebar spotlight)
+  // 0 — Welcome
   {
     id: "welcome",
     navigateTo: "/dashboard",
@@ -62,8 +61,8 @@ const ALL_STEPS: TourStep[] = [
     arrowSide: "none",
     title: "Welcome to Villeto",
     description:
-      "Welcome to Villeto. Let's set up your workspace so you can start managing company spend with policies, approvals, and structured workflows.",
-    primaryLabel: "Start Setup",
+      "Welcome to Villeto. Let's walk you through the key areas of your workspace so you can hit the ground running.",
+    primaryLabel: "Start Tour",
     secondaryLabel: "Skip Tour",
     roles: [Roles.CONTROLLING_OFFICER, Roles.ORGANIZATION_OWNER],
   },
@@ -78,7 +77,7 @@ const ALL_STEPS: TourStep[] = [
     arrowSide: "top",
     title: "Upload Employee Directory",
     description:
-      "Upload your employee directory to assign policies and approval workflows across your organization.",
+      "This is where you upload your employee directory. Click \"Upload Directory\" to import your team's names, emails, and departments.",
     primaryLabel: "Next",
     secondaryLabel: "Skip Tour",
     progressLabel: "Directory upload",
@@ -94,9 +93,9 @@ const ALL_STEPS: TourStep[] = [
     sidebarHref: "/people",
     targetSelector: '[data-tour="invite-button"]',
     arrowSide: "top",
-    title: "Send Invitations",
+    title: "Invite Users",
     description:
-      "Invite employees with different roles so they can create reports and participate in approval workflows.",
+      "Use the \"Invite Users\" button to send invitations to employees and leadership. They'll receive an email with a link to join your workspace.",
     primaryLabel: "Next",
     secondaryLabel: "Skip Tour",
     progressLabel: "Invitations sent",
@@ -114,7 +113,7 @@ const ALL_STEPS: TourStep[] = [
     arrowSide: "top",
     title: "Expense Categories",
     description:
-      "Expense categories help organize company spending and power approval policies. Start by defining how your organization tracks expenses.",
+      "Expense categories (Travel, Meals, Software, etc.) power your approval policies. The \"New Expense Category\" button is how you add them.",
     primaryLabel: "Next",
     secondaryLabel: "Skip Tour",
     progressLabel: "Expense category",
@@ -132,7 +131,7 @@ const ALL_STEPS: TourStep[] = [
     arrowSide: "top",
     title: "Policies",
     description:
-      "Policies control who can spend, how much they can spend, and when approvals are required. Set thresholds to automatically trigger approvals and enforce spend limits.",
+      "Policies define spend limits, receipt requirements, and approval chains. Tap \"New Policy\" when you're ready to configure your first rule.",
     primaryLabel: "Next",
     secondaryLabel: "Skip Tour",
     progressLabel: "Policy",
@@ -140,15 +139,33 @@ const ALL_STEPS: TourStep[] = [
     requiredPermission: "expense_policies:read",
   },
 
-  // 5 — Setup Complete
+  // 5 — Account Details (interactive — users can fill this in now)
+  {
+    id: "account-details",
+    navigateTo: "/settings/personal-settings",
+    navigateUrl: "/settings/personal-settings?section=account-details",
+    sidebarHref: "/settings",
+    targetSelector: '[data-tour="account-details-section"]',
+    arrowSide: "top",
+    title: "Your Account Details",
+    description:
+      "Add your bank details here so reimbursements are paid directly to you. Your name must match the company directory — a mismatch will show an error. Feel free to fill this in now!",
+    primaryLabel: "Next",
+    secondaryLabel: "Skip Tour",
+    progressLabel: "Account details",
+    targetIsInteractive: true, // let the form be used during this step
+  },
+
+  // 6 — Setup Complete
   {
     id: "setup-complete",
     navigateTo: "/expenses",
     sidebarHref: "/expenses",
     targetSelector: 'a[href="/expenses"]',
     arrowSide: "left",
-    title: "Setup Complete",
-    description: "Your workspace is ready. You can now start managing expenses, approvals, and vendor payments in Villeto.",
+    title: "You're All Set!",
+    description:
+      "That's the tour! You can now manage expenses, approvals, and vendor payments. When you're ready, hit \"Create Expense Report\" to get started.",
     primaryLabel: "Create Expense Report",
     secondaryLabel: "Go to Overview",
   },
@@ -157,10 +174,11 @@ const ALL_STEPS: TourStep[] = [
 // ─── Progress tracker items ────────────────────────────────────
 
 const PROGRESS_STEPS = [
-  { label: "Directory upload", stepId: "directory" },
-  { label: "Invitations sent", stepId: "invitations" },
-  { label: "Expense category", stepId: "expense-category" },
-  { label: "Policy",           stepId: "policies" },
+  { label: "Directory upload",  stepId: "directory"        },
+  { label: "Invitations sent",  stepId: "invitations"      },
+  { label: "Expense category",  stepId: "expense-category" },
+  { label: "Policy",            stepId: "policies"         },
+  { label: "Account details",   stepId: "account-details"  },
 ];
 
 // ─── Session-storage key ───────────────────────────────────────
@@ -177,14 +195,6 @@ function getRoleString(user: ReturnType<typeof useAuthStore>["user"]): string {
   );
 }
 
-function isFullAdmin(roleStr: string): boolean {
-  return [
-    Roles.CONTROLLING_OFFICER,
-    Roles.ORGANIZATION_OWNER,
-    "ADMIN",
-    "OWNER",
-  ].includes(roleStr as never);
-}
 
 function getFilteredSteps(
   user: ReturnType<typeof useAuthStore>["user"],
@@ -193,22 +203,16 @@ function getFilteredSteps(
   const roleStr = getRoleString(user);
   return ALL_STEPS.filter((step) => {
     if (step.roles?.length) {
-      if (!step.roles.includes(roleStr) && !isFullAdmin(roleStr)) return false;
+      if (!step.roles.includes(roleStr)) return false;
     }
     if (step.requiredPermission) {
-      if (!hasPermission(step.requiredPermission) && !isFullAdmin(roleStr))
-        return false;
+      if (!hasPermission(step.requiredPermission)) return false;
     }
     return true;
   });
 }
 
-// ─── SVG Punch-hole Spotlight Overlay ─────────────────────────
-//
-// Covers the ENTIRE viewport with a semi-opaque SVG layer.
-// The active sidebar nav item's row is "punched out" using
-// SVG's evenodd fill rule so it appears fully lit.
-// A glowing teal border frames the punch-out.
+// ─── SVG Spotlight overlay ─────────────────────────────────────
 
 type SpotRect = { top: number; bottom: number; left: number; right: number };
 
@@ -227,38 +231,35 @@ function getSidebarWidth(): number {
   return el ? el.getBoundingClientRect().width : 220;
 }
 
-/**
- * Full-screen SVG overlay.
- * Punches two "holes" using SVG evenodd fill-rule:
- *  1. The active sidebar nav row (left edge → sidebar right edge)
- *  2. The in-page target element the tour arrow points at
- * Both holes + glowing teal borders make them clearly visible.
- */
 function SpotlightOverlay({
   sidebarHref,
   targetSelector,
+  targetIsInteractive,
   visible,
 }: {
   sidebarHref?: string;
   targetSelector?: string;
+  targetIsInteractive?: boolean;
   visible: boolean;
 }) {
   const [vp, setVp] = useState({ w: 0, h: 0 });
-  const [sidebarSpot, setSidebarSpot] = useState<SpotRect & { sidebarW: number } | null>(null);
-  const [targetSpot,  setTargetSpot]  = useState<SpotRect | null>(null);
+  const [sidebarSpot, setSidebarSpot] = useState<
+    (SpotRect & { sidebarW: number }) | null
+  >(null);
+  const [targetSpot, setTargetSpot] = useState<SpotRect | null>(null);
   const rafRef = useRef<number | null>(null);
 
   const measure = useCallback(() => {
     setVp({ w: window.innerWidth, h: window.innerHeight });
 
-    // ── Sidebar spotlight ──
     if (sidebarHref) {
       const el = document.querySelector<HTMLElement>(
         `a[href="${sidebarHref}"], [data-href="${sidebarHref}"]`
       );
       if (el) {
         const r = el.getBoundingClientRect();
-        setSidebarSpot({ top: r.top, bottom: r.bottom, left: 0, right: getSidebarWidth(), sidebarW: getSidebarWidth() });
+        const sw = getSidebarWidth();
+        setSidebarSpot({ top: r.top, bottom: r.bottom, left: 0, right: sw, sidebarW: sw });
       } else {
         setSidebarSpot(null);
       }
@@ -266,7 +267,6 @@ function SpotlightOverlay({
       setSidebarSpot(null);
     }
 
-    // ── Target-element spotlight ──
     if (targetSelector) {
       setTargetSpot(measureEl(targetSelector));
     } else {
@@ -287,23 +287,23 @@ function SpotlightOverlay({
   if (vp.w === 0) return null;
 
   const { w, h } = vp;
-  const SP = 6;  // sidebar punch padding
-  const TP = 8;  // target punch padding
+  const SP = 6;
+  const TP = 8;
+  // Widen the target punch-out for the interactive account details section
+  const TPA = targetIsInteractive ? 12 : TP;
 
   const outer = `M0 0 L${w} 0 L${w} ${h} L0 ${h}Z`;
 
-  // Sidebar punch-hole: left edge → sidebar right, height of the nav row
   const sHole = sidebarSpot
     ? `M0 ${sidebarSpot.top - SP} L${sidebarSpot.sidebarW} ${sidebarSpot.top - SP} ` +
       `L${sidebarSpot.sidebarW} ${sidebarSpot.bottom + SP} L0 ${sidebarSpot.bottom + SP}Z`
     : "";
 
-  // Target-element punch-hole: exact bounding box of the target
   const tHole = targetSpot
-    ? `M${targetSpot.left - TP} ${targetSpot.top - TP} ` +
-      `L${targetSpot.right + TP} ${targetSpot.top - TP} ` +
-      `L${targetSpot.right + TP} ${targetSpot.bottom + TP} ` +
-      `L${targetSpot.left - TP} ${targetSpot.bottom + TP}Z`
+    ? `M${targetSpot.left - TPA} ${targetSpot.top - TPA} ` +
+      `L${targetSpot.right + TPA} ${targetSpot.top - TPA} ` +
+      `L${targetSpot.right + TPA} ${targetSpot.bottom + TPA} ` +
+      `L${targetSpot.left - TPA} ${targetSpot.bottom + TPA}Z`
     : "";
 
   const d = [outer, sHole, tHole].filter(Boolean).join(" ");
@@ -322,10 +322,8 @@ function SpotlightOverlay({
         transition: "opacity 0.35s ease",
       }}
     >
-      {/* Dim everything, minus the two punch-holes */}
       <path fillRule="evenodd" d={d} fill="rgba(0,0,0,0.52)" />
 
-      {/* Sidebar spotlight border */}
       {sidebarSpot && (
         <rect
           x={0}
@@ -340,13 +338,12 @@ function SpotlightOverlay({
         />
       )}
 
-      {/* Target-element spotlight border */}
       {targetSpot && (
         <rect
-          x={targetSpot.left - TP}
-          y={targetSpot.top - TP}
-          width={targetSpot.right - targetSpot.left + TP * 2}
-          height={targetSpot.bottom - targetSpot.top + TP * 2}
+          x={targetSpot.left - TPA}
+          y={targetSpot.top - TPA}
+          width={targetSpot.right - targetSpot.left + TPA * 2}
+          height={targetSpot.bottom - targetSpot.top + TPA * 2}
           fill="none"
           stroke="rgba(13,148,136,0.8)"
           strokeWidth={2}
@@ -358,12 +355,104 @@ function SpotlightOverlay({
   );
 }
 
+// ─── Animated bouncing pointer arrow ──────────────────────────
+
+function PointerArrow({
+  targetSelector,
+  side = "top",
+}: {
+  targetSelector?: string;
+  side?: ArrowSide;
+}) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const compute = useCallback(() => {
+    if (!targetSelector || side === "none") { setPos(null); return; }
+    const rect = measureEl(targetSelector);
+    if (!rect) { setPos(null); return; }
+
+    const TP = 8;
+    switch (side) {
+      case "top":    setPos({ x: (rect.left + rect.right) / 2, y: rect.top - TP - 32 }); break;
+      case "bottom": setPos({ x: (rect.left + rect.right) / 2, y: rect.bottom + TP + 32 }); break;
+      case "left":   setPos({ x: rect.left - TP - 32, y: (rect.top + rect.bottom) / 2 }); break;
+      case "right":  setPos({ x: rect.right + TP + 32, y: (rect.top + rect.bottom) / 2 }); break;
+      default:       setPos(null);
+    }
+  }, [targetSelector, side]);
+
+  useEffect(() => {
+    compute();
+    rafRef.current = requestAnimationFrame(compute);
+    window.addEventListener("resize", compute);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", compute);
+    };
+  }, [compute]);
+
+  if (!pos || side === "none") return null;
+
+  const arrowPath = (s: ArrowSide) => {
+    switch (s) {
+      case "top":    return "M0,-12 L10,12 L0,6 L-10,12 Z";
+      case "bottom": return "M0,12 L10,-12 L0,-6 L-10,-12 Z";
+      case "left":   return "M-12,0 L12,10 L6,0 L12,-10 Z";
+      case "right":  return "M12,0 L-12,10 L-6,0 L-12,-10 Z";
+      default:       return "";
+    }
+  };
+
+  const animName = {
+    top: "villeto-tour-bounce-down",
+    bottom: "villeto-tour-bounce-up",
+    left: "villeto-tour-bounce-right",
+    right: "villeto-tour-bounce-left",
+    none: "",
+  }[side];
+
+  return (
+    <svg
+      aria-hidden
+      style={{
+        position: "fixed",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        zIndex: 9995,
+        pointerEvents: "none",
+        overflow: "visible",
+      }}
+    >
+      <style>{`
+        @keyframes villeto-tour-bounce-down  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(8px)} }
+        @keyframes villeto-tour-bounce-up    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+        @keyframes villeto-tour-bounce-right { 0%,100%{transform:translateX(0)} 50%{transform:translateX(8px)} }
+        @keyframes villeto-tour-bounce-left  { 0%,100%{transform:translateX(0)} 50%{transform:translateX(-8px)} }
+        .vta { animation: ${animName} 1s ease-in-out infinite; }
+      `}</style>
+      <g className="vta" transform={`translate(${pos.x}, ${pos.y})`}>
+        <path
+          d={arrowPath(side)}
+          fill="#0d9488"
+          stroke="white"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          style={{ filter: "drop-shadow(0 2px 6px rgba(13,148,136,0.6))" }}
+        />
+      </g>
+    </svg>
+  );
+}
+
 // ─── Tooltip position hook ─────────────────────────────────────
 
 type TooltipPos = {
   top?: number;
   left?: number;
   arrowLeft?: number;
+  arrowTop?: number;
   placement: "near-target" | "center";
 };
 
@@ -374,42 +463,30 @@ function useTooltipPosition(
   const [pos, setPos] = useState<TooltipPos>({ placement: "center" });
 
   const compute = useCallback(() => {
-    if (!selector || arrowSide === "none") {
-      setPos({ placement: "center" });
-      return;
-    }
+    if (!selector || arrowSide === "none") { setPos({ placement: "center" }); return; }
     const el = document.querySelector<HTMLElement>(selector);
-    if (!el) {
-      setPos({ placement: "center" });
-      return;
-    }
+    if (!el) { setPos({ placement: "center" }); return; }
 
     const rect = el.getBoundingClientRect();
     const CARD_W = 380;
-    const GAP = 10;
+    const GAP = 52;
 
     if (arrowSide === "top") {
-      // Card appears BELOW the target element
       let left = rect.left + rect.width / 2 - CARD_W / 2;
       left = Math.max(12, Math.min(left, window.innerWidth - CARD_W - 12));
-      const arrowLeft = rect.left + rect.width / 2 - left;
-      setPos({ top: rect.bottom + GAP, left, arrowLeft, placement: "near-target" });
+      setPos({ top: rect.bottom + GAP, left, arrowLeft: rect.left + rect.width / 2 - left, placement: "near-target" });
     } else if (arrowSide === "bottom") {
       let left = rect.left + rect.width / 2 - CARD_W / 2;
       left = Math.max(12, Math.min(left, window.innerWidth - CARD_W - 12));
-      const arrowLeft = rect.left + rect.width / 2 - left;
-      setPos({
-        top: rect.top - GAP - 400, // estimated card height
-        left,
-        arrowLeft,
-        placement: "near-target",
-      });
+      setPos({ top: rect.top - GAP - 400, left, arrowLeft: rect.left + rect.width / 2 - left, placement: "near-target" });
     } else if (arrowSide === "left") {
       let top = rect.top + rect.height / 2 - 100;
       top = Math.max(12, Math.min(top, window.innerHeight - 300));
-      const left = rect.right + GAP + 10;
-      const arrowTop = rect.top + rect.height / 2 - top;
-      setPos({ top, left, arrowTop, placement: "near-target" });
+      setPos({ top, left: rect.right + GAP + 10, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target" });
+    } else if (arrowSide === "right") {
+      let top = rect.top + rect.height / 2 - 100;
+      top = Math.max(12, Math.min(top, window.innerHeight - 300));
+      setPos({ top, left: rect.left - CARD_W - GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target" });
     } else {
       setPos({ placement: "center" });
     }
@@ -419,10 +496,7 @@ function useTooltipPosition(
     compute();
     const raf = requestAnimationFrame(compute);
     window.addEventListener("resize", compute);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", compute);
-    };
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", compute); };
   }, [compute]);
 
   return pos;
@@ -441,7 +515,7 @@ function WorkspaceProgress({
   total: number;
   done: number;
 }) {
-  const pct = total > 1 ? Math.round((done / (total)) * 100) : 0;
+  const pct = total > 1 ? Math.round((done / total) * 100) : 0;
 
   return (
     <div
@@ -459,10 +533,9 @@ function WorkspaceProgress({
       }}
     >
       <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 8 }}>
-        Workspace setup progress
+        Workspace tour progress
       </p>
 
-      {/* Bar */}
       <div style={{ height: 5, borderRadius: 99, background: "#e5f9f7", marginBottom: 4, overflow: "hidden" }}>
         <div
           style={{
@@ -479,7 +552,6 @@ function WorkspaceProgress({
         {done}/{total}
       </p>
 
-      {/* Checklist */}
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
         {steps.map(({ label, stepId }) => {
           const isDone = completedIds.has(stepId);
@@ -570,7 +642,6 @@ function TourCard({
 
   return (
     <div style={wrapStyle}>
-      {/* Arrow pointing UP toward the target element above */}
       {step.arrowSide === "top" && pos.arrowLeft !== undefined && (
         <div
           style={{
@@ -588,12 +659,11 @@ function TourCard({
         />
       )}
 
-      {/* Arrow pointing LEFT toward the target element to the left */}
       {step.arrowSide === "left" && pos.arrowTop !== undefined && (
         <div
           style={{
             position: "absolute",
-            top: pos.arrowTop - 10,
+            top: (pos.arrowTop ?? 0) - 10,
             left: -10,
             width: 0,
             height: 0,
@@ -606,7 +676,6 @@ function TourCard({
         />
       )}
 
-      {/* Card */}
       <div
         style={{
           background: "white",
@@ -616,6 +685,30 @@ function TourCard({
         }}
       >
         <div style={{ padding: "28px 28px 24px" }}>
+          {/* Account details interactive hint */}
+          {step.targetIsInteractive && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                background: "#f0fdf9",
+                border: "1px solid #a7f3d0",
+                borderRadius: 8,
+                padding: "7px 12px",
+                marginBottom: 14,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <circle cx="7" cy="7" r="6" stroke="#0d9488" strokeWidth="1.5" />
+                <path d="M7 5v4M7 3.5v.5" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              <span style={{ fontSize: 11, color: "#065f46", fontWeight: 600 }}>
+                This section is live — you can fill it in right now!
+              </span>
+            </div>
+          )}
+
           {/* Close */}
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 2 }}>
             <button
@@ -644,20 +737,16 @@ function TourCard({
             </button>
           </div>
 
-          {/* Title */}
           <h2 style={{ fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 12, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
             {step.title}
           </h2>
 
-          {/* Description */}
           <p style={{ fontSize: 14, lineHeight: 1.7, color: "#4b5563", marginBottom: 28 }}>
             {step.description}
           </p>
 
-          {/* Divider */}
           <div style={{ height: 1, background: "#f3f4f6", marginBottom: 20 }} />
 
-          {/* Buttons */}
           <div style={{ display: "flex", gap: 12 }}>
             {step.secondaryLabel && (
               <button
@@ -674,8 +763,12 @@ function TourCard({
                   cursor: "pointer",
                   transition: "border-color 0.2s",
                 }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.borderColor = "#0d9488")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.borderColor = "#e5e7eb")}
+                onMouseEnter={(e) =>
+                  ((e.currentTarget as HTMLButtonElement).style.borderColor = "#0d9488")
+                }
+                onMouseLeave={(e) =>
+                  ((e.currentTarget as HTMLButtonElement).style.borderColor = "#e5e7eb")
+                }
               >
                 {step.secondaryLabel}
               </button>
@@ -717,78 +810,90 @@ function TourCard({
 // ─── Main Component ───────────────────────────────────────────
 
 export default function VilletoTourGuide() {
-  const user        = useAuthStore((s) => s.user);
+  const user          = useAuthStore((s) => s.user);
   const hasPermission = useAuthStore((s) => s.hasPermission);
-  const router    = useRouter();
-  const pathname  = usePathname();
-  const searchParams = useSearchParams();
+  const router        = useRouter();
+  const pathname      = usePathname();
+  const searchParams  = useSearchParams();
+  const setTourActive = useTourStore((s) => s.setTourActive);
 
-  const [visible,     setVisible]     = useState(false);
-  const [cardVisible, setCardVisible] = useState(false);
-  const [stepIndex,   setStepIndex]   = useState(0);
+  const [visible,      setVisible]      = useState(false);
+  const [cardVisible,  setCardVisible]  = useState(false);
+  const [stepIndex,    setStepIndex]    = useState(0);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
 
-  const SETTLE_MS = 700; // wait after navigation before showing card
+  const SETTLE_MS = 700;
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const steps = getFilteredSteps(user, hasPermission);
-  const step  = steps[stepIndex];
+  const roleStr = getRoleString(user);
+  const steps   = getFilteredSteps(user, hasPermission);
+  const step    = steps[stepIndex];
 
-  // ── Gate: loginCount < 1 means first-ever login (count = 0) ──
-  const tourKey       = user?.userId ? TOUR_KEY(user.userId) : null;
-  const alreadySeen   = tourKey ? sessionStorage.getItem(tourKey) === "1" : true;
-  const isFirstLogin  =
+  // ── Broadcast tour state ───────────────────────────────────
+  useEffect(() => {
+    setTourActive(visible);
+    return () => setTourActive(false);
+  }, [visible, setTourActive]);
+
+  // ── Gate ───────────────────────────────────────────────────
+  // • Must not be a Setup Guide user (they get VilletoSetupGuide instead)
+  // • Must be second-or-later login (loginCount > 1 = NOT first login)
+  //   NOTE: loginCount ≥ 2 means the password modal has already been cleared.
+  //         loginCount === 1 = first session after invite (still shows tour).
+  const tourKey     = user?.userId ? TOUR_KEY(user.userId) : null;
+  const alreadySeen = tourKey ? sessionStorage.getItem(tourKey) === "1" : true;
+
+  const isFirstLogin =
     !!user &&
     typeof user.loginCount === "number" &&
-    user.loginCount > 1;
-  const shouldShow = isFirstLogin && !alreadySeen;
+    user.loginCount < 1;
 
-  // ── Start the tour ────────────────────────────────────────
+  // Exclude only the company founder — the CONTROLLING_OFFICER whose account
+  // was created at the same moment as the company (createdAt timestamps match).
+  // All other users, including CONTROLLING_OFFICERs who joined later, see
+  // this informational tour instead of VilletoSetupGuide.
+  const isCompanyFounder =
+    user?.position === "CONTROLLING_OFFICER" &&
+    !!user?.createdAt &&
+    user.createdAt === user?.company?.createdAt;
+
+  const shouldShow = isFirstLogin && !alreadySeen && !isCompanyFounder;
+
+  // ── Start tour ─────────────────────────────────────────────
   useEffect(() => {
     if (!shouldShow) return;
     const t = setTimeout(() => {
       setVisible(true);
       requestAnimationFrame(() => setCardVisible(true));
-    }, 1500); // allow SetPasswordModal to render first if needed
+    }, 1500);
     return () => clearTimeout(t);
   }, [shouldShow]);
 
-  // ── Navigation + card visibility (single effect, no stale closure) ──────
-  //
-  // By depending on [pathname, searchParams, stepIndex, visible] we always have fresh
-  // values of `step`.  Two cases:
-  //  • Already on the right page & tab → hide card briefly then show it.
-  //  • Wrong page/tab → router.push(), then this effect re-fires when
-  //    URL updates, hitting the "already on page" branch.
+  // ── Navigation + card visibility ──────────────────────────
   useEffect(() => {
     if (!visible || !step) return;
     if (pendingRef.current) clearTimeout(pendingRef.current);
 
     const targetUrl = step.navigateUrl ?? step.navigateTo;
-    
-    // Determine if we are on the wrong tab (via URL parameters)
-    const targetTabMatches = targetUrl.match(/tab=([^&]+)/);
-    const targetTabStr = targetTabMatches ? targetTabMatches[1] : null;
-    const currentTab = searchParams.get("tab");
-    
-    // We are on the wrong URL if the pathname differs OR if the tab differs 
-    // (but only strictly check the tab if the targetUrl explicitly specified one)
+
+    const tabMatch  = targetUrl.match(/tab=([^&]+)/);
+    const targetTab = tabMatch ? tabMatch[1] : null;
+    const currTab   = searchParams.get("tab");
+
     const isOnWrongPage = pathname !== step.navigateTo;
-    const isOnWrongTab = targetTabStr ? currentTab !== targetTabStr : false;
+    const isOnWrongTab  = targetTab ? currTab !== targetTab : false;
 
     if (isOnWrongPage || isOnWrongTab) {
-      // Navigate — the URL change will re-trigger this effect
       router.push(targetUrl);
       return;
     }
 
-    // On the correct page & tab — show the card after DOM settles
     setCardVisible(false);
     pendingRef.current = setTimeout(() => setCardVisible(true), SETTLE_MS);
     return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
   }, [pathname, searchParams, stepIndex, visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Close tour ────────────────────────────────────────────
+  // ── Close tour ─────────────────────────────────────────────
   const closeTour = useCallback(() => {
     if (!user) return;
     sessionStorage.setItem(TOUR_KEY(user.userId), "1");
@@ -796,7 +901,7 @@ export default function VilletoTourGuide() {
     setTimeout(() => setVisible(false), 350);
   }, [user]);
 
-  // ── Advance step ──────────────────────────────────────────
+  // ── Advance step ───────────────────────────────────────────
   const advance = useCallback(() => {
     setCardVisible(false);
     setTimeout(() => {
@@ -811,27 +916,23 @@ export default function VilletoTourGuide() {
     }, 280);
   }, [stepIndex, steps.length, step, closeTour]);
 
-  // ── Primary CTA ───────────────────────────────────────────
+  // ── Primary CTA ────────────────────────────────────────────
   const handlePrimary = useCallback(() => {
-    // If it's the final step, route to expenses and finish the tour
     if (step?.id === "setup-complete") {
       router.push("/expenses?tab=personal-expenses");
       closeTour();
       return;
     }
-    
-    // Otherwise, for "Start Setup" or "Next", just peacefully advance
     advance();
   }, [step, router, closeTour, advance]);
 
-  // ── Secondary CTA (Next / Skip) ──────────────────────────
+  // ── Secondary CTA ──────────────────────────────────────────
   const handleSecondary = useCallback(() => {
     if (step?.id === "setup-complete") {
       router.push("/dashboard");
       closeTour();
       return;
     }
-
     if (step?.secondaryLabel?.toLowerCase().includes("skip")) {
       closeTour();
       return;
@@ -839,7 +940,7 @@ export default function VilletoTourGuide() {
     advance();
   }, [step, router, advance, closeTour]);
 
-  // ── Keyboard ──────────────────────────────────────────────
+  // ── Keyboard ───────────────────────────────────────────────
   useEffect(() => {
     if (!visible) return;
     const onKey = (e: KeyboardEvent) => {
@@ -850,11 +951,13 @@ export default function VilletoTourGuide() {
     return () => window.removeEventListener("keydown", onKey);
   }, [visible, handlePrimary, closeTour]);
 
-  // ── Tooltip position ──────────────────────────────────────
+  // ── Tooltip position ───────────────────────────────────────
   const pos = useTooltipPosition(step?.targetSelector, step?.arrowSide ?? "none");
 
-  // ── Progress tracker ──────────────────────────────────────
-  const progressList = PROGRESS_STEPS.filter((ps) => steps.some((s) => s.id === ps.stepId));
+  // ── Progress tracker ───────────────────────────────────────
+  const progressList = PROGRESS_STEPS.filter((ps) =>
+    steps.some((s) => s.id === ps.stepId)
+  );
   const progressDone = progressList.filter((ps) => completedIds.has(ps.stepId)).length;
 
   if (!visible || !step || steps.length === 0) return null;
@@ -864,16 +967,56 @@ export default function VilletoTourGuide() {
   return (
     <>
       {/*
-       * Full-screen SVG overlay.
-       * On non-welcome steps: the active sidebar nav row is
-       * punched out so it glows through clearly.
-       * On welcome: cover everything (no punch-out).
+       * Click-blocking layer.
+       * Blocks all page interactions EXCEPT for the interactive target
+       * element on steps where targetIsInteractive === true.
+       * zIndex 9989 — above content, below SVG overlay (9990).
        */}
+      {step.targetIsInteractive ? (
+        // For interactive steps: two half-layers around the spotlighted area
+        // (SVG evenodd handles visual — we just need pointer-events unblocked
+        // over the target). We use pointer-events:none so the underlying
+        // interactive element is reachable through the overlay.
+        <div
+          aria-hidden
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9989,
+            pointerEvents: "none", // pass-through so the form works
+            cursor: "default",
+          }}
+        />
+      ) : (
+        <div
+          aria-hidden
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9989,
+            pointerEvents: "all",
+            cursor: "default",
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+      )}
+
+      {/* Full-screen SVG spotlight overlay */}
       <SpotlightOverlay
         sidebarHref={isWelcome ? undefined : step.sidebarHref}
         targetSelector={isWelcome ? undefined : step.targetSelector}
+        targetIsInteractive={step.targetIsInteractive}
         visible={cardVisible}
       />
+
+      {/* Bouncing pointer arrow — always rendered on top of overlay */}
+      {!isWelcome && step.targetSelector && step.arrowSide && step.arrowSide !== "none" && (
+        <PointerArrow
+          targetSelector={step.targetSelector}
+          side={step.arrowSide}
+        />
+      )}
 
       {/* Tour card */}
       <TourCard

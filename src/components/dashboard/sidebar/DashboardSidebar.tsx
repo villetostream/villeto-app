@@ -4,7 +4,8 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useTourStore } from "@/stores/useTourStore";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
@@ -46,7 +47,15 @@ export function DashboardSidebar() {
   const user = useAuthStore((state) => state.user);
   const router = useRouter();
   const axios = useAxios();
-  const { state } = useSidebar();
+  const { state, setOpen } = useSidebar();
+  const isTourActive = useTourStore((s) => s.isTourActive);
+
+  // ── Force sidebar open for the entire duration of the tour ──
+  useEffect(() => {
+    if (isTourActive) {
+      setOpen(true);
+    }
+  }, [isTourActive, state, setOpen]);
 
   const { data: companyData, isLoading: isQueryLoading } = useQuery({
     queryKey: ["company", user?.companyId, user?.userId],
@@ -321,10 +330,12 @@ export function DashboardSidebar() {
                     priority
                   />
                 </Link>
-                <SidebarTrigger className="shrink-0 cursor-pointer" />
+                {/* Hide collapse trigger while tour is active */}
+                {!isTourActive && <SidebarTrigger className="shrink-0 cursor-pointer" />}
               </>
             ) : (
-              <SidebarTrigger className="shrink-0 cursor-pointer" />
+              /* Hide collapse trigger while tour is active */
+              !isTourActive && <SidebarTrigger className="shrink-0 cursor-pointer" />
             )}
           </div>
           {/* Company Selector - placed below the primary header alignment line */}
