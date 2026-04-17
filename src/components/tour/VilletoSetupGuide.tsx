@@ -570,54 +570,82 @@ type TooltipPos = {
   arrowLeft?: number;
   arrowTop?: number;
   placement: "near-target" | "center";
+  targetMissing?: boolean;
 };
 
 function useTooltipPosition(
   selector: string | undefined,
   arrowSide: ArrowSide = "none"
 ): TooltipPos {
-  const [pos, setPos] = useState<TooltipPos>({ placement: "center" });
+  const [pos, setPos] = useState<TooltipPos>({ placement: "center", targetMissing: !!selector });
 
   const compute = useCallback(() => {
     if (!selector || arrowSide === "none") {
-      setPos({ placement: "center" });
+      setPos(p => {
+        if (p.placement === "center" && p.targetMissing === false) return p;
+        return { placement: "center", targetMissing: false };
+      });
       return;
     }
     const el = document.querySelector<HTMLElement>(selector);
-    if (!el) { setPos({ placement: "center" }); return; }
+    if (!el) {
+      setPos(p => {
+        if (p.placement === "center" && p.targetMissing === true) return p;
+        return { placement: "center", targetMissing: true };
+      });
+      return;
+    }
 
     const rect = el.getBoundingClientRect();
     const CARD_W = 400;
     const GAP = 56; // extra gap to clear the pointer arrow
+    let nextPos: TooltipPos = { placement: "center", targetMissing: false };
 
     if (arrowSide === "top") {
       let left = rect.left + rect.width / 2 - CARD_W / 2;
       left = Math.max(12, Math.min(left, window.innerWidth - CARD_W - 12));
       const arrowLeft = rect.left + rect.width / 2 - left;
-      setPos({ top: rect.bottom + GAP, left, arrowLeft, placement: "near-target" });
+      nextPos = { top: rect.bottom + GAP, left, arrowLeft, placement: "near-target", targetMissing: false };
     } else if (arrowSide === "bottom") {
       let left = rect.left + rect.width / 2 - CARD_W / 2;
       left = Math.max(12, Math.min(left, window.innerWidth - CARD_W - 12));
       const arrowLeft = rect.left + rect.width / 2 - left;
-      setPos({ top: rect.top - GAP - 360, left, arrowLeft, placement: "near-target" });
+      nextPos = { top: rect.top - GAP - 360, left, arrowLeft, placement: "near-target", targetMissing: false };
     } else if (arrowSide === "left") {
       let top = rect.top + rect.height / 2 - 100;
       top = Math.max(12, Math.min(top, window.innerHeight - 300));
-      setPos({ top, left: rect.right + GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target" });
+      nextPos = { top, left: rect.right + GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target", targetMissing: false };
     } else if (arrowSide === "right") {
       let top = rect.top + rect.height / 2 - 100;
       top = Math.max(12, Math.min(top, window.innerHeight - 300));
-      setPos({ top, left: rect.left - CARD_W - GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target" });
-    } else {
-      setPos({ placement: "center" });
+      nextPos = { top, left: rect.left - CARD_W - GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target", targetMissing: false };
     }
+
+    setPos(p => {
+      if (
+        p.placement === nextPos.placement &&
+        p.top === nextPos.top &&
+        p.left === nextPos.left &&
+        p.arrowLeft === nextPos.arrowLeft &&
+        p.arrowTop === nextPos.arrowTop &&
+        p.targetMissing === nextPos.targetMissing
+      ) {
+        return p;
+      }
+      return nextPos;
+    });
   }, [selector, arrowSide]);
 
   useEffect(() => {
     compute();
-    const raf = requestAnimationFrame(compute);
+    const interval = setInterval(compute, 150);
     window.addEventListener("resize", compute);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", compute); };
+    window.addEventListener("scroll", compute, true);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("resize", compute);
+      window.removeEventListener("scroll", compute, true);
+    };
   }, [compute]);
 
   return pos;
@@ -1440,7 +1468,7 @@ export default function VilletoSetupGuide() {
             stepNumber={stepIndex + 1}
             totalSteps={SETUP_STEPS.length}
             pos={pos}
-            visible={cardVisible}
+            visible={cardVisible && !pos.targetMissing}
             isDone={completedIds.has(step.id)}
             waitingForAction={waitingForAction && !completedIds.has(step.id)}
             onSkip={skipGuide}
