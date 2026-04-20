@@ -47,6 +47,122 @@ function NotifRow({ label, defaultOn = false }: { label: string; defaultOn?: boo
   );
 }
 
+// ─── Nigerian banks list ──────────────────────────────────────────────────────
+const NIGERIAN_BANKS = [
+  "Access Bank",
+  "Citibank Nigeria",
+  "Ecobank Nigeria",
+  "Fidelity Bank",
+  "First Bank of Nigeria",
+  "First City Monument Bank (FCMB)",
+  "Guaranty Trust Bank (GTBank)",
+  "Heritage Bank",
+  "Keystone Bank",
+  "Polaris Bank",
+  "Providus Bank",
+  "Stanbic IBTC Bank",
+  "Standard Chartered Bank",
+  "Sterling Bank",
+  "SunTrust Bank",
+  "Titan Trust Bank",
+  "Union Bank of Nigeria",
+  "United Bank for Africa (UBA)",
+  "Unity Bank",
+  "Wema Bank",
+  "Zenith Bank",
+];
+
+// ─── Bank Details Modal ───────────────────────────────────────────────────────
+function BankDetailsModal({
+  open,
+  onClose,
+  onConfirm,
+  accountHolderName,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (bankName: string, accountNumber: string) => void;
+  accountHolderName?: string;
+}) {
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+
+  const handleConfirm = () => {
+    if (!bankName || !accountNumber) return;
+    onConfirm(bankName, accountNumber);
+    onClose();
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
+      {/* Modal */}
+      <div className="relative bg-white rounded-2xl shadow-xl p-8 w-full max-w-md mx-4 z-10">
+        <h2 className="text-lg font-semibold text-foreground mb-6">Bank Details</h2>
+
+        {/* Bank Name */}
+        <div className="mb-5">
+          <label className="block text-sm font-medium text-foreground mb-2">Bank Name</label>
+          <Select value={bankName} onValueChange={setBankName}>
+            <SelectTrigger className="h-11 border-border bg-white text-sm">
+              <SelectValue placeholder="Select bank" />
+            </SelectTrigger>
+            <SelectContent>
+              {NIGERIAN_BANKS.map((bank) => (
+                <SelectItem key={bank} value={bank}>
+                  {bank}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Account Number */}
+        <div className="mb-2">
+          <label className="block text-sm font-medium text-foreground mb-2">Account Number</label>
+          <Input
+            value={accountNumber}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+              setAccountNumber(val);
+            }}
+            placeholder="Enter your 10 digits"
+            className={cn(
+              "h-11 border-border text-sm",
+              accountNumber.length === 10 ? "border-primary" : ""
+            )}
+            maxLength={10}
+          />
+          {/* Account holder name preview */}
+          {accountNumber.length === 10 && accountHolderName && (
+            <p className="text-sm font-medium text-primary mt-1.5">{accountHolderName}</p>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-4 mt-8">
+          <button
+            onClick={onClose}
+            className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
+          >
+            Cancel
+          </button>
+          <Button
+            onClick={handleConfirm}
+            disabled={!bankName || accountNumber.length < 10}
+            className="bg-primary text-white hover:bg-primary/90 h-10 px-6 text-sm disabled:opacity-50"
+          >
+            Confirm
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── My Profile tab ───────────────────────────────────────────────────────────
 function MyProfileTab() {
   const user = useAuthStore((s) => s.user);
@@ -55,6 +171,10 @@ function MyProfileTab() {
   const [isSaving, setIsSaving] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  // Bank details state
+  const [bankModalOpen, setBankModalOpen] = useState(false);
+  const [bankDetails, setBankDetails] = useState<{ bankName: string; accountNumber: string } | null>(null);
 
   const [form, setForm] = useState<ProfileFormData>({
     firstName: "",
@@ -106,6 +226,12 @@ function MyProfileTab() {
     reader.readAsDataURL(file);
   };
 
+  const handleBankConfirm = (bankName: string, accountNumber: string) => {
+    setBankDetails({ bankName, accountNumber });
+    toast.success("Bank details updated successfully");
+    notifySetupGuide("account-details");
+  };
+
   const Field = ({
     label,
     value,
@@ -137,8 +263,11 @@ function MyProfileTab() {
     </div>
   );
 
+  const accountHolderName = `${form.firstName} ${form.lastName}`.trim() || user?.email;
+
   return (
     <div className="bg-white rounded-xl border border-border p-6" data-tour="account-details-section">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-base font-semibold text-foreground">My Profile Details</h2>
         {!isEditing ? (
@@ -181,45 +310,93 @@ function MyProfileTab() {
             </div>
           )}
         </div>
-        {isEditing && (
-          <button
-            onClick={() => avatarInputRef.current?.click()}
-            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-primary flex items-center justify-center border-2 border-white"
-          >
-            <Camera className="w-3.5 h-3.5 text-white" />
-          </button>
-        )}
+        <button
+          onClick={() => avatarInputRef.current?.click()}
+          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-primary flex items-center justify-center border-2 border-white"
+        >
+          <Camera className="w-3.5 h-3.5 text-white" />
+        </button>
         <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
       </div>
 
-      <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-        <Field label="First Name" value={form.firstName} field="firstName" />
-        <Field label="Last Name" value={form.lastName} field="lastName" />
-        <Field label="Email Address" value={form.email} field="email" disabled type="email" />
-        {/* Phone with prefix */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            Phone Number<span className="text-red-500 ml-0.5">*</span>
-          </label>
-          <div className="flex gap-2">
-            <div className="w-16 h-11 border border-border rounded-md flex items-center justify-center bg-muted/30 text-sm text-muted-foreground shrink-0">
-              +1
+      {/* Personal Details + Bank Details side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6">
+        {/* Personal Details Card */}
+        <div className="border border-border rounded-xl p-5">
+          <p className="text-xs font-bold uppercase tracking-wider text-foreground mb-5">Personal Details</p>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">First Name</p>
+              {isEditing ? (
+                <Input
+                  value={form.firstName}
+                  onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))}
+                  className="h-10 text-sm border-border bg-muted/30"
+                />
+              ) : (
+                <p className="text-sm font-medium text-foreground">{form.firstName || "—"}</p>
+              )}
             </div>
-            <Input
-              value={form.phone}
-              disabled={!isEditing}
-              onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-              className={cn("bg-muted/30 border-border h-11 flex-1", !isEditing && "opacity-70 cursor-default")}
-              placeholder="000 0000 00000"
-            />
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Last Name</p>
+              {isEditing ? (
+                <Input
+                  value={form.lastName}
+                  onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
+                  className="h-10 text-sm border-border bg-muted/30"
+                />
+              ) : (
+                <p className="text-sm font-medium text-foreground">{form.lastName || "—"}</p>
+              )}
+            </div>
+            <div className="col-span-2 space-y-1">
+              <p className="text-xs text-muted-foreground">Email Address</p>
+              <p className="text-sm font-medium text-foreground">{form.email || "—"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Country</p>
+              <p className="text-sm font-medium text-foreground">{form.country || "—"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">City</p>
+              {isEditing ? (
+                <Input
+                  value={form.city}
+                  onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
+                  className="h-10 text-sm border-border bg-muted/30"
+                />
+              ) : (
+                <p className="text-sm font-medium text-foreground">{form.city || "—"}</p>
+              )}
+            </div>
           </div>
         </div>
-        <Field label="Country" value={form.country} field="country" disabled />
-        <Field label="City" value={form.city} field="city" />
+
+        {/* Bank Details Card */}
+        <div className="border border-border rounded-xl p-5 min-w-[280px]">
+          <p className="text-xs font-bold uppercase tracking-wider text-foreground mb-5">Bank Details</p>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-5">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Account Number</p>
+              <p className="text-sm font-medium text-foreground">{bankDetails?.accountNumber || "-"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Bank Name</p>
+              <p className="text-sm font-medium text-foreground">{bankDetails?.bankName || "-"}</p>
+            </div>
+          </div>
+          <Button
+            onClick={() => setBankModalOpen(true)}
+            data-tour="update-details-button"
+            className="bg-primary text-white hover:bg-primary/90 h-10 px-5 text-sm"
+          >
+            Update Details
+          </Button>
+        </div>
       </div>
 
       {/* Delete Account */}
-      <div className="mt-8 rounded-xl bg-muted/30 border border-border p-5">
+      <div className="mt-6 rounded-xl bg-muted/30 border border-border p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">Delete Account</h3>
         <div className="flex items-start gap-2 mb-3">
           <div className="w-4 h-4 rounded-full border border-muted-foreground flex items-center justify-center shrink-0 mt-0.5">
@@ -237,6 +414,14 @@ function MyProfileTab() {
           Delete Account
         </button>
       </div>
+
+      {/* Bank Details Modal */}
+      <BankDetailsModal
+        open={bankModalOpen}
+        onClose={() => setBankModalOpen(false)}
+        onConfirm={handleBankConfirm}
+        accountHolderName={accountHolderName}
+      />
     </div>
   );
 }

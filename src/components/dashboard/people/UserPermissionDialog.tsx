@@ -5,6 +5,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -43,9 +44,9 @@ export function UserPermissionsDialog({
                         <DialogTitle>User Permissions</DialogTitle>
 
                     </div>
-                    <p className="text-sm text-muted-foreground">
+                    <DialogDescription className="text-sm text-muted-foreground">
                         Manage what each role can view, create, edit, and approve across Villeto.
-                    </p>
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="gap-4 grid h-full overflow-y-auto">

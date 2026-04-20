@@ -1,43 +1,28 @@
 "use client";
 
 /**
- * VilletoSetupGuide
+ * VilletoSetupGuide  (v2 — full UX rewrite)
  * ─────────────────────────────────────────────────────────────
- * Interactive workspace-setup guide shown AFTER the force-password
- * modal on first login for CONTROLLING_OFFICER / ORGANIZATION_OWNER
- * users only.
+ * Key changes from v1:
  *
- * Key behaviours:
- *  • Steps must be COMPLETED (action performed) before the tick
- *    is granted — "Next" alone does not tick; the action must fire.
- *  • Users can Skip; if they do, a persistent "Continue Setup"
- *    banner appears in the bottom-left so they can resume.
- *  • Silent tracking: if a user performs a setup action on their
- *    own (without following the guide), the step auto-ticks.
- *  • When all 6 steps are done a completion modal fires.
- *  • The guide only appears AFTER SetPasswordModal closes
- *    (communicated via the `setupGuideReady` flag in useTourStore).
+ *  [UX-1] 5 steps only (directory, invitations, expense-category,
+ *          policy, account-details). "report" removed.
+ *          Final step navigates to /expenses?tab=personal but never
+ *          forces report creation.
  *
- * Bug-fixes applied (see CHANGELOG below):
- *  [FIX-1] markStepDone — moved setWaitingForAction + setTimeout OUT of
- *          the setStepIndex updater. React StrictMode calls updater
- *          functions twice in dev, which caused the advance timer to
- *          fire twice and skip a step.
- *  [FIX-2] markStepDone — moved setIsSkipped / setVisible / setTimeout
- *          (showDoneModal) OUT of the setCompletedIds updater for the
- *          same reason. Completion detection is now a dedicated useEffect
- *          that runs after the state update is committed, never twice.
- *  [FIX-3] stepIndexRef — was declared but never synced. Added a useEffect
- *          that keeps it in lockstep with the stepIndex state so
- *          markStepDone always reads the true current index.
- *  [FIX-4] Timer refs — advance timers now use a dedicated advanceRef
- *          so they never clobber the nav-settle pendingRef.
- *  [FIX-5] SetupCard / SetupCompleteModal — added role="dialog",
- *          aria-modal, aria-labelledby for screen-reader accessibility
- *          and focus management on open.
- *  [FIX-6] Keyboard handler — Enter key now ignores events whose target
- *          is an <input>, <textarea>, or <select> so the guide doesn't
- *          accidentally advance when the user types in a form field.
+ *  [UX-2] Invite Users flow — zero blocking overlay at any point.
+ *         Phase 0 "idle"   — card + arrow → [data-tour="invite-button"]
+ *         Phase 1 "dropdown-open" — card hidden, overlay gone,
+ *                 arrow → [data-tour="invite-dropdown-menu"]
+ *         Phase 2a/2b — sub-state inline arrows on the respective pages.
+ *
+ *  [UX-3] Tick on EITHER employee OR leadership invite (first one wins).
+ *
+ *  [UX-4] "Skip Setup" always rendered on every card.
+ *
+ *  [UX-5] Warning modals are never covered — overlay cleared first.
+ *
+ *  All original bug-fixes FIX-1…FIX-6 preserved.
  * ─────────────────────────────────────────────────────────────
  */
 
@@ -57,41 +42,13 @@ import { useTourStore } from "@/stores/useTourStore";
 
 type ArrowSide = "top" | "bottom" | "left" | "right" | "none";
 
-/** Overrides for spotlight/title/description when the user is on a sub-path */
 type StepSubState = {
-  /** Returns true when this sub-state should activate */
   pathMatch: (pathname: string, sp: URLSearchParams) => boolean;
   targetSelector?: string;
-  /**
-   * Additional selectors whose bounding boxes are merged with targetSelector
-   * into one unified spotlight cutout (L-shape). Use when related elements
-   * sit close together and should share one highlight shape.
-   */
   mergeSelectors?: string[];
-  /**
-   * Selectors for elements that each get their OWN independent rectangular
-   * spotlight cutout — no L-shape merging. Use for distant elements (e.g.
-   * a Radix dropdown portal that opens below the trigger button) that need
-   * a separate hole in the overlay.
-   */
-  extraCutoutSelectors?: string[];
   arrowSide?: ArrowSide;
   title?: string;
-  /**
-   * Plain description string. Prefer `steps` for multi-action instructions.
-   */
   description?: string;
-  /**
-   * Numbered step list that replaces the description. Each string becomes
-   * a styled line item with a teal numbered badge.
-   */
-  steps?: string[];
-  /**
-   * "bottom-center" — anchor the SetupCard to the bottom-center of the
-   * viewport instead of near the target. Use on sub-pages where the card
-   * must never overlap form fields or table rows.
-   */
-  cardPlacement?: "bottom-center";
   allowInteraction?: boolean;
   disableSpotlight?: boolean;
 };
@@ -101,26 +58,19 @@ type SetupStep = {
   navigateTo: string;
   navigateUrl?: string;
   sidebarHref?: string;
-  /** CSS selector for the in-page action button to spotlight */
   targetSelector?: string;
   mergeSelectors?: string[];
-  extraCutoutSelectors?: string[];
   arrowSide?: ArrowSide;
   title: string;
   description: string;
-  steps?: string[];
-  cardPlacement?: "bottom-center";
-  /** Event key that silently marks this step done (dispatched after action) */
   completionEvent?: string;
-  /** Extra paths where the guide stays without redirecting the user back */
   allowedSubPaths?: string[];
-  /** Alternate spotlight / title / description per sub-path of the upload flow */
   subStates?: StepSubState[];
   allowInteraction?: boolean;
   disableSpotlight?: boolean;
 };
 
-// ─── Step definitions ─────────────────────────────────────────
+// ─── Step definitions (5 steps) ──────────────────────────────
 
 const SETUP_STEPS: SetupStep[] = [
   {
@@ -132,27 +82,22 @@ const SETUP_STEPS: SetupStep[] = [
     arrowSide: "top",
     title: "Upload Employee Directory",
     description:
-      "Let's get your team into Villeto. Click the \"Upload Directory\" button highlighted above to start importing your employee list.",
+      'Let\'s get your team into Villeto. Click the "Upload Directory" button highlighted above to start importing your employee list.',
     completionEvent: "villeto:directory-uploaded",
-    // Stay in the upload flow — don't redirect back to /people
     allowedSubPaths: ["/people/invite/employees"],
     subStates: [
       {
-        // File drop-zone page (step=upload or no step param)
         pathMatch: (pn, sp) =>
           pn.startsWith("/people/invite/employees") &&
           (sp.get("step") === "upload" || !sp.get("step")),
         targetSelector: '[data-tour="csv-upload-zone"]',
-        // Merge the Download-a-Template link into the same spotlight cutout
-        // so both the link and the drop-zone share one seamless highlight.
         mergeSelectors: ['[data-tour="download-template-link"]'],
         arrowSide: "top",
         title: "Drop Your CSV File Here",
         description:
-          "Drag your CSV or Excel file into the upload area — or click \"Browse File\" to pick it from your computer.\n\nNot sure of the format? Click \"Download a Template\" (highlighted top-right) to get a ready-made CSV you can fill in.",
+          'Drag your CSV or Excel file into the upload area — or click "Browse File" to pick it from your computer.\n\nNot sure of the format? Click "Download a Template" (highlighted top-right) to get a ready-made CSV you can fill in.',
       },
       {
-        // Preview page (step=preview) — confirm & save
         pathMatch: (pn, sp) =>
           pn.startsWith("/people/invite/employees") &&
           sp.get("step") === "preview",
@@ -160,7 +105,7 @@ const SETUP_STEPS: SetupStep[] = [
         arrowSide: "top",
         title: "Review & Save to Directory",
         description:
-          "Your employees are loaded! Give them a quick look — remove any mistakes — then click \"Save to Directory\" to add them to your workspace.",
+          'Your employees are loaded! Give them a quick look — remove any mistakes — then click "Save to Directory" to add them to your workspace.',
         allowInteraction: true,
         disableSpotlight: true,
       },
@@ -175,81 +120,37 @@ const SETUP_STEPS: SetupStep[] = [
     arrowSide: "top",
     title: "Invite Users",
     description:
-      "Invite employees and leadership so they can submit expenses and participate in approval workflows.",
+      'Click "Invite Users" and select either "Invite Employees" or "Invite Leadership & Admin".\n\nSending at least one invitation will complete this step.',
     completionEvent: "villeto:invitation-sent",
     allowedSubPaths: ["/people/invite/employees", "/people/invite/leadership"],
+    // Always interactive — no full overlay on this step
+    allowInteraction: true,
+    disableSpotlight: false,
     subStates: [
-      // ── /people?tab=all-users — dropdown trigger ──────────────────────────────
-      //
-      // The guide must NOT physically cover the dropdown that opens below the
-      // button. Fixes applied:
-      //   • disableSpotlight: false  — overlay is back for "guide mode" feel
-      //   • extraCutoutSelectors     — SpotlightOverlay polls the Radix portal
-      //     selector and adds a SECOND independent rectangular hole whenever
-      //     the dropdown is open, so all dropdown items are fully lit
-      //   • allowInteraction: true   — pointer-freeze CSS is NOT injected so
-      //     the dropdown and its items remain clickable
-      //   • arrowSide: "top"         — bouncing PointerArrow sits ABOVE the
-      //     button pointing down; card is placed at bottom-center (cardPlacement)
-      //     so it can never overlap the dropdown that opens below
-      //   • A separate <DropdownFirstItemArrow> in the render points at the
-      //     first [role="menuitem"] when the dropdown opens
       {
-        pathMatch: (pn, sp) =>
-          pn === "/people" && (sp.get("tab") === "all-users" || !sp.get("tab")),
-        targetSelector: '[data-tour="invite-button"]',
-        extraCutoutSelectors: ["[data-radix-popper-content-wrapper]"],
-        arrowSide: "top",
-        title: "Open the Invite Menu",
-        description:
-          "Click \"Invite Users\" to open the dropdown menu, then choose an option — start with \"Invite Employees\" first.",
-        cardPlacement: "bottom-center",
-        allowInteraction: true,
-        disableSpotlight: false,
-      },
-      // ── /people/invite/employees (directory picker) ───────────────────────────
-      //
-      // Card anchored to bottom-center so it never covers the table.
-      // Two arrows: primary on the Invite button (bottom-right), secondary on
-      // the select-all checkbox (top of table header). Both have spotlight
-      // cutouts via mergeSelectors. Overlay at reduced opacity (35%) keeps the
-      // "guide mode" feel while leaving table rows fully readable.
-      {
+        // Employees directory picker
         pathMatch: (pn, sp) =>
           pn.startsWith("/people/invite/employees") &&
           sp.get("step") !== "upload" &&
           sp.get("step") !== "preview",
-        targetSelector: '[data-tour="invite-selected-btn"]',
-        mergeSelectors: ['[data-tour="directory-select-all"]'],
+        targetSelector: '[data-tour="send-invitations-button"]',
         arrowSide: "top",
         title: "Select & Invite Employees",
-        steps: [
-          "Tick the checkbox in the table header to select all employees at once — or tick individual rows.",
-          "When your selection is ready, click the teal \"Invite Users\" button (highlighted, bottom-right) to send invitations.",
-        ],
-        cardPlacement: "bottom-center",
+        description:
+          "Use the checkbox in the header to select all, or tick employees one by one.\n\nThen click the Invite button (arrow below) to send invitations.",
         allowInteraction: true,
-        disableSpotlight: false,
+        disableSpotlight: true,
       },
-      // ── /people/invite/leadership ─────────────────────────────────────────────
-      //
-      // Two-part flow. Both buttons are spotlit. Card stays at the bottom-center
-      // so it never overlaps the form fields (email, name, role) above it.
-      // Primary arrow → Add User form button. Secondary arrow → Invite N Users.
       {
-        pathMatch: (pn, _sp) => pn.startsWith("/people/invite/leadership"),
-        targetSelector: '[data-tour="leadership-add-user-btn"]',
-        mergeSelectors: ['[data-tour="leadership-invite-btn"]'],
+        // Leadership form
+        pathMatch: (pn) => pn.startsWith("/people/invite/leadership"),
+        targetSelector: '[data-tour="leadership-add-user-button"]',
         arrowSide: "top",
-        title: "Invite Leadership & Admins",
-        steps: [
-          "Type an email to find someone from your directory, pick their role, then click \"Add User\" (highlighted, left panel).",
-          "Repeat step 1 for every leader or admin you want to invite.",
-          "When your list is ready, click \"Invite Users\" (highlighted, right panel) to send all invitations.",
-        ],
-        cardPlacement: "bottom-center",
+        title: "Invite Leadership & Admin",
+        description:
+          'Enter the user\'s email, select their role, then click "Add User".\n\nOnce they appear in the list on the right, click "Send Invitation" to complete.',
         allowInteraction: true,
-        disableSpotlight: false,
+        disableSpotlight: true,
       },
     ],
   },
@@ -263,6 +164,7 @@ const SETUP_STEPS: SetupStep[] = [
     title: "Create Expense Category",
     description:
       "Define how your organisation categorises spending — Travel, Meals, Software, and so on — before setting policies.",
+    allowInteraction: true,
     completionEvent: "villeto:expense-category-created",
   },
   {
@@ -275,6 +177,7 @@ const SETUP_STEPS: SetupStep[] = [
     title: "Create a Policy",
     description:
       "Policies control spend limits, receipt requirements, and when approvals are triggered. Set the rules that govern your team's expenses.",
+    allowInteraction: true,
     completionEvent: "villeto:policy-created",
   },
   {
@@ -282,36 +185,43 @@ const SETUP_STEPS: SetupStep[] = [
     navigateTo: "/settings/personal-settings",
     navigateUrl: "/settings/personal-settings?section=account-details",
     sidebarHref: "/settings",
-    targetSelector: '[data-tour="account-details-section"]',
-    arrowSide: "top",
+    targetSelector: '[data-tour="update-details-button"]',
+    arrowSide: "bottom",
     title: "Set Up Account Details",
     description:
       "Add your bank details so reimbursements can be paid directly to you. Your name must match the company directory.",
     completionEvent: "villeto:account-details-saved",
-  },
-  {
-    id: "report",
-    navigateTo: "/expenses",
-    navigateUrl: "/expenses",
-    sidebarHref: "/expenses",
-    targetSelector: '[data-tour="create-report-button"]',
-    arrowSide: "top",
-    title: "Create Your First Report",
-    description:
-      "Collect your expenses into a report and submit it for approval. This is the final step to get your workspace fully running.",
-    completionEvent: "villeto:report-created",
+    // Step 5 is interactive — the user clicks the button through the overlay.
+    allowInteraction: true,
+    disableSpotlight: false,
   },
 ];
 
+const BONUS_STEP: SetupStep = {
+  id: "bonus-report",
+  navigateTo: "/expenses",
+  navigateUrl: "/expenses?tab=personal-expenses",
+  sidebarHref: "/expenses",
+  targetSelector: '[data-tour="new-report-button"]',
+  arrowSide: "top",
+  title: "Create Your First Report",
+  description:
+    "You're all set! Now you can start adding your business expenses. Click the button above to create your first report.",
+  allowInteraction: true,
+  disableSpotlight: false,
+};
+
 // ─── Session-storage keys ─────────────────────────────────────
 
-const GUIDE_DISMISSED_KEY = (uid: string) => `villeto-setup-guide-dismissed:${uid}`;
-const GUIDE_COMPLETED_KEY  = (uid: string) => `villeto-setup-guide-complete:${uid}`;
-const STEP_DONE_KEY        = (uid: string, stepId: string) => `villeto-setup-step:${uid}:${stepId}`;
+const POST_SETUP_DISMISSED_KEY = (uid: string) => `villeto-post-setup-dismissed:${uid}`;
+const GUIDE_DISMISSED_KEY = (uid: string) =>
+  `villeto-setup-guide-dismissed:${uid}`;
+const GUIDE_COMPLETED_KEY = (uid: string) =>
+  `villeto-setup-guide-complete:${uid}`;
+const STEP_DONE_KEY = (uid: string, stepId: string) =>
+  `villeto-setup-step:${uid}:${stepId}`;
 
 // ─── Silent completion context ────────────────────────────────
-// Pages dispatch custom events when actions succeed; the guide
-// listens here and silently ticks the relevant step.
 
 export const SetupGuideContext = createContext<{
   markStepDone: (stepId: string) => void;
@@ -321,7 +231,7 @@ export function useSetupGuide() {
   return useContext(SetupGuideContext);
 }
 
-// ─── SVG Spotlight overlay ────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────
 
 type SpotRect = { top: number; bottom: number; left: number; right: number };
 
@@ -340,43 +250,28 @@ function getSidebarWidth(): number {
   return el ? el.getBoundingClientRect().width : 220;
 }
 
+// ─── SVG Spotlight overlay ────────────────────────────────────
+
 function SpotlightOverlay({
   sidebarHref,
   targetSelector,
   mergeSelectors,
-  extraCutoutSelectors,
-  dimOpacity = 0.52,
   visible,
 }: {
   sidebarHref?: string;
   targetSelector?: string;
-  /** Selectors merged with targetSelector into one union bounding-box cutout */
   mergeSelectors?: string[];
-  /**
-   * Each selector here gets its OWN independent rectangular cutout —
-   * no L-shape merging. Use for elements far from the primary target
-   * (e.g. a Radix dropdown portal that appears below the trigger).
-   * The SpotlightOverlay polls for these on the same 150ms interval
-   * so they light up automatically when they appear in the DOM.
-   */
-  extraCutoutSelectors?: string[];
-  /** Overlay fill opacity — default 0.52; use ~0.35 for allowInteraction steps */
-  dimOpacity?: number;
   visible: boolean;
 }) {
   const [vp, setVp] = useState({ w: 0, h: 0 });
   const [sidebarSpot, setSidebarSpot] = useState<
     (SpotRect & { sidebarW: number }) | null
   >(null);
-  const [targetSpot,  setTargetSpot]  = useState<SpotRect | null>(null);
-  // Kept separate so we can build an L-shape rather than a simple union rect.
-  const [mergeSpots,  setMergeSpots]  = useState<SpotRect[]>([]);
-  // Each extra selector gets its own independent rectangular cutout.
-  const [extraSpots,  setExtraSpots]  = useState<SpotRect[]>([]);
+  const [targetSpot, setTargetSpot] = useState<SpotRect | null>(null);
+  const [mergeSpots, setMergeSpots] = useState<SpotRect[]>([]);
 
   const measure = useCallback(() => {
     setVp({ w: window.innerWidth, h: window.innerHeight });
-
     if (sidebarHref) {
       const el = document.querySelector<HTMLElement>(
         `a[href="${sidebarHref}"], [data-href="${sidebarHref}"]`
@@ -384,456 +279,207 @@ function SpotlightOverlay({
       if (el) {
         const r = el.getBoundingClientRect();
         const sw = getSidebarWidth();
-        setSidebarSpot({
-          top: r.top,
-          bottom: r.bottom,
-          left: 0,
-          right: sw,
-          sidebarW: sw,
-        });
+        setSidebarSpot({ top: r.top, bottom: r.bottom, left: 0, right: sw, sidebarW: sw });
       } else {
         setSidebarSpot(null);
       }
     } else {
       setSidebarSpot(null);
     }
-
-    // Primary target stays its own rect — no union expansion.
     setTargetSpot(targetSelector ? measureEl(targetSelector) : null);
-
-    // Merge selectors are tracked individually so we can trace an L-shape.
     setMergeSpots(
-      (mergeSelectors ?? [])
-        .map((sel) => measureEl(sel))
-        .filter((r): r is SpotRect => r !== null)
+      (mergeSelectors ?? []).map((s) => measureEl(s)).filter((r): r is SpotRect => r !== null)
     );
-
-    // Extra cutout selectors — each becomes its own independent rectangle.
-    // We poll unconditionally so elements that appear later (e.g. Radix
-    // dropdown portals) light up within the next 150 ms interval.
-    setExtraSpots(
-      (extraCutoutSelectors ?? [])
-        .map((sel) => measureEl(sel))
-        .filter((r): r is SpotRect => r !== null)
-    );
-  }, [sidebarHref, targetSelector, mergeSelectors, extraCutoutSelectors]);
+  }, [sidebarHref, targetSelector, mergeSelectors]);
 
   useEffect(() => {
     measure();
-    // Poll so the spotlight hole re-measures after client-side navigation —
-    // the target element doesn't exist in the DOM until the new page renders,
-    // so a single requestAnimationFrame fired on mount would always miss it.
-    const interval = setInterval(measure, 150);
+    const iv = setInterval(measure, 150);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {
-      clearInterval(interval);
+      clearInterval(iv);
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
   }, [measure]);
 
   if (vp.w === 0) return null;
-
   const { w, h } = vp;
-  const SP = 6;
-  const TP = 8;
-
+  const SP = 6, TP = 8;
   const outer = `M0 0 L${w} 0 L${w} ${h} L0 ${h}Z`;
-
   const sHole = sidebarSpot
-    ? `M0 ${sidebarSpot.top - SP} L${sidebarSpot.sidebarW} ${sidebarSpot.top - SP} ` +
-      `L${sidebarSpot.sidebarW} ${sidebarSpot.bottom + SP} L0 ${sidebarSpot.bottom + SP}Z`
+    ? `M0 ${sidebarSpot.top - SP} L${sidebarSpot.sidebarW} ${sidebarSpot.top - SP} L${sidebarSpot.sidebarW} ${sidebarSpot.bottom + SP} L0 ${sidebarSpot.bottom + SP}Z`
     : "";
 
-  /**
-   * Build the spotlight hole path.
-   *
-   * ─ No mergeSpots: simple rectangle (the original behaviour).
-   * ─ With mergeSpots: an L-shape (Γ) that starts as the main rect but grows
-   *   a notch upward on the right to also reveal the merged element
-   *   (e.g. the "Download a Template" link sitting above the drop-zone).
-   *
-   *  Visual (upload-zone = main, download link = extra):
-   *
-   *              eL        eR
-   *               |        |
-   *   eT  . . . . +________+
-   *               |        |
-   *   mT  ___+___+          +___+
-   *       |                      |
-   *       |    Upload  Zone       |
-   *       |                      |
-   *   mB  +______________________+
-   *      mL                      mR
-   */
-  let tHole = "";
-  let tBorderPoints = "";
-
+  let tHole = "", tBorderPoints = "";
   if (targetSpot) {
-    const extra = mergeSpots[0] ?? null; // only the first merge element is used for the L
-
+    const extra = mergeSpots[0] ?? null;
     if (extra) {
-      // Coordinates with padding applied
-      const mL = targetSpot.left   - TP;
-      const mR = targetSpot.right  + TP;
-      const mT = targetSpot.top    - TP;
-      const mB = targetSpot.bottom + TP;
-      const eL = extra.left  - TP;
-      const eT = extra.top   - TP;
-      // Use the rightmost edge of either element so the notch never clips.
+      const mL = targetSpot.left - TP, mR = targetSpot.right + TP;
+      const mT = targetSpot.top - TP, mB = targetSpot.bottom + TP;
+      const eL = extra.left - TP, eT = extra.top - TP;
       const eR = Math.max(extra.right, targetSpot.right) + TP;
-
-      // SVG hole path (clockwise polygon — evenodd rule punches it out)
-      tHole =
-        `M${mL} ${mB} ` +   // ① bottom-left
-        `L${mL} ${mT} ` +   // ② top-left of main zone
-        `L${eL} ${mT} ` +   // ③ across to notch start (main-top level)
-        `L${eL} ${eT} ` +   // ④ up to top of extra element
-        `L${eR} ${eT} ` +   // ⑤ right across top of extra element
-        `L${eR} ${mT} ` +   // ⑥ back down to main-top level (right side)
-        `L${mR} ${mT} ` +   // ⑦ across to right edge of main (handles eR > mR too)
-        `L${mR} ${mB} ` +   // ⑧ down to bottom-right
-        `Z`;
-
-      // Border polyline traces the exact same outline
-      tBorderPoints =
-        `${mL},${mB} ${mL},${mT} ${eL},${mT} ${eL},${eT} ` +
-        `${eR},${eT} ${eR},${mT} ${mR},${mT} ${mR},${mB}`;
+      tHole = `M${mL} ${mB} L${mL} ${mT} L${eL} ${mT} L${eL} ${eT} L${eR} ${eT} L${eR} ${mT} L${mR} ${mT} L${mR} ${mB} Z`;
+      tBorderPoints = `${mL},${mB} ${mL},${mT} ${eL},${mT} ${eL},${eT} ${eR},${eT} ${eR},${mT} ${mR},${mT} ${mR},${mB}`;
     } else {
-      // Original simple rectangle
-      const l = targetSpot.left   - TP;
-      const r = targetSpot.right  + TP;
-      const t = targetSpot.top    - TP;
-      const b = targetSpot.bottom + TP;
-      tHole =
-        `M${l} ${t} L${r} ${t} L${r} ${b} L${l} ${b}Z`;
+      const l = targetSpot.left - TP, r = targetSpot.right + TP;
+      const t = targetSpot.top - TP, b = targetSpot.bottom + TP;
+      tHole = `M${l} ${t} L${r} ${t} L${r} ${b} L${l} ${b}Z`;
       tBorderPoints = `${l},${t} ${r},${t} ${r},${b} ${l},${b}`;
     }
   }
 
-  const d = [outer, sHole, tHole].filter(Boolean).join(" ");
-
-  // Independent rectangular holes for extra cutout selectors
-  // (e.g. the Radix dropdown portal that opens below the invite button)
-  const extraHoles = extraSpots.map((r) => {
-    const l = r.left   - TP;
-    const ri = r.right  + TP;
-    const t = r.top    - TP;
-    const b = r.bottom + TP;
-    return `M${l} ${t} L${ri} ${t} L${ri} ${b} L${l} ${b}Z`;
-  });
-  const dFull = [d, ...extraHoles].filter(Boolean).join(" ");
-
   return (
-    <svg
-      aria-hidden
-      style={{
-        position: "fixed",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        zIndex: 9990,
-        pointerEvents: "none",
-        opacity: visible ? 1 : 0,
-        transition: "opacity 0.35s ease",
-      }}
-    >
-      <path fillRule="evenodd" d={dFull} fill={`rgba(0,0,0,${dimOpacity})`} />
-
-      {sidebarSpot && (
-        <rect
-          x={0}
-          y={sidebarSpot.top - SP}
-          width={sidebarSpot.sidebarW}
-          height={sidebarSpot.bottom - sidebarSpot.top + SP * 2}
-          fill="none"
-          stroke="rgba(13,148,136,0.8)"
-          strokeWidth={2}
-          rx={8}
-          style={{ filter: "drop-shadow(0 0 6px rgba(13,148,136,0.55))" }}
-        />
-      )}
-
-      {/* Teal border traces the exact cutout shape — rect OR L-shape */}
-      {targetSpot && tBorderPoints && (
-        <polygon
-          points={tBorderPoints}
-          fill="none"
-          stroke="rgba(13,148,136,0.8)"
-          strokeWidth={2}
-          strokeLinejoin="round"
-          style={{ filter: "drop-shadow(0 0 6px rgba(13,148,136,0.55))" }}
-        />
-      )}
+    <svg aria-hidden style={{ position: "fixed", inset: 0, width: "100%", height: "100%", zIndex: 40, pointerEvents: "none", opacity: visible ? 1 : 0, transition: "opacity 0.35s ease" }}>
+      <path fillRule="evenodd" d={[outer, sHole, tHole].filter(Boolean).join(" ")} fill="rgba(0,0,0,0.52)" />
+      {sidebarSpot && <rect x={0} y={sidebarSpot.top - SP} width={sidebarSpot.sidebarW} height={sidebarSpot.bottom - sidebarSpot.top + SP * 2} fill="none" stroke="rgba(13,148,136,0.8)" strokeWidth={2} rx={8} style={{ filter: "drop-shadow(0 0 6px rgba(13,148,136,0.55))" }} />}
+      {targetSpot && tBorderPoints && <polygon points={tBorderPoints} fill="none" stroke="rgba(13,148,136,0.8)" strokeWidth={2} strokeLinejoin="round" style={{ filter: "drop-shadow(0 0 6px rgba(13,148,136,0.55))" }} />}
     </svg>
   );
 }
 
-// ─── Animated pointer arrow ─────────────────────────────────
-// Bounces toward the target from whichever side has enough space.
-// Auto-flips: e.g. a "top" step whose button is in the page header is
-// moved below the button automatically so it stays on screen.
+// ─── Animated pointer arrow ───────────────────────────────────
 
-function PointerArrow({
-  targetSelector,
-  side = "top",
-}: {
-  targetSelector?: string;
-  side?: ArrowSide;
-}) {
-  const [pos, setPos] = useState<{
-    x: number;
-    y: number;
-    effectiveSide: ArrowSide;
-  } | null>(null);
+function PointerArrow({ targetSelector, side = "top" }: { targetSelector?: string; side?: ArrowSide }) {
+  const [pos, setPos] = useState<{ x: number; y: number; effectiveSide: ArrowSide } | null>(null);
 
   const compute = useCallback(() => {
     if (!targetSelector || side === "none") { setPos(null); return; }
     const rect = measureEl(targetSelector);
     if (!rect) { setPos(null); return; }
-
-    const TP  = 8;   // matches SpotlightOverlay padding
-    const GAP = 30;  // distance from target edge to arrow centre
-    const MIN = 50;  // min px from viewport edge for arrow to be visible
-    const vw  = window.innerWidth;
-    const vh  = window.innerHeight;
-
+    const TP = 8, GAP = 30, MIN = 50;
+    const vw = window.innerWidth, vh = window.innerHeight;
     let x = 0, y = 0, effectiveSide: ArrowSide = side;
-
     switch (side) {
       case "top": {
         const yAbove = rect.top - TP - GAP;
-        if (yAbove > MIN) {
-          y = yAbove;
-          effectiveSide = "top";
-        } else {
-          // button too close to viewport top — flip below
-          y = rect.bottom + TP + GAP;
-          effectiveSide = "bottom";
-        }
+        y = yAbove > MIN ? (effectiveSide = "top", yAbove) : (effectiveSide = "bottom", rect.bottom + TP + GAP);
         x = Math.min(Math.max((rect.left + rect.right) / 2, MIN), vw - MIN);
         break;
       }
       case "bottom": {
         const yBelow = rect.bottom + TP + GAP;
-        if (yBelow < vh - MIN) {
-          y = yBelow;
-          effectiveSide = "bottom";
-        } else {
-          y = rect.top - TP - GAP;
-          effectiveSide = "top";
-        }
+        y = yBelow < vh - MIN ? (effectiveSide = "bottom", yBelow) : (effectiveSide = "top", rect.top - TP - GAP);
         x = Math.min(Math.max((rect.left + rect.right) / 2, MIN), vw - MIN);
         break;
       }
       case "left": {
         const xLeft = rect.left - TP - GAP;
-        if (xLeft > MIN) {
-          x = xLeft;
-          effectiveSide = "left";
-        } else {
-          x = rect.right + TP + GAP;
-          effectiveSide = "right";
-        }
+        x = xLeft > MIN ? (effectiveSide = "left", xLeft) : (effectiveSide = "right", rect.right + TP + GAP);
         y = Math.min(Math.max((rect.top + rect.bottom) / 2, MIN), vh - MIN);
         break;
       }
       case "right": {
         const xRight = rect.right + TP + GAP;
-        if (xRight < vw - MIN) {
-          x = xRight;
-          effectiveSide = "right";
-        } else {
-          x = rect.left - TP - GAP;
-          effectiveSide = "left";
-        }
+        x = xRight < vw - MIN ? (effectiveSide = "right", xRight) : (effectiveSide = "left", rect.left - TP - GAP);
         y = Math.min(Math.max((rect.top + rect.bottom) / 2, MIN), vh - MIN);
         break;
       }
-      default:
-        setPos(null);
-        return;
+      default: setPos(null); return;
     }
-
     setPos({ x, y, effectiveSide });
   }, [targetSelector, side]);
 
   useEffect(() => {
     compute();
-    // Poll continuously so the arrow re-positions after client-side navigation.
-    const interval = setInterval(compute, 150);
+    const iv = setInterval(compute, 150);
     window.addEventListener("resize", compute);
     window.addEventListener("scroll", compute, true);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("resize", compute);
-      window.removeEventListener("scroll", compute, true);
-    };
+    return () => { clearInterval(iv); window.removeEventListener("resize", compute); window.removeEventListener("scroll", compute, true); };
   }, [compute]);
 
   if (!pos) return null;
-
-  // Arrow tip points TOWARD the target.
-  // "top"    = arrow is above target  → tip faces ↓ (down,  larger y)
-  // "bottom" = arrow is below target  → tip faces ↑ (up,    smaller y)
-  // "left"   = arrow is left of target → tip faces → (right, larger x)
-  // "right"  = arrow is right of target→ tip faces ← (left,  smaller x)
-  const arrowPath = (s: ArrowSide): string => {
+  const arrowPath = (s: ArrowSide) => {
     switch (s) {
-      case "top":    return "M0,14 L-11,-9 L0,-4 L11,-9 Z"; // ↓ tip at bottom
-      case "bottom": return "M0,-14 L-11,9 L0,4 L11,9 Z";  // ↑ tip at top
-      case "left":   return "M14,0 L-9,-11 L-4,0 L-9,11 Z"; // → tip at right
-      case "right":  return "M-14,0 L9,-11 L4,0 L9,11 Z";   // ← tip at left
+      case "top":    return "M0,14 L-11,-9 L0,-4 L11,-9 Z";
+      case "bottom": return "M0,-14 L-11,9 L0,4 L11,9 Z";
+      case "left":   return "M14,0 L-9,-11 L-4,0 L-9,11 Z";
+      case "right":  return "M-14,0 L9,-11 L4,0 L9,11 Z";
       default:       return "";
     }
   };
+  const effectiveSide = pos.effectiveSide || "none";
+  if (effectiveSide === "none") return null;
 
-  // Bounce toward the target
-  const animName = `va-${pos.effectiveSide}`;
-  const dx = pos.effectiveSide === "left" ? 6 : pos.effectiveSide === "right" ? -6 : 0;
-  const dy = pos.effectiveSide === "top" ? 6 : pos.effectiveSide === "bottom" ? -6 : 0;
-
+  const an = `va-${effectiveSide}`;
+  const dx = effectiveSide === "left" ? 6 : effectiveSide === "right" ? -6 : 0;
+  const dy = effectiveSide === "top" ? 6 : effectiveSide === "bottom" ? -6 : 0;
   return (
-    <svg
-      aria-hidden
-      style={{
-        position: "fixed",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        zIndex: 9996,
-        pointerEvents: "none",
-        overflow: "visible",
-      }}
-    >
-      <style>{`
-        @keyframes ${animName}-kf {
-          0%,100% { transform: translate(${pos.x}px, ${pos.y}px); }
-          50%      { transform: translate(${pos.x + dx}px, ${pos.y + dy}px); }
-        }
-        .${animName}-arrow { animation: ${animName}-kf 1s ease-in-out infinite; }
-      `}</style>
-      <g className={`${animName}-arrow`}>
-        <path
-          d={arrowPath(pos.effectiveSide)}
-          fill="#0d9488"
-          stroke="white"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-          style={{ filter: "drop-shadow(0 2px 8px rgba(13,148,136,0.7))" }}
-        />
+    <svg aria-hidden style={{ position: "fixed", inset: 0, width: "100%", height: "100%", zIndex: 45, pointerEvents: "none", overflow: "visible" }}>
+      <style>{`@keyframes ${an}-kf{0%,100%{transform:translate(${pos.x}px,${pos.y}px)}50%{transform:translate(${pos.x+dx}px,${pos.y+dy}px)}}.${an}-arrow{animation:${an}-kf 1s ease-in-out infinite}`}</style>
+      <g className={`${an}-arrow`}>
+        <path d={arrowPath(effectiveSide)} fill="#0d9488" stroke="white" strokeWidth="1.5" strokeLinejoin="round" style={{ filter: "drop-shadow(0 2px 8px rgba(13,148,136,0.7))" }} />
       </g>
     </svg>
   );
 }
 
-// ─── Dropdown first-item arrow ─────────────────────────────────
-// When the Radix "Invite Users" dropdown is open, show an arrow pointing
-// at the first [role="menuitem"] (= "Invite Employees") to guide the user
-// on which option to choose first.  Disappears when the dropdown closes.
-
-function DropdownFirstItemArrow() {
-  const SELECTOR = '[data-radix-popper-content-wrapper] [role="menuitem"]:first-child';
-  return <PointerArrow targetSelector={SELECTOR} side="right" />;
-}
-
 // ─── Tooltip position hook ────────────────────────────────────
 
-type TooltipPos = {
-  top?: number;
-  left?: number;
-  arrowLeft?: number;
-  arrowTop?: number;
-  placement: "near-target" | "center" | "bottom-center";
+type TooltipPos = { 
+  top?: number; 
+  left?: number; 
+  arrowLeft?: number; 
+  arrowTop?: number; 
+  placement: "near-target" | "center"; 
   targetMissing?: boolean;
+  effectiveSide?: ArrowSide;
 };
 
-function useTooltipPosition(
-  selector: string | undefined,
-  arrowSide: ArrowSide = "none",
-  cardPlacement?: "bottom-center"
-): TooltipPos {
+function useTooltipPosition(selector: string | undefined, arrowSide: ArrowSide = "none"): TooltipPos {
   const [pos, setPos] = useState<TooltipPos>({ placement: "center", targetMissing: !!selector });
 
   const compute = useCallback(() => {
-    // bottom-center override: card is always at the bottom of the viewport
-    // regardless of target position. Return immediately with the fixed placement.
-    if (cardPlacement === "bottom-center") {
-      setPos(p =>
-        p.placement === "bottom-center" && !p.targetMissing ? p
-          : { placement: "bottom-center", targetMissing: false }
-      );
-      return;
-    }
-
-    if (!selector || arrowSide === "none") {
-      setPos(p => {
-        if (p.placement === "center" && p.targetMissing === false) return p;
-        return { placement: "center", targetMissing: false };
-      });
-      return;
-    }
+    if (!selector || arrowSide === "none") { setPos(p => p.placement === "center" && !p.targetMissing ? p : { placement: "center", targetMissing: false, effectiveSide: "none" }); return; }
     const el = document.querySelector<HTMLElement>(selector);
-    if (!el) {
-      setPos(p => {
-        if (p.placement === "center" && p.targetMissing === true) return p;
-        return { placement: "center", targetMissing: true };
-      });
-      return;
-    }
-
+    if (!el) { setPos(p => p.placement === "center" && p.targetMissing ? p : { placement: "center", targetMissing: true, effectiveSide: "none" }); return; }
     const rect = el.getBoundingClientRect();
-    const CARD_W = 400;
-    const GAP = 56; // extra gap to clear the pointer arrow
-    let nextPos: TooltipPos = { placement: "center", targetMissing: false };
+    const CARD_W = 400, GAP = 56;
+    const CARD_H_EST = 380; // Estimated height for boundary checks
 
-    if (arrowSide === "top") {
-      let left = rect.left + rect.width / 2 - CARD_W / 2;
-      left = Math.max(12, Math.min(left, window.innerWidth - CARD_W - 12));
-      const arrowLeft = rect.left + rect.width / 2 - left;
-      nextPos = { top: rect.bottom + GAP, left, arrowLeft, placement: "near-target", targetMissing: false };
-    } else if (arrowSide === "bottom") {
-      let left = rect.left + rect.width / 2 - CARD_W / 2;
-      left = Math.max(12, Math.min(left, window.innerWidth - CARD_W - 12));
-      const arrowLeft = rect.left + rect.width / 2 - left;
-      const top = Math.max(12, rect.top - GAP - 360);
-      nextPos = { top, left, arrowLeft, placement: "near-target", targetMissing: false };
-    } else if (arrowSide === "left") {
-      let top = rect.top + rect.height / 2 - 100;
-      top = Math.max(12, Math.min(top, window.innerHeight - 300));
-      nextPos = { top, left: rect.right + GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target", targetMissing: false };
-    } else if (arrowSide === "right") {
-      let top = rect.top + rect.height / 2 - 100;
-      top = Math.max(12, Math.min(top, window.innerHeight - 300));
-      nextPos = { top, left: rect.left - CARD_W - GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target", targetMissing: false };
+    let next: TooltipPos = { placement: "center", targetMissing: false, effectiveSide: "none" };
+    let side = arrowSide;
+
+    // Boundary check + Auto-flip
+    if (side === "top" && (rect.bottom + GAP + CARD_H_EST > window.innerHeight)) {
+      side = "bottom";
+    } else if (side === "bottom" && (rect.top - GAP - CARD_H_EST < 0)) {
+      side = "top";
     }
 
+    if (side === "top") {
+      let left = Math.max(12, Math.min(rect.left + rect.width / 2 - CARD_W / 2, window.innerWidth - CARD_W - 12));
+      next = { top: rect.bottom + GAP, left, arrowLeft: rect.left + rect.width / 2 - left, placement: "near-target", targetMissing: false, effectiveSide: "top" };
+    } else if (side === "bottom") {
+      let left = Math.max(12, Math.min(rect.left + rect.width / 2 - CARD_W / 2, window.innerWidth - CARD_W - 12));
+      // Using fixed positioning relative to bottom if we can't accurately get height, 
+      // but rect.top - GAP - height is standard.
+      next = { top: Math.max(12, rect.top - GAP - CARD_H_EST), left, arrowLeft: rect.left + rect.width / 2 - left, placement: "near-target", targetMissing: false, effectiveSide: "bottom" };
+    } else if (side === "left") {
+      let top = Math.max(12, Math.min(rect.top + rect.height / 2 - 100, window.innerHeight - 300));
+      next = { top, left: rect.right + GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target", targetMissing: false, effectiveSide: "left" };
+    } else if (side === "right") {
+      let top = Math.max(12, Math.min(rect.top + rect.height / 2 - 100, window.innerHeight - 300));
+      next = { top, left: rect.left - CARD_W - GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target", targetMissing: false, effectiveSide: "right" };
+    }
+    
     setPos(p => {
-      if (
-        p.placement === nextPos.placement &&
-        p.top === nextPos.top &&
-        p.left === nextPos.left &&
-        p.arrowLeft === nextPos.arrowLeft &&
-        p.arrowTop === nextPos.arrowTop &&
-        p.targetMissing === nextPos.targetMissing
-      ) {
-        return p;
-      }
-      return nextPos;
+      if (p.placement === next.placement && 
+          p.top === next.top && 
+          p.left === next.left && 
+          p.effectiveSide === next.effectiveSide &&
+          p.targetMissing === next.targetMissing) return p;
+      return next;
     });
-  }, [selector, arrowSide, cardPlacement]);
+  }, [selector, arrowSide]);
 
   useEffect(() => {
     compute();
-    const interval = setInterval(compute, 150);
+    const iv = setInterval(compute, 150);
     window.addEventListener("resize", compute);
     window.addEventListener("scroll", compute, true);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("resize", compute);
-      window.removeEventListener("scroll", compute, true);
-    };
+    return () => { clearInterval(iv); window.removeEventListener("resize", compute); window.removeEventListener("scroll", compute, true); };
   }, [compute]);
 
   return pos;
@@ -841,193 +487,47 @@ function useTooltipPosition(
 
 // ─── Progress sidebar widget ──────────────────────────────────
 
-function SetupProgressWidget({
-  steps,
-  completedIds,
-  current,
-  onResume,
-  isSkipped,
-  isActive,
-}: {
-  steps: SetupStep[];
-  completedIds: Set<string>;
-  current: number;
-  onResume: () => void;
-  isSkipped: boolean;
-  /** True when the guide overlay is currently open and running */
-  isActive: boolean;
-}) {
-  const done  = steps.filter((s) => completedIds.has(s.id)).length;
+function SetupProgressWidget({ steps, completedIds, current, onResume, isSkipped, isActive }: { steps: SetupStep[]; completedIds: Set<string>; current: number; onResume: () => void; isSkipped: boolean; isActive: boolean }) {
+  const done = steps.filter(s => completedIds.has(s.id)).length;
   const total = steps.length;
-  const pct   = Math.round((done / total) * 100);
+  const pct = Math.round((done / total) * 100);
 
-  // ── INACTIVE STATE: compact pill ─────────────────────────────
-  // When the guide is not running (skipped, paused, or fresh re-login)
-  // show a small floating pill that sits just past the sidebar so it
-  // never blocks sidebar navigation or page action buttons.
   if (!isActive) {
     return (
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label={`Workspace Setup — ${done} of ${total} steps complete. Click to continue.`}
-        onClick={onResume}
-        onKeyDown={(e) => e.key === "Enter" && onResume()}
-        style={{
-          position: "fixed",
-          bottom: 24,
-          // Sit just outside the sidebar — uses the shadcn CSS variable with px fallback
-          left: "calc(var(--sidebar-width, 240px) + 16px)",
-          zIndex: 200,
-          background: "white",
-          borderRadius: 99,
-          padding: "10px 12px 10px 16px",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06)",
-          border: "1px solid rgba(0,0,0,0.08)",
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          cursor: "pointer",
-          transition: "box-shadow 0.2s, transform 0.15s",
-          userSelect: "none",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 24px rgba(13,148,136,0.18), 0 2px 6px rgba(0,0,0,0.08)";
-          (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06)";
-          (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
-        }}
-      >
-        {/* Progress info */}
+      <div role="button" tabIndex={0} aria-label={`Workspace Setup — ${done} of ${total} steps complete. Click to continue.`} onClick={onResume} onKeyDown={e => e.key === "Enter" && onResume()} style={{ position: "fixed", bottom: 24, left: "calc(var(--sidebar-width, 240px) + 16px)", zIndex: 20, background: "white", borderRadius: 99, padding: "10px 12px 10px 16px", boxShadow: "0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.08)", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", transition: "box-shadow 0.2s, transform 0.15s", userSelect: "none" }} onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 24px rgba(13,148,136,0.18), 0 2px 6px rgba(0,0,0,0.08)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)"; }} onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"; }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 130 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>Workspace Setup</span>
             <span style={{ fontSize: 11, color: "#6b7280", marginLeft: 8 }}>{done}/{total}</span>
           </div>
           <div style={{ height: 4, borderRadius: 99, background: "#e5f9f7", overflow: "hidden" }}>
-            <div
-              style={{
-                height: "100%",
-                width: `${pct}%`,
-                background: "linear-gradient(90deg,#2dd4bf,#0d9488)",
-                borderRadius: 99,
-                transition: "width 0.5s ease",
-              }}
-            />
+            <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#2dd4bf,#0d9488)", borderRadius: 99, transition: "width 0.5s ease" }} />
           </div>
         </div>
-
-        {/* Continue button */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onResume(); }}
-          style={{
-            flexShrink: 0,
-            height: 34,
-            borderRadius: 99,
-            border: "none",
-            background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)",
-            color: "white",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-            padding: "0 14px",
-            boxShadow: "0 3px 10px rgba(13,148,136,0.35)",
-            whiteSpace: "nowrap",
-            transition: "opacity 0.15s",
-          }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = "0.88")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}
-        >
-          Continue Setup →
-        </button>
+        <button onClick={e => { e.stopPropagation(); onResume(); }} style={{ flexShrink: 0, height: 34, borderRadius: 99, border: "none", background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)", color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "0 14px", boxShadow: "0 3px 10px rgba(13,148,136,0.35)", whiteSpace: "nowrap", transition: "opacity 0.15s" }} onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "0.88")} onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}>Continue Setup →</button>
       </div>
     );
   }
 
-  // ── ACTIVE STATE: full checklist widget ───────────────────────
-  // Shown when the guide overlay is running — sits at bottom-left
-  // above the overlay (z-index 9999) so the user can track progress.
   return (
-    <div
-      aria-label="Setup progress"
-      style={{
-        position: "fixed",
-        bottom: 24,
-        left: 24,
-        zIndex: 9999,
-        background: "white",
-        borderRadius: 16,
-        padding: "18px 22px",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.14), 0 1px 6px rgba(0,0,0,0.06)",
-        border: "1px solid rgba(0,0,0,0.07)",
-        minWidth: 240,
-        maxWidth: 280,
-      }}
-    >
+    <div aria-label="Setup progress" style={{ position: "fixed", bottom: 24, left: 24, zIndex: 45, background: "white", borderRadius: 16, padding: "18px 22px", boxShadow: "0 4px 24px rgba(0,0,0,0.14), 0 1px 6px rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.07)", minWidth: 240, maxWidth: 280 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>
-          Workspace Setup
-        </p>
-        <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>
-          {done}/{total}
-        </span>
+        <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>Workspace Setup</p>
+        <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 500 }}>{done}/{total}</span>
       </div>
-
-      {/* Progress bar */}
       <div style={{ height: 5, borderRadius: 99, background: "#e5f9f7", marginBottom: 12, overflow: "hidden" }}>
-        <div
-          style={{
-            height: "100%",
-            width: `${pct}%`,
-            background: "linear-gradient(90deg,#2dd4bf,#0d9488)",
-            borderRadius: 99,
-            transition: "width 0.5s ease",
-          }}
-        />
+        <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#2dd4bf,#0d9488)", borderRadius: 99, transition: "width 0.5s ease" }} />
       </div>
-
-      {/* Checklist */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {steps.map((s, i) => {
-          const isDone      = completedIds.has(s.id);
+          const isDone = completedIds.has(s.id);
           const isStepActive = i === current && !isDone;
           return (
             <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <div
-                style={{
-                  width: 17,
-                  height: 17,
-                  borderRadius: "50%",
-                  border: `2px solid ${isDone ? "#0d9488" : isStepActive ? "#0d9488" : "#d1d5db"}`,
-                  background: isDone ? "#0d9488" : "white",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  transition: "all 0.3s ease",
-                  boxShadow: isStepActive ? "0 0 0 3px rgba(13,148,136,0.15)" : "none",
-                }}
-              >
-                {isDone ? (
-                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                    <path d="M1 4l2 2L7 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : isStepActive ? (
-                  <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#0d9488" }} />
-                ) : null}
+              <div style={{ width: 17, height: 17, borderRadius: "50%", border: `2px solid ${isDone ? "#0d9488" : isStepActive ? "#0d9488" : "#d1d5db"}`, background: isDone ? "#0d9488" : "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.3s ease", boxShadow: isStepActive ? "0 0 0 3px rgba(13,148,136,0.15)" : "none" }}>
+                {isDone ? <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2L7 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg> : isStepActive ? <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#0d9488" }} /> : null}
               </div>
-              <span
-                style={{
-                  fontSize: 12,
-                  color: isDone ? "#9ca3af" : isStepActive ? "#0d9488" : "#374151",
-                  fontWeight: isDone ? 400 : isStepActive ? 600 : 500,
-                  textDecoration: isDone ? "line-through" : "none",
-                }}
-              >
-                {s.title}
-              </span>
+              <span style={{ fontSize: 12, color: isDone ? "#9ca3af" : isStepActive ? "#0d9488" : "#374151", fontWeight: isDone ? 400 : isStepActive ? 600 : 500, textDecoration: isDone ? "line-through" : "none" }}>{s.title}</span>
             </div>
           );
         })}
@@ -1039,73 +539,15 @@ function SetupProgressWidget({
 // ─── All-done celebration modal ───────────────────────────────
 
 function SetupCompleteModal({ onClose }: { onClose: () => void }) {
-  const headingId = "setup-complete-heading";
-
-  // Move focus into the modal when it mounts
   const btnRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    btnRef.current?.focus();
-  }, []);
-
+  useEffect(() => { btnRef.current?.focus(); }, []);
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={headingId}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 10000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.45)",
-      }}
-    >
-      <div
-        style={{
-          background: "white",
-          borderRadius: 24,
-          padding: "48px 40px 40px",
-          maxWidth: 440,
-          width: "calc(100vw - 48px)",
-          boxShadow: "0 32px 80px rgba(0,0,0,0.22)",
-          textAlign: "center",
-        }}
-      >
-        {/* Confetti icon */}
+    <div role="dialog" aria-modal="true" aria-labelledby="setup-complete-heading" style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)" }}>
+      <div style={{ background: "white", borderRadius: 24, padding: "48px 40px 40px", maxWidth: 440, width: "calc(100vw - 48px)", boxShadow: "0 32px 80px rgba(0,0,0,0.22)", textAlign: "center" }}>
         <div style={{ fontSize: 52, marginBottom: 20, lineHeight: 1 }}>🎉</div>
-
-        <h2
-          id={headingId}
-          style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginBottom: 12, letterSpacing: "-0.03em" }}
-        >
-          Workspace Ready!
-        </h2>
-
-        <p style={{ fontSize: 15, lineHeight: 1.7, color: "#4b5563", marginBottom: 36 }}>
-          You've completed your workspace setup. Your team can now submit
-          expenses, and approvals will flow through your policies automatically.
-        </p>
-
-        <button
-          ref={btnRef}
-          onClick={onClose}
-          style={{
-            width: "100%",
-            height: 50,
-            borderRadius: 12,
-            border: "none",
-            background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)",
-            color: "white",
-            fontSize: 16,
-            fontWeight: 700,
-            cursor: "pointer",
-            boxShadow: "0 8px 20px rgba(13,148,136,0.4)",
-          }}
-        >
-          Go to Dashboard
-        </button>
+        <h2 id="setup-complete-heading" style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginBottom: 12, letterSpacing: "-0.03em" }}>Workspace Ready!</h2>
+        <p style={{ fontSize: 15, lineHeight: 1.7, color: "#4b5563", marginBottom: 36 }}>You've completed your workspace setup. Your team can now submit expenses, and approvals will flow through your policies automatically.</p>
+        <button ref={btnRef} onClick={onClose} style={{ width: "100%", height: 50, borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)", color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 20px rgba(13,148,136,0.4)" }}>Create New Report</button>
       </div>
     </div>
   );
@@ -1113,318 +555,58 @@ function SetupCompleteModal({ onClose }: { onClose: () => void }) {
 
 // ─── Step card ────────────────────────────────────────────────
 
-function SetupCard({
-  step,
-  stepNumber,
-  totalSteps,
-  pos,
-  visible,
-  isDone,
-  waitingForAction,
-  onSkip,
-  onClose,
-}: {
-  step: SetupStep;
-  stepNumber: number;
-  totalSteps: number;
-  pos: TooltipPos;
-  visible: boolean;
-  isDone: boolean;
-  waitingForAction: boolean;
-  onSkip: () => void;
-  onClose: () => void;
-}) {
-  const headingId = "setup-card-heading";
+function SetupCard({ step, stepNumber, totalSteps, pos, visible, isDone, waitingForAction, onSkip, onClose }: { step: SetupStep; stepNumber: number; totalSteps: number; pos: TooltipPos; visible: boolean; isDone: boolean; waitingForAction: boolean; onSkip: () => void; onClose: () => void }) {
   const isCentered = pos.placement === "center";
-
-  // Move focus into the card whenever it becomes visible
   const cardRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (visible) {
-      // Small delay so the CSS opacity transition has started before focus moves
-      const t = setTimeout(() => cardRef.current?.focus(), 50);
-      return () => clearTimeout(t);
-    }
+    if (visible) { const t = setTimeout(() => cardRef.current?.focus(), 50); return () => clearTimeout(t); }
   }, [visible]);
 
   const wrapStyle: React.CSSProperties = isCentered
-    ? {
-        position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: visible
-          ? "translate(-50%,-50%) scale(1)"
-          : "translate(-50%,-50%) scale(0.94)",
-        zIndex: 9999,
-        width: 420,
-        maxWidth: "calc(100vw - 32px)",
-        opacity: visible ? 1 : 0,
-        transition: "opacity 0.3s ease, transform 0.35s cubic-bezier(0.34,1.46,0.64,1)",
-      }
-    : {
-        position: "fixed",
-        top: pos.top,
-        left: pos.left,
-        zIndex: 9999,
-        width: 400,
-        maxWidth: "calc(100vw - 32px)",
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(-8px)",
-        transition: "opacity 0.3s ease, transform 0.35s cubic-bezier(0.34,1.46,0.64,1)",
-      };
+    ? { position: "fixed", top: "50%", left: "50%", transform: visible ? "translate(-50%,-50%) scale(1)" : "translate(-50%,-50%) scale(0.94)", zIndex: 45, width: 420, maxWidth: "calc(100vw - 32px)", opacity: visible ? 1 : 0, transition: "opacity 0.3s ease, transform 0.35s cubic-bezier(0.34,1.46,0.64,1)" }
+    : { position: "fixed", top: pos.top, left: pos.left, zIndex: 45, width: 400, maxWidth: "calc(100vw - 32px)", opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(-8px)", transition: "opacity 0.3s ease, transform 0.35s cubic-bezier(0.34,1.46,0.64,1)" };
 
   return (
-    <div
-      ref={cardRef}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={headingId}
-      // tabIndex="-1" lets focus move here programmatically without adding to tab order
-      tabIndex={-1}
-      style={{ ...wrapStyle, outline: "none" }}
-    >
-      {/* Upward arrow tab on the card */}
-      {/* Card nub — "top" means card is BELOW target → nub points up */}
-      {step.arrowSide === "top" && pos.arrowLeft !== undefined && (
-        <div
-          style={{
-            position: "absolute",
-            top: -10,
-            left: pos.arrowLeft - 10,
-            width: 0,
-            height: 0,
-            borderLeft: "10px solid transparent",
-            borderRight: "10px solid transparent",
-            borderBottom: "10px solid white",
-            filter: "drop-shadow(0 -2px 3px rgba(0,0,0,0.07))",
-            zIndex: 1,
-          }}
-        />
-      )}
-
-      {/* Card nub — "bottom" means card is ABOVE target → nub points down */}
-      {step.arrowSide === "bottom" && pos.arrowLeft !== undefined && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: -10,
-            left: pos.arrowLeft - 10,
-            width: 0,
-            height: 0,
-            borderLeft: "10px solid transparent",
-            borderRight: "10px solid transparent",
-            borderTop: "10px solid white",
-            filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.07))",
-            zIndex: 1,
-          }}
-        />
-      )}
-
-      {/* Card nub — "left" means card is to the RIGHT of target → nub points left */}
-      {step.arrowSide === "left" && pos.arrowTop !== undefined && (
-        <div
-          style={{
-            position: "absolute",
-            top: pos.arrowTop - 10,
-            left: -10,
-            width: 0,
-            height: 0,
-            borderTop: "10px solid transparent",
-            borderBottom: "10px solid transparent",
-            borderRight: "10px solid white",
-            filter: "drop-shadow(-2px 0 3px rgba(0,0,0,0.07))",
-            zIndex: 1,
-          }}
-        />
-      )}
-
-      {/* Card nub — "right" means card is to the LEFT of target → nub points right */}
-      {step.arrowSide === "right" && pos.arrowTop !== undefined && (
-        <div
-          style={{
-            position: "absolute",
-            top: pos.arrowTop - 10,
-            right: -10,
-            width: 0,
-            height: 0,
-            borderTop: "10px solid transparent",
-            borderBottom: "10px solid transparent",
-            borderLeft: "10px solid white",
-            filter: "drop-shadow(2px 0 3px rgba(0,0,0,0.07))",
-            zIndex: 1,
-          }}
-        />
-      )}
-
-      <div
-        style={{
-          background: "white",
-          borderRadius: 18,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.16), 0 4px 16px rgba(0,0,0,0.08)",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ padding: "26px 28px 24px" }}>
-          {/* Header row */}
+    <div ref={cardRef} role="dialog" aria-modal="true" aria-labelledby="setup-card-heading" tabIndex={-1} style={{ ...wrapStyle, outline: "none" }}>
+      {pos.effectiveSide === "top" && pos.arrowLeft !== undefined && <div style={{ position: "absolute", top: -10, left: pos.arrowLeft - 10, width: 0, height: 0, borderLeft: "10px solid transparent", borderRight: "10px solid transparent", borderBottom: "10px solid white", filter: "drop-shadow(0 -2px 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
+      {pos.effectiveSide === "bottom" && pos.arrowLeft !== undefined && <div style={{ position: "absolute", bottom: -10, left: pos.arrowLeft - 10, width: 0, height: 0, borderLeft: "10px solid transparent", borderRight: "10px solid transparent", borderTop: "10px solid white", filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
+      {pos.effectiveSide === "left" && pos.arrowTop !== undefined && <div style={{ position: "absolute", top: pos.arrowTop - 10, left: -10, width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderRight: "10px solid white", filter: "drop-shadow(-2px 0 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
+      {pos.effectiveSide === "right" && pos.arrowTop !== undefined && <div style={{ position: "absolute", top: pos.arrowTop - 10, right: -10, width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderLeft: "10px solid white", filter: "drop-shadow(2px 0 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
+      <div style={{ background: "white", borderRadius: 18, boxShadow: "0 24px 64px rgba(0,0,0,0.16), 0 4px 16px rgba(0,0,0,0.08)", overflow: "hidden", maxHeight: "calc(100vh - 100px)", display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "26px 28px 24px", overflowY: "auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.07em",
-                textTransform: "uppercase",
-                color: "#0d9488",
-                background: "#f0fdf9",
-                padding: "3px 10px",
-                borderRadius: 99,
-              }}
-            >
-              Step {stepNumber} of {totalSteps}
-            </span>
-            <button
-              onClick={onClose}
-              aria-label="Close setup guide"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 4,
-                borderRadius: 6,
-                color: "#9ca3af",
-                lineHeight: 1,
-                transition: "color 0.2s",
-              }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#374151")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#9ca3af")}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#0d9488", background: "#f0fdf9", padding: "3px 10px", borderRadius: 99 }}>Step {stepNumber} of {totalSteps}</span>
+            <button onClick={onClose} aria-label="Close setup guide" style={{ background: "none", border: "none", cursor: "pointer", padding: 4, borderRadius: 6, color: "#9ca3af", lineHeight: 1, transition: "color 0.2s" }} onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = "#374151")} onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#9ca3af")}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
             </button>
           </div>
+          <h2 id="setup-card-heading" style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 10, letterSpacing: "-0.02em", lineHeight: 1.25 }}>{step.title}</h2>
+          <p style={{ fontSize: 14, lineHeight: 1.7, color: "#4b5563", marginBottom: 22, whiteSpace: "pre-line" }}>{step.description}</p>
 
-          <h2
-            id={headingId}
-            style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 10, letterSpacing: "-0.02em", lineHeight: 1.25 }}
-          >
-            {step.title}
-          </h2>
-
-          <div style={{ fontSize: 14, lineHeight: 1.7, color: "#4b5563", marginBottom: 22 }}>
-            {step.description.split("\n\n").map((para, pIdx) => (
-              <p key={pIdx} style={{ margin: pIdx > 0 ? "8px 0 0" : "0" }}>
-                {para.split("\n").map((line, lIdx) => (
-                  <span key={lIdx}>
-                    {lIdx > 0 && <br />}
-                    {line}
-                  </span>
-                ))}
-              </p>
-            ))}
-          </div>
-
-          {/* Action-required banner */}
-          {waitingForAction && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 10,
-                background: "#fffbeb",
-                border: "1px solid #fde68a",
-                borderRadius: 10,
-                padding: "10px 14px",
-                marginBottom: 20,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
-                <path d="M8 1.5L1 14h14L8 1.5z" stroke="#d97706" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M8 6v4M8 11.5v.5" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              <p style={{ fontSize: 12, color: "#92400e", lineHeight: 1.5, margin: 0 }}>
-                Follow the arrow — it points to the exact button you need to click to complete this step.
-              </p>
+          {waitingForAction && !isDone && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginBottom: 20 }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: 1 }}><path d="M8 1.5L1 14h14L8 1.5z" stroke="#d97706" strokeWidth="1.5" strokeLinejoin="round" /><path d="M8 6v4M8 11.5v.5" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" /></svg>
+              <p style={{ fontSize: 12, color: "#92400e", lineHeight: 1.5, margin: 0 }}>Follow the arrow — it points to the exact button you need to click to complete this step.</p>
             </div>
           )}
 
           {isDone && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                background: "#f0fdf9",
-                border: "1px solid #a7f3d0",
-                borderRadius: 10,
-                padding: "10px 14px",
-                marginBottom: 20,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="7" fill="#0d9488" />
-                <path d="M4.5 8l2.5 2.5L11 5.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <p style={{ fontSize: 12, color: "#065f46", lineHeight: 1.5, margin: 0, fontWeight: 600 }}>
-                Step completed! Advancing…
-              </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f0fdf9", border: "1px solid #a7f3d0", borderRadius: 10, padding: "10px 14px", marginBottom: 20 }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="#0d9488" /><path d="M4.5 8l2.5 2.5L11 5.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <p style={{ fontSize: 12, color: "#065f46", lineHeight: 1.5, margin: 0, fontWeight: 600 }}>Step completed! Advancing…</p>
             </div>
           )}
 
           <div style={{ height: 1, background: "#f3f4f6", marginBottom: 18 }} />
 
-          {/* Buttons */}
+          {/* Skip is ALWAYS visible */}
           <div style={{ display: "flex", gap: 10 }}>
-            <button
-              onClick={onSkip}
-              style={{
-                flex: 1,
-                height: 42,
-                borderRadius: 10,
-                border: "1.5px solid #e5e7eb",
-                background: "white",
-                color: "#374151",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "border-color 0.2s",
-              }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.borderColor = "#0d9488")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.borderColor = "#e5e7eb")}
-            >
-              Skip for now
+            <button onClick={onSkip} style={{ flex: 1, height: 42, borderRadius: 10, border: "1.5px solid #e5e7eb", background: "white", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "border-color 0.2s" }} onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.borderColor = "#0d9488")} onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.borderColor = "#e5e7eb")}>
+              Skip Setup
             </button>
-
-            <button
-              disabled
-              style={{
-                flex: 2,
-                height: 42,
-                borderRadius: 10,
-                border: "none",
-                background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)",
-                color: "white",
-                fontSize: 13,
-                fontWeight: 600,
-                opacity: 0.45,
-                cursor: "not-allowed",
-                position: "relative",
-              }}
-              title="Complete the action above to proceed"
-            >
+            <button disabled style={{ flex: 2, height: 42, borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)", color: "white", fontSize: 13, fontWeight: 600, opacity: 0.45, cursor: "not-allowed", position: "relative" }} title="Complete the action above to proceed">
               <span>Waiting for action…</span>
-              {/* Pulsing dot */}
-              <span
-                style={{
-                  position: "absolute",
-                  top: 10,
-                  right: 12,
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: "rgba(255,255,255,0.7)",
-                  animation: "villeto-pulse 1.4s ease-in-out infinite",
-                }}
-              />
+              <span style={{ position: "absolute", top: 10, right: 12, width: 8, height: 8, borderRadius: "50%", background: "rgba(255,255,255,0.7)", animation: "villeto-pulse 1.4s ease-in-out infinite" }} />
               <style>{`@keyframes villeto-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}`}</style>
             </button>
           </div>
@@ -1434,128 +616,110 @@ function SetupCard({
   );
 }
 
+// ─── Invite dropdown tip ──────────────────────────────────────
+// Shown when overlay is cleared and dropdown is open.
+
+function InviteDropdownTip({ onSkip }: { onSkip: () => void }) {
+  return (
+    <>
+      <PointerArrow targetSelector='[data-tour="invite-dropdown-menu"]' side="top" />
+      <div style={{ position: "fixed", bottom: 100, right: 24, zIndex: 45, background: "white", borderRadius: 14, padding: "16px 20px", boxShadow: "0 8px 32px rgba(0,0,0,0.14)", border: "1px solid rgba(13,148,136,0.15)", maxWidth: 300, animation: "villeto-slide-up 0.3s ease" }}>
+        <style>{`@keyframes villeto-slide-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: "0 0 6px" }}>👆 Choose an invite type</p>
+        <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 14px", lineHeight: 1.5 }}>
+          Select <strong style={{ color: "#374151" }}>Invite Employees</strong> or <strong style={{ color: "#374151" }}>Invite Leadership & Admin</strong> from the menu above.
+        </p>
+        <button onClick={onSkip} style={{ background: "none", border: "none", color: "#9ca3af", fontSize: 11, cursor: "pointer", padding: 0, textDecoration: "underline" }}>Skip Setup</button>
+      </div>
+    </>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────
 
 export default function VilletoSetupGuide() {
-  const user           = useAuthStore((s) => s.user);
-  const router         = useRouter();
-  const pathname       = usePathname();
-  const searchParams   = useSearchParams();
-  const setTourActive  = useTourStore((s) => s.setTourActive);
-  // Gate: only show after SetPasswordModal has completed
-  const setupGuideReady = useTourStore((s) => (s as any).setupGuideReady ?? false);
+  const user = useAuthStore(s => s.user);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const setTourActive = useTourStore(s => s.setTourActive);
+  const setupGuideReady = useTourStore(s => (s as any).setupGuideReady ?? false);
 
-  const [visible,          setVisible]          = useState(false);
-  const [cardVisible,      setCardVisible]      = useState(false);
-  const [stepIndex,        setStepIndex]        = useState(0);
-  const [completedIds,     setCompletedIds]     = useState<Set<string>>(new Set());
-  const [isSkipped,        setIsSkipped]        = useState(false);
-  const [showDoneModal,    setShowDoneModal]    = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [cardVisible, setCardVisible] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  const [isSkipped, setIsSkipped] = useState(false);
+  const [isPostSetupDismissed, setIsPostSetupDismissed] = useState(false);
+  const [showDoneModal, setShowDoneModal] = useState(false);
   const [waitingForAction, setWaitingForAction] = useState(true);
+  const [inviteDropdownOpen, setInviteDropdownOpen] = useState(false);
 
-  // ── Refs ──────────────────────────────────────────────────────
-  // pendingRef  — nav-settle timer (card fade-in after page change)
-  // advanceRef  — step-advance timer (after markStepDone)
-  // stepIndexRef — mirror of stepIndex readable outside updaters,
-  //                so markStepDone never needs a setStepIndex updater
-  //                for reading — eliminating the StrictMode double-fire.
-  // allDoneRef  — guards the completion effect from firing more than once
-  const pendingRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const advanceRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const stepIndexRef  = useRef(0);
-  const allDoneRef    = useRef(false);
+  const pendingRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const advanceRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stepIndexRef = useRef(0);
+  const allDoneRef   = useRef(false);
 
-  // ── User qualification ─────────────────────────────────────
-  // Only the company founder gets the interactive Setup Guide:
-  // a CONTROLLING_OFFICER whose account was created at the same time as the company.
   const isEligible =
     user?.position === "CONTROLLING_OFFICER" &&
     !!user?.createdAt &&
     user.createdAt === user?.company?.createdAt;
 
-  const userId        = user?.userId ?? "";
-  const dismissedKey  = userId ? GUIDE_DISMISSED_KEY(userId) : null;
-  const completedKey  = userId ? GUIDE_COMPLETED_KEY(userId) : null;
+  const userId       = user?.userId ?? "";
+  const dismissedKey = userId ? GUIDE_DISMISSED_KEY(userId) : null;
+  const completedKey = userId ? GUIDE_COMPLETED_KEY(userId)  : null;
 
-  // ── [FIX-3] Keep stepIndexRef in sync ──────────────────────
-  // Must happen synchronously with every stepIndex state change so
-  // markStepDone always reads the current value, not a stale one.
-  useEffect(() => {
-    stepIndexRef.current = stepIndex;
-  }, [stepIndex]);
+  // [FIX-3] Keep stepIndexRef in sync
+  useEffect(() => { stepIndexRef.current = stepIndex; }, [stepIndex]);
 
-  // ── Restore persisted progress on mount ───────────────────
+  // Restore persisted progress
   useEffect(() => {
     if (!userId) return;
     const restored = new Set<string>();
-    SETUP_STEPS.forEach((s) => {
-      if (localStorage.getItem(STEP_DONE_KEY(userId, s.id)) === "1")
-        restored.add(s.id);
-    });
+    SETUP_STEPS.forEach(s => { if (localStorage.getItem(STEP_DONE_KEY(userId, s.id)) === "1") restored.add(s.id); });
     setCompletedIds(restored);
-
-    // If user already finished all steps before this session, skip entirely
-    if (completedKey && localStorage.getItem(completedKey) === "1") {
-      allDoneRef.current = true; // prevent completion effect from re-firing
-      setVisible(false);
-      return;
+    if (completedKey && localStorage.getItem(completedKey) === "1") { 
+      allDoneRef.current = true; 
+      // We don't return early here anymore because we might need to show the bonus step
     }
-
-    // Find first incomplete step
-    const firstIncomplete = SETUP_STEPS.findIndex((s) => !restored.has(s.id));
-    if (firstIncomplete === -1) return; // all done
-    setStepIndex(firstIncomplete);
-
-    // If previously dismissed, surface the widget so the user sees "Continue Setup"
-    if (dismissedKey && localStorage.getItem(dismissedKey) === "1") {
-      setIsSkipped(true);
-    }
+    const firstIncomplete = SETUP_STEPS.findIndex(s => !restored.has(s.id));
+    if (firstIncomplete !== -1) setStepIndex(firstIncomplete);
+    
+    if (dismissedKey && localStorage.getItem(dismissedKey) === "1") setIsSkipped(true);
+    if (userId && localStorage.getItem(POST_SETUP_DISMISSED_KEY(userId)) === "1") setIsPostSetupDismissed(true);
+    setHydrated(true);
   }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Start guide after password modal ──────────────────────
+  // Start guide after password modal
   useEffect(() => {
     if (!isEligible || !setupGuideReady) return;
     if (dismissedKey && localStorage.getItem(dismissedKey) === "1") return;
     if (completedKey && localStorage.getItem(completedKey) === "1") return;
-
-    const t = setTimeout(() => {
-      setVisible(true);
-    }, 600);
+    const t = setTimeout(() => setVisible(true), 600);
     return () => clearTimeout(t);
   }, [isEligible, setupGuideReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Broadcast to sidebar ───────────────────────────────────
-  useEffect(() => {
-    setTourActive(visible && !isSkipped);
-    return () => setTourActive(false);
-  }, [visible, isSkipped, setTourActive]);
+  // Broadcast to sidebar
+  useEffect(() => { setTourActive(visible && !isSkipped); return () => setTourActive(false); }, [visible, isSkipped, setTourActive]);
 
-  // ── Navigation effect ──────────────────────────────────────
   const step = SETUP_STEPS[stepIndex];
 
+  // Navigation effect
   useEffect(() => {
     if (!visible || isSkipped || !step) return;
     if (pendingRef.current) clearTimeout(pendingRef.current);
+    setInviteDropdownOpen(false);
 
     const targetUrl = step.navigateUrl ?? step.navigateTo;
-    const tabMatch  = targetUrl.match(/tab=([^&]+)/);
+    const tabMatch = targetUrl.match(/tab=([^&]+)/);
     const targetTab = tabMatch ? tabMatch[1] : null;
-    const currTab   = searchParams.get("tab");
+    const currTab = searchParams.get("tab");
+    const isOnAllowedSubPath = step.allowedSubPaths?.some(p => pathname.startsWith(p)) ?? false;
 
-    // If the user is on an allowed sub-path for this step (e.g. the CSV
-    // upload flow), don't redirect them back — just update the spotlight.
-    const isOnAllowedSubPath = step.allowedSubPaths?.some((p) =>
-      pathname.startsWith(p)
-    ) ?? false;
-
-    if (
-      !isOnAllowedSubPath &&
-      (pathname !== step.navigateTo || (targetTab && currTab !== targetTab))
-    ) {
+    if (!isOnAllowedSubPath && (pathname !== step.navigateTo || (targetTab && currTab !== targetTab))) {
       setCardVisible(false);
       router.push(targetUrl);
-      // Register cleanup so if this effect re-runs before the navigation
-      // resolves, we don't leave stale state.
       return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
     }
 
@@ -1565,23 +729,12 @@ export default function VilletoSetupGuide() {
     return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
   }, [pathname, searchParams, stepIndex, visible, isSkipped]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── [FIX-2] Completion detection — dedicated effect ────────
-  // All "allDone" side-effects (localStorage write, showDoneModal timer,
-  // setVisible, setIsSkipped) live HERE, not inside the setCompletedIds
-  // updater. An updater is a pure function; putting side-effects in it
-  // causes React StrictMode to run them twice (double-timer, double-modal).
+  // [FIX-2] Completion detection
   useEffect(() => {
     if (!completedIds.size) return;
-    const allDone = SETUP_STEPS.every((s) => completedIds.has(s.id));
+    const allDone = SETUP_STEPS.every(s => completedIds.has(s.id));
     if (!allDone || allDoneRef.current) return;
-
-    // Guard against re-firing if this session already had the guide complete
-    // (restored from localStorage on mount with allDoneRef already set there).
-    if (completedKey && localStorage.getItem(completedKey) === "1") {
-      allDoneRef.current = true;
-      return;
-    }
-
+    if (completedKey && localStorage.getItem(completedKey) === "1") { allDoneRef.current = true; return; }
     allDoneRef.current = true;
     if (completedKey) localStorage.setItem(completedKey, "1");
     setIsSkipped(false);
@@ -1590,65 +743,35 @@ export default function VilletoSetupGuide() {
     return () => clearTimeout(t);
   }, [completedIds, completedKey]);
 
-  // ── [FIX-1] Silent action detection ───────────────────────
-  // Pages dispatch custom events after successful actions.
-  // We listen and tick silently even if guide is skipped.
-  //
-  // The original code called setWaitingForAction + setTimeout INSIDE a
-  // setStepIndex(cur => ...) updater. React StrictMode calls updaters
-  // twice in dev — the side effects fired twice → timer double-scheduled
-  // → step advanced twice → step was skipped.
-  //
-  // Fix: read the current step via stepIndexRef (always in sync via its
-  // own useEffect) and perform ALL side effects at the call-site, never
-  // inside an updater function.
-  const markStepDone = useCallback(
-    (stepId: string) => {
-      // ── 1. Persist the tick ──────────────────────────────────
-      // Only pure state update in the updater — no side effects.
-      setCompletedIds((prev) => {
-        if (prev.has(stepId)) return prev;
-        const next = new Set(prev);
-        next.add(stepId);
-        if (userId) localStorage.setItem(STEP_DONE_KEY(userId, stepId), "1");
-        return next;
-        // NOTE: "allDone" detection and setShowDoneModal have been moved to
-        // the dedicated useEffect above — DO NOT put them back in here.
-      });
+  // [FIX-1] markStepDone
+  const markStepDone = useCallback((stepId: string) => {
+    setCompletedIds(prev => {
+      if (prev.has(stepId)) return prev;
+      const next = new Set(prev);
+      next.add(stepId);
+      if (userId) localStorage.setItem(STEP_DONE_KEY(userId, stepId), "1");
+      return next;
+    });
+    const cur = stepIndexRef.current;
+    if (SETUP_STEPS[cur]?.id !== stepId) return;
+    setWaitingForAction(false);
+    setInviteDropdownOpen(false);
+    if (advanceRef.current) clearTimeout(advanceRef.current);
+    advanceRef.current = setTimeout(() => {
+      const next = cur + 1;
+      if (next < SETUP_STEPS.length) {
+        setCardVisible(false);
+        advanceRef.current = setTimeout(() => setStepIndex(next), 280);
+      }
+    }, 800);
+  }, [userId]);
 
-      // ── 2. Advance the guide if this is the active step ─────
-      // Read from the ref — no updater needed, no StrictMode double-fire.
-      const cur = stepIndexRef.current;
-      if (SETUP_STEPS[cur]?.id !== stepId) return;
+  useEffect(() => { return () => { if (advanceRef.current) clearTimeout(advanceRef.current); }; }, []);
 
-      setWaitingForAction(false);
-
-      // Clear any pre-existing advance timer before scheduling a new one
-      if (advanceRef.current) clearTimeout(advanceRef.current);
-
-      advanceRef.current = setTimeout(() => {
-        const next = cur + 1;
-        if (next < SETUP_STEPS.length) {
-          setCardVisible(false);
-          advanceRef.current = setTimeout(() => setStepIndex(next), 280);
-        }
-        // If next >= length, the completion useEffect handles the modal.
-      }, 800);
-    },
-    [userId]
-  );
-
-  // ── Cleanup advance timers on unmount ─────────────────────
-  useEffect(() => {
-    return () => {
-      if (advanceRef.current) clearTimeout(advanceRef.current);
-    };
-  }, []);
-
-  // Listen for custom events from page actions
+  // Listen for custom events
   useEffect(() => {
     const handlers: Array<{ event: string; fn: EventListener }> = [];
-    SETUP_STEPS.forEach((s) => {
+    SETUP_STEPS.forEach(s => {
       if (!s.completionEvent) return;
       const fn = () => markStepDone(s.id);
       window.addEventListener(s.completionEvent, fn);
@@ -1657,14 +780,49 @@ export default function VilletoSetupGuide() {
     return () => { handlers.forEach(({ event, fn }) => window.removeEventListener(event, fn)); };
   }, [markStepDone]);
 
-  // ── Skip / resume ─────────────────────────────────────────
+  // Listen for invite-button-clicked event to enter dropdown phase
+  useEffect(() => {
+    if (!visible || isSkipped || step?.id !== "invitations") return;
+    const handler = () => {
+      // Only on the people list page, not sub-pages
+      if (!pathname.startsWith("/people/invite")) {
+        setCardVisible(false);
+        setInviteDropdownOpen(true);
+      }
+    };
+    window.addEventListener("villeto:invite-button-clicked", handler);
+    return () => window.removeEventListener("villeto:invite-button-clicked", handler);
+  }, [visible, isSkipped, step?.id, pathname]);
+
+  // Exit dropdown phase on sub-page navigation
+  useEffect(() => {
+    if (!inviteDropdownOpen) return;
+    if (pathname.startsWith("/people/invite/employees") || pathname.startsWith("/people/invite/leadership")) {
+      setInviteDropdownOpen(false);
+      setCardVisible(false);
+      setWaitingForAction(true);
+      pendingRef.current = setTimeout(() => setCardVisible(true), 400);
+    }
+  }, [pathname, inviteDropdownOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Skip / resume
   const skipGuide = useCallback(() => {
     setCardVisible(false);
+    setInviteDropdownOpen(false);
+
+    const isCurrentlyBonus = SETUP_STEPS.every(s => completedIds.has(s.id)) && pathname === "/expenses";
+
     setTimeout(() => {
       setIsSkipped(true);
       if (dismissedKey) localStorage.setItem(dismissedKey, "1");
+
+      // If we are skipping the bonus step specifically, mark it too
+      if (isCurrentlyBonus && userId) {
+        setIsPostSetupDismissed(true);
+        localStorage.setItem(POST_SETUP_DISMISSED_KEY(userId), "1");
+      }
     }, 300);
-  }, [dismissedKey]);
+  }, [dismissedKey, pathname, completedIds, userId]);
 
   const resumeGuide = useCallback(() => {
     setIsSkipped(false);
@@ -1672,214 +830,119 @@ export default function VilletoSetupGuide() {
     setVisible(true);
   }, [dismissedKey]);
 
-  // ── Close (X button) → same as skip ──────────────────────
   const handleClose = useCallback(() => skipGuide(), [skipGuide]);
 
-  // ── [FIX-6] Keyboard ──────────────────────────────────────
-  // Guard the Enter key: only advance / close when focus is NOT inside
-  // a form field so we don't hijack typing in interactive steps.
+  // [FIX-6] Keyboard
   useEffect(() => {
     if (!visible || isSkipped) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        skipGuide();
-        return;
-      }
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") skipGuide(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [visible, isSkipped, skipGuide]);
 
-  // ── Active sub-state (e.g. the CSV upload sub-pages) ─────
-  const activeSubState = step?.subStates?.find((ss) =>
-    ss.pathMatch(pathname, new URLSearchParams(searchParams.toString()))
-  );
+  // POST-SETUP override logic & activeStep derivation
+  const allDone = hydrated ? SETUP_STEPS.every(s => completedIds.has(s.id)) : false;
+  let activeStep: SetupStep | undefined = undefined;
+  let isBonusActive = false;
 
-  const activeStep: SetupStep | undefined = step
-    ? activeSubState
-      ? {
-          ...step,
-          targetSelector:       activeSubState.targetSelector       ?? step.targetSelector,
-          mergeSelectors:       activeSubState.mergeSelectors       ?? step.mergeSelectors,
-          extraCutoutSelectors: activeSubState.extraCutoutSelectors ?? step.extraCutoutSelectors,
-          arrowSide:            activeSubState.arrowSide            ?? step.arrowSide,
-          title:                activeSubState.title                ?? step.title,
-          description:          activeSubState.description          ?? step.description,
-          steps:                activeSubState.steps                ?? step.steps,
-          cardPlacement:        activeSubState.cardPlacement        ?? step.cardPlacement,
-          allowInteraction:     activeSubState.allowInteraction     ?? step.allowInteraction,
-          disableSpotlight:     activeSubState.disableSpotlight     ?? step.disableSpotlight,
-        }
-      : step
-    : undefined;
+  if (allDone) {
+    if (pathname === "/expenses" && !isPostSetupDismissed) {
+      activeStep = BONUS_STEP;
+      isBonusActive = true;
+    }
+  } else if (step) {
+    const activeSubState = step?.subStates?.find(ss => ss.pathMatch(pathname, new URLSearchParams(searchParams.toString())));
+    activeStep = activeSubState
+      ? { ...step, targetSelector: activeSubState.targetSelector ?? step.targetSelector, mergeSelectors: activeSubState.mergeSelectors ?? step.mergeSelectors, arrowSide: activeSubState.arrowSide ?? step.arrowSide, title: activeSubState.title ?? step.title, description: activeSubState.description ?? step.description, allowInteraction: activeSubState.allowInteraction ?? step.allowInteraction, disableSpotlight: activeSubState.disableSpotlight ?? step.disableSpotlight }
+      : step;
+  }
 
-  // ── Tooltip position ──────────────────────────────────────
+  // Tooltip position — suppress when dropdown phase is active
   const pos = useTooltipPosition(
-    !isSkipped ? activeStep?.targetSelector : undefined,
-    !isSkipped ? (activeStep?.arrowSide ?? "none") : "none",
-    !isSkipped ? activeStep?.cardPlacement : undefined,
+    !isSkipped && !inviteDropdownOpen ? activeStep?.targetSelector : undefined,
+    !isSkipped && !inviteDropdownOpen ? (activeStep?.arrowSide ?? "none") : "none"
   );
 
-  // ── Scroll lock ─────────────────────────────────────────────
+  // Scroll lock — NEVER lock when allowInteraction is true or dropdown phase active
   useEffect(() => {
-    const mainEl = document.querySelector('main');
-    if (visible && !isSkipped && activeStep && !activeStep.allowInteraction) {
+    const mainEl = document.querySelector("main");
+    if (visible && !isSkipped && activeStep && !activeStep.allowInteraction && !inviteDropdownOpen) {
       document.body.style.overflow = "hidden";
       if (mainEl) mainEl.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
       if (mainEl) mainEl.style.overflow = "";
     }
-    return () => {
-      document.body.style.overflow = "";
-      if (mainEl) mainEl.style.overflow = "";
-    };
-  }, [visible, isSkipped, activeStep?.allowInteraction]);
+    return () => { document.body.style.overflow = ""; if (mainEl) mainEl.style.overflow = ""; };
+  }, [visible, isSkipped, activeStep?.allowInteraction, inviteDropdownOpen]);
 
-  // ── Completion modal close ────────────────────────────────
+  // Completion modal close — navigate to expenses personal tab (optional)
   const handleDoneClose = useCallback(() => {
     setShowDoneModal(false);
-    setVisible(false);
-    router.push("/dashboard");
+    // Keep visible so the bonus step can appear on the next page
+    setVisible(true);
+    setIsSkipped(false);
+    router.push("/expenses?tab=personal-expenses");
   }, [router]);
 
-  // ── Render guards ─────────────────────────────────────────
+  // Render guards
   if (!isEligible || !userId) return null;
-  if (!setupGuideReady) return null; // Wait for SetPasswordModal flow to resolve
+  if (!setupGuideReady) return null;
+  if (!activeStep && !showDoneModal && (!allDone || isPostSetupDismissed)) return null;
 
-  const allDone = SETUP_STEPS.every((s) => completedIds.has(s.id));
-  if (allDone && !showDoneModal) return null;
-
-  // Show the progress widget any time the guide is incomplete —
-  // visible (active), skipped, or just re-opened after a new login.
   const showProgress = !allDone;
+  const isInviteStep = !allDone && step?.id === "invitations";
 
   return (
     <SetupGuideContext.Provider value={{ markStepDone }}>
       <div id="villeto-setup-root">
-        {/* Completion modal */}
         {showDoneModal && <SetupCompleteModal onClose={handleDoneClose} />}
 
-        {/* Progress widget — always visible when guide is active or skipped */}
         {showProgress && (
-          <SetupProgressWidget
-            steps={SETUP_STEPS}
-            completedIds={completedIds}
-            current={stepIndex}
-            onResume={resumeGuide}
-            isSkipped={isSkipped}
-            isActive={visible && !isSkipped}
-          />
+          <SetupProgressWidget steps={SETUP_STEPS} completedIds={completedIds} current={stepIndex} onResume={resumeGuide} isSkipped={isSkipped} isActive={visible && !isSkipped} />
         )}
 
-        {/* Only render overlay + card when guide is open (not skipped) */}
         {visible && !isSkipped && activeStep && (
           <>
-            {/* Global UI freeze and strict interaction blocker */}
-            {!activeStep.allowInteraction && (
-              <style>{`
-                /* Freeze Background Scrolling */
-                body, main, .overflow-y-auto, .overflow-auto, .overflow-x-auto {
-                  overflow: hidden !important;
-                }
+            {/* Invite dropdown phase: just tip + arrow, no overlay */}
+            {isInviteStep && inviteDropdownOpen && <InviteDropdownTip onSkip={skipGuide} />}
 
-                /* Natively intercept and block all background stray clicks */
-                body {
-                  pointer-events: none !important;
-                  user-select: none !important;
-                }
+            {/* Normal rendering */}
+            {(!isInviteStep || !inviteDropdownOpen) && (
+              <>
+                {!activeStep.allowInteraction && (
+                  <style>{`
+                    body,main,.overflow-y-auto,.overflow-auto,.overflow-x-auto{overflow:hidden!important}
+                    body{pointer-events:none!important;user-select:none!important}
+                    #villeto-setup-root,#villeto-setup-root *{pointer-events:auto!important}
+                    [data-radix-popper-content-wrapper],[data-radix-popper-content-wrapper] *,[role="dialog"],[role="dialog"] *,[aria-modal="true"],[aria-modal="true"] *{pointer-events:auto!important}
+                    #villeto-setup-root svg,#villeto-setup-root svg *{pointer-events:none!important}
+                    ${activeStep.targetSelector ? `${activeStep.targetSelector},${activeStep.targetSelector} *{pointer-events:auto!important;cursor:pointer!important}` : ""}
+                    ${(activeStep.mergeSelectors ?? []).map(sel => `${sel},${sel} *{pointer-events:auto!important;cursor:pointer!important}`).join("")}
+                  `}</style>
+                )}
 
-                /* Whitelist the Setup Guide interface itself */
-                #villeto-setup-root, #villeto-setup-root * {
-                  pointer-events: auto !important;
-                }
+                {!activeStep.disableSpotlight && (
+                  <SpotlightOverlay sidebarHref={activeStep.sidebarHref} targetSelector={activeStep.targetSelector} mergeSelectors={activeStep.mergeSelectors} visible={cardVisible} />
+                )}
 
-                /* Whitelist Radix UI portals (dropdowns, dialogs, modals) */
-                [data-radix-popper-content-wrapper],
-                [data-radix-popper-content-wrapper] *,
-                [role="dialog"],
-                [role="dialog"] * {
-                  pointer-events: auto !important;
-                }
+                {activeStep.targetSelector && activeStep.arrowSide && activeStep.arrowSide !== "none" && (
+                  <PointerArrow targetSelector={activeStep.targetSelector} side={activeStep.arrowSide} />
+                )}
 
-                /*
-                 * The broad rule above accidentally enables pointer-events on
-                 * the two full-screen SVG overlays (SpotlightOverlay z-9990,
-                 * PointerArrow z-9996), overriding their inline pointerEvents:"none".
-                 * Those SVGs sit above the entire page; with pointer-events:auto they
-                 * silently absorb every hover and click — so the target button never
-                 * sees cursor:pointer and clicks never reach it.
-                 *
-                 * Fix: re-silence SVGs and ALL their children with a more-specific
-                 * rule.  "svg" adds an element type, giving specificity (1,0,1) which
-                 * beats the universal (1,0,0) above even though both carry !important.
-                 */
-                #villeto-setup-root svg,
-                #villeto-setup-root svg * {
-                  pointer-events: none !important;
-                }
-
-                /* Whitelist the current active target button */
-                ${activeStep.targetSelector ? `
-                  ${activeStep.targetSelector}, ${activeStep.targetSelector} * {
-                    pointer-events: auto !important;
-                    cursor: pointer !important;
-                  }
-                ` : ""}
-
-                /* Whitelist any merged elements (e.g. Download a Template) */
-                ${(activeStep.mergeSelectors ?? []).map(sel => `
-                  ${sel}, ${sel} * {
-                    pointer-events: auto !important;
-                    cursor: pointer !important;
-                  }
-                `).join("")}
-              `}</style>
+                <SetupCard
+                  step={activeStep}
+                  stepNumber={stepIndex + 1}
+                  totalSteps={SETUP_STEPS.length}
+                  pos={pos}
+                  visible={cardVisible && !pos.targetMissing}
+                  isDone={completedIds.has(step.id)}
+                  waitingForAction={waitingForAction && !completedIds.has(step.id)}
+                  onSkip={skipGuide}
+                  onClose={handleClose}
+                />
+              </>
             )}
-
-            {/* SVG spotlight overlay */}
-            {!activeStep.disableSpotlight && (
-              <SpotlightOverlay
-                sidebarHref={activeStep.sidebarHref}
-                targetSelector={activeStep.targetSelector}
-                mergeSelectors={activeStep.mergeSelectors}
-                extraCutoutSelectors={activeStep.extraCutoutSelectors}
-                dimOpacity={activeStep.allowInteraction ? 0.35 : 0.52}
-                visible={cardVisible}
-              />
-            )}
-
-            {/* Bouncing pointer arrow — primary target */}
-            {activeStep.targetSelector && activeStep.arrowSide && activeStep.arrowSide !== "none" && (
-              <PointerArrow
-                targetSelector={activeStep.targetSelector}
-                side={activeStep.arrowSide}
-              />
-            )}
-
-            {/* Secondary bouncing arrows for merged selectors — always side "top" */}
-            {(activeStep.mergeSelectors ?? []).map((sel) => (
-              <PointerArrow key={sel} targetSelector={sel} side="top" />
-            ))}
-
-            {/* When extraCutoutSelectors include the Radix dropdown portal, show a
-                DropdownFirstItemArrow so the user knows which option to pick first. */}
-            {(activeStep.extraCutoutSelectors ?? []).some(s => s.includes("radix-popper")) && (
-              <DropdownFirstItemArrow />
-            )}
-
-            {/* Step card */}
-            <SetupCard
-              step={activeStep}
-              stepNumber={stepIndex + 1}
-              totalSteps={SETUP_STEPS.length}
-              pos={pos}
-              visible={cardVisible && !pos.targetMissing}
-              isDone={completedIds.has(step.id)}
-              waitingForAction={waitingForAction && !completedIds.has(step.id)}
-              onSkip={skipGuide}
-              onClose={handleClose}
-            />
           </>
         )}
       </div>

@@ -248,6 +248,8 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
         employeeIds: Array.from(selected),
       });
       toast.success("Invitations sent successfully!");
+      // Notify setup guide — ticks "invitations" step
+      window.dispatchEvent(new CustomEvent("villeto:invitation-sent"));
       router.push("/people?tab=directory");
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to send invitations. Please try again.");
@@ -284,6 +286,22 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
           </p>
         </div>
       </div>
+
+      {/* Setup guide inline tip — non-blocking, shown only when users exist */}
+      {users.length > 0 && (
+        <div className="flex items-start gap-3 bg-[#f0fdf9] border border-[#a7f3d0] rounded-xl px-4 py-3 flex-shrink-0">
+          <div className="w-5 h-5 rounded-full bg-[#0d9488] flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5L8.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-[#065f46]">Select employees to invite</p>
+            <p className="text-xs text-[#047857] mt-0.5">
+              Tick the <strong>checkbox in the header</strong> to select all, or check employees one by one.
+              Then click <strong>Invite Users</strong> (bottom right) to send invitations.
+            </p>
+          </div>
+        </div>
+      )}
 
       {users.length === 0 ? (
         <div className="bg-white rounded-lg border mt-4 flex flex-col items-center justify-center py-24 px-6">
@@ -334,7 +352,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                 <TableRow>
                   <TableHead className="w-[40px] text-center px-4 py-3">
                     <Checkbox
-                      data-tour="directory-select-all"
+                      data-tour="select-all-checkbox"
                       checked={isSomeSelected ? "indeterminate" : isAllSelected}
                       onCheckedChange={handleSelectAllChange}
                     />
@@ -549,7 +567,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
           )}
 
           <div className="flex justify-end gap-3 pt-2 flex-shrink-0">
-            <Button data-tour="invite-selected-btn" onClick={handleInvite} className="bg-[#00BFA5] hover:bg-[#00BFA5]/90 min-w-[180px]" disabled={selectedCount === 0 || isInviting}>
+            <Button data-tour="send-invitations-button" onClick={handleInvite} className="bg-[#00BFA5] hover:bg-[#00BFA5]/90 min-w-[180px]" disabled={selectedCount === 0 || isInviting}>
               {isInviting ? "Sending invites..." : `Invite ${selectedCount} User${selectedCount !== 1 ? "s" : ""}`}
             </Button>
           </div>

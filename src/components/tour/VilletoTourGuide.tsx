@@ -338,7 +338,7 @@ function SpotlightOverlay({
         inset: 0,
         width: "100%",
         height: "100%",
-        zIndex: 9990,
+        zIndex: 40,
         pointerEvents: "none",
         opacity: visible ? 1 : 0,
         transition: "opacity 0.35s ease",
@@ -721,7 +721,7 @@ function TourCard({
         transform: visible
           ? "translate(-50%,-50%) scale(1)"
           : "translate(-50%,-50%) scale(0.94)",
-        zIndex: 9999,
+        zIndex: 45,
         width: 420,
         maxWidth: "calc(100vw - 32px)",
         opacity: visible ? 1 : 0,
@@ -731,7 +731,7 @@ function TourCard({
         position: "fixed",
         top: pos.top,
         left: pos.left,
-        zIndex: 9999,
+        zIndex: 45,
         width: 380,
         maxWidth: "calc(100vw - 32px)",
         opacity: visible ? 1 : 0,
@@ -788,9 +788,12 @@ function TourCard({
           borderRadius: 18,
           boxShadow: "0 24px 64px rgba(0,0,0,0.16), 0 4px 16px rgba(0,0,0,0.08)",
           overflow: "hidden",
+          maxHeight: "calc(100vh - 100px)",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
-        <div style={{ padding: "28px 28px 24px" }}>
+        <div style={{ padding: "28px 28px 24px", overflowY: "auto" }}>
           {/* Account details interactive hint */}
           {step.targetIsInteractive && (
             <div
@@ -925,11 +928,26 @@ export default function VilletoTourGuide() {
   const pathname      = usePathname();
   const searchParams  = useSearchParams();
   const setTourActive = useTourStore((s) => s.setTourActive);
+  const setupGuideReady = useTourStore((s: any) => s.setupGuideReady ?? false);
 
   const [visible,      setVisible]      = useState(false);
   const [cardVisible,  setCardVisible]  = useState(false);
   const [stepIndex,    setStepIndex]    = useState(0);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+
+  // ── Freeze loginCount at mount ────────────────────────────
+  // DashboardLayoutContent calls /users/me shortly after mount and
+  // overwrites the auth store user — including loginCount — with the
+  // server value (which is already ≥ 1 by the time this component
+  // renders). Capturing it once in a ref means shouldShow is evaluated
+  // against the count that was in the store on first render, not the
+  // refreshed value that arrives a few hundred ms later.
+  const mountLoginCountRef = useRef<number | null>(null);
+  if (mountLoginCountRef.current === null && user !== null) {
+    mountLoginCountRef.current = typeof user?.loginCount === "number"
+      ? user.loginCount
+      : -1;
+  }
 
   const SETTLE_MS = 700;
 
@@ -968,10 +986,13 @@ export default function VilletoTourGuide() {
   const tourKey     = user?.userId ? TOUR_KEY(user.userId) : null;
   const alreadySeen = tourKey ? sessionStorage.getItem(tourKey) === "1" : true;
 
+  // Use the login count that was in the store at mount time (frozen above).
+  // This prevents the /users/me refresh from flipping isFirstLogin to false
+  // after the 1500 ms start-tour timer has already been queued.
   const isFirstLogin =
     !!user &&
-    typeof user.loginCount === "number" &&
-    user.loginCount < 1;
+    mountLoginCountRef.current !== null &&
+    mountLoginCountRef.current < 1;
 
   // Exclude only the company founder — the CONTROLLING_OFFICER whose account
   // was created at the same moment as the company (createdAt timestamps match).
@@ -980,13 +1001,9 @@ export default function VilletoTourGuide() {
     !!user?.createdAt &&
     user.createdAt === user?.company?.createdAt;
 
-  const shouldShow = isFirstLogin && !alreadySeen && !isCompanyFounder;
+  const shouldShow = isFirstLogin && !alreadySeen && !isCompanyFounder && setupGuideReady;
 
   // ── [FIX-4] Start tour ────────────────────────────────────
-  // Original code used requestAnimationFrame(() => setCardVisible(true))
-  // inside a 1500ms timeout. rAF fires ~16ms later — before the page has
-  // settled — so the card often appeared before the spotlight measured its
-  // target. Use a second setTimeout with a small extra delay instead.
   useEffect(() => {
     if (!shouldShow) return;
     const t1 = setTimeout(() => setVisible(true), 1500);

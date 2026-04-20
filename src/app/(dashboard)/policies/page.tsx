@@ -100,6 +100,14 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/* ─── Helpers ───────────────────────────────────────────────────────────────── */
+
+function formatUser(userObj: any, fallbackStr?: string) {
+  if (!userObj) return fallbackStr || "—";
+  if (typeof userObj === "string") return userObj || fallbackStr || "—";
+  return `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.email || fallbackStr || "Unknown User";
+}
+
 /* ─── Expense Category Action Menu ───────────────────────────────────────────── */
 
 function ActionMenu({ onView, onCreatePolicy }: { onView: () => void; onCreatePolicy: () => void }) {
@@ -188,7 +196,7 @@ function ExpenseCategoryDetailsModal({
                 <div>
                   <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Created By</p>
                   <p className="text-sm font-semibold text-foreground">
-                    {category.createdBy ?? <span className="italic text-muted-foreground">—</span>}
+                    {formatUser(category.createdBy)}
                   </p>
                 </div>
                 <div className="text-right">
@@ -237,12 +245,6 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
   if (!policy) return null;
 
   const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
-
-  const formatUser = (userObj: any, fallbackStr?: string) => {
-    if (!userObj) return fallbackStr || "—";
-    if (typeof userObj === "string") return fallbackStr || userObj;
-    return `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.email || "Unknown User";
-  };
 
   const formatUserRole = (userObj: any) => {
     if (!userObj || typeof userObj === "string") return "";
@@ -562,7 +564,7 @@ export default function PoliciesPage() {
       id: c.categoryId ?? c.id,
       category: c.name,
       description: c.description || "",
-      createdBy: c.createdBy ?? "—",
+      createdBy: formatUser(c.createdBy),
       date: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—",
       isPolicyAttached: Boolean(c.isPolicyAttached),
     }));

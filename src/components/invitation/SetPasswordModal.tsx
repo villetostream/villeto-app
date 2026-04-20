@@ -6,6 +6,8 @@ import { Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import {
     Dialog,
     DialogContent,
+    DialogTitle,
+    DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,14 +149,14 @@ export default function SetPasswordModal({
                             {email}
                         </span>
 
-                        <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                        <DialogTitle className="text-2xl font-bold text-gray-900 mb-1">
                             {requireOldPassword ? "Update Password" : "Set Password"}
-                        </h2>
-                        <p className="text-sm text-gray-500 text-center">
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-gray-500 text-center">
                             {requireOldPassword
                                 ? "Enter your old password, then choose a stronger new password."
                                 : "Set your password to enhance account security."}
-                        </p>
+                        </DialogDescription>
                     </div>
 
                     {requireOldPassword && (
