@@ -15,7 +15,7 @@
  * ─────────────────────────────────────────────────────────────
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useTourStore } from "@/stores/useTourStore";
 import SetPasswordModal from "@/components/invitation/SetPasswordModal";
@@ -30,6 +30,15 @@ export default function DashboardModals() {
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [hasCompletedFlow,  setHasCompletedFlow]  = useState(false);
+
+  /**
+   * Latches to `true` the moment we decide the user needs a password change.
+   * This prevents a background /users/me re-fetch (which may return an
+   * incremented loginCount) from flipping isFirstLogin to false mid-flow
+   * and accidentally hitting the else-branch that calls setSetupGuideReady(true)
+   * while the password modal is still open.
+   */
+  const passwordFlowStartedRef = useRef(false);
 
   const flowGuardKey = useMemo(
     () =>
@@ -64,9 +73,17 @@ export default function DashboardModals() {
   useEffect(() => {
     if (hasCompletedFlow || !user) return;
     if ((isFirstLogin && isCompanyFounder) || mustChangePassword) {
+      // Latch immediately — even if loginCount gets updated by a background
+      // /users/me call in the same session, the else-branch below will be
+      // skipped and the guide will stay blocked until handlePasswordSuccess fires.
+      passwordFlowStartedRef.current = true;
       setShowPasswordModal(true);
     } else {
-      // If no password change is needed, unblock the setup guide
+      // Only unblock the guide if we never started a password-change flow.
+      // Without this guard, a background /users/me re-fetch that returns an
+      // incremented loginCount (isFirstLogin → false) would hit this branch
+      // and call setSetupGuideReady(true) while the modal is still open.
+      if (passwordFlowStartedRef.current) return;
       setHasCompletedFlow(true);
       setSetupGuideReady(true);
       if (flowGuardKey) sessionStorage.setItem(flowGuardKey, "1");
