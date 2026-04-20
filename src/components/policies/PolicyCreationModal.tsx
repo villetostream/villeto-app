@@ -17,6 +17,7 @@ import AddCategoryModal from "@/components/auth/AddCategoryModal";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
 import { getCurrencyConfig } from "@/lib/utils/currency";
+import { Roles } from "@/core/permissions/roles";
 
 /* ─── Types ───────────────────────────────────────────────── */
 export interface CreatedPolicyData {
@@ -830,7 +831,8 @@ export default function PolicyCreationModal({
   const adminOptions = useMemo<DropdownOption[]>(() =>
     (invitedUsersApi.data?.data ?? [])
       .filter((u: any) =>
-        u.userId !== currentUserId    // exclude self — a user cannot be their own approver
+        u.userId !== currentUserId && // exclude self — a user cannot be their own approver
+        (u.position ?? u.villetoRole?.name) !== Roles.EMPLOYEE
       )
       .map((u: any) => {
         const rawRole = u.position ?? u.villetoRole?.name ?? "";

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { X, Edit2, ShieldCheck, CreditCard, Activity, Copy, Eye, EyeOff } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -24,6 +24,7 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
         return (
             <Dialog open={isOpen} onOpenChange={onClose}>
                 <DialogContent showCloseButton={false} className="sm:max-w-[700px] p-0 rounded-3xl overflow-hidden border-none">
+                    <DialogTitle className="sr-only">Loading Profile</DialogTitle>
                     <div className="h-[500px] flex items-center justify-center bg-white">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
@@ -39,8 +40,8 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
                     {/* Header */}
                     <div className="flex justify-between items-start">
                         <div>
-                            <h2 className="text-2xl font-semibold text-gray-800">{user?.firstName} {user?.lastName}</h2>
-                            <p className="text-gray-500 text-sm mt-1">View and manage employee details and permissions</p>
+                            <DialogTitle className="text-2xl font-semibold text-gray-800">{user?.firstName} {user?.lastName}</DialogTitle>
+                            <DialogDescription className="text-gray-500 text-sm mt-1">View and manage employee details and permissions</DialogDescription>
                         </div>
                         <Button 
                             variant="ghost" 

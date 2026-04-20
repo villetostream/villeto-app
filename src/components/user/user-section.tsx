@@ -599,6 +599,11 @@ export function UserSection() {
                 <DropdownMenuTrigger asChild>
                   <button
                     data-tour={headerAction.dataTourId}
+                    onClick={() => {
+                      // Notify setup guide that invite button was clicked
+                      // so it can dismiss overlay and show dropdown arrow
+                      window.dispatchEvent(new CustomEvent("villeto:invite-button-clicked"));
+                    }}
                     className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap">
                     {headerAction.iconName === "upload" ? (
                       <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
@@ -609,7 +614,7 @@ export function UserSection() {
                     <ChevronDown className="w-4 h-4" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuContent align="end" className="w-60" data-tour="invite-dropdown-menu">
                   {headerAction.items.map((item, i) => (
                     <DropdownMenuItem key={i} className="cursor-pointer py-2.5 flex items-center gap-2" onClick={item.onClick}>
                       <PlusCircle className="h-4 w-4 text-primary shrink-0" />

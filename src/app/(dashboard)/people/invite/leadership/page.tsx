@@ -215,6 +215,8 @@ export default function InviteLeadershipPage() {
             await axios.post(API_KEYS.COMPANY.ADMIN_INVITES, { admins });
 
             toast.success("Invitations sent successfully!");
+            // Notify setup guide — ticks "invitations" step
+            window.dispatchEvent(new CustomEvent("villeto:invitation-sent"));
             router.push("/people?tab=directory");
         } catch (error: any) {
             toast.error(
@@ -240,6 +242,23 @@ export default function InviteLeadershipPage() {
                 </Link>
             </div>
 
+            {/* Inline setup guide tip — non-blocking */}
+            <div className="flex items-start gap-3 bg-[#f0fdf9] border border-[#a7f3d0] rounded-xl px-4 py-3 mb-6 w-full">
+                <div className="w-5 h-5 rounded-full bg-[#0d9488] flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5L8.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </div>
+                <div>
+                    <p className="text-sm font-semibold text-[#065f46]">
+                        {stagedUsers.length === 0 ? "Enter user details to invite leadership" : `${stagedUsers.length} user${stagedUsers.length !== 1 ? "s" : ""} ready — click Send Invitation →`}
+                    </p>
+                    <p className="text-xs text-[#047857] mt-0.5">
+                        {stagedUsers.length === 0
+                            ? "Type an email address to search your directory, select a role, then click Add User."
+                            : "Review the users on the right side, then click the Send Invitation button to complete this step."}
+                    </p>
+                </div>
+            </div>
+
             <div className="flex gap-6 items-start">
                 {/* Left Side - Form */}
                 <div className="w-full lg:w-1/2">
@@ -254,7 +273,6 @@ export default function InviteLeadershipPage() {
                             </Label>
                             <div className="relative" ref={suggestionsRef}>
                                 <Input
-                                    data-tour="leadership-email-input"
                                     id="email"
                                     placeholder="Emma@company.com"
                                     value={emailQuery}
@@ -533,8 +551,8 @@ export default function InviteLeadershipPage() {
 
                         <div className="pt-4 flex justify-end">
                             <Button
-                                data-tour="leadership-add-user-btn"
                                 type="submit"
+                                data-tour="leadership-add-user-button"
                                 disabled={!canAddUser}
                                 className="bg-[#00BFA5] hover:bg-[#00BFA5]/90 w-full sm:w-auto min-w-[120px] disabled:opacity-50"
                             >
@@ -608,7 +626,7 @@ export default function InviteLeadershipPage() {
 
                     <div className="p-4 border-t mt-auto">
                         <Button
-                            data-tour="leadership-invite-btn"
+                            data-tour="leadership-send-invitation-button"
                             className="w-full bg-[#00BFA5] hover:bg-[#00BFA5]/90 disabled:opacity-50"
                             disabled={stagedUsers.length === 0 || isInviting}
                             onClick={handleInviteAll}

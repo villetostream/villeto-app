@@ -110,6 +110,12 @@ const Page = () => {
             </Button>
           </form>
         </Form>
+        <div className='flex justify-center items-center gap-2 text-lg font-medium mt-12 pt-8 border-t border-gray-100'>
+          <span className="text-gray-500">Already have an account?</span>
+          <Link href="/login" className="text-primary font-bold hover:text-primary/80 transition-all">
+            Sign in
+          </Link>
+        </div>
       </div>
     </div>
   )

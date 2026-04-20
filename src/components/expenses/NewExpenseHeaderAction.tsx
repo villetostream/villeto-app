@@ -35,6 +35,7 @@ export default function NewExpenseHeaderAction() {
   useEffect(() => {
     setAction({
       label: "New Report",
+      dataTourId: "new-report-button",
       items: [
         {
           label: "Start New Report",

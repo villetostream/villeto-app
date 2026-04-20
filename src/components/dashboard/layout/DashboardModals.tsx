@@ -63,16 +63,21 @@ export default function DashboardModals() {
     const done = sessionStorage.getItem(flowGuardKey) === "1";
     if (done) {
       setHasCompletedFlow(true);
-      // If flow was already complete in a previous render (page refresh),
-      // signal the setup guide immediately.
-      setSetupGuideReady(true);
+      // Even if sessionStorage says they are done, double check mustChangePassword
+      // to ensure we don't accidentally unblock if the backend state changed.
+      if (!mustChangePassword) {
+        setSetupGuideReady(true);
+      }
     }
-  }, [flowGuardKey, setSetupGuideReady]);
+  }, [flowGuardKey, setSetupGuideReady, mustChangePassword]);
 
   // ── Show password modal when needed ───────────────────────
   useEffect(() => {
     if (hasCompletedFlow || !user) return;
-    if ((isFirstLogin && isCompanyFounder) || mustChangePassword) {
+
+    const isBlockingModalNeeded = (isFirstLogin && isCompanyFounder) || mustChangePassword;
+
+    if (isBlockingModalNeeded) {
       // Latch immediately — even if loginCount gets updated by a background
       // /users/me call in the same session, the else-branch below will be
       // skipped and the guide will stay blocked until handlePasswordSuccess fires.
@@ -84,6 +89,7 @@ export default function DashboardModals() {
       // incremented loginCount (isFirstLogin → false) would hit this branch
       // and call setSetupGuideReady(true) while the modal is still open.
       if (passwordFlowStartedRef.current) return;
+      
       setHasCompletedFlow(true);
       setSetupGuideReady(true);
       if (flowGuardKey) sessionStorage.setItem(flowGuardKey, "1");
