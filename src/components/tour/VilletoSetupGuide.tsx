@@ -62,9 +62,36 @@ type StepSubState = {
   /** Returns true when this sub-state should activate */
   pathMatch: (pathname: string, sp: URLSearchParams) => boolean;
   targetSelector?: string;
+  /**
+   * Additional selectors whose bounding boxes are merged with targetSelector
+   * into one unified spotlight cutout (L-shape). Use when related elements
+   * sit close together and should share one highlight shape.
+   */
+  mergeSelectors?: string[];
+  /**
+   * Selectors for elements that each get their OWN independent rectangular
+   * spotlight cutout — no L-shape merging. Use for distant elements (e.g.
+   * a Radix dropdown portal that opens below the trigger button) that need
+   * a separate hole in the overlay.
+   */
+  extraCutoutSelectors?: string[];
   arrowSide?: ArrowSide;
   title?: string;
+  /**
+   * Plain description string. Prefer `steps` for multi-action instructions.
+   */
   description?: string;
+  /**
+   * Numbered step list that replaces the description. Each string becomes
+   * a styled line item with a teal numbered badge.
+   */
+  steps?: string[];
+  /**
+   * "bottom-center" — anchor the SetupCard to the bottom-center of the
+   * viewport instead of near the target. Use on sub-pages where the card
+   * must never overlap form fields or table rows.
+   */
+  cardPlacement?: "bottom-center";
   allowInteraction?: boolean;
   disableSpotlight?: boolean;
 };
@@ -76,9 +103,13 @@ type SetupStep = {
   sidebarHref?: string;
   /** CSS selector for the in-page action button to spotlight */
   targetSelector?: string;
+  mergeSelectors?: string[];
+  extraCutoutSelectors?: string[];
   arrowSide?: ArrowSide;
   title: string;
   description: string;
+  steps?: string[];
+  cardPlacement?: "bottom-center";
   /** Event key that silently marks this step done (dispatched after action) */
   completionEvent?: string;
   /** Extra paths where the guide stays without redirecting the user back */
@@ -112,10 +143,13 @@ const SETUP_STEPS: SetupStep[] = [
           pn.startsWith("/people/invite/employees") &&
           (sp.get("step") === "upload" || !sp.get("step")),
         targetSelector: '[data-tour="csv-upload-zone"]',
+        // Merge the Download-a-Template link into the same spotlight cutout
+        // so both the link and the drop-zone share one seamless highlight.
+        mergeSelectors: ['[data-tour="download-template-link"]'],
         arrowSide: "top",
         title: "Drop Your CSV File Here",
         description:
-          "Drag your CSV or Excel file into the upload area — or click \"Browse File\" to pick it from your computer.\n\nYour file should include columns like first_name, last_name, email, and department_name.",
+          "Drag your CSV or Excel file into the upload area — or click \"Browse File\" to pick it from your computer.\n\nNot sure of the format? Click \"Download a Template\" (highlighted top-right) to get a ready-made CSV you can fill in.",
       },
       {
         // Preview page (step=preview) — confirm & save
@@ -145,33 +179,78 @@ const SETUP_STEPS: SetupStep[] = [
     completionEvent: "villeto:invitation-sent",
     allowedSubPaths: ["/people/invite/employees", "/people/invite/leadership"],
     subStates: [
+      // ── /people?tab=all-users — dropdown trigger ──────────────────────────────
+      //
+      // The guide must NOT physically cover the dropdown that opens below the
+      // button. Fixes applied:
+      //   • disableSpotlight: false  — overlay is back for "guide mode" feel
+      //   • extraCutoutSelectors     — SpotlightOverlay polls the Radix portal
+      //     selector and adds a SECOND independent rectangular hole whenever
+      //     the dropdown is open, so all dropdown items are fully lit
+      //   • allowInteraction: true   — pointer-freeze CSS is NOT injected so
+      //     the dropdown and its items remain clickable
+      //   • arrowSide: "top"         — bouncing PointerArrow sits ABOVE the
+      //     button pointing down; card is placed at bottom-center (cardPlacement)
+      //     so it can never overlap the dropdown that opens below
+      //   • A separate <DropdownFirstItemArrow> in the render points at the
+      //     first [role="menuitem"] when the dropdown opens
       {
-        pathMatch: (pn, sp) => pn.startsWith("/people/invite/leadership"),
-        targetSelector: 'form button[type="submit"]',
-        arrowSide: "none",
-        title: "Invite Leadership",
-        description: "Enter the details for your leaders and admins. They'll receive an email with a link to join your workspace.",
-        allowInteraction: true,
-        disableSpotlight: true,
-      },
-      {
-        pathMatch: (pn, sp) => pn.startsWith("/people/invite/employees") && sp.get("step") !== "upload" && sp.get("step") !== "preview",
-        targetSelector: 'form button[type="submit"]',
-        arrowSide: "none",
-        title: "Invite Employees",
-        description: "Select employees from your directory or add them manually to send out invitations.",
-        allowInteraction: true,
-        disableSpotlight: true,
-      },
-      {
-        pathMatch: (pn, sp) => pn === "/people" && sp.get("tab") === "all-users",
+        pathMatch: (pn, sp) =>
+          pn === "/people" && (sp.get("tab") === "all-users" || !sp.get("tab")),
         targetSelector: '[data-tour="invite-button"]',
+        extraCutoutSelectors: ["[data-radix-popper-content-wrapper]"],
         arrowSide: "top",
-        title: "Select Invite Type",
-        description: "Click \"Invite Users\" then select whether to invite Employees or Leadership. Follow the prompts to complete the process.",
+        title: "Open the Invite Menu",
+        description:
+          "Click \"Invite Users\" to open the dropdown menu, then choose an option — start with \"Invite Employees\" first.",
+        cardPlacement: "bottom-center",
         allowInteraction: true,
         disableSpotlight: false,
-      }
+      },
+      // ── /people/invite/employees (directory picker) ───────────────────────────
+      //
+      // Card anchored to bottom-center so it never covers the table.
+      // Two arrows: primary on the Invite button (bottom-right), secondary on
+      // the select-all checkbox (top of table header). Both have spotlight
+      // cutouts via mergeSelectors. Overlay at reduced opacity (35%) keeps the
+      // "guide mode" feel while leaving table rows fully readable.
+      {
+        pathMatch: (pn, sp) =>
+          pn.startsWith("/people/invite/employees") &&
+          sp.get("step") !== "upload" &&
+          sp.get("step") !== "preview",
+        targetSelector: '[data-tour="invite-selected-btn"]',
+        mergeSelectors: ['[data-tour="directory-select-all"]'],
+        arrowSide: "top",
+        title: "Select & Invite Employees",
+        steps: [
+          "Tick the checkbox in the table header to select all employees at once — or tick individual rows.",
+          "When your selection is ready, click the teal \"Invite Users\" button (highlighted, bottom-right) to send invitations.",
+        ],
+        cardPlacement: "bottom-center",
+        allowInteraction: true,
+        disableSpotlight: false,
+      },
+      // ── /people/invite/leadership ─────────────────────────────────────────────
+      //
+      // Two-part flow. Both buttons are spotlit. Card stays at the bottom-center
+      // so it never overlaps the form fields (email, name, role) above it.
+      // Primary arrow → Add User form button. Secondary arrow → Invite N Users.
+      {
+        pathMatch: (pn, _sp) => pn.startsWith("/people/invite/leadership"),
+        targetSelector: '[data-tour="leadership-add-user-btn"]',
+        mergeSelectors: ['[data-tour="leadership-invite-btn"]'],
+        arrowSide: "top",
+        title: "Invite Leadership & Admins",
+        steps: [
+          "Type an email to find someone from your directory, pick their role, then click \"Add User\" (highlighted, left panel).",
+          "Repeat step 1 for every leader or admin you want to invite.",
+          "When your list is ready, click \"Invite Users\" (highlighted, right panel) to send all invitations.",
+        ],
+        cardPlacement: "bottom-center",
+        allowInteraction: true,
+        disableSpotlight: false,
+      },
     ],
   },
   {
@@ -264,17 +343,36 @@ function getSidebarWidth(): number {
 function SpotlightOverlay({
   sidebarHref,
   targetSelector,
+  mergeSelectors,
+  extraCutoutSelectors,
+  dimOpacity = 0.52,
   visible,
 }: {
   sidebarHref?: string;
   targetSelector?: string;
+  /** Selectors merged with targetSelector into one union bounding-box cutout */
+  mergeSelectors?: string[];
+  /**
+   * Each selector here gets its OWN independent rectangular cutout —
+   * no L-shape merging. Use for elements far from the primary target
+   * (e.g. a Radix dropdown portal that appears below the trigger).
+   * The SpotlightOverlay polls for these on the same 150ms interval
+   * so they light up automatically when they appear in the DOM.
+   */
+  extraCutoutSelectors?: string[];
+  /** Overlay fill opacity — default 0.52; use ~0.35 for allowInteraction steps */
+  dimOpacity?: number;
   visible: boolean;
 }) {
   const [vp, setVp] = useState({ w: 0, h: 0 });
   const [sidebarSpot, setSidebarSpot] = useState<
     (SpotRect & { sidebarW: number }) | null
   >(null);
-  const [targetSpot, setTargetSpot] = useState<SpotRect | null>(null);
+  const [targetSpot,  setTargetSpot]  = useState<SpotRect | null>(null);
+  // Kept separate so we can build an L-shape rather than a simple union rect.
+  const [mergeSpots,  setMergeSpots]  = useState<SpotRect[]>([]);
+  // Each extra selector gets its own independent rectangular cutout.
+  const [extraSpots,  setExtraSpots]  = useState<SpotRect[]>([]);
 
   const measure = useCallback(() => {
     setVp({ w: window.innerWidth, h: window.innerHeight });
@@ -300,12 +398,25 @@ function SpotlightOverlay({
       setSidebarSpot(null);
     }
 
-    if (targetSelector) {
-      setTargetSpot(measureEl(targetSelector));
-    } else {
-      setTargetSpot(null);
-    }
-  }, [sidebarHref, targetSelector]);
+    // Primary target stays its own rect — no union expansion.
+    setTargetSpot(targetSelector ? measureEl(targetSelector) : null);
+
+    // Merge selectors are tracked individually so we can trace an L-shape.
+    setMergeSpots(
+      (mergeSelectors ?? [])
+        .map((sel) => measureEl(sel))
+        .filter((r): r is SpotRect => r !== null)
+    );
+
+    // Extra cutout selectors — each becomes its own independent rectangle.
+    // We poll unconditionally so elements that appear later (e.g. Radix
+    // dropdown portals) light up within the next 150 ms interval.
+    setExtraSpots(
+      (extraCutoutSelectors ?? [])
+        .map((sel) => measureEl(sel))
+        .filter((r): r is SpotRect => r !== null)
+    );
+  }, [sidebarHref, targetSelector, mergeSelectors, extraCutoutSelectors]);
 
   useEffect(() => {
     measure();
@@ -335,14 +446,84 @@ function SpotlightOverlay({
       `L${sidebarSpot.sidebarW} ${sidebarSpot.bottom + SP} L0 ${sidebarSpot.bottom + SP}Z`
     : "";
 
-  const tHole = targetSpot
-    ? `M${targetSpot.left - TP} ${targetSpot.top - TP} ` +
-      `L${targetSpot.right + TP} ${targetSpot.top - TP} ` +
-      `L${targetSpot.right + TP} ${targetSpot.bottom + TP} ` +
-      `L${targetSpot.left - TP} ${targetSpot.bottom + TP}Z`
-    : "";
+  /**
+   * Build the spotlight hole path.
+   *
+   * ─ No mergeSpots: simple rectangle (the original behaviour).
+   * ─ With mergeSpots: an L-shape (Γ) that starts as the main rect but grows
+   *   a notch upward on the right to also reveal the merged element
+   *   (e.g. the "Download a Template" link sitting above the drop-zone).
+   *
+   *  Visual (upload-zone = main, download link = extra):
+   *
+   *              eL        eR
+   *               |        |
+   *   eT  . . . . +________+
+   *               |        |
+   *   mT  ___+___+          +___+
+   *       |                      |
+   *       |    Upload  Zone       |
+   *       |                      |
+   *   mB  +______________________+
+   *      mL                      mR
+   */
+  let tHole = "";
+  let tBorderPoints = "";
+
+  if (targetSpot) {
+    const extra = mergeSpots[0] ?? null; // only the first merge element is used for the L
+
+    if (extra) {
+      // Coordinates with padding applied
+      const mL = targetSpot.left   - TP;
+      const mR = targetSpot.right  + TP;
+      const mT = targetSpot.top    - TP;
+      const mB = targetSpot.bottom + TP;
+      const eL = extra.left  - TP;
+      const eT = extra.top   - TP;
+      // Use the rightmost edge of either element so the notch never clips.
+      const eR = Math.max(extra.right, targetSpot.right) + TP;
+
+      // SVG hole path (clockwise polygon — evenodd rule punches it out)
+      tHole =
+        `M${mL} ${mB} ` +   // ① bottom-left
+        `L${mL} ${mT} ` +   // ② top-left of main zone
+        `L${eL} ${mT} ` +   // ③ across to notch start (main-top level)
+        `L${eL} ${eT} ` +   // ④ up to top of extra element
+        `L${eR} ${eT} ` +   // ⑤ right across top of extra element
+        `L${eR} ${mT} ` +   // ⑥ back down to main-top level (right side)
+        `L${mR} ${mT} ` +   // ⑦ across to right edge of main (handles eR > mR too)
+        `L${mR} ${mB} ` +   // ⑧ down to bottom-right
+        `Z`;
+
+      // Border polyline traces the exact same outline
+      tBorderPoints =
+        `${mL},${mB} ${mL},${mT} ${eL},${mT} ${eL},${eT} ` +
+        `${eR},${eT} ${eR},${mT} ${mR},${mT} ${mR},${mB}`;
+    } else {
+      // Original simple rectangle
+      const l = targetSpot.left   - TP;
+      const r = targetSpot.right  + TP;
+      const t = targetSpot.top    - TP;
+      const b = targetSpot.bottom + TP;
+      tHole =
+        `M${l} ${t} L${r} ${t} L${r} ${b} L${l} ${b}Z`;
+      tBorderPoints = `${l},${t} ${r},${t} ${r},${b} ${l},${b}`;
+    }
+  }
 
   const d = [outer, sHole, tHole].filter(Boolean).join(" ");
+
+  // Independent rectangular holes for extra cutout selectors
+  // (e.g. the Radix dropdown portal that opens below the invite button)
+  const extraHoles = extraSpots.map((r) => {
+    const l = r.left   - TP;
+    const ri = r.right  + TP;
+    const t = r.top    - TP;
+    const b = r.bottom + TP;
+    return `M${l} ${t} L${ri} ${t} L${ri} ${b} L${l} ${b}Z`;
+  });
+  const dFull = [d, ...extraHoles].filter(Boolean).join(" ");
 
   return (
     <svg
@@ -358,7 +539,7 @@ function SpotlightOverlay({
         transition: "opacity 0.35s ease",
       }}
     >
-      <path fillRule="evenodd" d={d} fill="rgba(0,0,0,0.52)" />
+      <path fillRule="evenodd" d={dFull} fill={`rgba(0,0,0,${dimOpacity})`} />
 
       {sidebarSpot && (
         <rect
@@ -374,16 +555,14 @@ function SpotlightOverlay({
         />
       )}
 
-      {targetSpot && (
-        <rect
-          x={targetSpot.left - TP}
-          y={targetSpot.top - TP}
-          width={targetSpot.right - targetSpot.left + TP * 2}
-          height={targetSpot.bottom - targetSpot.top + TP * 2}
+      {/* Teal border traces the exact cutout shape — rect OR L-shape */}
+      {targetSpot && tBorderPoints && (
+        <polygon
+          points={tBorderPoints}
           fill="none"
           stroke="rgba(13,148,136,0.8)"
           strokeWidth={2}
-          rx={6}
+          strokeLinejoin="round"
           style={{ filter: "drop-shadow(0 0 6px rgba(13,148,136,0.55))" }}
         />
       )}
@@ -549,6 +728,16 @@ function PointerArrow({
   );
 }
 
+// ─── Dropdown first-item arrow ─────────────────────────────────
+// When the Radix "Invite Users" dropdown is open, show an arrow pointing
+// at the first [role="menuitem"] (= "Invite Employees") to guide the user
+// on which option to choose first.  Disappears when the dropdown closes.
+
+function DropdownFirstItemArrow() {
+  const SELECTOR = '[data-radix-popper-content-wrapper] [role="menuitem"]:first-child';
+  return <PointerArrow targetSelector={SELECTOR} side="right" />;
+}
+
 // ─── Tooltip position hook ────────────────────────────────────
 
 type TooltipPos = {
@@ -556,17 +745,28 @@ type TooltipPos = {
   left?: number;
   arrowLeft?: number;
   arrowTop?: number;
-  placement: "near-target" | "center";
+  placement: "near-target" | "center" | "bottom-center";
   targetMissing?: boolean;
 };
 
 function useTooltipPosition(
   selector: string | undefined,
-  arrowSide: ArrowSide = "none"
+  arrowSide: ArrowSide = "none",
+  cardPlacement?: "bottom-center"
 ): TooltipPos {
   const [pos, setPos] = useState<TooltipPos>({ placement: "center", targetMissing: !!selector });
 
   const compute = useCallback(() => {
+    // bottom-center override: card is always at the bottom of the viewport
+    // regardless of target position. Return immediately with the fixed placement.
+    if (cardPlacement === "bottom-center") {
+      setPos(p =>
+        p.placement === "bottom-center" && !p.targetMissing ? p
+          : { placement: "bottom-center", targetMissing: false }
+      );
+      return;
+    }
+
     if (!selector || arrowSide === "none") {
       setPos(p => {
         if (p.placement === "center" && p.targetMissing === false) return p;
@@ -597,7 +797,8 @@ function useTooltipPosition(
       let left = rect.left + rect.width / 2 - CARD_W / 2;
       left = Math.max(12, Math.min(left, window.innerWidth - CARD_W - 12));
       const arrowLeft = rect.left + rect.width / 2 - left;
-      nextPos = { top: rect.top - GAP - 360, left, arrowLeft, placement: "near-target", targetMissing: false };
+      const top = Math.max(12, rect.top - GAP - 360);
+      nextPos = { top, left, arrowLeft, placement: "near-target", targetMissing: false };
     } else if (arrowSide === "left") {
       let top = rect.top + rect.height / 2 - 100;
       top = Math.max(12, Math.min(top, window.innerHeight - 300));
@@ -621,7 +822,7 @@ function useTooltipPosition(
       }
       return nextPos;
     });
-  }, [selector, arrowSide]);
+  }, [selector, arrowSide, cardPlacement]);
 
   useEffect(() => {
     compute();
@@ -983,6 +1184,7 @@ function SetupCard({
       style={{ ...wrapStyle, outline: "none" }}
     >
       {/* Upward arrow tab on the card */}
+      {/* Card nub — "top" means card is BELOW target → nub points up */}
       {step.arrowSide === "top" && pos.arrowLeft !== undefined && (
         <div
           style={{
@@ -1000,6 +1202,25 @@ function SetupCard({
         />
       )}
 
+      {/* Card nub — "bottom" means card is ABOVE target → nub points down */}
+      {step.arrowSide === "bottom" && pos.arrowLeft !== undefined && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: -10,
+            left: pos.arrowLeft - 10,
+            width: 0,
+            height: 0,
+            borderLeft: "10px solid transparent",
+            borderRight: "10px solid transparent",
+            borderTop: "10px solid white",
+            filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.07))",
+            zIndex: 1,
+          }}
+        />
+      )}
+
+      {/* Card nub — "left" means card is to the RIGHT of target → nub points left */}
       {step.arrowSide === "left" && pos.arrowTop !== undefined && (
         <div
           style={{
@@ -1012,6 +1233,24 @@ function SetupCard({
             borderBottom: "10px solid transparent",
             borderRight: "10px solid white",
             filter: "drop-shadow(-2px 0 3px rgba(0,0,0,0.07))",
+            zIndex: 1,
+          }}
+        />
+      )}
+
+      {/* Card nub — "right" means card is to the LEFT of target → nub points right */}
+      {step.arrowSide === "right" && pos.arrowTop !== undefined && (
+        <div
+          style={{
+            position: "absolute",
+            top: pos.arrowTop - 10,
+            right: -10,
+            width: 0,
+            height: 0,
+            borderTop: "10px solid transparent",
+            borderBottom: "10px solid transparent",
+            borderLeft: "10px solid white",
+            filter: "drop-shadow(2px 0 3px rgba(0,0,0,0.07))",
             zIndex: 1,
           }}
         />
@@ -1071,9 +1310,18 @@ function SetupCard({
             {step.title}
           </h2>
 
-          <p style={{ fontSize: 14, lineHeight: 1.7, color: "#4b5563", marginBottom: 22 }}>
-            {step.description}
-          </p>
+          <div style={{ fontSize: 14, lineHeight: 1.7, color: "#4b5563", marginBottom: 22 }}>
+            {step.description.split("\n\n").map((para, pIdx) => (
+              <p key={pIdx} style={{ margin: pIdx > 0 ? "8px 0 0" : "0" }}>
+                {para.split("\n").map((line, lIdx) => (
+                  <span key={lIdx}>
+                    {lIdx > 0 && <br />}
+                    {line}
+                  </span>
+                ))}
+              </p>
+            ))}
+          </div>
 
           {/* Action-required banner */}
           {waitingForAction && (
@@ -1451,12 +1699,16 @@ export default function VilletoSetupGuide() {
     ? activeSubState
       ? {
           ...step,
-          targetSelector: activeSubState.targetSelector ?? step.targetSelector,
-          arrowSide:      activeSubState.arrowSide      ?? step.arrowSide,
-          title:          activeSubState.title          ?? step.title,
-          description:    activeSubState.description   ?? step.description,
-          allowInteraction: activeSubState.allowInteraction ?? step.allowInteraction,
-          disableSpotlight: activeSubState.disableSpotlight ?? step.disableSpotlight,
+          targetSelector:       activeSubState.targetSelector       ?? step.targetSelector,
+          mergeSelectors:       activeSubState.mergeSelectors       ?? step.mergeSelectors,
+          extraCutoutSelectors: activeSubState.extraCutoutSelectors ?? step.extraCutoutSelectors,
+          arrowSide:            activeSubState.arrowSide            ?? step.arrowSide,
+          title:                activeSubState.title                ?? step.title,
+          description:          activeSubState.description          ?? step.description,
+          steps:                activeSubState.steps                ?? step.steps,
+          cardPlacement:        activeSubState.cardPlacement        ?? step.cardPlacement,
+          allowInteraction:     activeSubState.allowInteraction     ?? step.allowInteraction,
+          disableSpotlight:     activeSubState.disableSpotlight     ?? step.disableSpotlight,
         }
       : step
     : undefined;
@@ -1464,7 +1716,8 @@ export default function VilletoSetupGuide() {
   // ── Tooltip position ──────────────────────────────────────
   const pos = useTooltipPosition(
     !isSkipped ? activeStep?.targetSelector : undefined,
-    !isSkipped ? (activeStep?.arrowSide ?? "none") : "none"
+    !isSkipped ? (activeStep?.arrowSide ?? "none") : "none",
+    !isSkipped ? activeStep?.cardPlacement : undefined,
   );
 
   // ── Scroll lock ─────────────────────────────────────────────
@@ -1573,6 +1826,14 @@ export default function VilletoSetupGuide() {
                     cursor: pointer !important;
                   }
                 ` : ""}
+
+                /* Whitelist any merged elements (e.g. Download a Template) */
+                ${(activeStep.mergeSelectors ?? []).map(sel => `
+                  ${sel}, ${sel} * {
+                    pointer-events: auto !important;
+                    cursor: pointer !important;
+                  }
+                `).join("")}
               `}</style>
             )}
 
@@ -1581,16 +1842,30 @@ export default function VilletoSetupGuide() {
               <SpotlightOverlay
                 sidebarHref={activeStep.sidebarHref}
                 targetSelector={activeStep.targetSelector}
+                mergeSelectors={activeStep.mergeSelectors}
+                extraCutoutSelectors={activeStep.extraCutoutSelectors}
+                dimOpacity={activeStep.allowInteraction ? 0.35 : 0.52}
                 visible={cardVisible}
               />
             )}
 
-            {/* Bouncing pointer arrow */}
+            {/* Bouncing pointer arrow — primary target */}
             {activeStep.targetSelector && activeStep.arrowSide && activeStep.arrowSide !== "none" && (
               <PointerArrow
                 targetSelector={activeStep.targetSelector}
                 side={activeStep.arrowSide}
               />
+            )}
+
+            {/* Secondary bouncing arrows for merged selectors — always side "top" */}
+            {(activeStep.mergeSelectors ?? []).map((sel) => (
+              <PointerArrow key={sel} targetSelector={sel} side="top" />
+            ))}
+
+            {/* When extraCutoutSelectors include the Radix dropdown portal, show a
+                DropdownFirstItemArrow so the user knows which option to pick first. */}
+            {(activeStep.extraCutoutSelectors ?? []).some(s => s.includes("radix-popper")) && (
+              <DropdownFirstItemArrow />
             )}
 
             {/* Step card */}

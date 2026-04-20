@@ -1,4 +1,3 @@
-
 "use client";
 
 import { UploadCloud, Download } from "lucide-react";
@@ -63,6 +62,7 @@ export default function EmployeeInviteFileUpload({
                 <a
                     href="/Template.csv"
                     download="Template.csv"
+                    data-tour="download-template-link"
                     className="inline-flex items-center gap-1.5 text-sm text-[#00BFA5] hover:underline font-medium py-2"
                 >
                     <Download className="h-4 w-4" /> Download a Template
