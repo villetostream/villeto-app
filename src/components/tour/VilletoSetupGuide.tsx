@@ -220,6 +220,7 @@ const GUIDE_COMPLETED_KEY = (uid: string) =>
   `villeto-setup-guide-complete:${uid}`;
 const STEP_DONE_KEY = (uid: string, stepId: string) =>
   `villeto-setup-step:${uid}:${stepId}`;
+const GUIDE_MINIMIZED_KEY = (uid: string) => `villeto-guide-minimized:${uid}`;
 
 // ─── Silent completion context ────────────────────────────────
 
@@ -547,7 +548,7 @@ function SetupCompleteModal({ onClose }: { onClose: () => void }) {
         <div style={{ fontSize: 52, marginBottom: 20, lineHeight: 1 }}>🎉</div>
         <h2 id="setup-complete-heading" style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginBottom: 12, letterSpacing: "-0.03em" }}>Workspace Ready!</h2>
         <p style={{ fontSize: 15, lineHeight: 1.7, color: "#4b5563", marginBottom: 36 }}>You've completed your workspace setup. Your team can now submit expenses, and approvals will flow through your policies automatically.</p>
-        <button ref={btnRef} onClick={onClose} style={{ width: "100%", height: 50, borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)", color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 20px rgba(13,148,136,0.4)" }}>Create New Report</button>
+        <button ref={btnRef} onClick={onClose} style={{ width: "100%", height: 50, borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)", color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 20px rgba(13,148,136,0.4)" }}>Create a report</button>
       </div>
     </div>
   );
@@ -555,30 +556,84 @@ function SetupCompleteModal({ onClose }: { onClose: () => void }) {
 
 // ─── Step card ────────────────────────────────────────────────
 
-function SetupCard({ step, stepNumber, totalSteps, pos, visible, isDone, waitingForAction, onSkip, onClose }: { step: SetupStep; stepNumber: number; totalSteps: number; pos: TooltipPos; visible: boolean; isDone: boolean; waitingForAction: boolean; onSkip: () => void; onClose: () => void }) {
+function SetupCard({ 
+  step, stepNumber, totalSteps, pos, visible, isDone, waitingForAction, onSkip, onClose,
+  isMinimized, onToggleMinimize
+}: { 
+  step: SetupStep; stepNumber: number; totalSteps: number; pos: TooltipPos; visible: boolean; 
+  isDone: boolean; waitingForAction: boolean; onSkip: () => void; onClose: () => void;
+  isMinimized: boolean; onToggleMinimize: (m: boolean) => void;
+}) {
   const isCentered = pos.placement === "center";
   const cardRef = useRef<HTMLDivElement>(null);
+  
   useEffect(() => {
-    if (visible) { const t = setTimeout(() => cardRef.current?.focus(), 50); return () => clearTimeout(t); }
-  }, [visible]);
+    if (visible && !isMinimized) { const t = setTimeout(() => cardRef.current?.focus(), 50); return () => clearTimeout(t); }
+  }, [visible, isMinimized]);
 
-  const wrapStyle: React.CSSProperties = isCentered
-    ? { position: "fixed", top: "50%", left: "50%", transform: visible ? "translate(-50%,-50%) scale(1)" : "translate(-50%,-50%) scale(0.94)", zIndex: 45, width: 420, maxWidth: "calc(100vw - 32px)", opacity: visible ? 1 : 0, transition: "opacity 0.3s ease, transform 0.35s cubic-bezier(0.34,1.46,0.64,1)" }
-    : { position: "fixed", top: pos.top, left: pos.left, zIndex: 45, width: 400, maxWidth: "calc(100vw - 32px)", opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(-8px)", transition: "opacity 0.3s ease, transform 0.35s cubic-bezier(0.34,1.46,0.64,1)" };
+  // Positioning logic
+  const sidebarWidth = getSidebarWidth();
+  
+  // Expanded style
+  const expandedStyle: React.CSSProperties = isCentered
+    ? { top: "50%", left: "50%", transform: visible ? "translate(-50%,-50%) scale(1)" : "translate(-50%,-50%) scale(0.94)", width: 420 }
+    : { top: pos.top, left: pos.left, width: 400, transform: visible ? "translateY(0)" : "translateY(-8px)" };
+
+  // Minimized style (Pill at bottom-left)
+  const minimizedStyle: React.CSSProperties = {
+    bottom: 24,
+    left: sidebarWidth + 16,
+    width: 320,
+    transform: visible ? "translateY(0)" : "translateY(20px)",
+  };
+
+  const wrapStyle: React.CSSProperties = {
+    position: "fixed",
+    zIndex: 45,
+    maxWidth: "calc(100vw - 32px)",
+    opacity: visible ? 1 : 0,
+    transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+    ...(isMinimized ? minimizedStyle : expandedStyle)
+  };
+
+  if (isMinimized) {
+    return (
+      <div ref={cardRef} role="dialog" aria-modal="true" style={{ ...wrapStyle, outline: "none" }}>
+        <div style={{ background: "white", borderRadius: 14, boxShadow: "0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)", border: "1.2px solid rgba(13,148,136,0.2)", display: "flex", alignItems: "center", gap: 12, padding: "8px 10px 8px 14px", overflow: "hidden" }}>
+          <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#0d9488", textTransform: "uppercase", letterSpacing: "0.02em" }}>Step {stepNumber}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", truncate: "true", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as any}>{step.title}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+             <button onClick={onSkip} style={{ background: "none", border: "none", color: "#9ca3af", fontSize: 11, cursor: "pointer", padding: "4px 8px", textDecoration: "underline" }}>Skip</button>
+             <div style={{ width: 1, height: 16, background: "#f3f4f6" }} />
+             <button onClick={() => onToggleMinimize(false)} aria-label="Expand instructions" style={{ background: "#f0fdf9", border: "none", cursor: "pointer", width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#0d9488", transition: "background 0.2s" }} onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.background = "#ccfbf1")} onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.background = "#f0fdf9")}>
+               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" transform="rotate(180)"><path d="M11 5L7 9L3 5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={cardRef} role="dialog" aria-modal="true" aria-labelledby="setup-card-heading" tabIndex={-1} style={{ ...wrapStyle, outline: "none" }}>
-      {pos.effectiveSide === "top" && pos.arrowLeft !== undefined && <div style={{ position: "absolute", top: -10, left: pos.arrowLeft - 10, width: 0, height: 0, borderLeft: "10px solid transparent", borderRight: "10px solid transparent", borderBottom: "10px solid white", filter: "drop-shadow(0 -2px 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
-      {pos.effectiveSide === "bottom" && pos.arrowLeft !== undefined && <div style={{ position: "absolute", bottom: -10, left: pos.arrowLeft - 10, width: 0, height: 0, borderLeft: "10px solid transparent", borderRight: "10px solid transparent", borderTop: "10px solid white", filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
-      {pos.effectiveSide === "left" && pos.arrowTop !== undefined && <div style={{ position: "absolute", top: pos.arrowTop - 10, left: -10, width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderRight: "10px solid white", filter: "drop-shadow(-2px 0 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
-      {pos.effectiveSide === "right" && pos.arrowTop !== undefined && <div style={{ position: "absolute", top: pos.arrowTop - 10, right: -10, width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderLeft: "10px solid white", filter: "drop-shadow(2px 0 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
+      {!isCentered && pos.effectiveSide === "top" && pos.arrowLeft !== undefined && <div style={{ position: "absolute", top: -10, left: pos.arrowLeft - 10, width: 0, height: 0, borderLeft: "10px solid transparent", borderRight: "10px solid transparent", borderBottom: "10px solid white", filter: "drop-shadow(0 -2px 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
+      {!isCentered && pos.effectiveSide === "bottom" && pos.arrowLeft !== undefined && <div style={{ position: "absolute", bottom: -10, left: pos.arrowLeft - 10, width: 0, height: 0, borderLeft: "10px solid transparent", borderRight: "10px solid transparent", borderTop: "10px solid white", filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
+      {!isCentered && pos.effectiveSide === "left" && pos.arrowTop !== undefined && <div style={{ position: "absolute", top: pos.arrowTop - 10, left: -10, width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderRight: "10px solid white", filter: "drop-shadow(-2px 0 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
+      {!isCentered && pos.effectiveSide === "right" && pos.arrowTop !== undefined && <div style={{ position: "absolute", top: pos.arrowTop - 10, right: -10, width: 0, height: 0, borderTop: "10px solid transparent", borderBottom: "10px solid transparent", borderLeft: "10px solid white", filter: "drop-shadow(2px 0 3px rgba(0,0,0,0.07))", zIndex: 1 }} />}
       <div style={{ background: "white", borderRadius: 18, boxShadow: "0 24px 64px rgba(0,0,0,0.16), 0 4px 16px rgba(0,0,0,0.08)", overflow: "hidden", maxHeight: "calc(100vh - 100px)", display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "26px 28px 24px", overflowY: "auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#0d9488", background: "#f0fdf9", padding: "3px 10px", borderRadius: 99 }}>Step {stepNumber} of {totalSteps}</span>
-            <button onClick={onClose} aria-label="Close setup guide" style={{ background: "none", border: "none", cursor: "pointer", padding: 4, borderRadius: 6, color: "#9ca3af", lineHeight: 1, transition: "color 0.2s" }} onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = "#374151")} onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#9ca3af")}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <button onClick={() => onToggleMinimize(true)} aria-label="Minimize instructions" style={{ background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: "#9ca3af", transition: "color 0.2s, background 0.2s" }} onMouseEnter={e => { (e.currentTarget as any).style.color = "#374151"; (e.currentTarget as any).style.background = "#f3f4f6"; }} onMouseLeave={e => { (e.currentTarget as any).style.color = "#9ca3af"; (e.currentTarget as any).style.background = "none"; }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>
+              </button>
+              <button onClick={onClose} aria-label="Close setup guide" style={{ background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: "#9ca3af", transition: "color 0.2s, background 0.2s" }} onMouseEnter={e => { (e.currentTarget as any).style.color = "#374151"; (e.currentTarget as any).style.background = "#f3f4f6"; }} onMouseLeave={e => { (e.currentTarget as any).style.color = "#9ca3af"; (e.currentTarget as any).style.background = "none"; }}>
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style={{ display: "block" }}><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>
+              </button>
+            </div>
           </div>
           <h2 id="setup-card-heading" style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 10, letterSpacing: "-0.02em", lineHeight: 1.25 }}>{step.title}</h2>
           <p style={{ fontSize: 14, lineHeight: 1.7, color: "#4b5563", marginBottom: 22, whiteSpace: "pre-line" }}>{step.description}</p>
@@ -651,6 +706,7 @@ export default function VilletoSetupGuide() {
   const [stepIndex, setStepIndex] = useState(0);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [isSkipped, setIsSkipped] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [isPostSetupDismissed, setIsPostSetupDismissed] = useState(false);
   const [showDoneModal, setShowDoneModal] = useState(false);
   const [waitingForAction, setWaitingForAction] = useState(true);
@@ -688,6 +744,7 @@ export default function VilletoSetupGuide() {
     
     if (dismissedKey && localStorage.getItem(dismissedKey) === "1") setIsSkipped(true);
     if (userId && localStorage.getItem(POST_SETUP_DISMISSED_KEY(userId)) === "1") setIsPostSetupDismissed(true);
+    if (userId && localStorage.getItem(GUIDE_MINIMIZED_KEY(userId)) === "1") setIsMinimized(true);
     setHydrated(true);
   }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -878,12 +935,26 @@ export default function VilletoSetupGuide() {
 
   // Completion modal close — navigate to expenses personal tab (optional)
   const handleDoneClose = useCallback(() => {
-    setShowDoneModal(false);
-    // Keep visible so the bonus step can appear on the next page
+    // 1. Ensure guide is ready for next step
     setVisible(true);
     setIsSkipped(false);
+
+    // 2. Start navigation first
     router.push("/expenses?tab=personal-expenses");
+
+    // 3. Clear the modal after a tiny delay to ensure router catches up
+    setTimeout(() => {
+      setShowDoneModal(false);
+    }, 50);
   }, [router]);
+
+  const toggleMinimize = useCallback((m: boolean) => {
+    setIsMinimized(m);
+    if (userId) {
+      if (m) localStorage.setItem(GUIDE_MINIMIZED_KEY(userId), "1");
+      else localStorage.removeItem(GUIDE_MINIMIZED_KEY(userId));
+    }
+  }, [userId]);
 
   // Render guards
   if (!isEligible || !userId) return null;
@@ -936,10 +1007,12 @@ export default function VilletoSetupGuide() {
                   totalSteps={SETUP_STEPS.length}
                   pos={pos}
                   visible={cardVisible && !pos.targetMissing}
-                  isDone={completedIds.has(step.id)}
-                  waitingForAction={waitingForAction && !completedIds.has(step.id)}
+                  isDone={completedIds.has(activeStep.id)}
+                  waitingForAction={waitingForAction && !completedIds.has(activeStep.id)}
                   onSkip={skipGuide}
                   onClose={handleClose}
+                  isMinimized={isMinimized}
+                  onToggleMinimize={toggleMinimize}
                 />
               </>
             )}
