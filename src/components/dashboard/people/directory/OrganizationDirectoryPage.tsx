@@ -334,6 +334,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                 <TableRow>
                   <TableHead className="w-[40px] text-center px-4 py-3">
                     <Checkbox
+                      data-tour="directory-select-all"
                       checked={isSomeSelected ? "indeterminate" : isAllSelected}
                       onCheckedChange={handleSelectAllChange}
                     />
@@ -548,7 +549,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
           )}
 
           <div className="flex justify-end gap-3 pt-2 flex-shrink-0">
-            <Button onClick={handleInvite} className="bg-[#00BFA5] hover:bg-[#00BFA5]/90 min-w-[180px]" disabled={selectedCount === 0 || isInviting}>
+            <Button data-tour="invite-selected-btn" onClick={handleInvite} className="bg-[#00BFA5] hover:bg-[#00BFA5]/90 min-w-[180px]" disabled={selectedCount === 0 || isInviting}>
               {isInviting ? "Sending invites..." : `Invite ${selectedCount} User${selectedCount !== 1 ? "s" : ""}`}
             </Button>
           </div>

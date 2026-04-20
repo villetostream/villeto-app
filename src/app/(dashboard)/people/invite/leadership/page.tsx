@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
@@ -255,6 +254,7 @@ export default function InviteLeadershipPage() {
                             </Label>
                             <div className="relative" ref={suggestionsRef}>
                                 <Input
+                                    data-tour="leadership-email-input"
                                     id="email"
                                     placeholder="Emma@company.com"
                                     value={emailQuery}
@@ -533,6 +533,7 @@ export default function InviteLeadershipPage() {
 
                         <div className="pt-4 flex justify-end">
                             <Button
+                                data-tour="leadership-add-user-btn"
                                 type="submit"
                                 disabled={!canAddUser}
                                 className="bg-[#00BFA5] hover:bg-[#00BFA5]/90 w-full sm:w-auto min-w-[120px] disabled:opacity-50"
@@ -607,6 +608,7 @@ export default function InviteLeadershipPage() {
 
                     <div className="p-4 border-t mt-auto">
                         <Button
+                            data-tour="leadership-invite-btn"
                             className="w-full bg-[#00BFA5] hover:bg-[#00BFA5]/90 disabled:opacity-50"
                             disabled={stagedUsers.length === 0 || isInviting}
                             onClick={handleInviteAll}
