@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 import { Upload04Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Dialog, DialogContent } from "../ui/dialog";
-import Notification from "../ui/notification";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../ui/dialog";
+import Notification from "@/components/notifications/notification";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { navigationItems } from "@/components/dashboard/sidebar/sidebar-constants";
 import { useDateFilterStore } from "@/stores/useDateFilterStore";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
+import { useNotificationCount } from "@/hooks/useNotificationCount";
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
@@ -406,7 +407,7 @@ export function UserSection() {
   const searchParams = useSearchParams();
   const router   = useRouter();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCount = useNotificationCount();
 
   const { fromDate, toDate, setFromDate, setToDate, resetDates } = useDateFilterStore();
   const { action: headerAction, clearAction } = useHeaderActionStore();
@@ -545,7 +546,11 @@ export function UserSection() {
         {/* Bell */}
         <Button variant="ghost" size="icon" className="relative w-4 h-4" onClick={() => setIsNotifOpen(true)}>
           <Bell className="w-5 h-5" />
-          {unreadCount > 0 && <span className="absolute -top-1 right-0.5 w-2 h-2 bg-destructive rounded-full" />}
+          {unreadCount > 0 && (
+            <span className="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-destructive text-white text-[10px] font-bold leading-none shadow-sm">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </Button>
 
         {/* Dynamic CTA button registered by the current page */}
@@ -643,8 +648,10 @@ export function UserSection() {
 
       {/* Notifications */}
       <Dialog open={isNotifOpen} onOpenChange={setIsNotifOpen}>
-        <DialogContent className="w-full max-w-120! p-0 rounded-lg">
-          <Notification onClose={() => setIsNotifOpen(false)} onUnreadChange={setUnreadCount} />
+        <DialogContent showCloseButton={false} className="w-full max-w-[420px]! p-0 rounded-xl overflow-hidden border-0 shadow-2xl">
+          <DialogTitle className="sr-only">Notifications</DialogTitle>
+          <DialogDescription className="sr-only">View your recent notifications.</DialogDescription>
+          <Notification onClose={() => setIsNotifOpen(false)} />
         </DialogContent>
       </Dialog>
     </div>
