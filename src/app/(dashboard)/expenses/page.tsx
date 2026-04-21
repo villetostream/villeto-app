@@ -17,6 +17,7 @@ import { Loader2 } from "lucide-react";
 import { PersonalExpensesSkeleton } from "@/components/expenses/PersonalExpensesSkeleton";
 import { companyColumns } from "@/components/expenses/table/companyColumns";
 import { useAuthStore } from "@/stores/auth-stores";
+import { Roles } from "@/core/permissions/roles";
 
 const statusMap: Record<string, string | null> = {
   all: null,
@@ -33,7 +34,23 @@ export default function Reimbursements() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const hasPermission = useAuthStore((state) => state.hasPermission);
-  const canViewCompanyExpenses = hasPermission("company_expenses:read");
+
+  // Roles that can see company-wide expenses (e.g. to review/approve reports).
+  // MANAGER and FINANCE_ADMIN are not in the global hasPermission bypass list,
+  // so we check the role name explicitly here — the same pattern used in canApproveReport.
+  const roleName =
+    user?.villetoRole?.name?.toUpperCase() ||
+    (user as any)?.position?.toUpperCase() ||
+    "";
+  const hasCompanyExpenseRole = [
+    Roles.MANAGER,
+    Roles.FINANCE_ADMIN,
+    Roles.ORGANIZATION_OWNER,
+    Roles.CONTROLLING_OFFICER,
+  ].includes(roleName as any);
+
+  const canViewCompanyExpenses =
+    hasCompanyExpenseRole || hasPermission("company_expenses:read");
 
   const initialOuterTab =
     searchParams.get("tab") === "personal-expenses"
