@@ -753,9 +753,21 @@ export default function VilletoSetupGuide() {
     if (!isEligible || !setupGuideReady) return;
     if (dismissedKey && localStorage.getItem(dismissedKey) === "1") return;
     if (completedKey && localStorage.getItem(completedKey) === "1") return;
+
+    // Cross-device guard: /users/me (called in DashboardLayoutContent) returns
+    // the real loginCount. If it is > 1 the user has logged in before and has
+    // already been through setup on another device — auto-mark as complete so
+    // the guide is suppressed here too without requiring server-side storage.
+    const lc = user?.loginCount ?? 0;
+    if (lc > 1) {
+      if (completedKey) localStorage.setItem(completedKey, "1");
+      allDoneRef.current = true;
+      return;
+    }
+
     const t = setTimeout(() => setVisible(true), 600);
     return () => clearTimeout(t);
-  }, [isEligible, setupGuideReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isEligible, setupGuideReady, user?.loginCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Broadcast to sidebar
   useEffect(() => { setTourActive(visible && !isSkipped); return () => setTourActive(false); }, [visible, isSkipped, setTourActive]);
@@ -764,7 +776,9 @@ export default function VilletoSetupGuide() {
 
   // Navigation effect
   useEffect(() => {
-    if (!visible || isSkipped || !step) return;
+    // When all steps are done, do NOT redirect back to any setup step page.
+    // handleDoneClose / the bonus step rendering handles navigation itself.
+    if (!visible || isSkipped || !step || allDoneRef.current) return;
     if (pendingRef.current) clearTimeout(pendingRef.current);
     setInviteDropdownOpen(false);
 
@@ -933,19 +947,20 @@ export default function VilletoSetupGuide() {
     return () => { document.body.style.overflow = ""; if (mainEl) mainEl.style.overflow = ""; };
   }, [visible, isSkipped, activeStep?.allowInteraction, inviteDropdownOpen]);
 
-  // Completion modal close — navigate to expenses personal tab (optional)
+  // Completion modal close — navigate to expenses and show the bonus "Create Report" step.
+  // IMPORTANT: we must close the modal BEFORE navigation so the navigation effect
+  // (which is now gated on !allDoneRef.current) doesn't fire and redirect the user
+  // back to the last setup-step page.
   const handleDoneClose = useCallback(() => {
-    // 1. Ensure guide is ready for next step
-    setVisible(true);
+    // 1. Close the modal immediately so it's gone before the route change.
+    setShowDoneModal(false);
+
+    // 2. Ensure the bonus step overlay will render.
     setIsSkipped(false);
+    setVisible(true);
 
-    // 2. Start navigation first
+    // 3. Navigate to the expenses page — bonus step spotlight will appear there.
     router.push("/expenses?tab=personal-expenses");
-
-    // 3. Clear the modal after a tiny delay to ensure router catches up
-    setTimeout(() => {
-      setShowDoneModal(false);
-    }, 50);
   }, [router]);
 
   const toggleMinimize = useCallback((m: boolean) => {

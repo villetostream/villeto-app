@@ -163,29 +163,34 @@ const ALL_STEPS: TourStep[] = [
     navigateTo: "/settings/personal-settings",
     navigateUrl: "/settings/personal-settings?section=account-details",
     sidebarHref: "/settings",
-    targetSelector: '[data-tour="account-details-section"]',
+    targetSelector: '[data-tour="update-details-button"]',
+    // "top" places the card BELOW the button (card top = button.bottom + gap).
+    // This keeps the form fields above the button fully accessible — using
+    // "bottom" was placing the card ABOVE the button, covering the form inputs.
     arrowSide: "top",
-    title: "Your Account Details",
+    title: "Set Up Account Details",
     description:
-      "Add your bank details here so reimbursements are paid directly to you. Your name must match the company directory — a mismatch will show an error. Feel free to fill this in now!",
+      "Add your bank details so reimbursements can be paid directly to you. Fill in the form above, then click \"Update Details\" to save — the tour will advance automatically.",
     primaryLabel: "Next",
     secondaryLabel: "Skip Tour",
     progressLabel: "Account details",
     targetIsInteractive: true, // let the form be used during this step
   },
 
-  // 6 — Setup Complete
+  // 6 — Setup Complete → point to the "New Report" button (mirrors SetupGuide BONUS_STEP)
   {
     id: "setup-complete",
     navigateTo: "/expenses",
+    navigateUrl: "/expenses?tab=personal-expenses",
     sidebarHref: "/expenses",
-    targetSelector: 'a[href="/expenses"]',
-    arrowSide: "left",
-    title: "You're All Set!",
+    targetSelector: '[data-tour="new-report-button"]',
+    arrowSide: "top",
+    title: "Create Your First Report",
     description:
-      "That's the tour! You can now manage expenses, approvals, and vendor payments. When you're ready, hit \"Create Expense Report\" to get started.",
+      "That's the tour! Your workspace is ready. Click \"New Report\" above to start adding your first expense — or hit \"Create Expense Report\" below.",
     primaryLabel: "Create Expense Report",
     secondaryLabel: "Go to Overview",
+    targetIsInteractive: true, // allow the user to click the new-report-button directly
   },
 ];
 
@@ -338,7 +343,7 @@ function SpotlightOverlay({
         inset: 0,
         width: "100%",
         height: "100%",
-        zIndex: 40,
+        zIndex: 9990,
         pointerEvents: "none",
         opacity: visible ? 1 : 0,
         transition: "opacity 0.35s ease",
@@ -611,7 +616,7 @@ function WorkspaceProgress({
         position: "fixed",
         bottom: 24,
         left: 24,
-        zIndex: 9999,
+        zIndex: 10001,
         background: "white",
         borderRadius: 14,
         padding: "16px 20px",
@@ -721,7 +726,7 @@ function TourCard({
         transform: visible
           ? "translate(-50%,-50%) scale(1)"
           : "translate(-50%,-50%) scale(0.94)",
-        zIndex: 45,
+        zIndex: 10000,
         width: 420,
         maxWidth: "calc(100vw - 32px)",
         opacity: visible ? 1 : 0,
@@ -731,7 +736,7 @@ function TourCard({
         position: "fixed",
         top: pos.top,
         left: pos.left,
-        zIndex: 45,
+        zIndex: 10000,
         width: 380,
         maxWidth: "calc(100vw - 32px)",
         opacity: visible ? 1 : 0,
@@ -935,19 +940,64 @@ export default function VilletoTourGuide() {
   const [stepIndex,    setStepIndex]    = useState(0);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
 
-  // ── Freeze loginCount at mount ────────────────────────────
-  // DashboardLayoutContent calls /users/me shortly after mount and
-  // overwrites the auth store user — including loginCount — with the
-  // server value (which is already ≥ 1 by the time this component
-  // renders). Capturing it once in a ref means shouldShow is evaluated
-  // against the count that was in the store on first render, not the
-  // refreshed value that arrives a few hundred ms later.
+  // ── alreadySeen — reactive, localStorage-backed ────────────
+  // Using localStorage (not sessionStorage) so the flag survives browser
+  // restarts on the same device. A separate effect auto-sets it when
+  // loginCount > 1 so the tour never re-appears on subsequent logins,
+  // including logins from a different device (as long as loginCount is
+  // correctly incremented server-side via /users/me).
+  const [alreadySeen, setAlreadySeen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const key = user?.userId ? TOUR_KEY(user.userId) : null;
+    return key ? localStorage.getItem(key) === "1" : false;
+  });
+
+  // ── [FIX-TDZ] Move derived keys, flags, and refs before the hooks that use them ──
   const mountLoginCountRef = useRef<number | null>(null);
   if (mountLoginCountRef.current === null && user !== null) {
-    mountLoginCountRef.current = typeof user?.loginCount === "number"
-      ? user.loginCount
-      : -1;
+    mountLoginCountRef.current =
+      typeof user?.loginCount === "number" ? user.loginCount : -1;
   }
+
+  const tourKey = user?.userId ? TOUR_KEY(user.userId) : null;
+
+  // alreadySeen is reactive state (see useState above); do NOT re-read from
+  // storage here — the state is the single source of truth after hydration.
+
+  // Use the login count that was in the store at mount time (frozen above).
+  // This prevents the /users/me refresh from flipping isFirstLogin to false
+  // after the 1500 ms start-tour timer has already been queued.
+  const isFirstLogin =
+    !!user &&
+    mountLoginCountRef.current !== null &&
+    mountLoginCountRef.current < 1;
+
+  // Exclude only the company founder — the CONTROLLING_OFFICER whose account
+  // was created at the same moment as the company (createdAt timestamps match).
+  const isCompanyFounder =
+    user?.position === "CONTROLLING_OFFICER" &&
+    !!user?.createdAt &&
+    user.createdAt === user?.company?.createdAt;
+
+  const shouldShow = isFirstLogin && !alreadySeen && !isCompanyFounder && setupGuideReady;
+
+  // ── Auto-dismiss: loginCount > 1 means this is not a first login ─
+  // The login API sometimes returns loginCount=0 even for returning users;
+  // /users/me (called in DashboardLayoutContent) returns the real value.
+  // When the refreshed count is > 1 we mark the tour as seen in localStorage
+  // so it is suppressed on this device and on any future session where the
+  // login response also returns a stale 0.
+  useEffect(() => {
+    if (!user?.userId || !setupGuideReady) return;
+    const lc = user.loginCount ?? 0;
+    if (lc > 1 && tourKey) {
+      if (localStorage.getItem(tourKey) !== "1") {
+        localStorage.setItem(tourKey, "1");
+      }
+      setAlreadySeen(true); // triggers shouldShow → false → cancels the start timer
+    }
+  }, [user?.loginCount, user?.userId, setupGuideReady, tourKey]);
+
 
   const SETTLE_MS = 700;
 
@@ -982,26 +1032,6 @@ export default function VilletoTourGuide() {
     return () => setTourActive(false);
   }, [visible, setTourActive]);
 
-  // ── Gate ───────────────────────────────────────────────────
-  const tourKey     = user?.userId ? TOUR_KEY(user.userId) : null;
-  const alreadySeen = tourKey ? sessionStorage.getItem(tourKey) === "1" : true;
-
-  // Use the login count that was in the store at mount time (frozen above).
-  // This prevents the /users/me refresh from flipping isFirstLogin to false
-  // after the 1500 ms start-tour timer has already been queued.
-  const isFirstLogin =
-    !!user &&
-    mountLoginCountRef.current !== null &&
-    mountLoginCountRef.current < 1;
-
-  // Exclude only the company founder — the CONTROLLING_OFFICER whose account
-  // was created at the same moment as the company (createdAt timestamps match).
-  const isCompanyFounder =
-    user?.position === "CONTROLLING_OFFICER" &&
-    !!user?.createdAt &&
-    user.createdAt === user?.company?.createdAt;
-
-  const shouldShow = isFirstLogin && !alreadySeen && !isCompanyFounder && setupGuideReady;
 
   // ── [FIX-4] Start tour ────────────────────────────────────
   useEffect(() => {
@@ -1041,7 +1071,9 @@ export default function VilletoTourGuide() {
   // ── Close tour ─────────────────────────────────────────────
   const closeTour = useCallback(() => {
     if (!user) return;
-    sessionStorage.setItem(TOUR_KEY(user.userId), "1");
+    // Persist in localStorage (survives browser restarts on the same device)
+    localStorage.setItem(TOUR_KEY(user.userId), "1");
+    setAlreadySeen(true);
     setCardVisible(false);
     setTimeout(() => setVisible(false), 350);
   }, [user]);
@@ -1070,10 +1102,44 @@ export default function VilletoTourGuide() {
     }, 280);
   }, [steps, closeTour]);
 
+  // ── Account-details completion listener ───────────────────
+  // VilletoSetupGuide uses custom window events to silently tick steps.
+  // TourGuide must do the same for the account-details step so that when
+  // the user saves their bank details (which dispatches
+  // "villeto:account-details-saved" via notifySetupGuide), the tour
+  // automatically marks that step complete and advances — identical
+  // behaviour to SetupGuide's markStepDone flow.
+  useEffect(() => {
+    if (!visible) return;
+    const handler = () => {
+      // Only act if the current step is account-details
+      if (steps[stepIndexRef.current]?.id !== "account-details") return;
+      // Fade card out, mark done, advance after short delay (mirrors advance())
+      if (advanceRef.current) clearTimeout(advanceRef.current);
+      setCardVisible(false);
+      const cur = stepIndexRef.current;
+      advanceRef.current = setTimeout(() => {
+        const next = cur + 1;
+        if (next >= steps.length) { closeTour(); return; }
+        setCompletedIds((prev) => {
+          const s = new Set(prev);
+          s.add("account-details");
+          return s;
+        });
+        setStepIndex(next);
+      }, 800);
+    };
+    window.addEventListener("villeto:account-details-saved", handler);
+    return () => window.removeEventListener("villeto:account-details-saved", handler);
+  }, [visible, steps, closeTour]);
+
   // ── Primary CTA ────────────────────────────────────────────
   const handlePrimary = useCallback(() => {
     if (step?.id === "setup-complete") {
-      router.push("/expenses?tab=personal-expenses");
+      // Navigate to the new-report flow and close the tour.
+      // This mirrors the SetupGuide BONUS_STEP: either the user clicks the
+      // highlighted button directly (targetIsInteractive) or uses this CTA.
+      router.push("/expenses/new-report");
       closeTour();
       return;
     }
