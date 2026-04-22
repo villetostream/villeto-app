@@ -211,7 +211,7 @@ const BONUS_STEP: SetupStep = {
   disableSpotlight: false,
 };
 
-// ─── Session-storage keys ─────────────────────────────────────
+// ─── LocalStorage keys ────────────────────────────────────────
 
 const POST_SETUP_DISMISSED_KEY = (uid: string) => `villeto-post-setup-dismissed:${uid}`;
 const GUIDE_DISMISSED_KEY = (uid: string) =>
@@ -221,6 +221,11 @@ const GUIDE_COMPLETED_KEY = (uid: string) =>
 const STEP_DONE_KEY = (uid: string, stepId: string) =>
   `villeto-setup-step:${uid}:${stepId}`;
 const GUIDE_MINIMIZED_KEY = (uid: string) => `villeto-guide-minimized:${uid}`;
+/**
+ * Set on first auto-start so that subsequent logins only show the pill widget
+ * ("Continue Setup") instead of auto-redirecting the user into the guide again.
+ */
+const GUIDE_SEEN_KEY = (uid: string) => `villeto-setup-guide-seen:${uid}`;
 
 // ─── Silent completion context ────────────────────────────────
 
@@ -711,6 +716,12 @@ export default function VilletoSetupGuide() {
   const [showDoneModal, setShowDoneModal] = useState(false);
   const [waitingForAction, setWaitingForAction] = useState(true);
   const [inviteDropdownOpen, setInviteDropdownOpen] = useState(false);
+  /**
+   * True once the guide has been auto-started at least once (persisted in
+   * localStorage). On subsequent logins the guide skips the auto-start and
+   * only shows the "Continue Setup" pill so we don't redirect the user.
+   */
+  const [hasBeenSeen, setHasBeenSeen] = useState(false);
 
   const pendingRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const advanceRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -735,9 +746,24 @@ export default function VilletoSetupGuide() {
     const restored = new Set<string>();
     SETUP_STEPS.forEach(s => { if (localStorage.getItem(STEP_DONE_KEY(userId, s.id)) === "1") restored.add(s.id); });
     setCompletedIds(restored);
-    if (completedKey && localStorage.getItem(completedKey) === "1") { 
-      allDoneRef.current = true; 
-      // We don't return early here anymore because we might need to show the bonus step
+
+    // ── Data-migration: clear bogus GUIDE_COMPLETED_KEY ──────────────────
+    // The old `loginCount > 1` guard permanently wrote GUIDE_COMPLETED_KEY
+    // without any steps actually being done. Detect that case (complete flag
+    // set, zero steps done, guide never shown on this device) and fix it:
+    //  • Remove the corrupted flag so the guide can resume.
+    //  • Stamp GUIDE_SEEN_KEY so the cross-device guard in the start-guide
+    //    effect treats this as the "primary" device and won't re-suppress it.
+    if (completedKey && localStorage.getItem(completedKey) === "1") {
+      const guideSeenLocally = localStorage.getItem(GUIDE_SEEN_KEY(userId)) === "1";
+      if (restored.size === 0 && !guideSeenLocally) {
+        // Bogus completedKey from old bug — clear it and mark device as local.
+        localStorage.removeItem(completedKey);
+        localStorage.setItem(GUIDE_SEEN_KEY(userId), "1");
+        setHasBeenSeen(true);
+      } else {
+        allDoneRef.current = true;
+      }
     }
     const firstIncomplete = SETUP_STEPS.findIndex(s => !restored.has(s.id));
     if (firstIncomplete !== -1) setStepIndex(firstIncomplete);
@@ -745,6 +771,9 @@ export default function VilletoSetupGuide() {
     if (dismissedKey && localStorage.getItem(dismissedKey) === "1") setIsSkipped(true);
     if (userId && localStorage.getItem(POST_SETUP_DISMISSED_KEY(userId)) === "1") setIsPostSetupDismissed(true);
     if (userId && localStorage.getItem(GUIDE_MINIMIZED_KEY(userId)) === "1") setIsMinimized(true);
+    // If the guide has been auto-started before, show pill on this login instead
+    // of auto-redirecting (user experience: don't hijack navigation every login).
+    if (localStorage.getItem(GUIDE_SEEN_KEY(userId)) === "1") setHasBeenSeen(true);
     setHydrated(true);
   }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -754,20 +783,17 @@ export default function VilletoSetupGuide() {
     if (dismissedKey && localStorage.getItem(dismissedKey) === "1") return;
     if (completedKey && localStorage.getItem(completedKey) === "1") return;
 
-    // Cross-device guard: /users/me (called in DashboardLayoutContent) returns
-    // the real loginCount. If it is > 1 the user has logged in before and has
-    // already been through setup on another device — auto-mark as complete so
-    // the guide is suppressed here too without requiring server-side storage.
-    const lc = user?.loginCount ?? 0;
-    if (lc > 1) {
-      if (completedKey) localStorage.setItem(completedKey, "1");
-      allDoneRef.current = true;
-      return;
-    }
+    // On subsequent logins on THIS device (guide was shown before), don't
+    // auto-redirect — just show the pill so the user can choose to resume.
+    if (hasBeenSeen) return;
+
+    // First auto-start on this device — mark it as the primary device.
+    if (userId) localStorage.setItem(GUIDE_SEEN_KEY(userId), "1");
+    setHasBeenSeen(true);
 
     const t = setTimeout(() => setVisible(true), 600);
     return () => clearTimeout(t);
-  }, [isEligible, setupGuideReady, user?.loginCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isEligible, setupGuideReady, hasBeenSeen, user?.loginCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Broadcast to sidebar
   useEffect(() => { setTourActive(visible && !isSkipped); return () => setTourActive(false); }, [visible, isSkipped, setTourActive]);
