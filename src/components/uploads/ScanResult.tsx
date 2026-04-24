@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { ScanResult } from '@/lib/types/receipt';
 import { Button } from '../ui/button';
+import { useAuthStore } from '@/stores/auth-stores';
 
 interface ScanResultsProps {
     results: ScanResult[];
@@ -9,6 +10,8 @@ interface ScanResultsProps {
 
 const ScanResults = ({ results }: ScanResultsProps) => {
     const [activeTab, setActiveTab] = useState<number>(0);
+    const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
+    const currencySymbol = getCurrencySymbol();
 
     return (
         <div>
@@ -79,7 +82,7 @@ const ScanResults = ({ results }: ScanResultsProps) => {
                                             <div className="mb-3">
                                                 <span className="block text-sm font-medium text-gray-500">Total</span>
                                                 <span className="text-xl font-bold text-gray-900">
-                                                    ${result.extractedData.total.toFixed(2)}
+                                                    {currencySymbol}{result.extractedData.total.toFixed(2)}
                                                 </span>
                                             </div>
                                         )}
@@ -88,7 +91,7 @@ const ScanResults = ({ results }: ScanResultsProps) => {
                                             <div className="mb-3">
                                                 <span className="block text-sm font-medium text-gray-500">Tax</span>
                                                 <span className="text-gray-900">
-                                                    ${result.extractedData.tax.toFixed(2)}
+                                                    {currencySymbol}{result.extractedData.tax.toFixed(2)}
                                                 </span>
                                             </div>
                                         )}
@@ -100,7 +103,7 @@ const ScanResults = ({ results }: ScanResultsProps) => {
                                                     {result.extractedData.items.slice(0, 5).map((item, idx) => (
                                                         <li key={idx} className="flex justify-between text-sm">
                                                             <span className="text-gray-700 truncate max-w-xs">{item.description}</span>
-                                                            <span className="text-gray-900">${item.amount.toFixed(2)}</span>
+                                                            <span className="text-gray-900">{currencySymbol}{item.amount.toFixed(2)}</span>
                                                         </li>
                                                     ))}
                                                     {result.extractedData.items.length > 5 && (

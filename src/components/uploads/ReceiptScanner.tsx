@@ -10,6 +10,8 @@ import Tesseract from 'tesseract.js';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 
+import { logger } from '@/lib/logger';
+
 // Internal components
 import ProcessingOptions from './ProcessingOption';
 import ScanResults from './ScanResult';

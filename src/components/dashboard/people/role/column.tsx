@@ -13,6 +13,7 @@ import {
 import { Role } from "@/actions/role/get-all-roles";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import Link from "next/link";
+import { logger } from "@/lib/logger";
 
 const columnHelper = createColumnHelper<Role>();
 

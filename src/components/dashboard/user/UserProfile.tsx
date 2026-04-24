@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { useAuthStore } from "@/stores/auth-stores";
 import {
     Sheet,
     SheetContent,
@@ -35,6 +36,8 @@ interface UserProfileProps {
 }
 
 export function UserProfile({ employee, children, open, onOpenChange }: UserProfileProps) {
+    const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
+    const currencySymbol = getCurrencySymbol();
     const getInitials = (name: string) => {
         return name.split(' ').map(n => n[0]).join('').toUpperCase();
     };
@@ -137,11 +140,11 @@ export function UserProfile({ employee, children, open, onOpenChange }: UserProf
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-dashboard-text-secondary">Monthly Limit</span>
-                                    <span className="text-dashboard-text-primary font-medium">${employee.cardLimit.toLocaleString()}</span>
+                                    <span className="text-dashboard-text-primary font-medium">{currencySymbol}{employee.cardLimit.toLocaleString()}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-dashboard-text-secondary">Current Spend</span>
-                                    <span className="text-dashboard-text-primary font-medium">${employee.monthlySpend.toLocaleString()}</span>
+                                    <span className="text-dashboard-text-primary font-medium">{currencySymbol}{employee.monthlySpend.toLocaleString()}</span>
                                 </div>
 
                                 <div className="space-y-2">
@@ -190,7 +193,7 @@ export function UserProfile({ employee, children, open, onOpenChange }: UserProf
                                     <TrendingUp className="w-8 h-8 text-status-success" />
                                     <div>
                                         <p className="text-sm text-dashboard-text-secondary">Avg/Month</p>
-                                        <p className="font-medium text-dashboard-text-primary">${(employee.monthlySpend * 0.85).toFixed(0)}</p>
+                                        <p className="font-medium text-dashboard-text-primary">{currencySymbol}{(employee.monthlySpend * 0.85).toFixed(0)}</p>
                                     </div>
                                 </div>
                             </CardContent>

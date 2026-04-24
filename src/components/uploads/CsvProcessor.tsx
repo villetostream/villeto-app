@@ -12,6 +12,8 @@ import { Badge } from '../ui/badge';
 //table 
 import { ColumnDef } from '@tanstack/react-table';
 
+import { logger } from '@/lib/logger';
+
 // Types
 import { ProcessingOptions as ProcessingOptionsType } from '@/lib/types/csv';
 import { DataTable } from '../datatable';

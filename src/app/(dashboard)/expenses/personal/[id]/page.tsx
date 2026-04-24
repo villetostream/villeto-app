@@ -107,8 +107,6 @@ export default function PersonalExpenseDetailPage() {
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
-  const [selectedReceiptUrl, setSelectedReceiptUrl] = useState("");
 
   // Fetch expense detail from API using React Query
   const {
@@ -194,10 +192,6 @@ export default function PersonalExpenseDetailPage() {
     setIsExpenseModalOpen(true);
   };
 
-  const handleViewReceipt = (receiptUrl: string) => {
-    setSelectedReceiptUrl(receiptUrl);
-    setIsReceiptModalOpen(true);
-  };
 
   const handleEditExpenses = () => {
     router.push(`/expenses/personal/${reportId}/edit`);
@@ -305,7 +299,7 @@ export default function PersonalExpenseDetailPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleViewReceipt(expense.receiptUrl || "");
+                            handleExpenseClick(expense);
                           }}
                           className="text-sm text-primary hover:underline font-medium"
                         >
@@ -361,14 +355,6 @@ export default function PersonalExpenseDetailPage() {
         } : null}
       />
 
-      <ReceiptViewModal
-        isOpen={isReceiptModalOpen}
-        onClose={() => {
-          setIsReceiptModalOpen(false);
-          setSelectedReceiptUrl("");
-        }}
-        receiptUrl={selectedReceiptUrl}
-      />
     </div>
   );
 }

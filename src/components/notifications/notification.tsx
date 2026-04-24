@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Bell, CheckCheck, Loader2, X, ExternalLink, ArrowRight } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useRouter } from "next/navigation";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -143,6 +142,8 @@ async function resolveMessageIds(
 
 import { useNotificationCountStore } from "@/hooks/useNotificationCount";
 
+let cachedNotifications: NotificationItem[] | null = null;
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Notification({ onClose, onUnreadChange }: NotificationProps) {
@@ -150,8 +151,8 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
   const router = useRouter();
   const setGlobalUnreadCount = useNotificationCountStore((s) => s.setUnreadCount);
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(cachedNotifications ?? []);
+  const [loading, setLoading] = useState(cachedNotifications === null);
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
 
@@ -178,7 +179,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
 
   // ── Fetch + resolve messages ──────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
-    setLoading(true);
+    if (!cachedNotifications) setLoading(true);
     try {
       const res = await fetch(apiUrl("events/notifications/all"), {
         headers: authHeaders(),
@@ -193,7 +194,10 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
         : [];
 
       const raw = list.map(normalise).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      // Immediately display raw while resolving IDs
       setNotifications(raw);
+      cachedNotifications = raw;
 
       // Resolve IDs in messages asynchronously after initial render
       const resolved = await Promise.all(
@@ -209,6 +213,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
         })
       );
       setNotifications(resolved);
+      cachedNotifications = resolved;
     } catch (err) {
       console.error("[Notification] fetchAll error:", err);
     } finally {
@@ -274,12 +279,15 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
               setNotifications((prev) => {
                 const idx = prev.findIndex((n) => n.id === incoming.id);
                 const updated = { ...incoming, resolvedMessage };
+                let copy;
                 if (idx !== -1) {
-                  const copy = [...prev];
+                  copy = [...prev];
                   copy[idx] = updated;
-                  return copy;
+                } else {
+                  copy = [updated, ...prev];
                 }
-                return [updated, ...prev];
+                cachedNotifications = copy;
+                return copy;
               });
             } catch {
               // heartbeat / non-JSON — ignore
@@ -299,9 +307,11 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
     async (id: string) => {
       if (markingId) return;
       setMarkingId(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-      );
+      setNotifications((prev) => {
+        const copy = prev.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+        cachedNotifications = copy;
+        return copy;
+      });
       try {
         await fetch(apiUrl(`events/notifications/mark-read/${id}`), {
           headers: authHeaders(),
@@ -320,7 +330,11 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
   const markAllRead = useCallback(async () => {
     if (markingAllRead || unreadCount === 0) return;
     setMarkingAllRead(true);
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setNotifications((prev) => {
+      const copy = prev.map((n) => ({ ...n, isRead: true }));
+      cachedNotifications = copy;
+      return copy;
+    });
     try {
       await fetch(apiUrl("events/notifications/mark-all-read"), {
         headers: authHeaders(),
@@ -368,13 +382,13 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
             </button>
           )}
 
-          {/* Close — uses Radix DialogClose so the dialog state closes cleanly */}
-          <DialogPrimitive.Close
+          {/* Close */}
+          <button
             onClick={onClose}
             className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors focus:outline-none"
           >
             <X className="w-3.5 h-3.5" />
-          </DialogPrimitive.Close>
+          </button>
         </div>
       </div>
 

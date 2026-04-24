@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { logger } from "@/lib/logger";
 import { Card, CardContent } from "@/components/ui/card";
 import { Home, ArrowLeft, Search, Coffee, Zap, Star } from "lucide-react";
 import { usePathname } from "next/navigation";

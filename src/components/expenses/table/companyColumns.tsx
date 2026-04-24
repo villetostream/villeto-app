@@ -9,6 +9,7 @@ import { Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SortableColumnHeader } from "@/components/datatable/SortableColumnHeader";
+import { useAuthStore } from "@/stores/auth-stores";
 
 // Helper for initials
 const getInitials = (name: string) => {
@@ -85,8 +86,11 @@ export const companyColumns: ColumnDef<CompanyExpenseReport>[] = [
       <SortableColumnHeader column={column} title="AMOUNT" />
     ),
     cell: ({ row }) => {
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
+        const currencySymbol = getCurrencySymbol();
         const amount = row.getValue("totalAmount") as number;
-        return <span className="font-semibold">${amount.toFixed(2)}</span>;
+        return <span className="font-semibold">{currencySymbol}{amount.toFixed(2)}</span>;
     },
   },
   {

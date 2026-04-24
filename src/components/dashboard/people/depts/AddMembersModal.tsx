@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { AppUser } from "@/actions/departments/get-all-departments";
 import { useGetAllUsersApi } from "@/actions/users/get-all-users";
+import { logger } from "@/lib/logger";
 
 
 interface MembersDropdownProps {

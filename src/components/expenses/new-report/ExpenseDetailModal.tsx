@@ -63,7 +63,7 @@ export function ExpenseDetailModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
         className="rounded-2xl p-0 overflow-hidden"
-        style={{ maxWidth: hasReceipt ? "680px" : "480px" }}
+        style={{ maxWidth: hasReceipt ? "800px" : "480px" }}
         showCloseButton={false}
       >
         <div className="flex h-full">
@@ -109,13 +109,13 @@ export function ExpenseDetailModal({
 
           {/* Right: receipt image preview panel */}
           {hasReceipt && (
-            <div className="w-56 shrink-0 border-l border-border bg-gray-50 flex flex-col items-center justify-start p-3 pt-6 overflow-hidden">
-              {expense.receiptImage!.startsWith("data:image") ? (
+            <div className="w-80 shrink-0 border-l border-border bg-gray-50 flex flex-col items-center justify-start p-5 pt-8 overflow-hidden">
+              {expense.receiptImage && (expense.receiptImage.startsWith("data:image") || expense.receiptImage.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i)) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={expense.receiptImage}
                   alt="Receipt"
-                  className="w-full rounded-lg object-contain max-h-[420px]"
+                  className="w-full h-auto rounded-xl object-contain max-h-[80vh] shadow-sm"
                 />
               ) : (
                 <div className="w-full rounded-lg border border-border bg-white flex flex-col items-center justify-center p-4 gap-2 text-center min-h-[200px]">

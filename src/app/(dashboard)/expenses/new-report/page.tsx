@@ -452,7 +452,7 @@ export default function NewReportPage() {
       </div>
 
       {/* Bottom actions */}
-      <div className="flex justify-end gap-3">
+      <div className="sticky bottom-0 mt-auto py-4 bg-white/95 backdrop-blur-sm border-t flex justify-end gap-3 z-20 -mx-6 px-6">
         <Button
           onClick={() => runPolicyAndSubmit("draft")}
           disabled={isSubmitting || isEmpty}

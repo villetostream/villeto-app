@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Trash } from "iconsax-reactjs";
 import FormFieldInput from "@/components/form fields/formFieldInput";
 import FormFieldSelect from "@/components/form fields/formFieldSelect";
+import { useAuthStore } from "@/stores/auth-stores";
 
 interface SplitExpenseProps {
     control: any;
@@ -79,6 +80,8 @@ export function SplitExpense({ control, expenseIndex, totalAmount }: SplitExpens
         remove(index);
     }, [remove]);
 
+    const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
+    const currencySymbol = getCurrencySymbol();
     return (
         <div className="space-y-4">
             <Button
@@ -106,7 +109,7 @@ export function SplitExpense({ control, expenseIndex, totalAmount }: SplitExpens
 
                 {remainingAmount < 0 && (
                     <div className="text-sm text-destructive font-medium">
-                        Total split amount exceeds expense amount by $
+                        Total split amount exceeds expense amount by {currencySymbol}
                         {Math.abs(remainingAmount).toFixed(2)}
                     </div>
                 )}

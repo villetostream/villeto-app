@@ -96,7 +96,7 @@ export default function EditReportPage() {
         
         // 1. Fetch Categories
         const categoriesResponse = await axios.get<{ data: ExpenseCategory[] }>(
-          API_KEYS.EXPENSE.CATEGORIES
+          API_KEYS.EXPENSE.CATEGORIES_WITH_POLICIES
         );
         if (categoriesResponse.data?.data) {
           setCategories(categoriesResponse.data.data);
@@ -405,7 +405,7 @@ export default function EditReportPage() {
     : "bg-primary border-2 border-primary text-white hover:bg-primary/90 rounded-lg h-12 px-8 text-base font-medium focus:outline-none focus:ring-0";
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6 min-h-screen flex flex-col">
       {/* Header */}
       <div className="mb-6 flex justify-between items-center">
         <span className="inline-block border rounded-md px-3 py-1 text-sm font-semibold text-foreground bg-white">
@@ -422,19 +422,10 @@ export default function EditReportPage() {
         </Button>
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Left: Upload Section */}
-        <div>
-          <ReceiptUploadSection
-            categories={categories}
-            onReceiptsUpload={handleReceiptsUpload}
-            onAddExpense={handleAddExpense}
-          />
-        </div>
-
-        {/* Right: Preview List */}
-        <div>
+      {/* ── Main layout: Preview (60%) | Scan/Form (40%) ── */}
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 mb-6 min-h-0">
+        {/* Left: Preview list — 60% */}
+        <div className="w-full lg:w-[60%] min-w-0">
           <ExpensePreviewList
             expenses={expenses}
             total={expenses.reduce((sum, exp) => sum + exp.amount, 0)}
@@ -444,10 +435,19 @@ export default function EditReportPage() {
             onDelete={handleDeleteClick}
           />
         </div>
+
+        {/* Right: Scan / Manual form — 40% */}
+        <div className="w-full lg:w-[40%] min-w-0">
+          <ReceiptUploadSection
+            categories={categories}
+            onReceiptsUpload={handleReceiptsUpload}
+            onAddExpense={handleAddExpense}
+          />
+        </div>
       </div>
 
       {/* Bottom Actions */}
-      <div className="flex justify-end gap-3 mt-8">
+      <div className="sticky bottom-0 mt-auto py-4 bg-white/95 backdrop-blur-sm border-t flex justify-end gap-3 z-20 -mx-6 px-6">
         <Button
           onClick={() => handleSubmit("draft")}
           disabled={isSaveDisabled}
