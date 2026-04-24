@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eye, Trash2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuthStore } from "@/stores/auth-stores";
 
 export interface PolicyViolation {
   type: "soft_warning" | "hard_block";
@@ -42,6 +43,8 @@ export function ExpensePreviewList({
   onViewReceipt,
   onDelete,
 }: ExpensePreviewListProps) {
+  const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
+  const currencySymbol = getCurrencySymbol();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -75,7 +78,7 @@ export function ExpensePreviewList({
           <span className="text-muted-foreground font-normal">{expenses.length}</span>
         </h3>
         <span className="text-sm font-semibold text-foreground">
-          Total: ${total.toFixed(2)}
+          Total: {currencySymbol}{total.toFixed(2)}
         </span>
       </div>
 
@@ -136,7 +139,7 @@ export function ExpensePreviewList({
                     <span className="text-xs text-muted-foreground">{expense.merchantName || "—"}</span>
                   </td>
                   <td className="px-3 py-2.5">
-                    <span className="text-xs font-medium text-foreground">${expense.amount.toFixed(2)}</span>
+                    <span className="text-xs font-medium text-foreground">{currencySymbol}{expense.amount.toFixed(2)}</span>
                   </td>
                   <td className="px-1.5 py-2.5">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onViewDetails(expense.id)}>

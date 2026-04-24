@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { Upload04Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import Notification from "@/components/notifications/notification";
 import {
   DropdownMenu,
@@ -544,14 +544,21 @@ export function UserSection() {
         </Button>
 
         {/* Bell */}
-        <Button variant="ghost" size="icon" className="relative w-4 h-4" onClick={() => setIsNotifOpen(true)}>
-          <Bell className="w-5 h-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-destructive text-white text-[10px] font-bold leading-none shadow-sm">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
-        </Button>
+        <Popover open={isNotifOpen} onOpenChange={setIsNotifOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative w-4 h-4 outline-none">
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-destructive text-white text-[10px] font-bold leading-none shadow-sm">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" sideOffset={8} className="w-[420px] p-0 rounded-xl overflow-hidden shadow-2xl border-border">
+            <Notification onClose={() => setIsNotifOpen(false)} />
+          </PopoverContent>
+        </Popover>
 
         {/* Dynamic CTA button registered by the current page */}
         {headerAction && (
@@ -646,14 +653,7 @@ export function UserSection() {
         )}
       </div>
 
-      {/* Notifications */}
-      <Dialog open={isNotifOpen} onOpenChange={setIsNotifOpen}>
-        <DialogContent showCloseButton={false} className="w-full max-w-[420px]! p-0 rounded-xl overflow-hidden border-0 shadow-2xl">
-          <DialogTitle className="sr-only">Notifications</DialogTitle>
-          <DialogDescription className="sr-only">View your recent notifications.</DialogDescription>
-          <Notification onClose={() => setIsNotifOpen(false)} />
-        </DialogContent>
-      </Dialog>
+      {/* Notifications previously here, now moved to Bell Popover */}
     </div>
   );
 }

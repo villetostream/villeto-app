@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react";
+import { useAuthStore } from "@/stores/auth-stores";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ export default function Insights() {
     const [selectedPeriod, setSelectedPeriod] = useState("6months");
     const [selectedDepartment, setSelectedDepartment] = useState("all");
     const [selectedTab, setSelectedTab] = useState("overview");
+    const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
+    const currencySymbol = getCurrencySymbol();
 
     const getTrendIcon = (trend: number) => {
         return trend > 0 ? (
@@ -68,7 +71,7 @@ export default function Insights() {
                             <DollarSign className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">$0</div>
+                            <div className="text-2xl font-bold">{currencySymbol}0</div>
                             <div className="flex items-center text-xs text-muted-foreground">
                                 No data available
                             </div>
@@ -80,7 +83,7 @@ export default function Insights() {
                             <CreditCard className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">$0</div>
+                            <div className="text-2xl font-bold">{currencySymbol}0</div>
                             <div className="flex items-center text-xs text-muted-foreground">
                                 No data available
                             </div>
@@ -137,7 +140,7 @@ export default function Insights() {
                                                 <CartesianGrid strokeDasharray="3 3" />
                                                 <XAxis dataKey="month" />
                                                 <YAxis />
-                                                <Tooltip formatter={(value) => [`$${(value as number).toLocaleString()}`, 'Amount']} />
+                                                <Tooltip formatter={(value) => [`${currencySymbol}${(value as number).toLocaleString()}`, 'Amount']} />
                                                 <Area type="monotone" dataKey="amount" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
                                                 <Area type="monotone" dataKey="budget" stroke="#82ca9d" fill="transparent" strokeDasharray="5 5" />
                                             </AreaChart>
@@ -170,7 +173,7 @@ export default function Insights() {
                                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                                     ))}
                                                 </Pie>
-                                                <Tooltip formatter={(value) => [`$${(value as number).toLocaleString()}`, 'Amount']} />
+                                                <Tooltip formatter={(value) => [`${currencySymbol}${(value as number).toLocaleString()}`, 'Amount']} />
                                             </PieChart>
                                         </ResponsiveContainer>
                                     )}
@@ -196,7 +199,7 @@ export default function Insights() {
                                                         <p className="text-sm text-muted-foreground">{category.transactions} transactions</p>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="font-semibold">${category.amount.toLocaleString()}</p>
+                                                        <p className="font-semibold">{currencySymbol}{category.amount.toLocaleString()}</p>
                                                         <div className={`flex items-center text-sm ${getTrendColor(category.trend)}`}>
                                                             {getTrendIcon(category.trend)}
                                                             <span className="ml-1">{Math.abs(category.trend)}%</span>
@@ -231,7 +234,7 @@ export default function Insights() {
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="font-semibold">${spender.amount.toLocaleString()}</p>
+                                                        <p className="font-semibold">{currencySymbol}{spender.amount.toLocaleString()}</p>
                                                         <p className="text-sm text-muted-foreground">{spender.transactions} transactions</p>
                                                     </div>
                                                 </div>
@@ -260,7 +263,7 @@ export default function Insights() {
                                             <YAxis yAxisId="left" />
                                             <YAxis yAxisId="right" orientation="right" />
                                             <Tooltip />
-                                            <Bar yAxisId="left" dataKey="amount" fill="#8884d8" name="Amount ($)" />
+                                            <Bar yAxisId="left" dataKey="amount" fill="#8884d8" name={`Amount (${currencySymbol})`} />
                                             <Bar yAxisId="right" dataKey="transactions" fill="#82ca9d" name="Transactions" />
                                         </BarChart>
                                     </ResponsiveContainer>
@@ -285,7 +288,7 @@ export default function Insights() {
                                                 <div className="flex justify-between items-center">
                                                     <span className="font-medium">{dept.department}</span>
                                                     <span className="text-sm text-muted-foreground">
-                                                        ${dept.spent.toLocaleString()} / ${dept.budget.toLocaleString()}
+                                                        {currencySymbol}{dept.spent.toLocaleString()} / {currencySymbol}{dept.budget.toLocaleString()}
                                                     </span>
                                                 </div>
                                                 <div className="w-full bg-gray-200 rounded-full h-2">
@@ -298,7 +301,7 @@ export default function Insights() {
                                                 </div>
                                                 <div className="flex justify-between text-sm text-muted-foreground">
                                                     <span>{dept.utilization}% utilized</span>
-                                                    <span>${dept.remaining.toLocaleString()} remaining</span>
+                                                    <span>{currencySymbol}{dept.remaining.toLocaleString()} remaining</span>
                                                 </div>
                                             </div>
                                         ))}

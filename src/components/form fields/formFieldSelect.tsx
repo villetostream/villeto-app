@@ -45,6 +45,8 @@ const FormFieldSelect = <T extends Record<string, any>>({
   clearable = true,
   prefixIcon,
 }: FormFieldSelectProps<T>) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+
   return (
     <FormField
       control={control}
@@ -62,6 +64,8 @@ const FormFieldSelect = <T extends Record<string, any>>({
               )}
 
               <Select
+                open={isOpen}
+                onOpenChange={setIsOpen}
                 onValueChange={(val) => {
                   if (val === "__CLEAR__") {
                     field.onChange(
@@ -91,7 +95,8 @@ const FormFieldSelect = <T extends Record<string, any>>({
     grid grid-cols-[1fr_auto]
     items-center
 
-    ${prefixIcon ? "pl-12 pr-10" : "pl-4 pr-4"}
+    ${prefixIcon ? "pl-12" : "pl-4"} pr-10
+    ${clearable && field.value ? "[&>svg]:hidden" : ""}
   `}
 >
   <SelectValue
@@ -136,12 +141,15 @@ const FormFieldSelect = <T extends Record<string, any>>({
                 field.value !== "" && (
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       field.onChange(
                         (formState.defaultValues as any)?.[name] ?? ""
-                      )
-                    }
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-destructive focus:outline-none"
+                      );
+                      setIsOpen(true);
+                    }}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-600 focus:outline-none p-1 z-50 bg-inherit"
                     aria-label="Clear selection"
                   >
                     <X size={16} />

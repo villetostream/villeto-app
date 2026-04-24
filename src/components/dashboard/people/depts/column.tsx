@@ -11,6 +11,7 @@ import { MoreHorizontal, Eye, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import { logger } from "@/lib/logger";
+import Link from 'next/link';
 
 const columnHelper = createColumnHelper<Department>();
 

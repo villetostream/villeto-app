@@ -1,8 +1,8 @@
-
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AppUser } from "@/actions/departments/get-all-departments";
+import { logger } from "@/lib/logger";
 
 import {
     DropdownMenu,

@@ -16,7 +16,7 @@ import React, { useState, useEffect } from "react";
 // Define the raw form values (what the inputs give us, e.g. strings for numbers)
 const expenseDetailSchema = z.object({
   name: z.string().min(1, "Expense name is required"),
-  amount: z.any().transform((val) => Number(val)).pipe(z.number().min(0, "Amount must be positive")),
+  amount: z.any().transform((val) => Number(val)).pipe(z.number().min(1, "Amount must be at least 1")),
   merchantName: z.string().min(1, "Merchant is required"),
   category: z.string().min(1, "Category is required"),
   description: z.string().optional(),
@@ -36,6 +36,8 @@ interface ExpenseFormProps {
   onCancel: () => void;
   submitLabel?: string;
   cancelLabel?: string;
+  formId?: string;
+  hideActions?: boolean;
 }
 
 export function ExpenseForm({
@@ -45,6 +47,8 @@ export function ExpenseForm({
   onCancel,
   submitLabel = "Save Update",
   cancelLabel = "Cancel",
+  formId,
+  hideActions = false,
 }: ExpenseFormProps) {
   const [receiptImage, setReceiptImage] = useState<string>(
     initialData?.receiptImage || ""
@@ -116,7 +120,7 @@ export function ExpenseForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form id={formId} onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
         {/* Expense name and Amount */}
         <div className="grid grid-cols-2 gap-4">
           <FormFieldInput
@@ -223,22 +227,24 @@ export function ExpenseForm({
 </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-4">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onCancel}
-            className="text-muted-foreground hover:text-foreground hover:bg-transparent px-0 underline"
-          >
-            {cancelLabel}
-          </Button>
-          <Button
-            type="submit"
-            className="bg-primary hover:bg-primary/90 text-white rounded-lg px-6"
-          >
-            {submitLabel}
-          </Button>
-        </div>
+        {!hideActions && (
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onCancel}
+              className="text-muted-foreground hover:text-foreground hover:bg-transparent px-0 underline"
+            >
+              {cancelLabel}
+            </Button>
+            <Button
+              type="submit"
+              className="bg-primary hover:bg-primary/90 text-white rounded-lg px-6"
+            >
+              {submitLabel}
+            </Button>
+          </div>
+        )}
       </form>
     </Form>
   );

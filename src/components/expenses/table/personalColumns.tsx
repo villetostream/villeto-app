@@ -4,6 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { getStatusIcon } from "@/lib/helper";
 import { SortableColumnHeader } from "@/components/datatable/SortableColumnHeader";
+import { useAuthStore } from "@/stores/auth-stores";
 
 export type PersonalExpenseStatus =
   | "draft"
@@ -42,11 +43,16 @@ export const personalExpenseColumns: ColumnDef<PersonalExpenseRow>[] = [
     header: ({ column }) => (
       <SortableColumnHeader column={column} title="AMOUNT" />
     ),
-    cell: ({ row }) => (
-      <span className="font-semibold">
-        ${Number(row.getValue("amount") ?? 0).toLocaleString()}
-      </span>
-    ),
+    cell: ({ row }) => {
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
+      const currencySymbol = getCurrencySymbol();
+      return (
+        <span className="font-semibold">
+          {currencySymbol}{Number(row.getValue("amount") ?? 0).toLocaleString()}
+        </span>
+      );
+    },
   },
   {
     accessorKey: "status",

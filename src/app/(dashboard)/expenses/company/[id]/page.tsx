@@ -119,8 +119,6 @@ export default function CompanyExpenseDetailPage() {
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
-  const [selectedReceiptUrl, setSelectedReceiptUrl] = useState("");
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
 
@@ -213,10 +211,6 @@ export default function CompanyExpenseDetailPage() {
     setIsExpenseModalOpen(true);
   };
 
-  const handleViewReceipt = (receiptUrl: string) => {
-    setSelectedReceiptUrl(receiptUrl);
-    setIsReceiptModalOpen(true);
-  };
 
   const handleApprove = async () => {
     setIsApproving(true);
@@ -362,7 +356,7 @@ export default function CompanyExpenseDetailPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleViewReceipt(expense.receiptUrl || "");
+                        handleExpenseClick(expense);
                       }}
                       className="text-sm text-primary hover:underline font-medium"
                     >
@@ -421,14 +415,6 @@ export default function CompanyExpenseDetailPage() {
         } : null}
       />
 
-      <CompanyReceiptViewModal
-        isOpen={isReceiptModalOpen}
-        onClose={() => {
-          setIsReceiptModalOpen(false);
-          setSelectedReceiptUrl("");
-        }}
-        receiptUrl={selectedReceiptUrl}
-      />
     </div>
   );
 }
