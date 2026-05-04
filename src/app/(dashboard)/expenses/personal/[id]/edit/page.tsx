@@ -218,6 +218,7 @@ export default function EditReportPage() {
               merchantName: data.merchantName,
               category: data.category,
               description: data.description,
+              policyViolations: null,
               ...(newReceipt !== undefined && { receiptImage: newReceipt }),
             }
           : exp
@@ -374,7 +375,41 @@ export default function EditReportPage() {
 
     } catch (error) {
       logger.error("Error updating report:", error);
-      toast.error("Failed to update report");
+      
+      const err = error as any;
+      const backendData = err?.response?.data;
+
+      if (backendData?.message === "Policy Violation Exception" || backendData?.data?.error === "Policy Violation") {
+        const causes = backendData?.data?.cause || [];
+        if (causes.length > 0) {
+          setExpenses((prev) =>
+            prev.map((exp) => {
+              const matchedCause = causes.find(
+                (c: any) =>
+                  c.categoryName === exp.category &&
+                  Number(c.expenseAmount) === exp.amount
+              );
+
+              if (matchedCause && matchedCause.violations && matchedCause.violations.length > 0) {
+                return {
+                  ...exp,
+                  policyViolations: matchedCause.violations.map((v: any) => ({
+                    type: v.type || "POLICY_RULE",
+                    message: v.message,
+                  })),
+                };
+              }
+              return exp;
+            })
+          );
+          toast.error("Some expenses violated policy rules. Please review them.");
+          setIsSavingDraft(false);
+          setIsSubmittingReport(false);
+          return;
+        }
+      }
+
+      toast.error(err?.response?.data?.message || err?.message || "Failed to update report");
       // Reset loading states on error
       setIsSavingDraft(false);
       setIsSubmittingReport(false);
@@ -392,40 +427,59 @@ export default function EditReportPage() {
 
   const isEmpty = expenses.length === 0;
   // Disable if no changes (unless submitting), or if any action is in progress
+  const hasUnresolvedViolations = expenses.some((e) => e.policyViolations && e.policyViolations.length > 0);
   const isActionInProgress = isSavingDraft || isSubmittingReport || isDeletingReport;
   const isSaveDisabled = isActionInProgress || isEmpty || !isDirty; 
-  const isSubmitDisabled = isActionInProgress || isEmpty; // Can submit even if not dirty? Usually yes if it was draft.
+  const isSubmitDisabled = isActionInProgress || isEmpty || hasUnresolvedViolations; // Can submit even if not dirty? Usually yes if it was draft.
 
-  const saveDraftClass = isSaveDisabled || isEmpty
+  const saveDraftClass = isSaveDisabled
     ? "bg-gray-100 text-gray-400 border border-gray-200 rounded-lg h-12 px-8 text-base font-medium cursor-not-allowed focus:outline-none focus:ring-0"
-    : "bg-white border-2 border-primary text-primary hover:bg-primary/10 rounded-lg h-12 px-8 text-base font-medium focus:outline-none focus:ring-0";
+    : "bg-white border border-primary text-primary hover:bg-primary/10 rounded-lg h-12 px-8 text-base font-medium focus:outline-none focus:ring-0";
 
-  const submitClass = isSubmitDisabled || isEmpty
-    ? "bg-gray-100 text-gray-400 rounded-lg h-12 px-8 text-base font-medium cursor-not-allowed focus:outline-none focus:ring-0"
-    : "bg-primary border-2 border-primary text-white hover:bg-primary/90 rounded-lg h-12 px-8 text-base font-medium focus:outline-none focus:ring-0";
+  const submitClass = isSubmitDisabled
+    ? "bg-gray-100 text-gray-400 border border-gray-100 rounded-lg h-12 px-8 text-base font-medium cursor-not-allowed focus:outline-none focus:ring-0"
+    : "bg-primary border border-primary text-white hover:bg-primary/90 rounded-lg h-12 px-8 text-base font-medium focus:outline-none focus:ring-0";
 
   return (
-    <div className="max-w-7xl mx-auto p-6 min-h-screen flex flex-col">
+    <div className="max-w-7xl mx-auto p-4 h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="mb-6 flex justify-between items-center">
-        <span className="inline-block border rounded-md px-3 py-1 text-sm font-semibold text-foreground bg-white">
-            {reportTitle}
-        </span>
-        <Button 
-            variant="ghost" 
-            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-            onClick={() => setIsDeleteReportModalOpen(true)}
-            disabled={isActionInProgress}
-        >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete Report
-        </Button>
+      <div className="flex items-center justify-between pb-4 mb-4 border-b">
+        <div className="flex items-center gap-4">
+          <span className="inline-block border rounded-md px-3 py-1 text-sm font-semibold text-foreground bg-white">
+              {reportTitle}
+          </span>
+          <Button 
+              variant="ghost" 
+              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={() => setIsDeleteReportModalOpen(true)}
+              disabled={isActionInProgress}
+          >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Report
+          </Button>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => handleSubmit("draft")}
+            disabled={isSaveDisabled}
+            className={saveDraftClass}
+          >
+            {isActionInProgress ? (isSavingDraft ? "Saving..." : "Processing...") : "Save Changes"}
+          </Button>
+          <Button
+            onClick={() => handleSubmit("pending")}
+            disabled={isSubmitDisabled}
+            className={submitClass}
+          >
+            {isActionInProgress ? (isSubmittingReport ? "Submitting..." : "Processing...") : "Submit Report"}
+          </Button>
+        </div>
       </div>
 
       {/* ── Main layout: Preview (60%) | Scan/Form (40%) ── */}
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 mb-6 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-hidden">
         {/* Left: Preview list — 60% */}
-        <div className="w-full lg:w-[60%] min-w-0">
+        <div className="w-full lg:w-[60%] min-w-0 overflow-y-auto pr-4">
           <ExpensePreviewList
             expenses={expenses}
             total={expenses.reduce((sum, exp) => sum + exp.amount, 0)}
@@ -437,7 +491,7 @@ export default function EditReportPage() {
         </div>
 
         {/* Right: Scan / Manual form — 40% */}
-        <div className="w-full lg:w-[40%] min-w-0">
+        <div className="w-full lg:w-[40%] min-w-0 overflow-y-auto pl-2 pr-4">
           <ReceiptUploadSection
             categories={categories}
             onReceiptsUpload={handleReceiptsUpload}
@@ -446,23 +500,7 @@ export default function EditReportPage() {
         </div>
       </div>
 
-      {/* Bottom Actions */}
-      <div className="sticky bottom-0 mt-auto py-4 bg-white/95 backdrop-blur-sm border-t flex justify-end gap-3 z-20 -mx-6 px-6">
-        <Button
-          onClick={() => handleSubmit("draft")}
-          disabled={isSaveDisabled}
-          className={saveDraftClass}
-        >
-          {isActionInProgress ? (isSavingDraft ? "Saving..." : "Processing...") : "Save Changes"}
-        </Button>
-        <Button
-          onClick={() => handleSubmit("pending")}
-          disabled={isSubmitDisabled}
-          className={submitClass}
-        >
-          {isActionInProgress ? (isSubmittingReport ? "Submitting..." : "Processing...") : "Submit Report"}
-        </Button>
-      </div>
+
 
       {/* Modals */}
       <ExpenseDetailModal

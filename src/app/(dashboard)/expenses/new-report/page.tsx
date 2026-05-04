@@ -243,7 +243,7 @@ export default function NewReportPage() {
               description: data.description,
               justification: justification ?? exp.justification,
               // Clear old policy violation so it can be re-evaluated
-              policyViolation: null,
+              policyViolations: null,
               ...(newReceipt !== undefined && { receiptImage: newReceipt }),
             }
           : exp
@@ -323,7 +323,7 @@ export default function NewReportPage() {
                 merchantName: data.merchantName,
                 category: data.category,
                 description: data.description,
-                policyViolation: null,
+                policyViolations: null,
                 ...(newReceipt !== undefined && { receiptImage: newReceipt }),
               }
             : e
@@ -353,10 +353,6 @@ export default function NewReportPage() {
   };
 
   const doSubmit = async (status: "draft" | "pending", justifications: Record<string, string>) => {
-    if (status === "pending") {
-      const missing = expenses.filter((e) => !e.receiptImage);
-      if (missing.length > 0) { toast.error("All expenses must have receipts before submitting"); return; }
-    }
     const invalid = expenses.filter((e) => !e.name || !e.category);
     if (invalid.length > 0) { toast.error("Please complete all required fields for each expense"); return; }
 
@@ -383,7 +379,7 @@ export default function NewReportPage() {
         return payload;
       });
 
-      await axios.post(API_KEYS.EXPENSE.REPORTS, { reportTitle, status, expenses: expensesPayload });
+      await axios.post(API_KEYS.EXPENSE.REPORTS, { reportTitle, status: status === "pending" ? "pending_policy_check" : status, expenses: expensesPayload });
 
       toast.success(status === "draft" ? "Report saved as draft" : "Report submitted successfully!");
       if (status === "pending") notifySetupGuide("report");
@@ -396,7 +392,38 @@ export default function NewReportPage() {
       }, 500);
     } catch (error) {
       logger.error("Error submitting report:", error);
-      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as any;
+      const backendData = err?.response?.data;
+
+      if (backendData?.message === "Policy Violation Exception" || backendData?.data?.error === "Policy Violation") {
+        const causes = backendData?.data?.cause || [];
+        if (causes.length > 0) {
+          setExpenses((prev) =>
+            prev.map((exp) => {
+              const matchedCause = causes.find(
+                (c: any) =>
+                  c.categoryName === exp.category &&
+                  Number(c.expenseAmount) === exp.amount
+              );
+
+              if (matchedCause && matchedCause.violations && matchedCause.violations.length > 0) {
+                return {
+                  ...exp,
+                  policyViolations: matchedCause.violations.map((v: any) => ({
+                    type: v.type || "POLICY_RULE",
+                    message: v.message,
+                  })),
+                };
+              }
+              return exp;
+            })
+          );
+          toast.error("Some expenses violated policy rules. Please review them.");
+          return;
+        }
+      }
+
       toast.error(err?.response?.data?.message || err?.message || "Failed to submit report");
     } finally {
       setIsSubmitting(false);
@@ -409,6 +436,8 @@ export default function NewReportPage() {
   const selectedReceipt = expenses.find((e) => e.id === selectedReceiptId);
   const isEmpty = expenses.length === 0;
 
+  const hasUnresolvedViolations = expenses.some((e) => e.policyViolations && e.policyViolations.length > 0);
+
   if (isLoadingCategories) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -419,18 +448,42 @@ export default function NewReportPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 min-h-screen flex flex-col">
-      {/* Report title chip */}
-      <div className="mb-5">
+    <div className="max-w-7xl mx-auto p-4 h-full flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-4 mb-4 border-b">
         <span className="inline-block border border-border rounded-md px-3 py-1 text-sm font-semibold text-foreground bg-white">
           {reportTitle}
         </span>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => runPolicyAndSubmit("draft")}
+            disabled={isSubmitting || isEmpty}
+            className={
+              (isSubmitting || isEmpty)
+                ? "bg-gray-100 text-gray-400 border border-gray-200 rounded-lg h-11 px-8 text-sm font-medium cursor-not-allowed"
+                : "bg-white border border-primary text-primary hover:bg-primary/10 rounded-lg h-11 px-8 text-sm font-medium"
+            }
+          >
+            {isSubmitting ? "Saving..." : "Save as Draft"}
+          </Button>
+          <Button
+            onClick={() => runPolicyAndSubmit("pending")}
+            disabled={isSubmitting || isEmpty || hasUnresolvedViolations}
+            className={
+              (isSubmitting || isEmpty || hasUnresolvedViolations)
+                ? "bg-gray-100 text-gray-400 border border-gray-100 rounded-lg h-11 px-8 text-sm font-medium cursor-not-allowed"
+                : "bg-primary border border-primary text-white hover:bg-primary/90 rounded-lg h-11 px-8 text-sm font-medium"
+            }
+          >
+            {isSubmitting ? "Submitting..." : "Submit Report"}
+          </Button>
+        </div>
       </div>
 
       {/* ── Main layout: Preview (60%) | Scan/Form (40%) ── */}
-      <div className="flex gap-6 flex-1 mb-6 min-h-0">
+      <div className="flex gap-6 flex-1 min-h-0 overflow-hidden">
         {/* Left: Preview list — 60% */}
-        <div className="w-[60%] min-w-0">
+        <div className="w-[60%] min-w-0 overflow-y-auto pr-4">
           <ExpensePreviewList
             expenses={expenses}
             total={total}
@@ -442,7 +495,7 @@ export default function NewReportPage() {
         </div>
 
         {/* Right: Scan / Manual form — 40% */}
-        <div className="w-[40%] min-w-0">
+        <div className="w-[40%] min-w-0 overflow-y-auto pl-2 pr-4">
           <ReceiptUploadSection
             categories={categories}
             onReceiptsUpload={handleReceiptsUpload}
@@ -451,27 +504,7 @@ export default function NewReportPage() {
         </div>
       </div>
 
-      {/* Bottom actions */}
-      <div className="sticky bottom-0 mt-auto py-4 bg-white/95 backdrop-blur-sm border-t flex justify-end gap-3 z-20 -mx-6 px-6">
-        <Button
-          onClick={() => runPolicyAndSubmit("draft")}
-          disabled={isSubmitting || isEmpty}
-          className={
-            isEmpty
-              ? "bg-white text-white rounded-lg h-11 px-8 text-sm font-medium"
-              : "bg-white border-2 border-primary text-primary hover:bg-primary/10 rounded-lg h-11 px-8 text-sm font-medium"
-          }
-        >
-          {isSubmitting ? "Saving..." : "Save as Draft"}
-        </Button>
-        <Button
-          onClick={() => runPolicyAndSubmit("pending")}
-          disabled={isSubmitting || isEmpty}
-          className="bg-primary border-2 border-primary text-white hover:bg-primary/90 rounded-lg h-11 px-8 text-sm font-medium"
-        >
-          {isSubmitting ? "Submitting..." : "Submit Report"}
-        </Button>
-      </div>
+
 
       {/* ── Modals ── */}
 

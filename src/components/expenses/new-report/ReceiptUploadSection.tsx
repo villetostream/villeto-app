@@ -84,27 +84,10 @@ export function ReceiptUploadSection({
         <div className="h-full flex flex-col animate-in fade-in zoom-in-[0.99] duration-150 ease-out">
             <div className="mb-4 flex flex-row justify-between items-center bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
                 <span className="font-semibold text-dashboard-text-primary">Manual Expense Entry</span>
-                <div className="flex items-center gap-4">
-                    <button 
-                        type="button"
-                        onClick={() => setShowManualForm(false)} 
-                        className="cursor-pointer text-sm text-gray-500 hover:text-red-500 font-medium transition-colors"
-                    >
-                        Cancel ✕
-                    </button>
-                    <Button 
-                        type="submit" 
-                        form="manual-expense-form"
-                        className="bg-primary hover:bg-primary/90 text-white rounded-md px-5 h-9 text-sm font-medium"
-                    >
-                        Add to Report
-                    </Button>
-                </div>
             </div>
             
             <ExpenseForm 
                 formId="manual-expense-form"
-                hideActions={true}
                 categories={categories}
                 onSave={(data, receipt) => {
                     onAddExpense(data, receipt);

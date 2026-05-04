@@ -40,7 +40,7 @@ export interface PolicyRule {
   type: RuleType;
   amount: string;
   enforcement: string;
-  timeframe: "day" | "week" | "month" | "year";
+  timeframe: "daily" | "weekly" | "monthly" | "yearly";
   /** receipt_requirement only — "all" = Required for All (no threshold), "threshold" = amount-gated */
   receiptMode?: "all" | "threshold";
 }
@@ -698,10 +698,10 @@ const ADDABLE_RULE_TYPES: DropdownOption[] = [
 ];
 
 const TIMEFRAME_OPTIONS: DropdownOption[] = [
-  { value: "day",   label: "Daily",   subLabel: "Resets every day" },
-  { value: "week",  label: "Weekly",  subLabel: "Resets every week" },
-  { value: "month", label: "Monthly", subLabel: "Resets every month" },
-  { value: "year",  label: "Yearly",  subLabel: "Resets every year" },
+  { value: "daily",   label: "Daily",   subLabel: "Resets every day" },
+  { value: "weekly",  label: "Weekly",  subLabel: "Resets every week" },
+  { value: "monthly", label: "Monthly", subLabel: "Resets every month" },
+  { value: "yearly",  label: "Yearly",  subLabel: "Resets every year" },
 ];
 
 const mkRule = (type: RuleType = "spend_limit"): PolicyRule => ({
@@ -709,7 +709,7 @@ const mkRule = (type: RuleType = "spend_limit"): PolicyRule => ({
   type,
   amount: "",
   enforcement: "",
-  timeframe: "day",
+  timeframe: "daily",
   receiptMode: type === "receipt_requirement" ? "all" : undefined,
 });
 
@@ -798,12 +798,14 @@ export default function PolicyCreationModal({
             isReceipt && rawAmount !== "" && parseFloat(rawAmount) > 0
               ? "threshold"
               : "all";
+          const tf = r.timeUnit || r.timeframe;
+          const mappedTimeframe = tf === "day" ? "daily" : tf === "week" ? "weekly" : tf === "month" ? "monthly" : tf === "year" ? "yearly" : (tf || "daily");
           return {
             id: Math.random().toString(36).slice(2),
             type: r.type,
             amount: isReceipt && receiptMode === "all" ? "" : rawAmount,
             enforcement: r.enforcementAction === "block" ? "block" : r.enforcementAction === "warn" ? "warn" : r.enforcementAction || "",
-            timeframe: r.timeframe || "day",
+            timeframe: mappedTimeframe,
             receiptMode: isReceipt ? receiptMode : undefined,
           };
         }));
@@ -931,7 +933,7 @@ export default function PolicyCreationModal({
           const enforcementAction = r.enforcement as "block" | "warn";
           if (r.type === "spend_limit") return {
             type: "spend_limit" as const,
-            timeUnit: r.timeframe || "day",
+            timeUnit: r.timeframe || "daily",
             amount: parseFloat(r.amount),
             currency: currencyCode,
             enforcementAction,

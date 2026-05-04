@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, Trash2, Pencil, Check, X } from "lucide-react";
+import { Eye, Trash2, Pencil, Check, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuthStore } from "@/stores/auth-stores";
 
 export interface PolicyViolation {
@@ -22,7 +23,7 @@ export interface ExpenseItem {
   description?: string;
   transactionDate?: Date;
   fileName?: string;
-  policyViolation?: PolicyViolation | null;
+  policyViolations?: { type: string; message: string; ruleType?: string }[] | null;
   justification?: string;
 }
 
@@ -122,13 +123,32 @@ export function ExpensePreviewList({
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5 group">
-                        <span className="text-xs font-medium text-foreground truncate max-w-[120px]">{expense.name}</span>
-                        <Button size="icon" variant="ghost"
-                          className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                          onClick={() => handleStartEdit(expense.id, expense.name)}>
-                          <Pencil className="h-2.5 w-2.5 text-muted-foreground" />
-                        </Button>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
+                          {expense.policyViolations && expense.policyViolations.length > 0 && (
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertCircle 
+                                    className="w-3.5 h-3.5 text-red-500 shrink-0 cursor-pointer hover:text-red-600 transition-colors" 
+                                    onClick={() => onViewDetails(expense.id)}
+                                  />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">{expense.policyViolations.length} policy violation(s)</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          <div className="flex items-center gap-1.5 group">
+                            <span className="text-xs font-medium text-foreground truncate max-w-[120px]">{expense.name}</span>
+                            <Button size="icon" variant="ghost"
+                              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                              onClick={() => handleStartEdit(expense.id, expense.name)}>
+                              <Pencil className="h-2.5 w-2.5 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </td>
