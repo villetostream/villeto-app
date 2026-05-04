@@ -38,6 +38,11 @@ interface ExpenseFormProps {
   cancelLabel?: string;
   formId?: string;
   hideActions?: boolean;
+  fieldErrors?: {
+    amount?: string[];
+    receiptImage?: string[];
+    general?: string[];
+  };
 }
 
 export function ExpenseForm({
@@ -49,6 +54,7 @@ export function ExpenseForm({
   cancelLabel = "Cancel",
   formId,
   hideActions = false,
+  fieldErrors,
 }: ExpenseFormProps) {
   const [receiptImage, setReceiptImage] = useState<string>(
     initialData?.receiptImage || ""
@@ -118,6 +124,27 @@ export function ExpenseForm({
     onSave(data, receiptImage);
   };
 
+  const isSubmitDisabled = (() => {
+    if (!fieldErrors) return false;
+    
+    // Check amount
+    if (fieldErrors.amount && fieldErrors.amount.length > 0) {
+      if (!form.formState.dirtyFields.amount) return true;
+    }
+    
+    // Check receipt
+    if (fieldErrors.receiptImage && fieldErrors.receiptImage.length > 0) {
+      if (!hasReceiptChanged) return true;
+    }
+
+    // Check general
+    if (fieldErrors.general && fieldErrors.general.length > 0) {
+      if (!form.formState.isDirty && !hasReceiptChanged) return true;
+    }
+
+    return false;
+  })();
+
   return (
     <Form {...form}>
       <form id={formId} onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -129,14 +156,19 @@ export function ExpenseForm({
             label="Expenses name"
             placeholder="Enter name"
           />
-          <FormFieldInput
-            control={form.control}
-            name="amount"
-            label="Amount"
-            placeholder="Enter amount"
-            type="number"
-            inputMode="numeric"
-          />
+          <div>
+            <FormFieldInput
+              control={form.control}
+              name="amount"
+              label="Amount"
+              placeholder="Enter amount"
+              type="number"
+              inputMode="numeric"
+            />
+            {fieldErrors?.amount && fieldErrors.amount.map((err, i) => (
+              <p key={i} className="text-xs font-medium text-red-500 mt-1">{err}</p>
+            ))}
+          </div>
         </div>
 
         {/* Merchant and Category */}
@@ -224,6 +256,9 @@ export function ExpenseForm({
       />
     )}
   </div>
+  {fieldErrors?.receiptImage && fieldErrors.receiptImage.map((err, i) => (
+    <p key={i} className="text-xs font-medium text-red-500 mt-1">{err}</p>
+  ))}
 </div>
 
         {/* Actions */}
@@ -239,6 +274,7 @@ export function ExpenseForm({
             </Button>
             <Button
               type="submit"
+              disabled={isSubmitDisabled}
               className="bg-primary hover:bg-primary/90 text-white rounded-lg px-6"
             >
               {submitLabel}

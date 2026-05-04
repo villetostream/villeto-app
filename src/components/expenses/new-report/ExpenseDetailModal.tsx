@@ -21,7 +21,7 @@ interface ExpenseDetailModalProps {
     description?: string;
     receiptImage?: string;
     // Policy fields
-    policyViolation?: { type: "soft_warning" | "hard_block"; message: string; ruleType: string } | null;
+    policyViolations?: { type: string; message: string; ruleType?: string }[] | null;
     justification?: string;
   } | null;
   categories: ExpenseCategory[];
@@ -45,8 +45,26 @@ export function ExpenseDetailModal({
   if (!expense) return null;
 
   const hasReceipt = !!expense.receiptImage;
-  const hasSoftWarning = expense.policyViolation?.type === "soft_warning";
-  const hasHardBlock = expense.policyViolation?.type === "hard_block";
+
+  const fieldErrors: { amount?: string[]; receiptImage?: string[]; general?: string[] } = {};
+  let hasHardBlock = false;
+
+  if (expense.policyViolations) {
+    expense.policyViolations.forEach((v) => {
+      if (v.type === "hard_block" || v.type === "POLICY_RULE") hasHardBlock = true;
+      const msg = v.message.toLowerCase();
+      if (msg.includes("receipt")) {
+        fieldErrors.receiptImage = fieldErrors.receiptImage || [];
+        fieldErrors.receiptImage.push(v.message);
+      } else if (msg.includes("limit")) {
+        fieldErrors.amount = fieldErrors.amount || [];
+        fieldErrors.amount.push(v.message);
+      } else {
+        fieldErrors.general = fieldErrors.general || [];
+        fieldErrors.general.push(v.message);
+      }
+    });
+  }
 
   const getReceiptFileName = (url?: string) => {
     if (!url) return "No receipt uploaded";
@@ -75,17 +93,12 @@ export function ExpenseDetailModal({
               </DialogTitle>
             </DialogHeader>
 
-            {/* Policy violation banners */}
-            {hasSoftWarning && (
-              <div className="mb-4 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
-                <p className="text-xs font-medium text-amber-700">{expense.policyViolation!.message}</p>
+            {/* Policy violation banners (General errors only) */}
+            {fieldErrors.general && fieldErrors.general.map((msg, i) => (
+              <div key={i} className={`mb-4 px-3 py-2 rounded-lg border ${hasHardBlock ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"}`}>
+                <p className={`text-xs font-medium ${hasHardBlock ? "text-red-700" : "text-amber-700"}`}>{msg}</p>
               </div>
-            )}
-            {hasHardBlock && (
-              <div className="mb-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
-                <p className="text-xs font-medium text-red-700">{expense.policyViolation!.message}</p>
-              </div>
-            )}
+            ))}
 
             <ExpenseForm
               initialData={{
@@ -104,6 +117,7 @@ export function ExpenseDetailModal({
               onCancel={onClose}
               submitLabel="Save Update"
               cancelLabel="Cancel"
+              fieldErrors={fieldErrors}
             />
           </div>
 
