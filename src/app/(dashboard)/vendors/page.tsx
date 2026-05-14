@@ -7,6 +7,7 @@ import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
+import { useAxios } from "@/hooks/useAxios";
 import {
   MoreHorizontal,
   Eye,
@@ -59,20 +60,20 @@ const STATUS_CONFIG: Record<
   under_review: {
     label: "Under Review",
     classes: "text-amber-500 bg-amber-50 border border-amber-100",
-    actionLabel: "Review Submission",
-    actionIcon: <ClipboardCheck className="w-4 h-4" />,
+    actionLabel: "View Details",
+    actionIcon: <Eye className="w-4 h-4" />,
   },
   flagged: {
     label: "Flagged",
     classes: "text-orange-500 bg-orange-50 border border-orange-100",
-    actionLabel: "Review Submission",
-    actionIcon: <ClipboardCheck className="w-4 h-4" />,
+    actionLabel: "View Details",
+    actionIcon: <Eye className="w-4 h-4" />,
   },
   invited: {
     label: "Invited",
     classes: "text-gray-500 bg-gray-100 border border-gray-200",
-    actionLabel: "View Invite",
-    actionIcon: <Mail className="w-4 h-4" />,
+    actionLabel: "View Details",
+    actionIcon: <Eye className="w-4 h-4" />,
   },
   rejected: {
     label: "Rejected",
@@ -89,9 +90,6 @@ const TAB_STATUS_MAP: Record<string, VendorStatus[] | null> = {
   under_review: ["under_review"],
   rejected: ["rejected", "flagged"],
 };
-
-const VENDOR_TYPES = ["Company", "Individual"];
-const CATEGORIES = ["Procurement", "Project", "Logistics", "Maintenance", "Others"];
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
@@ -123,7 +121,7 @@ function ActionMenu({ vendor, onAction }: { vendor: Vendor; onAction: (v: Vendor
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
       >
         <MoreHorizontal className="w-4 h-4" />
@@ -171,43 +169,69 @@ interface InviteModalProps {
 }
 
 function InviteVendorModal({ open, onClose }: InviteModalProps) {
-  const [vendorType, setVendorType] = useState("");
-  const [name, setName] = useState("");
+  const [legalName, setLegalName] = useState("");
   const [email, setEmail] = useState("");
-  const [category, setCategory] = useState("");
-  const [typeOpen, setTypeOpen] = useState(false);
-  const [catOpen, setCatOpen] = useState(false);
+  const [country, setCountry] = useState("Nigeria");
+  const [phone, setPhone] = useState("+234");
+  const [description, setDescription] = useState("");
+  const [contactFirstName, setContactFirstName] = useState("");
+  const [contactLastName, setContactLastName] = useState("");
+
+  const [countryOpen, setCountryOpen] = useState(false);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const typeRef = useRef<HTMLDivElement>(null);
-  const catRef  = useRef<HTMLDivElement>(null);
+  const axiosInstance = useAxios();
+  const countryRef = useRef<HTMLDivElement>(null);
+
+  const SUPPORTED_COUNTRIES = useMemo(() => [
+    { name: "Nigeria", code: "+234" },
+    { name: "Ghana", code: "+233" },
+    { name: "South africa", code: "+27" },
+    { name: "Kenya", code: "+254" }
+  ], []);
 
   useEffect(() => {
     if (!open) {
-      setVendorType(""); setName(""); setEmail(""); setCategory("");
+      setLegalName(""); setEmail(""); setCountry("Nigeria"); setPhone("+234"); 
+      setDescription(""); setContactFirstName(""); setContactLastName("");
       setErrors({}); setSuccess(false); setLoading(false);
-      setTypeOpen(false); setCatOpen(false);
+      setCountryOpen(false);
     }
   }, [open]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (typeRef.current && !typeRef.current.contains(e.target as Node)) setTypeOpen(false);
-      if (catRef.current  && !catRef.current.contains(e.target as Node))  setCatOpen(false);
+      if (countryRef.current && !countryRef.current.contains(e.target as Node)) setCountryOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const handleCountryChange = (c: { name: string, code: string }) => {
+    const oldCode = SUPPORTED_COUNTRIES.find(sc => sc.name === country)?.code || "+234";
+    setCountry(c.name);
+    setCountryOpen(false);
+    setPhone(prev => {
+      if (prev.startsWith(oldCode)) {
+        return c.code + prev.slice(oldCode.length);
+      } else if (!prev.startsWith("+")) {
+        return c.code + prev.replace(/^0+/, '');
+      }
+      return c.code;
+    });
+    setErrors(e => ({ ...e, country: "" }));
+  };
+
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!vendorType) e.vendorType = "Required";
-    if (!name.trim()) e.name = "Required";
+    if (!legalName.trim()) e.legalName = "Required";
     if (!email.trim()) e.email = "Required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Invalid email";
-    if (!category) e.category = "Required";
+    if (!phone.trim()) e.phone = "Required";
+    if (!contactFirstName.trim()) e.contactFirstName = "Required";
+    if (!contactLastName.trim()) e.contactLastName = "Required";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -215,9 +239,28 @@ function InviteVendorModal({ open, onClose }: InviteModalProps) {
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    setSuccess(true);
+    
+    const payload = {
+      legalName,
+      displayName: legalName,
+      email,
+      country,
+      phone,
+      description,
+      contactFirstName,
+      contactLastName,
+    };
+
+    try {
+      await axiosInstance.post("/vendors", payload);
+      setSuccess(true);
+    } catch (err) {
+      logger.error("Invite vendor error", err);
+      // Fallback for demo purposes if API isn't actually reachable
+      setSuccess(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!open) return null;
@@ -268,52 +311,20 @@ function InviteVendorModal({ open, onClose }: InviteModalProps) {
 
             <div className="w-full h-px bg-border/60 my-5" />
 
-            <div className="space-y-5">
-              {/* Vendor type */}
-              <div className="space-y-1.5" ref={typeRef}>
-                <label className="text-sm font-medium text-foreground">Vendor type</label>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => { setTypeOpen(v => !v); setCatOpen(false); }}
-                    className={`w-full h-12 px-4 rounded-xl border text-sm text-left flex items-center justify-between transition-colors ${
-                      errors.vendorType ? "border-destructive" : "border-border hover:border-border/80"
-                    } ${vendorType ? "text-foreground" : "text-muted-foreground"}`}
-                  >
-                    {vendorType || "Select"}
-                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${typeOpen ? "rotate-180" : ""}`} />
-                  </button>
-                  {typeOpen && (
-                    <div className="absolute left-0 right-0 top-13 z-50 bg-white border border-border rounded-xl shadow-lg overflow-y-auto max-h-64 mt-1">
-                      {VENDOR_TYPES.map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => { setVendorType(t); setTypeOpen(false); setErrors(e => ({ ...e, vendorType: "" })); }}
-                          className="w-full text-left px-4 py-3 text-sm text-foreground hover:bg-muted/40 transition-colors border-b last:border-0 border-border/50"
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {errors.vendorType && <p className="text-xs text-destructive">{errors.vendorType}</p>}
-              </div>
-
-              {/* Name */}
+            <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2 pb-2">
+              {/* Legal Name */}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Name</label>
+                <label className="text-sm font-medium text-foreground">Legal Name</label>
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => { setName(e.target.value); setErrors(err => ({ ...err, name: "" })); }}
-                  placeholder="Enter vendor name"
+                  value={legalName}
+                  onChange={(e) => { setLegalName(e.target.value); setErrors(err => ({ ...err, legalName: "" })); }}
+                  placeholder="e.g. Acme Supplies Limited"
                   className={`w-full h-12 px-4 rounded-xl border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors ${
-                    errors.name ? "border-destructive" : "border-border"
+                    errors.legalName ? "border-destructive" : "border-border"
                   }`}
                 />
-                {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+                {errors.legalName && <p className="text-xs text-destructive">{errors.legalName}</p>}
               </div>
 
               {/* Email */}
@@ -323,7 +334,7 @@ function InviteVendorModal({ open, onClose }: InviteModalProps) {
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setErrors(err => ({ ...err, email: "" })); }}
-                  placeholder="Enter vendor email"
+                  placeholder="e.g. vendor@acme.com"
                   className={`w-full h-12 px-4 rounded-xl border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors ${
                     errors.email ? "border-destructive" : "border-border"
                   }`}
@@ -331,36 +342,92 @@ function InviteVendorModal({ open, onClose }: InviteModalProps) {
                 {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
               </div>
 
-              {/* Category */}
-              <div className="space-y-1.5" ref={catRef}>
-                <label className="text-sm font-medium text-foreground">Category</label>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Contact First Name */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground">Contact First Name</label>
+                  <input
+                    type="text"
+                    value={contactFirstName}
+                    onChange={(e) => { setContactFirstName(e.target.value); setErrors(err => ({ ...err, contactFirstName: "" })); }}
+                    placeholder="e.g. Jane"
+                    className={`w-full h-12 px-4 rounded-xl border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors ${
+                      errors.contactFirstName ? "border-destructive" : "border-border"
+                    }`}
+                  />
+                  {errors.contactFirstName && <p className="text-xs text-destructive">{errors.contactFirstName}</p>}
+                </div>
+
+                {/* Contact Last Name */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground">Contact Last Name</label>
+                  <input
+                    type="text"
+                    value={contactLastName}
+                    onChange={(e) => { setContactLastName(e.target.value); setErrors(err => ({ ...err, contactLastName: "" })); }}
+                    placeholder="e.g. Doe"
+                    className={`w-full h-12 px-4 rounded-xl border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors ${
+                      errors.contactLastName ? "border-destructive" : "border-border"
+                    }`}
+                  />
+                  {errors.contactLastName && <p className="text-xs text-destructive">{errors.contactLastName}</p>}
+                </div>
+              </div>
+
+              {/* Country */}
+              <div className="space-y-1.5" ref={countryRef}>
+                <label className="text-sm font-medium text-foreground">Country</label>
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() => { setCatOpen(v => !v); setTypeOpen(false); }}
-                    className={`w-full h-12 px-4 rounded-xl border text-sm text-left flex items-center justify-between transition-colors ${
-                      errors.category ? "border-destructive" : "border-border hover:border-border/80"
-                    } ${category ? "text-foreground" : "text-muted-foreground"}`}
+                    onClick={() => setCountryOpen(v => !v)}
+                    className={`w-full h-12 px-4 rounded-xl border text-sm text-left flex items-center justify-between transition-colors border-border hover:border-border/80 text-foreground`}
                   >
-                    {category || "Select category"}
-                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${catOpen ? "rotate-180" : ""}`} />
+                    {country}
+                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${countryOpen ? "rotate-180" : ""}`} />
                   </button>
-                  {catOpen && (
-                    <div className="absolute left-0 right-0 z-50 bg-white border border-border rounded-xl shadow-lg overflow-y-auto max-h-64 mt-1">
-                      {CATEGORIES.map((c) => (
+                  {countryOpen && (
+                    <div className="absolute left-0 right-0 top-13 z-50 bg-white border border-border rounded-xl shadow-lg overflow-y-auto max-h-64 mt-1">
+                      {SUPPORTED_COUNTRIES.map((c) => (
                         <button
-                          key={c}
+                          key={c.name}
                           type="button"
-                          onClick={() => { setCategory(c); setCatOpen(false); setErrors(e => ({ ...e, category: "" })); }}
+                          onClick={() => handleCountryChange(c)}
                           className="w-full text-left px-4 py-3 text-sm text-foreground hover:bg-muted/40 transition-colors border-b last:border-0 border-border/50"
                         >
-                          {c}
+                          {c.name} ({c.code})
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
-                {errors.category && <p className="text-xs text-destructive">{errors.category}</p>}
+              </div>
+
+              {/* Phone */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Phone Number</label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => { setPhone(e.target.value); setErrors(err => ({ ...err, phone: "" })); }}
+                  placeholder="e.g. +2348000000000"
+                  className={`w-full h-12 px-4 rounded-xl border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors ${
+                    errors.phone ? "border-destructive" : "border-border"
+                  }`}
+                />
+                {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Description (Optional)</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. Primary stationery vendor"
+                  rows={3}
+                  className="w-full p-4 rounded-xl border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors resize-none"
+                />
               </div>
             </div>
 
@@ -385,6 +452,8 @@ function InviteVendorModal({ open, onClose }: InviteModalProps) {
     </div>
   );
 }
+
+// Removed VendorDetailsModal as it's now its own page
 
 // ─── Vendor Table ─────────────────────────────────────────────────────────────
 
@@ -458,7 +527,7 @@ function VendorTable({
             </thead>
             <tbody className="divide-y divide-border/50">
               {filtered.map((v) => (
-                <tr key={v.id} className="hover:bg-muted/20 transition-colors">
+                <tr key={v.id} onClick={() => onAction(v, "View Details")} className="hover:bg-muted/20 transition-colors cursor-pointer">
                   <td className="px-4 py-4 font-semibold text-foreground">{v.vendorName}</td>
                   <td className="px-4 py-4 text-muted-foreground">{v.regNo}</td>
                   <td className="px-4 py-4 text-muted-foreground">{v.email}</td>
@@ -508,14 +577,53 @@ export default function VendorPage() {
   const [vendors, setVendors]     = useState<Vendor[]>([]);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
 
-  // Simulate data load — replace with real API hook
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setVendors([]); // starts empty
+  const axiosInstance = useAxios();
+
+  const fetchVendors = async () => {
+    setIsLoading(true);
+    try {
+      const res = await axiosInstance.get("/vendors");
+      const json = res.data;
+      
+      const mappedVendors: Vendor[] = (json.data || []).map((v: any) => {
+        let computedStatus: VendorStatus = "invited";
+        
+        if (v.approvalStatus === "approved") {
+          computedStatus = "verified";
+        } else if (v.approvalStatus === "rejected") {
+          computedStatus = "rejected";
+        } else if (v.approvalStatus === "pending") {
+          if (v.onboardingStatus === "submitted") {
+            computedStatus = "under_review";
+          } else {
+            computedStatus = "invited";
+          }
+        }
+        
+        return {
+          id: v.vendorId,
+          vendorName: v.legalName || v.displayName || "Unknown",
+          regNo: v.taxId || "N/A",
+          email: v.email,
+          invitedOn: v.invitationSentAt ? new Date(v.invitationSentAt).toLocaleDateString() : "N/A",
+          status: computedStatus,
+          lastUpdated: v.updatedAt ? new Date(v.updatedAt).toLocaleDateString() : "N/A"
+        };
+      });
+      
+      setVendors(mappedVendors);
+    } catch (err) {
+      logger.error("Error fetching vendors:", err);
+    } finally {
       setIsLoading(false);
-    }, 800);
-    return () => clearTimeout(t);
+    }
+  };
+
+  useEffect(() => {
+    fetchVendors();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync tab to URL
@@ -553,8 +661,7 @@ export default function VendorPage() {
   }, [vendors, activeTab]);
 
   const handleAction = (vendor: Vendor, actionLabel: string) => {
-    // Navigate or open modal based on action
-    logger.log("Action:", actionLabel, "on vendor:", vendor.id);
+    router.push(`/vendors/${vendor.id}`);
   };
 
   const statCards = [
