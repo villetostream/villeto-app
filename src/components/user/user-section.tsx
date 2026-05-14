@@ -439,12 +439,14 @@ export function UserSection() {
   const isNewReportPage             = pathname === "/expenses/new-report";
   const isViewRolePage              = pathname.startsWith("/people/view-role/");
   const isVendorBulkInvitePage      = pathname === "/vendors/bulk-invite-page";
+  const isVendorDetailPage          = pathname.match(/^\/vendors\/[a-f0-9\-]+$/i);
+  const isVendorTransactionsPage    = pathname.match(/^\/vendors\/[a-f0-9\-]+\/transactions$/i);
 
   const isBackButtonPage =
     isExpenseDetailPage || isAuditTrailPage || isSplitExpensePage ||
     isPersonalExpenseDeletePage || isPersonalExpenseDetailPage || isPersonalExpenseEditPage ||
     isCompanyExpenseDetailPage || isUploadReceiptPage || isNewExpensePage || isNewReportPage ||
-    isBatchExpensePage || isViewRolePage || isVendorBulkInvitePage ||
+    isBatchExpensePage || isViewRolePage || isVendorBulkInvitePage || isVendorDetailPage || isVendorTransactionsPage ||
     pathname === "/people/invite/leadership" ||
     pathname === "/people/invite/employees" ||
     pathname === "/people/create-role";
@@ -503,7 +505,13 @@ export function UserSection() {
       else router.push("/people");
       return;
     }
-    if (isVendorBulkInvitePage) { router.push("/vendors"); return; }
+    if (isVendorTransactionsPage) {
+      const vid = pathname.match(/^\/vendors\/([a-f0-9\-]+)\/transactions$/i)?.[1];
+      if (vid) router.push(`/vendors/${vid}`);
+      else router.push("/vendors");
+      return;
+    }
+    if (isVendorBulkInvitePage || isVendorDetailPage) { router.push("/vendors"); return; }
     router.push("/expenses");
   };
 

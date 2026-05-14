@@ -33,6 +33,7 @@ import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
+import { useAuthStore } from "@/stores/auth-stores";
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -49,6 +50,7 @@ interface Policy {
   date: string;
   status: PolicyStatus;
   approvers: string[];
+  approversRaw: any[];
   dailyLimit: string;
   receiptRequired: boolean;
   archivedOn?: string;
@@ -77,8 +79,7 @@ type ExpenseCategoryDetails = {
 
 // Live data logic below
 
-const CURRENT_USER = "Israel Chen (You)";
-const IS_APPROVER  = true;
+// Live data logic below
 
 function todayStr() {
   const d = new Date();
@@ -540,6 +541,7 @@ function ReviewPolicyModal({ policy, onClose, onApprove, onReject }: {
 export default function PoliciesPage() {
   const axios = useAxios();
   const searchParams = useSearchParams();
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab]           = useState<"policies" | "expense" | "archived">("policies");
   
   useEffect(() => {
@@ -636,6 +638,7 @@ export default function PoliciesPage() {
         date: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—",
         status: (p.status?.toLowerCase() as PolicyStatus) || "inactive",
         approvers: (p.approvers || []).map((a: any) => typeof a === 'string' ? a : (a?.firstName ? `${a.firstName} ${a.lastName || ''}` : a.email || 'User')),
+        approversRaw: p.approvers || [],
         dailyLimit: p.rules?.find((r: any) => r.type === "spend_limit")?.amount?.toString() || "0",
         receiptRequired: !!p.rules?.find((r: any) => r.type === "receipt_requirement")?.amount,
         archivedOn: p.deletedAt ? new Date(p.deletedAt).toLocaleDateString() : undefined,
@@ -710,8 +713,20 @@ export default function PoliciesPage() {
     setIsCreatePolicyOpen(true);
   };
   const handleArchive = (policy: Policy) => toast.info("Archive policy API not integrated yet.");
-  const handleApprove = (policy: Policy) => toast.info("Approve policy API not integrated yet.");
-  const handleReject  = (policy: Policy) => toast.info("Reject policy API not integrated yet.");
+
+  const handleReviewAction = async (policy: Policy, action: "activate" | "deactivate") => {
+    try {
+      await axios.patch(API_KEYS.EXPENSE.POLICY_ACTION(policy.id, action));
+      toast.success(`Policy ${action === "activate" ? "approved" : "rejected"} successfully`);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
+      setReviewPolicy(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || `Failed to ${action === "activate" ? "approve" : "reject"} policy`);
+    }
+  };
+
+  const handleApprove = (policy: Policy) => handleReviewAction(policy, "activate");
+  const handleReject  = (policy: Policy) => handleReviewAction(policy, "deactivate");
 
   const lastUpdated = `Last updated: ${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}`;
   const statCards = [
@@ -754,9 +769,10 @@ export default function PoliciesPage() {
       header: () => <div className="text-right w-full">Action</div>,
       cell: ({ row }) => {
         const policy = row.original;
+        const isApprover = policy.approversRaw.some((a: any) => a.userId === user?.userId);
         return (
           <div className="flex items-center justify-end gap-2">
-            {policy.status === "pending" && IS_APPROVER && (
+            {policy.status === "inactive" && isApprover && (
               <button
                 onClick={() => setReviewPolicy(policy)}
                 className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
