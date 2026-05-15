@@ -106,8 +106,8 @@ export default function VendorDetailsPage() {
   }
 
   const isUnderReview = vendor.approvalStatus === "pending" && vendor.onboardingStatus === "submitted";
-  const isActive = vendor.status === "Active";
-  const isInactive = vendor.status === "Inactive";
+  const isActive = vendor.approvalStatus === "approved" && vendor.status === "Active";
+  const isInactive = vendor.approvalStatus === "approved" && vendor.status === "Inactive";
   const isApproved = vendor.approvalStatus === "approved" && !isActive && !isInactive;
   const isRejected = vendor.approvalStatus === "rejected";
 
@@ -338,8 +338,8 @@ export default function VendorDetailsPage() {
             </div>
           ) : null}
 
-          {/* Recent Transactions (Active state) */}
-          {isActive && (
+          {/* Recent Transactions (Active & Inactive states) */}
+          {(isActive || isInactive) && (
             <div className="bg-white rounded-2xl border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Recent Transactions</h2>
