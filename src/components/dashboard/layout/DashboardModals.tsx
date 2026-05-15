@@ -123,7 +123,6 @@ export default function DashboardModals() {
       user: state.user
         ? {
             ...state.user,
-            loginCount: 2,
             shouldChangePassword: false,
           }
         : null,

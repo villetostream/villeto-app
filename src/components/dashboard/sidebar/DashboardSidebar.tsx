@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTourStore } from "@/stores/useTourStore";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -389,8 +390,8 @@ export function DashboardSidebar() {
       </SidebarFooter>
 
       {/* Logout Confirmation Modal */}
-      {showLogoutModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
+      {showLogoutModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative">
             <h2 className="text-xl font-bold text-gray-900 mb-2">Log Out</h2>
             <p className="text-sm text-gray-600 mb-6">Are you sure you want to log out?</p>
@@ -414,7 +415,8 @@ export function DashboardSidebar() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </Sidebar>
   );

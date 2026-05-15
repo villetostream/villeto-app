@@ -64,6 +64,20 @@ export default function VendorDetailsPage() {
     }
   };
 
+  const handleStatusUpdate = async (statusPayload: "Active" | "Inactive") => {
+    setIsSubmitting(true);
+    try {
+      await axiosInstance.patch(`/vendors/${vendorId}/status`, {
+        status: statusPayload,
+      });
+      fetchVendor();
+    } catch (err) {
+      logger.error(`Failed to update vendor status to ${statusPayload}`, err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleRequestInfo = async () => {
     logger.log("Request info sent:", infoMessage);
     setRequestInfoModalOpen(false);
@@ -92,7 +106,9 @@ export default function VendorDetailsPage() {
   }
 
   const isUnderReview = vendor.approvalStatus === "pending" && vendor.onboardingStatus === "submitted";
-  const isApproved = vendor.approvalStatus === "approved";
+  const isActive = vendor.status === "Active";
+  const isInactive = vendor.status === "Inactive";
+  const isApproved = vendor.approvalStatus === "approved" && !isActive && !isInactive;
   const isRejected = vendor.approvalStatus === "rejected";
 
   const hasBankMismatch = !vendor.bankName || !vendor.bankAccountNumber;
@@ -111,6 +127,16 @@ export default function VendorDetailsPage() {
                 Approved
               </span>
             )}
+            {isActive && (
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-100">
+                Active
+              </span>
+            )}
+            {isInactive && (
+              <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200">
+                Inactive
+              </span>
+            )}
             {isRejected && (
               <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-500 text-xs font-semibold border border-red-100">
                 Rejected
@@ -120,31 +146,60 @@ export default function VendorDetailsPage() {
           <p className="text-sm text-gray-500 mt-1">{vendor.email}</p>
         </div>
 
-        {isUnderReview && (
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
+          {isUnderReview && (
+            <>
+              <button
+                disabled={isSubmitting}
+                onClick={() => setRejectModalOpen(true)}
+                className="px-5 h-10 rounded-xl border border-red-300 text-red-500 font-semibold text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                Reject vendor
+              </button>
+              <button
+                disabled={isSubmitting}
+                onClick={() => setRequestInfoModalOpen(true)}
+                className="px-5 h-10 rounded-xl border border-[#00BFA5] text-[#00BFA5] font-semibold text-sm hover:bg-[#00BFA5]/5 transition-colors disabled:opacity-50"
+              >
+                Request Info
+              </button>
+              <button
+                disabled={isSubmitting}
+                onClick={() => handleDecision("approved")}
+                className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {isSubmitting ? "Processing..." : "Approve vendor"}
+              </button>
+            </>
+          )}
+          {isApproved && (
             <button
               disabled={isSubmitting}
-              onClick={() => setRejectModalOpen(true)}
-              className="px-5 h-10 rounded-xl border border-red-300 text-red-500 font-semibold text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
-            >
-              Reject vendor
-            </button>
-            <button
-              disabled={isSubmitting}
-              onClick={() => setRequestInfoModalOpen(true)}
-              className="px-5 h-10 rounded-xl border border-[#00BFA5] text-[#00BFA5] font-semibold text-sm hover:bg-[#00BFA5]/5 transition-colors disabled:opacity-50"
-            >
-              Request Info
-            </button>
-            <button
-              disabled={isSubmitting}
-              onClick={() => handleDecision("approved")}
+              onClick={() => handleStatusUpdate("Active")}
               className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {isSubmitting ? "Processing..." : "Approve vendor"}
+              {isSubmitting ? "Processing..." : "Activate vendor"}
             </button>
-          </div>
-        )}
+          )}
+          {isActive && (
+            <button
+              disabled={isSubmitting}
+              onClick={() => handleStatusUpdate("Inactive")}
+              className="px-5 h-10 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-opacity disabled:opacity-50"
+            >
+              {isSubmitting ? "Processing..." : "Deactivate vendor"}
+            </button>
+          )}
+          {isInactive && (
+            <button
+              disabled={isSubmitting}
+              onClick={() => handleStatusUpdate("Active")}
+              className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {isSubmitting ? "Processing..." : "Reactivate vendor"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Content Grid ── */}
@@ -274,17 +329,17 @@ export default function VendorDetailsPage() {
           </div>
 
           {/* Vendor Note */}
-          {(isUnderReview || isRejected) && (
+          {((isUnderReview || isRejected || isApproved) && vendor.decisionNote) ? (
             <div className="bg-[#E6F8F5] rounded-2xl border border-[#00BFA5]/20 p-6">
               <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Vendor Note</h2>
               <p className="text-sm text-gray-700 leading-relaxed">
-                {vendor.decisionNote || "Please review the provided information and documents."}
+                {vendor.decisionNote}
               </p>
             </div>
-          )}
+          ) : null}
 
-          {/* Recent Transactions (Approved state) */}
-          {isApproved && (
+          {/* Recent Transactions (Active state) */}
+          {isActive && (
             <div className="bg-white rounded-2xl border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Recent Transactions</h2>

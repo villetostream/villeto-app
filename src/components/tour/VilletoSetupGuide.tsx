@@ -789,9 +789,11 @@ export default function VilletoSetupGuide() {
 
     // First auto-start on this device — mark it as the primary device.
     if (userId) localStorage.setItem(GUIDE_SEEN_KEY(userId), "1");
-    setHasBeenSeen(true);
 
-    const t = setTimeout(() => setVisible(true), 600);
+    const t = setTimeout(() => {
+      setVisible(true);
+      setHasBeenSeen(true);
+    }, 600);
     return () => clearTimeout(t);
   }, [isEligible, setupGuideReady, hasBeenSeen, user?.loginCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
