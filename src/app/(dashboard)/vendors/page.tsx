@@ -172,9 +172,10 @@ function VendorEmptyState({ filtered = false }: { filtered?: boolean }) {
 interface InviteModalProps {
   open: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-function InviteVendorModal({ open, onClose }: InviteModalProps) {
+function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
   const [legalName, setLegalName] = useState("");
   const [email, setEmail] = useState("");
   const [country, setCountry] = useState("Nigeria");
@@ -260,6 +261,7 @@ function InviteVendorModal({ open, onClose }: InviteModalProps) {
     try {
       await axiosInstance.post("/vendors", payload);
       setSuccess(true);
+      if (onSuccess) onSuccess();
     } catch (err) {
       logger.error("Invite vendor error", err);
       // Fallback for demo purposes if API isn't actually reachable
@@ -596,12 +598,14 @@ export default function VendorPage() {
       const mappedVendors: Vendor[] = (json.data || []).map((v: any) => {
         let computedStatus: VendorStatus = "invited";
         
-        if (v.status === "Active") {
-          computedStatus = "active";
-        } else if (v.status === "Inactive") {
-          computedStatus = "deactivated";
-        } else if (v.approvalStatus === "approved") {
-          computedStatus = "approved";
+        if (v.approvalStatus === "approved") {
+          if (v.status === "Active") {
+            computedStatus = "active";
+          } else if (v.status === "Inactive") {
+            computedStatus = "deactivated";
+          } else {
+            computedStatus = "approved";
+          }
         } else if (v.approvalStatus === "rejected") {
           computedStatus = "rejected";
         } else if (v.approvalStatus === "pending") {
@@ -703,7 +707,7 @@ export default function VendorPage() {
 
   return (
     <div className="space-y-6">
-      <InviteVendorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} />
+      <InviteVendorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} onSuccess={fetchVendors} />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1.5">
