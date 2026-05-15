@@ -27,7 +27,7 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type VendorStatus = "active" | "under_review" | "invited" | "flagged" | "rejected" | "verified";
+type VendorStatus = "active" | "deactivated" | "pending" | "invited" | "flagged" | "rejected" | "approved";
 
 interface Vendor {
   id: string;
@@ -51,14 +51,20 @@ const STATUS_CONFIG: Record<
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
-  verified: {
-    label: "Verified",
+  deactivated: {
+    label: "Deactivated",
+    classes: "text-gray-600 bg-gray-50 border border-gray-200",
+    actionLabel: "View Details",
+    actionIcon: <Eye className="w-4 h-4" />,
+  },
+  approved: {
+    label: "Approved",
     classes: "text-emerald-600 bg-emerald-50 border border-emerald-100",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
-  under_review: {
-    label: "Under Review",
+  pending: {
+    label: "Pending",
     classes: "text-amber-500 bg-amber-50 border border-amber-100",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
@@ -85,9 +91,9 @@ const STATUS_CONFIG: Record<
 
 const TAB_STATUS_MAP: Record<string, VendorStatus[] | null> = {
   all: null,
-  verified: ["active", "verified"],
+  verified: ["active", "approved"],
   invited: ["invited"],
-  under_review: ["under_review"],
+  under_review: ["pending"],
   rejected: ["rejected", "flagged"],
 };
 
@@ -590,13 +596,17 @@ export default function VendorPage() {
       const mappedVendors: Vendor[] = (json.data || []).map((v: any) => {
         let computedStatus: VendorStatus = "invited";
         
-        if (v.approvalStatus === "approved") {
-          computedStatus = "verified";
+        if (v.status === "Active") {
+          computedStatus = "active";
+        } else if (v.status === "Inactive") {
+          computedStatus = "deactivated";
+        } else if (v.approvalStatus === "approved") {
+          computedStatus = "approved";
         } else if (v.approvalStatus === "rejected") {
           computedStatus = "rejected";
         } else if (v.approvalStatus === "pending") {
           if (v.onboardingStatus === "submitted") {
-            computedStatus = "under_review";
+            computedStatus = "pending";
           } else {
             computedStatus = "invited";
           }
@@ -672,13 +682,13 @@ export default function VendorPage() {
       subtitle: <span className="text-xs leading-[125%]">All vendors added</span>,
     },
     {
-      title: "Verified Vendors",
+      title: "Approved Vendors",
       value: stats.verified.toString(),
       icon: <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white shrink-0 bg-[#5A67D8]"><BadgeCheck className="w-4 h-4" /></div>,
       subtitle: <span className="text-xs leading-[125%]">Vendors fully approved</span>,
     },
     {
-      title: "Verification Pending",
+      title: "Approval Pending",
       value: stats.pending.toString(),
       icon: <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white shrink-0 bg-[#F45B69]"><Clock className="w-4 h-4" /></div>,
       subtitle: <span className="text-xs leading-[125%]">Vendors who submitted onboarding</span>,
@@ -713,9 +723,9 @@ export default function VendorPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-muted/50 p-1 h-auto rounded-lg">
           <TabsTrigger value="all"          className="data-[state=active]:bg-background rounded-md px-5">All Vendors</TabsTrigger>
-          <TabsTrigger value="verified"     className="data-[state=active]:bg-background rounded-md px-5">Verified</TabsTrigger>
+          <TabsTrigger value="verified"     className="data-[state=active]:bg-background rounded-md px-5">Approved</TabsTrigger>
           <TabsTrigger value="invited"      className="data-[state=active]:bg-background rounded-md px-5">Invited</TabsTrigger>
-          <TabsTrigger value="under_review" className="data-[state=active]:bg-background rounded-md px-5">Under Review</TabsTrigger>
+          <TabsTrigger value="under_review" className="data-[state=active]:bg-background rounded-md px-5">Pending</TabsTrigger>
           <TabsTrigger value="rejected"     className="data-[state=active]:bg-background rounded-md px-5">Rejected</TabsTrigger>
         </TabsList>
 
