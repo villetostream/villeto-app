@@ -78,6 +78,17 @@ export default function VendorDetailsPage() {
     }
   };
 
+  const handleResendInvitation = async () => {
+    setIsSubmitting(true);
+    try {
+      await axiosInstance.post(`/vendors/${vendorId}/invitations/resend`);
+    } catch (err) {
+      logger.error(`Failed to resend invitation`, err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleRequestInfo = async () => {
     logger.log("Request info sent:", infoMessage);
     setRequestInfoModalOpen(false);
@@ -106,6 +117,7 @@ export default function VendorDetailsPage() {
   }
 
   const isUnderReview = vendor.approvalStatus === "pending" && vendor.onboardingStatus === "submitted";
+  const isInvited = vendor.approvalStatus === "pending" && vendor.onboardingStatus !== "submitted";
   const isActive = vendor.approvalStatus === "approved" && vendor.status === "Active";
   const isInactive = vendor.approvalStatus === "approved" && vendor.status === "Inactive";
   const isApproved = vendor.approvalStatus === "approved" && !isActive && !isInactive;
@@ -140,6 +152,11 @@ export default function VendorDetailsPage() {
             {isRejected && (
               <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-500 text-xs font-semibold border border-red-100">
                 Rejected
+              </span>
+            )}
+            {isInvited && (
+              <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold border border-gray-200">
+                Invited
               </span>
             )}
           </div>
@@ -197,6 +214,15 @@ export default function VendorDetailsPage() {
               className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {isSubmitting ? "Processing..." : "Reactivate vendor"}
+            </button>
+          )}
+          {isInvited && (
+            <button
+              disabled={isSubmitting}
+              onClick={handleResendInvitation}
+              className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+            >
+              {isSubmitting ? "Sending..." : "Resend Invitation"}
             </button>
           )}
         </div>
