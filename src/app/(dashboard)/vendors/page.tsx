@@ -128,7 +128,7 @@ function ActionMenu({ vendor, onAction }: { vendor: Vendor; onAction: (v: Vendor
     <div className="relative" ref={ref}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors cursor-pointer"
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
@@ -141,6 +141,19 @@ function ActionMenu({ vendor, onAction }: { vendor: Vendor; onAction: (v: Vendor
             {cfg.actionIcon}
             {cfg.actionLabel}
           </button>
+          {vendor.status === "invited" && (
+            <button
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                onAction(vendor, "Resend Invitation"); 
+                setOpen(false); 
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted/40 transition-colors"
+            >
+              <Mail className="w-4 h-4" />
+              Resend Invitation
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -251,7 +264,6 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
       legalName,
       displayName: legalName,
       email,
-      country,
       phone,
       description,
       contactFirstName,
@@ -522,7 +534,7 @@ function VendorTable({
       {filtered.length === 0 ? (
         <VendorEmptyState filtered={vendors.length > 0} />
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
+        <div className="rounded-xl border border-border overflow-visible">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/30 border-b border-border">
@@ -674,7 +686,15 @@ export default function VendorPage() {
     return vendors.filter((v) => statuses.includes(v.status));
   }, [vendors, activeTab]);
 
-  const handleAction = (vendor: Vendor, actionLabel: string) => {
+  const handleAction = async (vendor: Vendor, actionLabel: string) => {
+    if (actionLabel === "Resend Invitation") {
+      try {
+        await axiosInstance.post(`/vendors/${vendor.id}/invitations/resend`);
+      } catch (err) {
+        logger.error("Failed to resend invitation", err);
+      }
+      return;
+    }
     router.push(`/vendors/${vendor.id}`);
   };
 
