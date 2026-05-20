@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAxios } from "@/hooks/useAxios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
-import { CheckCircle2, XCircle, AlertCircle, X, FileText } from "lucide-react";
+import { CheckCircle2, XCircle, X, FileText } from "lucide-react";
 
 export default function VendorDetailsPage() {
   const { vendorId } = useParams() as { vendorId: string };
@@ -33,30 +33,18 @@ export default function VendorDetailsPage() {
   };
 
   useEffect(() => {
-    if (vendorId) {
-      fetchVendor();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (vendorId) fetchVendor();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId]);
 
   const handleDecision = async (decision: "approved" | "rejected", customNote?: string) => {
     if (!vendor) return;
     setIsSubmitting(true);
-    
-    // Default approve note if not provided
     const note = customNote || (decision === "approved" ? "KYC and banking details reviewed." : `Vendor ${decision} by admin.`);
-    
     try {
-      await axiosInstance.patch(`/vendors/${vendorId}/review`, {
-        decision,
-        decisionNote: note,
-      });
+      await axiosInstance.patch(`/vendors/${vendorId}/review`, { decision, decisionNote: note });
       fetchVendor();
-      if (decision === "rejected") {
-        setRejectModalOpen(false);
-        setRejectReason("");
-      }
-
+      if (decision === "rejected") { setRejectModalOpen(false); setRejectReason(""); }
     } catch (err) {
       logger.error(`Failed to ${decision} vendor`, err);
     } finally {
@@ -67,9 +55,7 @@ export default function VendorDetailsPage() {
   const handleStatusUpdate = async (statusPayload: "Active" | "Inactive") => {
     setIsSubmitting(true);
     try {
-      await axiosInstance.patch(`/vendors/${vendorId}/status`, {
-        status: statusPayload,
-      });
+      await axiosInstance.patch(`/vendors/${vendorId}/status`, { status: statusPayload });
       fetchVendor();
     } catch (err) {
       logger.error(`Failed to update vendor status to ${statusPayload}`, err);
@@ -109,19 +95,20 @@ export default function VendorDetailsPage() {
   }
 
   if (!vendor) {
-    return (
-      <div>
-        <p className="text-muted-foreground">Vendor not found.</p>
-      </div>
-    );
+    return <div><p className="text-muted-foreground">Vendor not found.</p></div>;
   }
 
-  const isUnderReview = vendor.approvalStatus === "pending" && vendor.onboardingStatus === "submitted";
-  const isInvited = vendor.approvalStatus === "pending" && vendor.onboardingStatus !== "submitted";
-  const isActive = vendor.approvalStatus === "approved" && vendor.status === "Active";
-  const isInactive = vendor.approvalStatus === "approved" && vendor.status === "Inactive";
-  const isApproved = vendor.approvalStatus === "approved" && !isActive && !isInactive;
-  const isRejected = vendor.approvalStatus === "rejected";
+  const rawStatus        = (vendor.status        || "").toLowerCase();
+  const onboardingStatus = vendor.onboardingStatus || "";
+  const approvalStatus   = vendor.approvalStatus  || "";
+
+  const isInvited     = approvalStatus === "pending" && onboardingStatus === "invited";
+  const isOnboarding  = approvalStatus === "pending" && !["invited", "submitted"].includes(onboardingStatus);
+  const isUnderReview = approvalStatus === "pending" && onboardingStatus === "submitted";
+  const isRejected    = approvalStatus === "rejected";
+  const isApproved    = approvalStatus === "approved";
+  const isActive      = approvalStatus === "approved" && rawStatus === "active";
+  const isDeactivated = approvalStatus === "approved" && rawStatus !== "active";
 
   const hasBankMismatch = !vendor.bankName || !vendor.bankAccountNumber;
   const riskLevel = hasBankMismatch ? "High" : "Low";
@@ -134,31 +121,12 @@ export default function VendorDetailsPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[#1a202c]">{vendor.legalName || vendor.displayName}</h1>
-            {isApproved && (
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-100">
-                Approved
-              </span>
-            )}
-            {isActive && (
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-100">
-                Active
-              </span>
-            )}
-            {isInactive && (
-              <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200">
-                Inactive
-              </span>
-            )}
-            {isRejected && (
-              <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-500 text-xs font-semibold border border-red-100">
-                Rejected
-              </span>
-            )}
-            {isInvited && (
-              <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold border border-gray-200">
-                Invited
-              </span>
-            )}
+            {isOnboarding  && <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-500 text-xs font-semibold border border-blue-100">Onboarding</span>}
+            {isUnderReview && <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-500 text-xs font-semibold border border-amber-100">Under Review</span>}
+            {isActive      && <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-100">Active</span>}
+            {isDeactivated && <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200">Inactive</span>}
+            {isRejected    && <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-500 text-xs font-semibold border border-red-100">Rejected</span>}
+            {isInvited     && <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold border border-gray-200">Invited</span>}
           </div>
           <p className="text-sm text-gray-500 mt-1">{vendor.email}</p>
         </div>
@@ -166,133 +134,121 @@ export default function VendorDetailsPage() {
         <div className="flex items-center gap-3">
           {isUnderReview && (
             <>
-              <button
-                disabled={isSubmitting}
-                onClick={() => setRejectModalOpen(true)}
-                className="px-5 h-10 rounded-xl border border-red-300 text-red-500 font-semibold text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
+              <button disabled={isSubmitting} onClick={() => setRejectModalOpen(true)}
+                className="px-5 h-10 rounded-xl border border-red-300 text-red-500 font-semibold text-sm hover:bg-red-50 transition-colors disabled:opacity-50">
                 Reject vendor
               </button>
-              <button
-                disabled={isSubmitting}
-                onClick={() => setRequestInfoModalOpen(true)}
-                className="px-5 h-10 rounded-xl border border-[#00BFA5] text-[#00BFA5] font-semibold text-sm hover:bg-[#00BFA5]/5 transition-colors disabled:opacity-50"
-              >
+              <button disabled={isSubmitting} onClick={() => setRequestInfoModalOpen(true)}
+                className="px-5 h-10 rounded-xl border border-[#00BFA5] text-[#00BFA5] font-semibold text-sm hover:bg-[#00BFA5]/5 transition-colors disabled:opacity-50">
                 Request Info
               </button>
-              <button
-                disabled={isSubmitting}
-                onClick={() => handleDecision("approved")}
-                className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
+              <button disabled={isSubmitting} onClick={() => handleDecision("approved")}
+                className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
                 {isSubmitting ? "Processing..." : "Approve vendor"}
               </button>
             </>
           )}
-          {isApproved && (
-            <button
-              disabled={isSubmitting}
-              onClick={() => handleStatusUpdate("Active")}
-              className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {isSubmitting ? "Processing..." : "Activate vendor"}
-            </button>
-          )}
           {isActive && (
-            <button
-              disabled={isSubmitting}
-              onClick={() => handleStatusUpdate("Inactive")}
-              className="px-5 h-10 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-opacity disabled:opacity-50"
-            >
+            <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Inactive")}
+              className="px-5 h-10 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors disabled:opacity-50">
               {isSubmitting ? "Processing..." : "Deactivate vendor"}
             </button>
           )}
-          {isInactive && (
-            <button
-              disabled={isSubmitting}
-              onClick={() => handleStatusUpdate("Active")}
-              className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
+          {isDeactivated && (
+            <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Active")}
+              className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
               {isSubmitting ? "Processing..." : "Reactivate vendor"}
             </button>
           )}
-          {isInvited && (
-            <button
-              disabled={isSubmitting}
-              onClick={handleResendInvitation}
-              className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
-            >
+          {(isInvited || isOnboarding) && (
+            <button disabled={isSubmitting} onClick={handleResendInvitation}
+              className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer">
               {isSubmitting ? "Sending..." : "Resend Invitation"}
             </button>
           )}
         </div>
       </div>
 
-      {/* ── Content Grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* ── Content Grid: equal 50/50 columns ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
-        {/* Left Column */}
-        <div className="col-span-1 lg:col-span-6 space-y-6">
+        {/* ══ Left Column ══ */}
+        <div className="space-y-6">
 
-          {/* Identity Verification */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6">
-            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-5">Identity Verification</h2>
-            <div className="space-y-0 divide-y divide-gray-100">
-              <div className="grid grid-cols-2 gap-0 divide-x divide-gray-100">
-                <div className="py-4 pr-4">
-                  <p className="text-xs text-gray-400 mb-1">Business Name</p>
-                  <p className="text-sm font-semibold text-gray-900">{vendor.legalName || "N/A"}</p>
-                </div>
-                <div className="py-4 pl-4">
-                  <p className="text-xs text-gray-400 mb-1">Registration Number</p>
-                  <p className="text-sm font-semibold text-gray-900">{vendor.taxId || "N/A"}</p>
+          {/* Identity Verification
+              FIX: outer padding p-8 → p-6 so inner row cards feel anchored to the container
+              FIX: each field row = ONE unified bordered card (not individual mini-cards)
+              FIX: value font-size text-xl → text-base (matches Figma weight)
+              FIX: labels are sentence-case text-sm, not tiny uppercase  */}
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
+            <h2 className="text-xs font-bold text-[#4A5568] uppercase tracking-widest mb-5">IDENTITY VERIFICATION</h2>
+
+            <div className="space-y-3">
+              {/* Row 1 — single card, two fields inside */}
+              <div className="border border-gray-200 rounded-xl p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Business Name</p>
+                    <p className="text-base font-bold text-[#2D3748]">{vendor.legalName || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Registration Number</p>
+                    <p className="text-base font-bold text-[#2D3748]">{vendor.taxId || "N/A"}</p>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-0 divide-x divide-gray-100">
-                <div className="py-4 pr-4">
-                  <p className="text-xs text-gray-400 mb-1">Bank</p>
-                  <p className="text-sm font-semibold text-gray-900">{vendor.bankName || "N/A"}</p>
-                </div>
-                <div className="py-4 pl-4">
-                  <p className="text-xs text-gray-400 mb-1">Account</p>
-                  <p className="text-sm font-semibold text-gray-900">{vendor.bankAccountNumber || "N/A"}</p>
+
+              {/* Row 2 */}
+              <div className="border border-gray-200 rounded-xl p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Bank</p>
+                    <p className="text-base font-bold text-[#2D3748]">{vendor.bankName || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Account</p>
+                    <p className="text-base font-bold text-[#2D3748]">{vendor.bankAccountNumber || "N/A"}</p>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-0 divide-x divide-gray-100">
-                <div className="py-4 pr-4">
-                  <p className="text-xs text-gray-400 mb-1">Country</p>
-                  <p className="text-sm font-semibold text-gray-900">{vendor.country || "N/A"}</p>
-                </div>
-                <div className="py-4 pl-4">
-                  <p className="text-xs text-gray-400 mb-1">Address</p>
-                  <p className="text-sm font-semibold text-gray-900">{vendor.address || "N/A"}</p>
+
+              {/* Row 3 */}
+              <div className="border border-gray-200 rounded-xl p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Country</p>
+                    <p className="text-base font-bold text-[#2D3748]">{vendor.country || "N/A"}</p>
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className="text-sm text-gray-400 mb-1">Address</p>
+                    <p className="text-base font-bold text-[#2D3748] truncate" title={vendor.address}>
+                      {vendor.address || "N/A"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Verification Documents */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6">
-            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-5">Verification Documents</h2>
+          {/* Verification Documents — outer padding p-8 → p-6 to stay consistent */}
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
+            <h2 className="text-xs font-bold text-[#4A5568] uppercase tracking-widest mb-5">VERIFICATION DOCUMENTS</h2>
             {vendor.documents && vendor.documents.length > 0 ? (
               <div className="space-y-3">
                 {vendor.documents.map((doc: any) => (
-                  <div key={doc.vendorDocumentId} className="flex items-center justify-between p-3.5 rounded-xl border border-gray-100">
+                  <div key={doc.vendorDocumentId}
+                    className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-white">
                     <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#00BFA5] flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="w-4 h-4 text-white" />
+                      <div className="w-9 h-9 rounded-full bg-[#E6F8F5] flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-5 h-5 text-[#00BFA5]" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-900">{doc.originalName || "Document.pdf"}</p>
-                        <p className="text-xs text-gray-400 capitalize">{doc.documentType.replace(/_/g, ' ')}</p>
+                        <p className="text-sm font-semibold text-[#2D3748]">{doc.originalName || "Document.pdf"}</p>
+                        <p className="text-xs text-[#718096] capitalize">{doc.documentType.replace(/_/g, " ")}</p>
                       </div>
                     </div>
-                    <a
-                      href={doc.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-4 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
-                    >
+                    <a href={doc.fileUrl} target="_blank" rel="noreferrer"
+                      className="px-5 py-1.5 rounded-xl border border-[#00BFA5] text-[#00BFA5] text-xs font-bold hover:bg-[#00BFA5]/5 transition-colors">
                       View
                     </a>
                   </div>
@@ -304,41 +260,43 @@ export default function VendorDetailsPage() {
           </div>
         </div>
 
-        {/* Right Column */}
-        <div className="col-span-1 lg:col-span-6 space-y-6">
+        {/* ══ Right Column ══ */}
+        <div className="space-y-6">
 
-          {/* Risk Analysis */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6">
-            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-5">Risk Analysis</h2>
+          {/* Risk Analysis — p-8 → p-6, banner rounded-full → rounded-2xl */}
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
+            <h2 className="text-xs font-bold text-[#4A5568] uppercase tracking-widest mb-5">RISK ANALYSIS</h2>
 
-            <div className="flex items-center gap-3 mb-5">
-              <span className="text-sm font-semibold text-gray-700">Risk Level</span>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${riskLevel === "Low" ? "bg-emerald-500 text-white" : "bg-red-500 text-white"}`}>
+            <div className="flex items-center justify-between mb-5">
+              <span className="text-base font-bold text-[#2D3748]">Risk Level</span>
+              <span className={`px-4 py-1 rounded-lg text-sm font-bold ${riskLevel === "Low" ? "bg-[#48BB78] text-white" : "bg-red-500 text-white"}`}>
                 {riskLevel}
               </span>
             </div>
 
-            {riskLevel === "High" ? (
-              <div className="bg-red-50 text-red-500 rounded-xl p-3.5 flex items-center gap-2 mb-5 border border-red-100">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span className="text-sm font-medium">Bank name mismatch</span>
-              </div>
-            ) : (
-              <div className="bg-emerald-50 text-emerald-600 rounded-xl p-3.5 flex items-center gap-2 mb-5 border border-emerald-100">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span className="text-sm font-medium">The account details match</span>
-              </div>
-            )}
+            {/* FIX: was rounded-full (pill), Figma shows rounded-2xl banner */}
+            <div className={`rounded-2xl px-5 py-3.5 flex items-center gap-3 mb-7 ${
+              riskLevel === "High"
+                ? "bg-red-50 text-red-500 border border-red-100"
+                : "bg-[#F0FFF4] text-[#48BB78] border border-[#C6F6D5]"
+            }`}>
+              {riskLevel === "High"
+                ? <XCircle className="w-5 h-5 shrink-0" />
+                : <CheckCircle2 className="w-5 h-5 shrink-0" />
+              }
+              <span className="text-sm font-semibold">
+                {riskLevel === "High" ? "Bank name mismatch" : "The account details match"}
+              </span>
+            </div>
 
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Check Passed</h3>
-            <div className="space-y-3">
+            <h3 className="text-xs font-bold text-[#A0AEC0] uppercase tracking-widest mb-4">CHECK PASSED</h3>
+            <div className="space-y-4">
               <div className="flex items-center gap-3">
-                {riskLevel === "High" ? (
-                  <XCircle className="w-5 h-5 text-red-500 shrink-0" />
-                ) : (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                )}
-                <span className="text-sm font-medium text-gray-700">
+                {riskLevel === "High"
+                  ? <XCircle className="w-5 h-5 text-red-500 shrink-0" />
+                  : <CheckCircle2 className="w-5 h-5 text-[#48BB78] shrink-0" />
+                }
+                <span className="text-sm font-semibold text-[#4A5568]">
                   Bank account {riskLevel === "High" ? "unverified" : "verified"}
                 </span>
                 {riskLevel === "High" && (
@@ -348,44 +306,42 @@ export default function VendorDetailsPage() {
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                <span className="text-sm font-medium text-gray-700">Business registration confirmed</span>
+                <CheckCircle2 className="w-5 h-5 text-[#48BB78] shrink-0" />
+                <span className="text-sm font-semibold text-[#4A5568]">Business registration confirmed</span>
               </div>
             </div>
           </div>
 
           {/* Vendor Note */}
-          {((isUnderReview || isRejected || isApproved) && vendor.decisionNote) ? (
-            <div className="bg-[#E6F8F5] rounded-2xl border border-[#00BFA5]/20 p-6">
-              <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Vendor Note</h2>
-              <p className="text-sm text-gray-700 leading-relaxed">
-                {vendor.decisionNote}
-              </p>
+          {((isUnderReview || isRejected || isApproved) && vendor.decisionNote) && (
+            <div className="bg-[#E6F8F5] rounded-3xl border border-[#00BFA5]/20 p-6 shadow-sm">
+              <h2 className="text-xs font-bold text-[#4A5568] uppercase tracking-widest mb-4">VENDOR NOTE</h2>
+              <p className="text-sm text-[#2D3748] leading-relaxed font-medium">{vendor.decisionNote}</p>
             </div>
-          ) : null}
+          )}
 
-          {/* Recent Transactions (Active & Inactive states) */}
-          {(isActive || isInactive) && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          {/* Recent Transactions — p-8 → p-6; "View all" → filled teal button */}
+          {(isActive || isDeactivated) && (
+            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Recent Transactions</h2>
+                <h2 className="text-xs font-bold text-[#4A5568] uppercase tracking-widest">RECENT TRANSACTIONS</h2>
                 <button
                   onClick={() => router.push(`/vendors/${vendorId}/transactions`)}
-                  className="px-4 py-1.5 rounded-full bg-[#00BFA5] text-white text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+                  className="px-4 h-9 rounded-xl bg-[#00BFA5] text-white text-sm font-bold hover:opacity-90 transition-opacity"
                 >
                   View all
                 </button>
               </div>
-              <div className="space-y-0 divide-y divide-gray-50">
+              <div className="divide-y divide-gray-100">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} className="flex items-center justify-between py-3.5">
+                  <div key={i} className="flex items-center justify-between py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                        <FileText className="w-4 h-4 text-gray-400" />
+                      <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100">
+                        <FileText className="w-5 h-5 text-gray-300" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-900">In-234-53</p>
-                        <p className="text-xs text-gray-400">Jan 31, 2026</p>
+                        <p className="text-sm font-semibold text-[#2D3748]">In-234-53</p>
+                        <p className="text-xs text-[#A0AEC0]">Jan 31, 2026</p>
                       </div>
                     </div>
                     <span className="text-sm font-bold text-[#00BFA5]">NGN 200,000.0</span>
@@ -397,43 +353,30 @@ export default function VendorDetailsPage() {
         </div>
       </div>
 
-      {/* Request Info Modal */}
+      {/* ── Request Info Modal ── */}
       {requestInfoModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 relative">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">Request Info</h2>
-              <button
-                onClick={() => setRequestInfoModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-              >
+              <button onClick={() => setRequestInfoModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
-
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Message</label>
-              <textarea
-                value={infoMessage}
-                onChange={(e) => setInfoMessage(e.target.value)}
-                placeholder="Enter message here..."
-                rows={5}
-                className="w-full p-4 rounded-xl border border-gray-200 text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#00BFA5] focus:ring-1 focus:ring-[#00BFA5] resize-none"
-              />
+              <textarea value={infoMessage} onChange={(e) => setInfoMessage(e.target.value)}
+                placeholder="Enter message here..." rows={5}
+                className="w-full p-4 rounded-xl border border-gray-200 text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#00BFA5] focus:ring-1 focus:ring-[#00BFA5] resize-none" />
             </div>
-
             <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => setRequestInfoModalOpen(false)}
-                className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors"
-              >
+              <button onClick={() => setRequestInfoModalOpen(false)}
+                className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
-              <button
-                onClick={handleRequestInfo}
-                disabled={!infoMessage.trim()}
-                className="flex-1 h-12 rounded-xl bg-[#66D1C1] text-white font-semibold text-sm hover:bg-[#5bbdb0] transition-colors disabled:opacity-50"
-              >
+              <button onClick={handleRequestInfo} disabled={!infoMessage.trim()}
+                className="flex-1 h-12 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
                 Send message
               </button>
             </div>
@@ -441,44 +384,32 @@ export default function VendorDetailsPage() {
         </div>
       )}
 
-      {/* Reject Vendor Modal */}
+      {/* ── Reject Vendor Modal ── */}
       {rejectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 relative">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">Reject Vendor</h2>
-              <button
-                onClick={() => setRejectModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-              >
+              <button onClick={() => setRejectModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
-
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Reason for Rejection</label>
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="e.g. Bank name mismatch, invalid tax ID, etc."
-                rows={5}
-                className="w-full p-4 rounded-xl border border-gray-200 text-sm placeholder:text-gray-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 resize-none"
-              />
+              <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g. Bank name mismatch, invalid tax ID, etc." rows={5}
+                className="w-full p-4 rounded-xl border border-gray-200 text-sm placeholder:text-gray-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 resize-none" />
               <p className="text-xs text-gray-500 mt-2">This note will be sent to the vendor.</p>
             </div>
-
             <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => setRejectModalOpen(false)}
-                className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors"
-              >
+              <button onClick={() => setRejectModalOpen(false)}
+                className="flex-1 h-12 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
-              <button
-                onClick={() => handleDecision("rejected", rejectReason)}
+              <button onClick={() => handleDecision("rejected", rejectReason)}
                 disabled={!rejectReason.trim() || isSubmitting}
-                className="flex-1 h-12 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors disabled:opacity-50"
-              >
+                className="flex-1 h-12 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors disabled:opacity-50">
                 {isSubmitting ? "Processing..." : "Reject Vendor"}
               </button>
             </div>

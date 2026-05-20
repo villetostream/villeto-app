@@ -379,6 +379,16 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
     return "Company Settings";
   }
 
+  // Procurement sub-routes
+  if (pathname === "/procurement/purchase-request/new") return "New Purchase Request";
+  if (pathname.match(/^\/procurement\/purchase-request\/[^/]+$/)) return "Purchase Request Details";
+  if (pathname.startsWith("/procurement/purchase-request")) return "Purchase Requests";
+  if (pathname.match(/^\/procurement\/purchase-order\/[^/]+$/)) return "Purchase Order Details";
+  if (pathname.startsWith("/procurement/purchase-order")) return "Purchase Orders";
+  if (pathname.match(/^\/procurement\/confirmation\/[^/]+$/)) return "Confirmation Details";
+  if (pathname.startsWith("/procurement/confirmation")) return "Confirmation";
+  if (pathname.startsWith("/procurement")) return "Procurement";
+
   const exactMatch = navigationItems.find((item) => {
     if (item.href === "/dashboard") return pathname === "/dashboard";
     return item.href === pathname;
@@ -413,8 +423,12 @@ export function UserSection() {
   const { action: headerAction, clearAction } = useHeaderActionStore();
 
   useEffect(() => {
+    const isProcurementListPage =
+      pathname === "/procurement/purchase-request" ||
+      pathname === "/procurement/purchase-order" ||
+      pathname === "/procurement/confirmation";
     const isExpensesListPageNow = pathname === "/expenses";
-    if (!isExpensesListPageNow) resetDates();
+    if (!isExpensesListPageNow && !isProcurementListPage) resetDates();
     clearAction();
   }, [pathname, resetDates, clearAction]);
 
@@ -434,19 +448,26 @@ export function UserSection() {
   const isBatchExpensePage          = pathname.match(/^\/expenses\/batch\/[^/]+$/);
   const expenseIdFromPath           = pathname.match(/\/expenses\/(\d+)/)?.[1];
   const isExpensesListPage          = pathname === "/expenses";
+  const isProcurementListPage       = pathname === "/procurement/purchase-request" ||
+                                      pathname === "/procurement/purchase-order" ||
+                                      pathname === "/procurement/confirmation";
   const isUploadReceiptPage         = pathname === "/expenses/new-expense/upload";
   const isNewExpensePage            = pathname === "/expenses/new-expense";
   const isNewReportPage             = pathname === "/expenses/new-report";
   const isViewRolePage              = pathname.startsWith("/people/view-role/");
   const isVendorBulkInvitePage      = pathname === "/vendors/bulk-invite-page";
-  const isVendorDetailPage          = pathname.match(/^\/vendors\/[a-f0-9\-]+$/i);
-  const isVendorTransactionsPage    = pathname.match(/^\/vendors\/[a-f0-9\-]+\/transactions$/i);
+  const isNewPurchaseRequestPage    = pathname === "/procurement/purchase-request/new";
+  const isPurchaseRequestDetailPage = pathname.match(/^\/procurement\/purchase-request\/[^/]+$/) && pathname !== "/procurement/purchase-request/new";
+  const isPODetailPage              = pathname.match(/^\/procurement\/purchase-order\/[^/]+$/);
+  const isConfirmationDetailPage    = pathname.match(/^\/procurement\/confirmation\/[^/]+$/);
 
   const isBackButtonPage =
     isExpenseDetailPage || isAuditTrailPage || isSplitExpensePage ||
     isPersonalExpenseDeletePage || isPersonalExpenseDetailPage || isPersonalExpenseEditPage ||
     isCompanyExpenseDetailPage || isUploadReceiptPage || isNewExpensePage || isNewReportPage ||
-    isBatchExpensePage || isViewRolePage || isVendorBulkInvitePage || isVendorDetailPage || isVendorTransactionsPage ||
+    isBatchExpensePage || isViewRolePage || isVendorBulkInvitePage ||
+    isNewPurchaseRequestPage || !!isPurchaseRequestDetailPage ||
+    !!isPODetailPage || !!isConfirmationDetailPage ||
     pathname === "/people/invite/leadership" ||
     pathname === "/people/invite/employees" ||
     pathname === "/people/create-role";
@@ -505,13 +526,10 @@ export function UserSection() {
       else router.push("/people");
       return;
     }
-    if (isVendorTransactionsPage) {
-      const vid = pathname.match(/^\/vendors\/([a-f0-9\-]+)\/transactions$/i)?.[1];
-      if (vid) router.push(`/vendors/${vid}`);
-      else router.push("/vendors");
-      return;
-    }
-    if (isVendorBulkInvitePage || isVendorDetailPage) { router.push("/vendors"); return; }
+    if (isVendorBulkInvitePage) { router.push("/vendors"); return; }
+    if (isNewPurchaseRequestPage || isPurchaseRequestDetailPage) { router.push("/procurement/purchase-request"); return; }
+    if (isPODetailPage) { router.push("/procurement/purchase-order"); return; }
+    if (isConfirmationDetailPage) { router.push("/procurement/confirmation"); return; }
     router.push("/expenses");
   };
 
@@ -535,8 +553,8 @@ export function UserSection() {
 
       {/* ── Right ── */}
       <div className="flex items-center gap-4">
-        {/* Date range picker — expenses list only */}
-        {isExpensesListPage && (
+        {/* Date range picker — expenses list & procurement list pages */}
+        {(isExpensesListPage || isProcurementListPage) && (
           <DateRangePicker
             fromDate={fromDate ?? undefined}
             toDate={toDate ?? undefined}

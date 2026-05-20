@@ -5,7 +5,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { useTourStore } from "@/stores/useTourStore";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -36,13 +35,14 @@ export function DashboardSidebar() {
   const location = usePathname();
   const searchParams = useSearchParams();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(() => {
-    // Auto-expand Expenses when on any /expenses route
-    if (typeof window !== "undefined" && window.location.pathname.startsWith("/expenses")) {
-      return ["Expenses"];
+    if (typeof window !== "undefined") {
+      const p = window.location.pathname;
+      if (p.startsWith("/expenses"))    return ["Expenses"];
+      if (p.startsWith("/procurement")) return ["Procurement"];
+      if (p.startsWith("/settings"))    return ["Settings"];
     }
     return [];
   });
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const logout = useAuthStore((state) => state.logout);
   const hasPermission = useAuthStore((state) => state.hasPermission);
@@ -58,6 +58,13 @@ export function DashboardSidebar() {
       setOpen(true);
     }
   }, [isTourActive, state, setOpen]);
+
+  // Auto-expand the correct sidebar section when navigating
+  useEffect(() => {
+    if (location.startsWith("/expenses"))    setExpandedMenus(prev => prev.includes("Expenses")    ? prev : [...prev, "Expenses"]);
+    if (location.startsWith("/procurement")) setExpandedMenus(prev => prev.includes("Procurement") ? prev : [...prev, "Procurement"]);
+    if (location.startsWith("/settings"))    setExpandedMenus(prev => prev.includes("Settings")    ? prev : [...prev, "Settings"]);
+  }, [location]);
 
   const { data: companyData, isLoading: isQueryLoading } = useQuery({
     queryKey: ["company", user?.companyId, user?.userId],
@@ -378,7 +385,10 @@ export function DashboardSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              onClick={() => setShowLogoutModal(true)}
+              onClick={() => {
+                logout();
+                router.push("/login");
+              }}
               tooltip="Log Out"
               className="font-normal text-sm text-[#7F7F7F] hover:text-destructive hover:bg-sidebar-accent"
             >
@@ -388,36 +398,6 @@ export function DashboardSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-
-      {/* Logout Confirmation Modal */}
-      {showLogoutModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Log Out</h2>
-            <p className="text-sm text-gray-600 mb-6">Are you sure you want to log out?</p>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors"
-              >
-                No, cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowLogoutModal(false);
-                  logout();
-                  router.push("/login");
-                }}
-                className="flex-1 h-11 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors shadow-sm"
-              >
-                Yes, log out
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </Sidebar>
   );
 }
