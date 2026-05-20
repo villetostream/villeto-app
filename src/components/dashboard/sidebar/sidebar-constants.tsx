@@ -11,6 +11,7 @@ import {
   Setting2,
   Logout,
   DocumentText,
+  Box,
 } from "iconsax-reactjs";
 import { Permission } from "@/actions/auth/auth-permissions";
 import {
@@ -118,6 +119,30 @@ export const navigationItems: NavItem[] = [
     href: "/vendors",
     permission: ["vendors:read"],            // Finance Admin and above
     section: "MANAGEMENT",
+  },
+  {
+    icon: <Box />,
+    label: "Procurement",
+    href: "/procurement/purchase-request",
+    permission: [],
+    section: "MANAGEMENT",
+    subItems: [
+      {
+        label: "Purchase Requests",
+        href: "/procurement/purchase-request",
+        permission: [],
+      },
+      {
+        label: "Purchase Orders",
+        href: "/procurement/purchase-order",
+        permission: [],
+      },
+      {
+        label: "Confirmation",
+        href: "/procurement/confirmation",
+        permission: [],
+      },
+    ],
   },
   {
     icon: <LampOn />,

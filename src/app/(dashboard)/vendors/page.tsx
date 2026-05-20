@@ -27,7 +27,7 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type VendorStatus = "active" | "deactivated" | "pending" | "invited" | "flagged" | "rejected" | "approved";
+type VendorStatus = "active" | "deactivated" | "pending" | "invited" | "onboarding" | "flagged" | "rejected" | "approved";
 
 interface Vendor {
   id: string;
@@ -81,6 +81,12 @@ const STATUS_CONFIG: Record<
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
+  onboarding: {
+    label: "Onboarding",
+    classes: "text-blue-500 bg-blue-50 border border-blue-100",
+    actionLabel: "View Details",
+    actionIcon: <Eye className="w-4 h-4" />,
+  },
   rejected: {
     label: "Rejected",
     classes: "text-red-500 bg-red-50 border border-red-100",
@@ -92,7 +98,7 @@ const STATUS_CONFIG: Record<
 const TAB_STATUS_MAP: Record<string, VendorStatus[] | null> = {
   all: null,
   verified: ["active", "approved"],
-  invited: ["invited"],
+  invited: ["invited", "onboarding"],
   under_review: ["pending"],
   rejected: ["rejected", "flagged"],
 };
@@ -610,21 +616,24 @@ export default function VendorPage() {
       const mappedVendors: Vendor[] = (json.data || []).map((v: any) => {
         let computedStatus: VendorStatus = "invited";
         
-        if (v.approvalStatus === "approved") {
-          if (v.status === "Active") {
-            computedStatus = "active";
-          } else if (v.status === "Inactive") {
-            computedStatus = "deactivated";
-          } else {
-            computedStatus = "approved";
-          }
-        } else if (v.approvalStatus === "rejected") {
+        const { status, onboardingStatus, approvalStatus } = v;
+        const normalizedStatus = (status || "").toLowerCase();
+
+        if (approvalStatus === "rejected") {
           computedStatus = "rejected";
-        } else if (v.approvalStatus === "pending") {
-          if (v.onboardingStatus === "submitted") {
-            computedStatus = "pending";
-          } else {
+        } else if (approvalStatus === "approved") {
+          // With backend Bug #2, approval auto-activates the vendor.
+          // approved + active   → active (show Deactivate)
+          // approved + inactive → deactivated/awaiting reactivation (show Reactivate)
+          computedStatus = normalizedStatus === "active" ? "active" : "deactivated";
+        } else {
+          // approvalStatus === "pending" — use onboardingStatus to distinguish
+          if (onboardingStatus === "invited") {
             computedStatus = "invited";
+          } else if (onboardingStatus === "submitted") {
+            computedStatus = "pending";          // ready for admin review
+          } else {
+            computedStatus = "onboarding";       // in_progress states
           }
         }
         
@@ -673,10 +682,10 @@ export default function VendorPage() {
 
   // Stats
   const stats = useMemo(() => ({
-    total:       vendors.length,
-    verified:    vendors.filter((v) => v.status === "active" || v.status === "verified").length,
-    pending:     vendors.filter((v) => v.status === "under_review").length,
-    rejected:    vendors.filter((v) => v.status === "rejected" || v.status === "flagged").length,
+    total:    vendors.length,
+    verified: vendors.filter((v) => v.status === "active" || v.status === "approved").length,
+    pending:  vendors.filter((v) => v.status === "pending").length,
+    rejected: vendors.filter((v) => v.status === "rejected" || v.status === "flagged").length,
   }), [vendors]);
 
   // Filter vendors by tab
