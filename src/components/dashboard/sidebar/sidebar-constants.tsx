@@ -11,7 +11,7 @@ import {
   Setting2,
   Logout,
   DocumentText,
-  Box,
+  ShoppingCart,
 } from "iconsax-reactjs";
 import { Permission } from "@/actions/auth/auth-permissions";
 import {
@@ -121,7 +121,7 @@ export const navigationItems: NavItem[] = [
     section: "MANAGEMENT",
   },
   {
-    icon: <Box />,
+    icon: <ShoppingCart />,
     label: "Procurement",
     href: "/procurement/purchase-request",
     permission: [],
