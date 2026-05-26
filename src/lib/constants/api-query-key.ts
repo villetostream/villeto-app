@@ -11,5 +11,8 @@ export const QUERY_KEYS = {
   UNINVITED_USERS: "uninvited-users",
   USER: "user",
   EXPENSE_CATEGORIES: "expense-categories",
-  DIRECTORY: "directory"
+  DIRECTORY: "directory",
+  PURCHASE_REQUESTS: "purchase-requests",
+  PURCHASE_REQUEST: "purchase-request",
+  PROCUREMENT_CATEGORIES: "procurement-categories",
 } as const;

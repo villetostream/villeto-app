@@ -135,12 +135,12 @@ export const navigationItems: NavItem[] = [
       {
         label: "Purchase Orders",
         href: "/procurement/purchase-order",
-        permission: [],
+        permission: ["read:users"],
       },
       {
         label: "Confirmation",
         href: "/procurement/confirmation",
-        permission: [],
+        permission: ["read:users"],
       },
     ],
   },

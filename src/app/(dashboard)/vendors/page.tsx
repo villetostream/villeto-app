@@ -487,12 +487,17 @@ function VendorTable({
   vendors,
   isLoading,
   onAction,
+  currentPage,
+  onPageChange,
 }: {
   vendors: Vendor[];
   isLoading: boolean;
   onAction: (v: Vendor, label: string) => void;
+  currentPage: number;
+  onPageChange: (page: number) => void;
 }) {
   const [search, setSearch] = useState("");
+  const itemsPerPage = 10;
 
   const filtered = useMemo(() => {
     if (!search.trim()) return vendors;
@@ -504,6 +509,14 @@ function VendorTable({
         v.regNo.toLowerCase().includes(q),
     );
   }, [vendors, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const paginatedData = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // If search changes, reset page to 1
+  useEffect(() => {
+    onPageChange(1);
+  }, [search, onPageChange]);
 
   if (isLoading) {
     return (
@@ -552,7 +565,7 @@ function VendorTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {filtered.map((v) => (
+              {paginatedData.map((v) => (
                 <tr key={v.id} onClick={() => onAction(v, "View Details")} className="hover:bg-muted/20 transition-colors cursor-pointer">
                   <td className="px-4 py-4 font-semibold text-foreground">{v.vendorName}</td>
                   <td className="px-4 py-4 text-muted-foreground">{v.regNo}</td>
@@ -570,20 +583,29 @@ function VendorTable({
 
           {/* Pagination row */}
           <div className="px-4 py-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground bg-muted/10">
-            <span>Showing 1–{filtered.length} of {filtered.length} entries</span>
+            <span>Showing {paginatedData.length} entries on page {currentPage} of {totalPages}</span>
             <div className="flex items-center gap-1">
-              {["Previous", "1", "Next"].map((p) => (
-                <button
-                  key={p}
-                  className={`px-3 py-1.5 rounded-lg transition-colors ${
-                    p === "1"
-                      ? "bg-primary text-primary-foreground font-semibold"
-                      : "hover:bg-muted/60 text-muted-foreground"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+              <button
+                disabled={currentPage <= 1}
+                onClick={() => onPageChange(currentPage - 1)}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  currentPage <= 1 ? "opacity-50 cursor-not-allowed" : "hover:bg-muted/60 text-muted-foreground"
+                }`}
+              >
+                Previous
+              </button>
+              <button className="px-3 py-1.5 rounded-lg transition-colors bg-primary text-primary-foreground font-semibold">
+                {currentPage}
+              </button>
+              <button
+                disabled={currentPage >= totalPages}
+                onClick={() => onPageChange(currentPage + 1)}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  currentPage >= totalPages ? "opacity-50 cursor-not-allowed" : "hover:bg-muted/60 text-muted-foreground"
+                }`}
+              >
+                Next
+              </button>
             </div>
           </div>
         </div>
@@ -602,6 +624,7 @@ export default function VendorPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [vendors, setVendors]     = useState<Vendor[]>([]);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
+  const [page, setPage] = useState(1);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
 
@@ -622,10 +645,13 @@ export default function VendorPage() {
         if (approvalStatus === "rejected") {
           computedStatus = "rejected";
         } else if (approvalStatus === "approved") {
-          // With backend Bug #2, approval auto-activates the vendor.
-          // approved + active   → active (show Deactivate)
-          // approved + inactive → deactivated/awaiting reactivation (show Reactivate)
-          computedStatus = normalizedStatus === "active" ? "active" : "deactivated";
+          if (normalizedStatus === "active") {
+            computedStatus = "active";
+          } else if (v.deactivatedAt) {
+            computedStatus = "deactivated"; // Stage 6
+          } else {
+            computedStatus = "approved"; // Stage 4
+          }
         } else {
           // approvalStatus === "pending" — use onboardingStatus to distinguish
           if (onboardingStatus === "invited") {
@@ -736,7 +762,7 @@ export default function VendorPage() {
 
   return (
     <div className="space-y-6">
-      <InviteVendorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} onSuccess={fetchVendors} />
+      <InviteVendorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} onSuccess={() => fetchVendors()} />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1.5">
@@ -768,6 +794,8 @@ export default function VendorPage() {
               vendors={tab === activeTab ? filteredByTab : []}
               isLoading={isLoading}
               onAction={handleAction}
+              currentPage={page}
+              onPageChange={(newPage) => setPage(newPage)}
             />
           </TabsContent>
         ))}

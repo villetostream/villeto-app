@@ -106,9 +106,9 @@ export default function VendorDetailsPage() {
   const isOnboarding  = approvalStatus === "pending" && !["invited", "submitted"].includes(onboardingStatus);
   const isUnderReview = approvalStatus === "pending" && onboardingStatus === "submitted";
   const isRejected    = approvalStatus === "rejected";
-  const isApproved    = approvalStatus === "approved";
-  const isActive      = approvalStatus === "approved" && rawStatus === "active";
-  const isDeactivated = approvalStatus === "approved" && rawStatus !== "active";
+  const isApprovedPhase4 = approvalStatus === "approved" && rawStatus !== "active" && !vendor.deactivatedAt;
+  const isDeactivated    = approvalStatus === "approved" && rawStatus !== "active" && !!vendor.deactivatedAt;
+  const isActive         = approvalStatus === "approved" && rawStatus === "active";
 
   const hasBankMismatch = !vendor.bankName || !vendor.bankAccountNumber;
   const riskLevel = hasBankMismatch ? "High" : "Low";
@@ -120,22 +120,23 @@ export default function VendorDetailsPage() {
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-[#1a202c]">{vendor.legalName || vendor.displayName}</h1>
+            <h1 className="text-2xl font-semibold text-foreground">{vendor.legalName || vendor.displayName}</h1>
             {isOnboarding  && <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-500 text-xs font-semibold border border-blue-100">Onboarding</span>}
             {isUnderReview && <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-500 text-xs font-semibold border border-amber-100">Under Review</span>}
             {isActive      && <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-100">Active</span>}
-            {isDeactivated && <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200">Inactive</span>}
+            {isApprovedPhase4 && <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-100">Approved</span>}
+            {isDeactivated && <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200">Deactivated</span>}
             {isRejected    && <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-500 text-xs font-semibold border border-red-100">Rejected</span>}
             {isInvited     && <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold border border-gray-200">Invited</span>}
           </div>
-          <p className="text-sm text-gray-500 mt-1">{vendor.email}</p>
+          <p className="text-sm font-medium text-muted-foreground mt-1">{vendor.email}</p>
         </div>
 
         <div className="flex items-center gap-3">
           {isUnderReview && (
             <>
               <button disabled={isSubmitting} onClick={() => setRejectModalOpen(true)}
-                className="px-5 h-10 rounded-xl border border-red-300 text-red-500 font-semibold text-sm hover:bg-red-50 transition-colors disabled:opacity-50">
+                className="px-5 h-10 rounded-xl border border-destructive text-destructive font-semibold text-sm hover:bg-destructive/10 transition-colors disabled:opacity-50">
                 Reject vendor
               </button>
               <button disabled={isSubmitting} onClick={() => setRequestInfoModalOpen(true)}
@@ -148,15 +149,21 @@ export default function VendorDetailsPage() {
               </button>
             </>
           )}
+          {isApprovedPhase4 && (
+            <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Active")}
+              className="px-5 h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
+              {isSubmitting ? "Processing..." : "Activate vendor"}
+            </button>
+          )}
           {isActive && (
             <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Inactive")}
-              className="px-5 h-10 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors disabled:opacity-50">
+              className="px-5 h-10 rounded-xl bg-transparent border border-destructive text-destructive font-semibold text-sm hover:bg-destructive/5 transition-colors disabled:opacity-50">
               {isSubmitting ? "Processing..." : "Deactivate vendor"}
             </button>
           )}
           {isDeactivated && (
             <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Active")}
-              className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
+              className="px-5 h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
               {isSubmitting ? "Processing..." : "Reactivate vendor"}
             </button>
           )}
@@ -180,82 +187,102 @@ export default function VendorDetailsPage() {
               FIX: each field row = ONE unified bordered card (not individual mini-cards)
               FIX: value font-size text-xl → text-base (matches Figma weight)
               FIX: labels are sentence-case text-sm, not tiny uppercase  */}
-          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
-            <h2 className="text-xs font-bold text-[#4A5568] uppercase tracking-widest mb-5">IDENTITY VERIFICATION</h2>
+          <div className="bg-white rounded-3xl border border-border p-6 shadow-sm">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-5">IDENTITY VERIFICATION</h2>
 
             <div className="space-y-3">
               {/* Row 1 — single card, two fields inside */}
-              <div className="border border-gray-200 rounded-xl p-4">
+              <div className="border border-border/50 rounded-xl p-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Business Name</p>
-                    <p className="text-base font-bold text-[#2D3748]">{vendor.legalName || "N/A"}</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Business Name</p>
+                    <p className="text-sm font-semibold text-foreground">{vendor.legalName || "N/A"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Registration Number</p>
-                    <p className="text-base font-bold text-[#2D3748]">{vendor.taxId || "N/A"}</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Registration Number</p>
+                    <p className="text-sm font-semibold text-foreground">{vendor.taxId || "N/A"}</p>
                   </div>
                 </div>
               </div>
 
               {/* Row 2 */}
-              <div className="border border-gray-200 rounded-xl p-4">
+              <div className="border border-border/50 rounded-xl p-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Bank</p>
-                    <p className="text-base font-bold text-[#2D3748]">{vendor.bankName || "N/A"}</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Bank</p>
+                    <p className="text-sm font-semibold text-foreground">{vendor.bankName || "N/A"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Account</p>
-                    <p className="text-base font-bold text-[#2D3748]">{vendor.bankAccountNumber || "N/A"}</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Account</p>
+                    <p className="text-sm font-semibold text-foreground">{vendor.bankAccountNumber || "N/A"}</p>
                   </div>
                 </div>
               </div>
 
               {/* Row 3 */}
-              <div className="border border-gray-200 rounded-xl p-4">
+              <div className="border border-border/50 rounded-xl p-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Country</p>
-                    <p className="text-base font-bold text-[#2D3748]">{vendor.country || "N/A"}</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Country</p>
+                    <p className="text-sm font-semibold text-foreground">{vendor.country || "N/A"}</p>
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-sm text-gray-400 mb-1">Address</p>
-                    <p className="text-base font-bold text-[#2D3748] truncate" title={vendor.address}>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Address</p>
+                    <p className="text-sm font-semibold text-foreground truncate" title={vendor.address}>
                       {vendor.address || "N/A"}
                     </p>
                   </div>
                 </div>
               </div>
+
+              {/* Row 4: Created & Approved */}
+              {(vendor.createdBy || vendor.approvedBy) && (
+                <div className="border border-border/50 rounded-xl p-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {vendor.createdBy && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-1">Invited By</p>
+                        <p className="text-sm font-semibold text-foreground">{vendor.createdBy.firstName} {vendor.createdBy.lastName}</p>
+                      </div>
+                    )}
+                    {vendor.approvedBy && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-1">Approved By</p>
+                        <p className="text-sm font-semibold text-foreground">{vendor.approvedBy.firstName} {vendor.approvedBy.lastName}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Verification Documents — outer padding p-8 → p-6 to stay consistent */}
-          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
-            <h2 className="text-xs font-bold text-[#4A5568] uppercase tracking-widest mb-5">VERIFICATION DOCUMENTS</h2>
+          <div className="bg-white rounded-3xl border border-border p-6 shadow-sm">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-5">VERIFICATION DOCUMENTS</h2>
             {vendor.documents && vendor.documents.length > 0 ? (
               <div className="space-y-3">
                 {vendor.documents.map((doc: any) => (
                   <div key={doc.vendorDocumentId}
-                    className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-white">
+                    className="flex items-center justify-between p-4 rounded-xl border border-border bg-white">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-[#E6F8F5] flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="w-5 h-5 text-[#00BFA5]" />
+                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-5 h-5 text-primary" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-[#2D3748]">{doc.originalName || "Document.pdf"}</p>
-                        <p className="text-xs text-[#718096] capitalize">{doc.documentType.replace(/_/g, " ")}</p>
+                        <p className="text-sm font-semibold text-foreground">{doc.originalName || "Document.pdf"}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{doc.documentType.replace(/_/g, " ")}</p>
                       </div>
                     </div>
                     <a href={doc.fileUrl} target="_blank" rel="noreferrer"
-                      className="px-5 py-1.5 rounded-xl border border-[#00BFA5] text-[#00BFA5] text-xs font-bold hover:bg-[#00BFA5]/5 transition-colors">
+                      className="px-5 py-1.5 rounded-xl border border-primary text-primary text-xs font-bold hover:bg-primary/5 transition-colors">
                       View
                     </a>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">No documents uploaded.</p>
+              <p className="text-sm font-medium text-muted-foreground">No documents uploaded.</p>
             )}
           </div>
         </div>
@@ -264,11 +291,11 @@ export default function VendorDetailsPage() {
         <div className="space-y-6">
 
           {/* Risk Analysis — p-8 → p-6, banner rounded-full → rounded-2xl */}
-          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
-            <h2 className="text-xs font-bold text-[#4A5568] uppercase tracking-widest mb-5">RISK ANALYSIS</h2>
+          <div className="bg-white rounded-3xl border border-border p-6 shadow-sm">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-5">RISK ANALYSIS</h2>
 
             <div className="flex items-center justify-between mb-5">
-              <span className="text-base font-bold text-[#2D3748]">Risk Level</span>
+              <span className="text-sm font-semibold text-foreground">Risk Level</span>
               <span className={`px-4 py-1 rounded-lg text-sm font-bold ${riskLevel === "Low" ? "bg-[#48BB78] text-white" : "bg-red-500 text-white"}`}>
                 {riskLevel}
               </span>
@@ -289,14 +316,14 @@ export default function VendorDetailsPage() {
               </span>
             </div>
 
-            <h3 className="text-xs font-bold text-[#A0AEC0] uppercase tracking-widest mb-4">CHECK PASSED</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">CHECK PASSED</h3>
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 {riskLevel === "High"
-                  ? <XCircle className="w-5 h-5 text-red-500 shrink-0" />
-                  : <CheckCircle2 className="w-5 h-5 text-[#48BB78] shrink-0" />
+                  ? <XCircle className="w-5 h-5 text-destructive shrink-0" />
+                  : <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
                 }
-                <span className="text-sm font-semibold text-[#4A5568]">
+                <span className="text-sm font-semibold text-foreground">
                   Bank account {riskLevel === "High" ? "unverified" : "verified"}
                 </span>
                 {riskLevel === "High" && (
@@ -306,28 +333,28 @@ export default function VendorDetailsPage() {
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-[#48BB78] shrink-0" />
-                <span className="text-sm font-semibold text-[#4A5568]">Business registration confirmed</span>
+                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                <span className="text-sm font-semibold text-foreground">Business registration confirmed</span>
               </div>
             </div>
           </div>
 
           {/* Vendor Note */}
-          {((isUnderReview || isRejected || isApproved) && vendor.decisionNote) && (
-            <div className="bg-[#E6F8F5] rounded-3xl border border-[#00BFA5]/20 p-6 shadow-sm">
-              <h2 className="text-xs font-bold text-[#4A5568] uppercase tracking-widest mb-4">VENDOR NOTE</h2>
-              <p className="text-sm text-[#2D3748] leading-relaxed font-medium">{vendor.decisionNote}</p>
+          {((isUnderReview || isRejected || isApprovedPhase4 || isActive || isDeactivated) && vendor.decisionNote) && (
+            <div className="bg-primary/5 rounded-3xl border border-primary/20 p-6 shadow-sm">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">VENDOR NOTE</h2>
+              <p className="text-sm text-foreground leading-relaxed font-semibold">{vendor.decisionNote}</p>
             </div>
           )}
 
           {/* Recent Transactions — p-8 → p-6; "View all" → filled teal button */}
-          {(isActive || isDeactivated) && (
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
+          {(isActive || isDeactivated) && !isApprovedPhase4 && (
+            <div className="bg-white rounded-3xl border border-border p-6 shadow-sm">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-xs font-bold text-[#4A5568] uppercase tracking-widest">RECENT TRANSACTIONS</h2>
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">RECENT TRANSACTIONS</h2>
                 <button
                   onClick={() => router.push(`/vendors/${vendorId}/transactions`)}
-                  className="px-4 h-9 rounded-xl bg-[#00BFA5] text-white text-sm font-bold hover:opacity-90 transition-opacity"
+                  className="px-4 h-9 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-opacity"
                 >
                   View all
                 </button>
@@ -340,11 +367,11 @@ export default function VendorDetailsPage() {
                         <FileText className="w-5 h-5 text-gray-300" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-[#2D3748]">In-234-53</p>
-                        <p className="text-xs text-[#A0AEC0]">Jan 31, 2026</p>
+                        <p className="text-sm font-semibold text-foreground">In-234-53</p>
+                        <p className="text-xs font-medium text-muted-foreground">Jan 31, 2026</p>
                       </div>
                     </div>
-                    <span className="text-sm font-bold text-[#00BFA5]">NGN 200,000.0</span>
+                    <span className="text-sm font-bold text-primary">NGN 200,000.0</span>
                   </div>
                 ))}
               </div>

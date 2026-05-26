@@ -460,12 +460,13 @@ export function UserSection() {
   const isPurchaseRequestDetailPage = pathname.match(/^\/procurement\/purchase-request\/[^/]+$/) && pathname !== "/procurement/purchase-request/new";
   const isPODetailPage              = pathname.match(/^\/procurement\/purchase-order\/[^/]+$/);
   const isConfirmationDetailPage    = pathname.match(/^\/procurement\/confirmation\/[^/]+$/);
+  const isVendorDetailPage          = pathname.match(/^\/vendors\/[^/]+$/) && pathname !== "/vendors/bulk-invite-page";
 
   const isBackButtonPage =
     isExpenseDetailPage || isAuditTrailPage || isSplitExpensePage ||
     isPersonalExpenseDeletePage || isPersonalExpenseDetailPage || isPersonalExpenseEditPage ||
     isCompanyExpenseDetailPage || isUploadReceiptPage || isNewExpensePage || isNewReportPage ||
-    isBatchExpensePage || isViewRolePage || isVendorBulkInvitePage ||
+    isBatchExpensePage || isViewRolePage || isVendorBulkInvitePage || !!isVendorDetailPage ||
     isNewPurchaseRequestPage || !!isPurchaseRequestDetailPage ||
     !!isPODetailPage || !!isConfirmationDetailPage ||
     pathname === "/people/invite/leadership" ||
@@ -526,7 +527,7 @@ export function UserSection() {
       else router.push("/people");
       return;
     }
-    if (isVendorBulkInvitePage) { router.push("/vendors"); return; }
+    if (isVendorBulkInvitePage || isVendorDetailPage) { router.push("/vendors"); return; }
     if (isNewPurchaseRequestPage || isPurchaseRequestDetailPage) { router.push("/procurement/purchase-request"); return; }
     if (isPODetailPage) { router.push("/procurement/purchase-order"); return; }
     if (isConfirmationDetailPage) { router.push("/procurement/confirmation"); return; }
