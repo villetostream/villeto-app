@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { Search, Eye, Download } from "lucide-react";
-import { Pagination } from "../purchase-request/page";
+import { Pagination } from "@/components/ui/custom-pagination";
 
 type ConfStatus = "pending" | "full_delivery" | "partial_delivery" | "confirmed" | "rejected" | "flagged";
 

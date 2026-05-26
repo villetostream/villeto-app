@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { Search, Eye, Download, ChevronDown } from "lucide-react";
-import { Pagination } from "../purchase-request/page";
+import { Pagination } from "@/components/ui/custom-pagination";
 
 type POStatus = "pending_approval" | "acknowledged" | "ready_for_delivery" | "delivered" | "partial_delivery" | "confirmed";
 

@@ -1,137 +1,75 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
-import { Search, Eye, Download, ChevronDown } from "lucide-react";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export type PRStatus = "pending" | "under_review" | "approved" | "rejected" | "submitted" | "awaiting_review";
-
-export interface PRItem {
-  name: string;
-  description: string;
-  qty: number;
-  unitPrice: number;
-}
-
-export interface PurchaseRequest {
-  id: string;
-  prNumber: string;
-  requester: string;
-  department: string;
-  date: string;
-  status: PRStatus;
-  vendor: string;
-  priority: "low" | "medium" | "high";
-  estDelivery: string;
-  items: PRItem[];
-  totalAmount: number;
-  submittedOn: string;
-}
+import { Search, Eye, Download, ChevronDown, Loader2, RefreshCw, Plus, ArrowRight } from "lucide-react";
+import { useGetPurchaseRequests } from "@/actions/procurement/purchase-requests";
+import type { PRStatus, PRPriority, PurchaseRequest } from "@/actions/procurement/purchase-requests";
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
-export const STATUS_CFG: Record<PRStatus, { label: string; className: string }> = {
-  pending:        { label: "Pending",        className: "text-amber-500" },
-  submitted:      { label: "Submitted",      className: "text-blue-500" },
-  under_review:   { label: "Under Review",   className: "text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full" },
-  awaiting_review:{ label: "Awaiting Review",className: "text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full" },
-  approved:       { label: "Approved",       className: "text-emerald-500" },
-  rejected:       { label: "Rejected",       className: "text-red-500" },
+const STATUS_CFG: Record<string, { label: string; className: string }> = {
+  draft:           { label: "Draft",           className: "text-amber-600 bg-amber-50" },
+  submitted:       { label: "Submitted",       className: "text-blue-600 bg-blue-50" },
+  converted_to_po: { label: "Converted to PO", className: "text-emerald-600 bg-emerald-50" },
+  cancelled:       { label: "Cancelled",       className: "text-red-500 bg-red-50" },
 };
+
+const PRIORITY_CFG: Record<string, { label: string; className: string }> = {
+  low:    { label: "Low",    className: "text-slate-500 bg-slate-100" },
+  medium: { label: "Medium", className: "text-orange-500 bg-orange-50" },
+  urgent: { label: "High",   className: "text-red-500 bg-red-50" },
+};
+
+export function PRStatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CFG[status] || { label: status, className: "text-muted-foreground bg-muted/40" };
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${cfg.className}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function PRPriorityBadge({ priority }: { priority: string }) {
+  const cfg = PRIORITY_CFG[priority] || { label: priority, className: "text-muted-foreground bg-muted/40" };
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+// ─── Tabs config ──────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: "all",             label: "All Requests" },
-  { key: "submitted",       label: "Submitted" },
-  { key: "awaiting_review", label: "Awaiting Review" },
-  { key: "approved",        label: "Approved" },
+  { key: "all",             label: "All Requests",   status: "" },
+  { key: "draft",           label: "Drafts",         status: "draft" },
+  { key: "submitted",       label: "Submitted",      status: "submitted" },
+  { key: "converted_to_po", label: "Converted to PO", status: "converted_to_po" },
+  { key: "cancelled",       label: "Cancelled",      status: "cancelled" },
 ];
 
-const TAB_FILTER: Record<string, PRStatus[] | null> = {
-  all:             null,
-  submitted:       ["submitted", "pending"],
-  awaiting_review: ["under_review", "awaiting_review"],
-  approved:        ["approved"],
-};
-
-// ─── Seed data ─────────────────────────────────────────────────────────────────
-
-const STATUSES: PRStatus[] = ["pending","under_review","pending","approved","pending","under_review","pending","approved","under_review","approved","approved"];
-
-export const SEED_REQUESTS: PurchaseRequest[] = Array.from({ length: 22 }, (_, i) => ({
-  id: `pr-${i + 1}`,
-  prNumber: "PR-882",
-  requester: "John Smith",
-  department: "Product Engineering",
-  date: "26-09-2025",
-  status: STATUSES[i % STATUSES.length],
-  vendor: "ABC Supplies",
-  priority: "medium" as const,
-  estDelivery: "21/05/2026",
-  submittedOn: "2024-03-15",
-  totalAmount: 16000000,
-  items: [
-    { name: "MacBook Pro 2026", description: "14' screen display, 32gb ram and 1tb storage", qty: 10, unitPrice: 400000 },
-    { name: "MacBook Pro 2026", description: "14' screen display, 32gb ram and 1tb storage", qty: 10, unitPrice: 400000 },
-    { name: "MacBook Pro 2026", description: "14' screen display, 32gb ram and 1tb storage", qty: 10, unitPrice: 400000 },
-    { name: "MacBook Pro 2026", description: "14' screen display, 32gb ram and 1tb storage", qty: 10, unitPrice: 400000 },
-  ],
-}));
-
-// ─── Status Badge ─────────────────────────────────────────────────────────────
-
-export function PRStatusBadge({ status }: { status: PRStatus }) {
-  const cfg = STATUS_CFG[status];
-  return <span className={`text-sm font-medium ${cfg.className}`}>{cfg.label}</span>;
-}
+const PRIORITY_OPTIONS = [
+  { label: "All Priorities", value: "" },
+  { label: "Low",    value: "low" },
+  { label: "Medium", value: "medium" },
+  { label: "High",   value: "urgent" },
+];
 
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
-export function Pagination({
-  total, page, perPage, onPage, onPerPage,
-}: { total: number; page: number; perPage: number; onPage: (p: number) => void; onPerPage: (n: number) => void }) {
-  const totalPages = Math.max(1, Math.ceil(total / perPage));
-  const start = Math.min((page - 1) * perPage + 1, total);
-  const end   = Math.min(page * perPage, total);
-  const pageNums = Array.from({ length: Math.min(totalPages, 8) }, (_, i) => i + 1);
+import { Pagination } from "@/components/ui/custom-pagination";
 
-  return (
-    <div className="flex items-center justify-between px-5 py-3 border-t border-border/60 text-sm text-muted-foreground">
-      <div className="flex items-center gap-2">
-        <span>Showing {start}-{end} of {total} entries</span>
-        <div className="relative">
-          <select
-            value={perPage}
-            onChange={e => { onPerPage(Number(e.target.value)); onPage(1); }}
-            className="appearance-none pl-2 pr-6 py-1 rounded border border-border text-sm bg-white cursor-pointer focus:outline-none"
-          >
-            {[4, 10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-          <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none text-muted-foreground" />
-        </div>
-      </div>
-      <div className="flex items-center gap-1">
-        <button onClick={() => onPage(page - 1)} disabled={page <= 1}
-          className="px-3 h-8 rounded border border-border bg-white hover:bg-muted/40 disabled:opacity-40 disabled:cursor-not-allowed text-sm">
-          Previous
-        </button>
-        {pageNums.map(p => (
-          <button key={p} onClick={() => onPage(p)}
-            className={`w-8 h-8 rounded border text-sm font-medium transition-colors ${
-              p === page ? "bg-primary text-white border-primary" : "border-border bg-white hover:bg-muted/40"
-            }`}>
-            {p}
-          </button>
-        ))}
-        <button onClick={() => onPage(page + 1)} disabled={page >= totalPages}
-          className="px-3 h-8 rounded border border-border bg-white hover:bg-muted/40 disabled:opacity-40 disabled:cursor-not-allowed text-sm">
-          Next
-        </button>
-      </div>
-    </div>
-  );
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatDate(dateStr?: string) {
+  if (!dateStr) return "—";
+  try {
+    return new Date(dateStr).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -142,40 +80,54 @@ export default function PurchaseRequestPage() {
 
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch]       = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [priority, setPriority]   = useState("");
+  const [priorityOpen, setPriorityOpen] = useState(false);
   const [page, setPage]           = useState(1);
-  const [perPage, setPerPage]     = useState(11);
+  const [perPage, setPerPage]     = useState(10);
+
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => { setPage(1); }, [activeTab, priority]);
 
   useEffect(() => {
     setAction({ label: "Create Request", onClick: () => router.push("/procurement/purchase-request/new") });
     return () => clearAction();
   }, [setAction, clearAction, router]);
 
-  const filtered = useMemo(() => {
-    let list = SEED_REQUESTS;
-    const statuses = TAB_FILTER[activeTab];
-    if (statuses) list = list.filter(r => statuses.includes(r.status));
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(r =>
-        r.prNumber.toLowerCase().includes(q) ||
-        r.requester.toLowerCase().includes(q) ||
-        r.department.toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [activeTab, search]);
+  const currentTabStatus = TABS.find(t => t.key === activeTab)?.status || "";
 
-  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
-  useEffect(() => { setPage(1); }, [activeTab, search]);
+  const { data, isLoading, isError, refetch } = useGetPurchaseRequests({
+    status: currentTabStatus || undefined,
+    priority: priority || undefined,
+    search: debouncedSearch || undefined,
+  });
+
+  const requests: PurchaseRequest[] = data?.data || [];
+  const meta = data?.meta;
+  const totalCount = meta?.totalCount || requests.length;
+  const totalPages = meta?.totalPages || Math.ceil(totalCount / perPage);
+
+  // Client-side pagination if API doesn't paginate
+  const paginated = useMemo(() => {
+    if (meta) return requests; // Server-side pagination
+    return requests.slice((page - 1) * perPage, page * perPage);
+  }, [requests, page, perPage, meta]);
+
+  const selectedPriorityLabel = PRIORITY_OPTIONS.find(p => p.value === priority)?.label || "All Priorities";
 
   return (
     <div className="bg-white rounded-2xl border border-border overflow-hidden">
-      {/* Tabs + actions row */}
+      {/* Tabs + filters row */}
       <div className="flex items-center justify-between px-5 pt-4 pb-0">
-        <div className="flex items-center">
+        <div className="flex items-center overflow-x-auto">
           {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === tab.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -184,16 +136,38 @@ export default function PurchaseRequestPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3 pb-1">
+
+        <div className="flex items-center gap-3 pb-1 shrink-0">
+          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search..."
+              placeholder="Search requests..."
               className="pl-9 pr-4 h-9 rounded-lg border border-border text-sm w-52 focus:outline-none focus:border-primary transition-colors bg-white" />
           </div>
+
+          {/* Priority filter */}
+          <div className="relative">
+            <button onClick={() => setPriorityOpen(v => !v)}
+              className="flex items-center gap-2 h-9 px-3 rounded-lg border border-border text-sm bg-white hover:bg-muted/40 transition-colors whitespace-nowrap">
+              {selectedPriorityLabel}
+              <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${priorityOpen ? "rotate-180" : ""}`} />
+            </button>
+            {priorityOpen && (
+              <div className="absolute right-0 top-10 z-50 bg-white border border-border rounded-xl shadow-lg w-40 overflow-hidden">
+                {PRIORITY_OPTIONS.map(p => (
+                  <button key={p.value} onClick={() => { setPriority(p.value); setPriorityOpen(false); }}
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors ${priority === p.value ? "text-primary font-medium" : "text-foreground"}`}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Export */}
           <button className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
-            <Download className="w-4 h-4" />
-            Export
+            <Download className="w-4 h-4" /> Export
           </button>
         </div>
       </div>
@@ -201,38 +175,87 @@ export default function PurchaseRequestPage() {
       <div className="border-b border-border" />
 
       {/* Table */}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border/60">
-            {["Request ID", "Requester", "Department", "Date", "Status", "Action"].map(h => (
-              <th key={h} className="px-5 py-4 text-left text-sm font-semibold text-foreground">{h}</th>
+      {isError ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <p className="text-sm text-muted-foreground">Failed to load purchase requests.</p>
+          <button onClick={() => refetch()} className="flex items-center gap-2 h-9 px-4 rounded-lg border border-border text-sm hover:bg-muted/40 transition-colors">
+            <RefreshCw className="w-4 h-4" /> Retry
+          </button>
+        </div>
+      ) : isLoading ? (
+        <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span className="text-sm">Loading purchase requests...</span>
+        </div>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border/60 bg-muted/5">
+              {["Request No.", "Title", "Department", "Priority", "Expected Date", "Status", "Action"].map(h => (
+                <th key={h} className="px-5 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {paginated.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-5 py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center">
+                      <Search className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">No purchase requests found.</p>
+                    <button onClick={() => router.push("/procurement/purchase-request/new")}
+                      className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity">
+                      <Plus className="w-4 h-4" /> Create your first request
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ) : paginated.map(pr => (
+              <tr key={pr.purchaseRequestId} onClick={() => router.push(`/procurement/purchase-request/${pr.purchaseRequestId}`)} className="border-b border-border/40 hover:bg-muted/20 cursor-pointer transition-colors group">
+                <td className="px-5 py-4 font-semibold text-foreground font-mono text-xs">{pr.requestNumber}</td>
+                <td className="px-5 py-4">
+                  <div>
+                    <p className="font-medium text-foreground">{pr.title}</p>
+                    {pr.description && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px]">{pr.description}</p>}
+                  </div>
+                </td>
+                <td className="px-5 py-4 text-muted-foreground text-sm">{pr.departmentId || "—"}</td>
+                <td className="px-5 py-4"><PRPriorityBadge priority={pr.priority} /></td>
+                <td className="px-5 py-4 text-muted-foreground text-sm whitespace-nowrap">{formatDate(pr.neededByDate)}</td>
+                <td className="px-5 py-4"><PRStatusBadge status={pr.status} /></td>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-1">
+                    {pr.status === "draft" ? (
+                      <button onClick={() => router.push(`/procurement/purchase-request/${pr.purchaseRequestId}`)}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button onClick={() => router.push(`/procurement/purchase-request/${pr.purchaseRequestId}`)}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {paginated.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="px-5 py-16 text-center text-muted-foreground">No purchase requests found.</td>
-            </tr>
-          ) : paginated.map(pr => (
-            <tr key={pr.id} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
-              <td className="px-5 py-4 font-semibold text-foreground">{pr.prNumber}</td>
-              <td className="px-5 py-4 text-foreground">{pr.requester}</td>
-              <td className="px-5 py-4 text-muted-foreground">{pr.department}</td>
-              <td className="px-5 py-4 text-muted-foreground">{pr.date}</td>
-              <td className="px-5 py-4"><PRStatusBadge status={pr.status} /></td>
-              <td className="px-5 py-4">
-                <button onClick={() => router.push(`/procurement/purchase-request/${pr.id}`)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors">
-                  <Eye className="w-4 h-4" />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      )}
 
-      <Pagination total={filtered.length} page={page} perPage={perPage} onPage={setPage} onPerPage={setPerPage} />
+      {!isLoading && !isError && totalCount > 0 && (
+        <Pagination
+          total={totalCount}
+          page={page}
+          perPage={perPage}
+          onPage={setPage}
+          onPerPage={setPerPage}
+          totalPages={totalPages}
+        />
+      )}
     </div>
   );
 }

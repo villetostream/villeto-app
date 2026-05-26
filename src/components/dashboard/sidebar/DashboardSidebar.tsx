@@ -24,6 +24,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../../ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Logout } from "iconsax-reactjs";
 import { NavItem, navigationItems } from "./sidebar-constants";
@@ -51,6 +61,8 @@ export function DashboardSidebar() {
   const axios = useAxios();
   const { state, setOpen } = useSidebar();
   const isTourActive = useTourStore((s) => s.isTourActive);
+
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // ── Force sidebar open for the entire duration of the tour ──
   useEffect(() => {
@@ -385,10 +397,7 @@ export function DashboardSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              onClick={() => {
-                logout();
-                router.push("/login");
-              }}
+              onClick={() => setShowLogoutModal(true)}
               tooltip="Log Out"
               className="font-normal text-sm text-[#7F7F7F] hover:text-destructive hover:bg-sidebar-accent"
             >
@@ -398,6 +407,29 @@ export function DashboardSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
+      <AlertDialog open={showLogoutModal} onOpenChange={setShowLogoutModal}>
+        <AlertDialogContent className="z-[9999]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to log out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Any unsaved changes may be lost. You will need to log in again to access the dashboard.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500 hover:bg-red-600 text-white"
+              onClick={() => {
+                logout();
+                router.push("/login");
+              }}
+            >
+              Log Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   );
 }

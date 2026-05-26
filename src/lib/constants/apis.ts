@@ -62,3 +62,15 @@ export const API_KEYS = {
       `reports/${reportId}/expenses/${expenseId}` as const,
   },
 } as const;
+
+export const PROCUREMENT_KEYS = {
+  PURCHASE_REQUESTS: "procurement/purchase-requests",
+  PURCHASE_REQUEST: (id: string) => `procurement/purchase-requests/${id}` as const,
+  LINE_ITEMS: (purchaseRequestId: string) => `procurement/purchase-requests/${purchaseRequestId}/line-items` as const,
+  LINE_ITEM: (purchaseRequestId: string, lineItemId: string) => `procurement/purchase-requests/${purchaseRequestId}/line-items/${lineItemId}` as const,
+  SUBMIT: (id: string) => `procurement/purchase-requests/${id}/submit` as const,
+  CANCEL: (id: string) => `procurement/purchase-requests/${id}/cancel` as const,
+  CONVERT_TO_PO: (id: string) => `procurement/purchase-requests/${id}/convert-to-po` as const,
+  CATEGORIES: "procurement/categories",
+  CATEGORY: (categoryId: string) => `procurement/categories/${categoryId}` as const,
+} as const;
