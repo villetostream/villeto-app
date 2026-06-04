@@ -691,7 +691,7 @@ export default function PoliciesPage() {
     setIsCategoryDetailsLoading(true);
     setSelectedCategoryDetails(null);
     try {
-      const response = await axios.get(`${API_KEYS.EXPENSE.CATEGORIES}/${categoryId}`);
+      const response = await axios.get(API_KEYS.EXPENSE.CATEGORY_DETAIL(categoryId));
       const payload = response?.data?.data ?? response?.data;
       setSelectedCategoryDetails(payload as ExpenseCategoryDetails);
     } catch {
