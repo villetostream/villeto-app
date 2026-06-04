@@ -117,7 +117,7 @@ const initialState: OnboardingState = {
         { id: '1', name: 'Corporate Cards', color: 'bg-purple-100 !border-purple-600 text-purple-700', selected: false, value: "CORPORATE_CARDS" },
         { id: '2', name: 'Expense Management', color: 'bg-green-100 !border-green-600 text-green-700', selected: false, value: "EXPENSE_MANAGEMENT" },
         { id: '3', name: 'Vendor Payments', color: 'bg-blue-100 !border-blue-600 text-blue-700', selected: false, value: "VENDOR_PAYMENTS" },
-        { id: '4', name: 'Payroll Automation', color: 'bg-pink-100 border-pink-600 text-pink-700', selected: false, value: "PAYROLL_AUTOMATION" },
+        { id: '4', name: 'Procurement', color: 'bg-pink-100 border-pink-600 text-pink-700', selected: false, value: "PROCUREMENT" },
         { id: '5', name: 'Accounts Payable/Receivable', color: 'bg-pink-100 border-pink-600 text-pink-700', selected: false, value: "ACCOUNTS_PAYABLE_RECEIVABLE" },
     ],
 };
