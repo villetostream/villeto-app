@@ -64,10 +64,10 @@ export default function AddCategoryModal({
         setHasInteracted(true);
     };
 
-    const openEditForm = (cat: { id: number; name: string; description: string }) => {
+    const openEditForm = (cat: { id: number | string; name: string; description: string }) => {
         setName(cat.name);
         setDescription(cat.description);
-        setEditingId(cat.id);
+        setEditingId(cat.id as number);
         setShowAddForm(true);
     };
 
@@ -95,7 +95,7 @@ export default function AddCategoryModal({
         // POST new category to API
         try {
             await createCategoryMutation.mutateAsync({
-                categories: [{ name: name.trim(), description: description.trim() }],
+                categories: [{ name: name.trim(), description: description.trim(), module: "expense" }],
             });
             setCategories(prev => [...prev, { id: Date.now(), name: name.trim(), description: description.trim() }]);
             toast.success("Category added!");

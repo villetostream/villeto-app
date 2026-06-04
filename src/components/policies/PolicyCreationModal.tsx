@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useLayoutEffect, useEffect } from "react";
 import {
   X, Plus, ChevronDown, ChevronUp, Loader2, UserCircle, Check, Trash2,
-  MapPin, Users, Building2, Tag, ShieldCheck,
+  MapPin, Users, Building2, Tag, ShieldCheck, Info,
 } from "lucide-react";
 import { useGetCompanyRolesApi } from "@/actions/role/get-all-roles";
 import { useGetExpenseCategoriesApi } from "@/actions/companies/get-expense-categories";
@@ -52,6 +52,8 @@ interface DropdownOption {
   subLabel?: string;
   sideBadge?: string;
   value: string;
+  policyCount?: number;
+  policyNames?: string[];
 }
 
 /*
@@ -112,6 +114,42 @@ function PortalDropdown({
 }
 
 /* ─────────────────────────────────────────────────────────────
+   PolicyPeekPanel — inline panel showing policies on a category
+───────────────────────────────────────────────────────────── */
+function PolicyPeekPanel({
+  categoryName, policyNames, onClose,
+}: {
+  categoryName: string;
+  policyNames: string[];
+  onClose: () => void;
+}) {
+  return (
+    <div className="m-2 mt-1 rounded-xl border border-[#03C3A6]/30 bg-[#03C3A6]/5 p-3">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold text-[#03C3A6] uppercase tracking-widest leading-none mb-0.5">Attached policies</p>
+          <p className="text-xs font-semibold text-gray-800 leading-snug truncate">{categoryName}</p>
+        </div>
+        <button type="button" onClick={onClose}
+          className="w-5 h-5 rounded-full bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center transition-colors shrink-0 mt-0.5">
+          <X className="w-2.5 h-2.5 text-gray-500" />
+        </button>
+      </div>
+      {policyNames.length > 0 && (
+        <ul className="space-y-1">
+          {policyNames.map((name, i) => (
+            <li key={i} className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#03C3A6] shrink-0" />
+              <span className="text-xs text-gray-700 font-medium leading-snug">{name}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
    DropdownList — searchable optional filter input
 ───────────────────────────────────────────────────────────── */
 function DropdownList({
@@ -129,9 +167,11 @@ function DropdownList({
   const searchRef = useRef<HTMLInputElement>(null);
   const [query,  setQuery]  = useState("");
   const [faded,  setFaded]  = useState(false);
+  const [peekOpt, setPeekOpt] = useState<DropdownOption | null>(null);
 
   useLayoutEffect(() => {
     setQuery("");
+    setPeekOpt(null);
     if (searchable) setTimeout(() => searchRef.current?.focus(), 0);
   }, []);
 
@@ -196,6 +236,7 @@ function DropdownList({
           <div className="dp-i p-1.5">
             {filtered.length > 0 ? filtered.map((opt) => {
               const sel = selectedValues.includes(opt.value);
+              const hasPolicy = (opt.policyCount ?? 0) > 0;
               return (
                 <button
                   key={opt.value}
@@ -217,15 +258,50 @@ function DropdownList({
                       <span className="text-xs text-gray-400 text-left leading-snug truncate">{opt.subLabel}</span>
                     )}
                   </div>
-                  {multiSelect ? (
-                    <span className={`w-[18px] h-[18px] rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
-                      sel ? "bg-[#03C3A6] border-[#03C3A6]" : "border-gray-300"
-                    }`}>
-                      {sel && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                    </span>
-                  ) : (
-                    sel && <Check className="w-4 h-4 text-[#03C3A6] shrink-0" strokeWidth={2.5} />
-                  )}
+
+                  {/* Right side: policy badge + info icon + checkbox */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Policy count badge */}
+                    {hasPolicy ? (
+                      <span className="inline-flex items-center h-5 px-2 rounded-full bg-[#03C3A6]/15 text-[#03C3A6] text-[10px] font-semibold gap-1 whitespace-nowrap">
+                        <ShieldCheck className="w-2.5 h-2.5" />
+                        {opt.policyCount} {opt.policyCount === 1 ? "policy" : "policies"}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center h-5 px-2 rounded-full bg-gray-100 text-gray-400 text-[10px] font-medium whitespace-nowrap">
+                        No policy
+                      </span>
+                    )}
+
+                    {/* Info icon — peek attached policies */}
+                    {hasPolicy && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPeekOpt(p => p?.value === opt.value ? null : opt);
+                        }}
+                        className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
+                          peekOpt?.value === opt.value
+                            ? "bg-[#03C3A6] text-white"
+                            : "bg-gray-100 hover:bg-[#03C3A6]/20 text-gray-400 hover:text-[#03C3A6]"
+                        }`}
+                      >
+                        <Info className="w-3 h-3" />
+                      </button>
+                    )}
+
+                    {/* Checkbox / checkmark */}
+                    {multiSelect ? (
+                      <span className={`w-[18px] h-[18px] rounded-md border-2 flex items-center justify-center transition-all ${
+                        sel ? "bg-[#03C3A6] border-[#03C3A6]" : "border-gray-300"
+                      }`}>
+                        {sel && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                      </span>
+                    ) : (
+                      sel && <Check className="w-4 h-4 text-[#03C3A6]" strokeWidth={2.5} />
+                    )}
+                  </div>
                 </button>
               );
             }) : (
@@ -240,6 +316,16 @@ function DropdownList({
             style={{ background: "linear-gradient(to bottom, transparent, white 90%)" }} />
         )}
       </div>
+
+      {/* Policy peek panel — shown inline below the list */}
+      {peekOpt && (
+        <PolicyPeekPanel
+          categoryName={peekOpt.label}
+          policyNames={peekOpt.policyNames ?? []}
+          onClose={() => setPeekOpt(null)}
+        />
+      )}
+
       {footer && <div className="border-t border-gray-100">{footer}</div>}
     </div>
   );
@@ -816,11 +902,21 @@ export default function PolicyCreationModal({
   }, [open, policyId, detailsApi.data]);
 
   const expenseCategoryOptions = useMemo<DropdownOption[]>(() =>
-    (expCatApi.data?.data ?? []).map((c: any) => ({
-      label: c.name,
-      value: c.categoryId ?? c.id ?? c.name,
-      subLabel: c.description || undefined,
-    })), [expCatApi.data?.data]);
+    (expCatApi.data?.data ?? []).map((c: any) => {
+      const policyNames: string[] = Array.isArray(c.policies)
+        ? c.policies.map((p: any) => p.name || p.policyName || "Unnamed policy").filter(Boolean)
+        : [];
+      const policyCount = c.isPolicyAttached
+        ? (policyNames.length > 0 ? policyNames.length : 1)
+        : 0;
+      return {
+        label: c.name,
+        value: c.categoryId ?? c.id ?? c.name,
+        subLabel: c.description || undefined,
+        policyCount,
+        policyNames,
+      };
+    }), [expCatApi.data?.data]);
 
   const roleOptions = useMemo<DropdownOption[]>(() =>
     (rolesApi.data?.data ?? []).map((r: any) => {

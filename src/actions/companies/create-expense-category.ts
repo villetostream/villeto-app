@@ -4,7 +4,9 @@ import { API_KEYS } from "@/lib/constants/apis";
 
 interface ExpenseCategory {
     name: string;
-    description: string;
+    description?: string;
+    module?: string;
+    parentCategoryId?: string;
 }
 
 interface CreateExpenseCategoryPayload {

@@ -48,8 +48,8 @@ export const API_KEYS = {
     LOGO: "companies/logo",
   },
   EXPENSE: {
-    CATEGORIES: "companies/expense/categories",
-    CATEGORIES_WITH_POLICIES: "companies/expense/categories?withPolicies=true",
+    CATEGORIES: "companies/categories?module=expense",
+    CATEGORIES_WITH_POLICIES: "companies/categories?withPolicies=true&module=expense",
     POLICIES: "policy",
     POLICY_BY_ID: (id: string) => `policy/${id}` as const,
     POLICY_ACTION: (id: string, action: "activate" | "deactivate") => `policy/${id}/${action}` as const,
@@ -71,6 +71,6 @@ export const PROCUREMENT_KEYS = {
   SUBMIT: (id: string) => `procurement/purchase-requests/${id}/submit` as const,
   CANCEL: (id: string) => `procurement/purchase-requests/${id}/cancel` as const,
   CONVERT_TO_PO: (id: string) => `procurement/purchase-requests/${id}/convert-to-po` as const,
-  CATEGORIES: "procurement/categories",
-  CATEGORY: (categoryId: string) => `procurement/categories/${categoryId}` as const,
+  CATEGORIES: "companies/categories?module=procurement",
+  CATEGORY: (categoryId: string) => `companies/categories/${categoryId}` as const,
 } as const;
