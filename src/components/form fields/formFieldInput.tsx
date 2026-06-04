@@ -30,7 +30,8 @@ interface FormFieldInputProps {
     | undefined;
   showPasswordToggle?: boolean;
   pattern?: string;
-  prefixIcon?: React.ReactNode; // Add nullable prefixIcon prop
+  prefixIcon?: React.ReactNode;
+  disabled?: boolean;
 }
 
 const FormFieldInput = ({
@@ -43,7 +44,8 @@ const FormFieldInput = ({
   inputMode,
   pattern,
   showPasswordToggle = false,
-  prefixIcon = null, // Default to null
+  prefixIcon = null,
+  disabled = false,
 }: FormFieldInputProps) => {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -73,11 +75,12 @@ const FormFieldInput = ({
                 </div>
               )}
               <Input
-                className={`w-full text-left font-normal rounded-lg h-12 border border-gray-200 ${prefixIcon ? "pl-12" : "pl-4"} pr-4 ${showPasswordToggle && type === "password" ? "pr-10" : ""}`}
+                className={`w-full text-left font-normal rounded-lg h-12 border border-gray-200 ${prefixIcon ? "pl-12" : "pl-4"} pr-4 ${showPasswordToggle && type === "password" ? "pr-10" : ""} ${disabled ? "opacity-60 cursor-not-allowed bg-muted/40" : ""}`}
                 type={inputType}
                 placeholder={placeholder}
                 inputMode={inputMode}
                 pattern={pattern}
+                disabled={disabled}
                 {...field}
                 onChange={(e) => {
                   if (type === "number") {

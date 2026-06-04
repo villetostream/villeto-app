@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card } from '@/components/ui/card';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { ProductLoadingIcon, CreditCardIcon, Invoice04Icon, Store01Icon, Coins01Icon, Invoice03Icon } from '@hugeicons/core-free-icons';
+import { ProductLoadingIcon, CreditCardIcon, Invoice04Icon, Store01Icon, ShoppingCart01Icon, Invoice03Icon } from '@hugeicons/core-free-icons';
 import OnboardingTitle from '@/components/onboarding/_shared/OnboardingTitle';
 import { useRouter } from 'next/navigation';
 import { useUpdateOnboardingProductsApi } from '@/actions/onboarding/update-onboarding-product';
@@ -39,9 +39,9 @@ const products = [
     },
     {
         id: '4',
-        name: 'Payroll Automation',
-        description: 'Seamless employee payouts',
-        icon: Coins01Icon,
+        name: 'Procurement',
+        description: 'Control all your purchases in one place',
+        icon: ShoppingCart01Icon,
         color: 'text-pink-600',
         bgColor: 'bg-pink-50',
     },

@@ -19,9 +19,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useGetExpenseCategoriesApi } from "@/actions/companies/get-expense-categories";
+import { useDeleteCategoryApi } from "@/actions/companies/delete-category";
 import { useGetPoliciesApi } from "@/actions/companies/get-policies";
 import { useGetPolicyDetailsApi } from "@/actions/companies/get-policy-details";
 import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
@@ -111,7 +122,7 @@ function formatUser(userObj: any, fallbackStr?: string) {
 
 /* ─── Expense Category Action Menu ───────────────────────────────────────────── */
 
-function ActionMenu({ onView, onCreatePolicy }: { onView: () => void; onCreatePolicy: () => void }) {
+function ActionMenu({ onView, onCreatePolicy, onDelete }: { onView: () => void; onCreatePolicy: () => void; onDelete: () => void; }) {
   return (
     <div className="flex justify-end">
       <DropdownMenu>
@@ -130,7 +141,7 @@ function ActionMenu({ onView, onCreatePolicy }: { onView: () => void; onCreatePo
           <DropdownMenuItem onClick={onCreatePolicy} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors border-b border-border/50 cursor-pointer">
             <Shield className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Create policy
           </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer text-destructive">
+          <DropdownMenuItem onClick={onDelete} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer text-destructive">
             <Trash2 className="w-[17px] h-[17px] text-destructive shrink-0" strokeWidth={1.5} /> Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -691,13 +702,28 @@ export default function PoliciesPage() {
     setIsCategoryDetailsLoading(true);
     setSelectedCategoryDetails(null);
     try {
-      const response = await axios.get(`${API_KEYS.EXPENSE.CATEGORIES}/${categoryId}`);
+      const response = await axios.get(API_KEYS.EXPENSE.CATEGORY_DETAIL(categoryId));
       const payload = response?.data?.data ?? response?.data;
       setSelectedCategoryDetails(payload as ExpenseCategoryDetails);
     } catch {
       toast.error("Failed to load expense category details");
     } finally {
       setIsCategoryDetailsLoading(false);
+    }
+  };
+
+  const deleteCategoryMutation = useDeleteCategoryApi();
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+
+  const executeDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    try {
+      await deleteCategoryMutation.mutateAsync({ categoryId: categoryToDelete });
+      toast.success("Expense category deleted successfully");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to delete expense category");
+    } finally {
+      setCategoryToDelete(null);
     }
   };
 
@@ -902,6 +928,7 @@ export default function PoliciesPage() {
           <ActionMenu
             onView={() => handleViewCategory(row.original.id)}
             onCreatePolicy={() => setIsCreatePolicyOpen(true)}
+            onDelete={() => setCategoryToDelete(row.original.id)}
           />
         </div>
       ),
@@ -1110,6 +1137,25 @@ export default function PoliciesPage() {
         onSuccess={handleCreated}
         policyId={editingPolicyId}
       />
+
+      <AlertDialog open={categoryToDelete !== null} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
+        <AlertDialogContent className="rounded-xl border-none">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Expense Category?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this category. This action cannot be undone. 
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDeleteCategory} className="bg-red-500 hover:bg-red-600 text-white">
+              {deleteCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AddCategoryModal
         open={isAddCategoryOpen}
         onOpenChange={setIsAddCategoryOpen}

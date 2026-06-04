@@ -10,8 +10,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useCreateExpenseCategoryApi } from "@/actions/companies/create-expense-category";
 import { useGetExpenseCategoriesApi } from "@/actions/companies/get-expense-categories";
+import { useDeleteCategoryApi } from "@/actions/companies/delete-category";
 
 interface AddCategoryModalProps {
     open: boolean;
@@ -71,8 +82,25 @@ export default function AddCategoryModal({
         setShowAddForm(true);
     };
 
-    const handleDelete = (id: number) => {
+    const deleteCategoryMutation = useDeleteCategoryApi();
+    const [categoryToDelete, setCategoryToDelete] = useState<number | string | null>(null);
+
+    const executeDelete = async () => {
+        if (categoryToDelete === null) return;
+        const id = categoryToDelete;
+        
+        if (typeof id === 'string') {
+            try {
+                await deleteCategoryMutation.mutateAsync({ categoryId: id });
+                toast.success("Category deleted!");
+            } catch (error: any) {
+                toast.error(error?.response?.data?.message || "Failed to delete category");
+                setCategoryToDelete(null);
+                return;
+            }
+        }
         setCategories(categories.filter(c => c.id !== id));
+        setCategoryToDelete(null);
     };
 
     const handleSaveCategory = async () => {
@@ -175,7 +203,7 @@ export default function AddCategoryModal({
                                                 <button onClick={() => openEditForm(c)} className="hover:text-gray-700 transition-colors">
                                                     <Pencil className="w-4 h-4 stroke-[1.5]" />
                                                 </button>
-                                                <button onClick={() => handleDelete(c.id as number)} className="text-red-400 hover:text-red-500 transition-colors">
+                                                <button onClick={() => setCategoryToDelete(c.id)} className="text-red-400 hover:text-red-500 transition-colors">
                                                     <Trash2 className="w-4 h-4 stroke-[1.5]" />
                                                 </button>
                                             </div>
@@ -208,6 +236,24 @@ export default function AddCategoryModal({
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={categoryToDelete !== null} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
+                <AlertDialogContent className="rounded-xl border-none">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Category?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete this category. This action cannot be undone. 
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={executeDelete} className="bg-red-500 hover:bg-red-600 text-white">
+                            {deleteCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
                 <DialogContent
