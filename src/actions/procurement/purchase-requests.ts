@@ -319,8 +319,24 @@ export const useConvertToPO = (
 export interface ProcurementCategory {
   categoryId: string;
   name: string;
-  description?: string;
-  subCategories?: ProcurementCategory[];
+  description: string | null;
+  source: string;
+  templateKey: string | null;
+  module: string;
+  isActive: boolean;
+  sortOrder: number;
+  parentCategoryId: string | null;
+  mergedIntoCategoryId: string | null;
+  isPolicyAttached: boolean;
+  policies: unknown[];
+  createdBy: {
+      userId: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      [key: string]: unknown;
+  } | null;
+  children: ProcurementCategory[];
 }
 
 export const useGetProcurementCategories = (
@@ -347,8 +363,23 @@ export const useCreateProcurementCategory = (): UseMutationResult<
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload) => {
-      const res = await axiosInstance.post(PROCUREMENT_KEYS.CATEGORIES, payload);
-      return res.data;
+      const data = {
+        categories: [
+          {
+            name: payload.name,
+            module: "procurement",
+            ...(payload.description ? { description: payload.description } : {}),
+            ...(payload.parentCategoryId ? { parentCategoryId: payload.parentCategoryId } : {}),
+          }
+        ]
+      };
+      const res = await axiosInstance.post(PROCUREMENT_KEYS.CATEGORIES, data);
+      
+      const responseData = res.data;
+      if (Array.isArray(responseData.data)) {
+         responseData.data = responseData.data[0];
+      }
+      return responseData;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEYS.PROCUREMENT_CATEGORIES] });

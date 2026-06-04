@@ -4,9 +4,26 @@ import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/lib/constants/api-query-key";
 
 export interface ExpenseCategory {
-    id: string | number;
+    categoryId: string;
     name: string;
-    description: string;
+    description: string | null;
+    source: "custom" | "default" | string;
+    templateKey: string | null;
+    module: "expense" | "both" | string;
+    isActive: boolean;
+    sortOrder: number;
+    parentCategoryId: string | null;
+    mergedIntoCategoryId: string | null;
+    isPolicyAttached: boolean;
+    policies: unknown[];
+    createdBy: {
+        userId: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        [key: string]: unknown;
+    } | null;
+    children: ExpenseCategory[];
 }
 
 interface Response {

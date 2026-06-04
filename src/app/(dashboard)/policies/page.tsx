@@ -1029,15 +1029,45 @@ export default function PoliciesPage() {
 
         {/* ════ EXPENSE CATEGORY TAB ════ */}
         {activeTab === "expense" && (
-        <div className="flex-1 border-t border-border overflow-hidden flex flex-col">
-            <DataTable
-              data={filteredCategories}
-              columns={columns}
-              height="auto"
-              onRowClick={(row) => handleViewCategory(row.id)}
-              paginationProps={{ ...expenseTableProps.paginationProps, total: filteredCategories.length }}
-            />
-          </div>
+          <>
+            {expCatApi.isLoading ? (
+              <div className="border-t border-border flex justify-center items-center py-20 px-6">
+                <div className="flex flex-col items-center gap-4 text-muted-foreground">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
+                  <p className="text-sm font-medium">Fetching categories...</p>
+                </div>
+              </div>
+            ) : liveExpenseCategories.length === 0 ? (
+              <div className="border-t border-border flex justify-center items-center py-10 px-6">
+                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-border bg-primary/[0.02] py-10 px-8 flex flex-col items-center text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/[0.06] flex items-center justify-center mb-7">
+                    <Tag className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+                  </div>
+                  <h2 className="text-xl font-bold text-foreground mb-2">No expense categories</h2>
+                  <p className="text-sm text-muted-foreground max-w-xs leading-relaxed mb-9">
+                    Expense categories help you organize and control spending across your company.
+                  </p>
+                  <button
+                    onClick={() => setIsAddCategoryOpen(true)}
+                    className="h-12 px-7 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
+                  >
+                    <PlusCircle className="w-4 h-4" strokeWidth={2} />
+                    Create First Category
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 border-t border-border overflow-hidden flex flex-col">
+                <DataTable
+                  data={filteredCategories}
+                  columns={columns}
+                  height="auto"
+                  onRowClick={(row) => handleViewCategory(row.id)}
+                  paginationProps={{ ...expenseTableProps.paginationProps, total: filteredCategories.length }}
+                />
+              </div>
+            )}
+          </>
         )}
 
         {/* ════ ARCHIVED TAB ════ */}

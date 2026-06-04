@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Pencil, X, ChevronDown, AlertCircle, Loader2,
-  Plus, Trash2, ArrowLeft, CheckCircle2, Calendar as CalendarIcon, Search
+  Plus, Trash2, ArrowLeft, CheckCircle2, Calendar as CalendarIcon
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
@@ -309,7 +309,7 @@ function formatDate(d?: string) {
   catch { return d; }
 }
 
-// ─── Searchable Category Dropdown ─────────────────────────────────────────────
+// ─── Two-Step Category Dropdown ───────────────────────────────────────────────
 
 function CategoryDropdown({
   value, onChange,
@@ -319,39 +319,81 @@ function CategoryDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedName, setSelectedName] = useState("");
+  const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
+  const [newSubName, setNewSubName] = useState("");
+  const [addingNewCat, setAddingNewCat] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const { data: catData, isLoading } = useGetProcurementCategories();
   const createCategory = useCreateProcurementCategory();
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false); setAddingSubFor(null); setAddingNewCat(false); setSearch("");
+      }
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const categories = catData?.data || [];
-  const filtered = categories.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
-  const exactMatch = categories.some(c => c.name.toLowerCase() === search.toLowerCase().trim());
+  useEffect(() => {
+    if (open) setTimeout(() => searchRef.current?.focus(), 50);
+  }, [open]);
 
-  const handleAdd = async () => {
-    if (!search.trim()) return;
+  const rawCategories = catData?.data || [];
+  const q = search.trim().toLowerCase();
+
+  useEffect(() => {
+    if (value && !selectedName) {
+      const all = rawCategories.flatMap(c => [c, ...(c.children || [])]);
+      const found = all.find(c => c.categoryId === value);
+      if (found) setSelectedName(found.name);
+    }
+  }, [value, rawCategories, selectedName]);
+
+  const searchResults: { id: string; name: string; parentName?: string }[] = q
+    ? rawCategories.flatMap(cat => {
+        const results: { id: string; name: string; parentName?: string }[] = [];
+        if (cat.name.toLowerCase().includes(q)) results.push({ id: cat.categoryId, name: cat.name });
+        (cat.children || []).forEach(sub => {
+          if (sub.name.toLowerCase().includes(q)) results.push({ id: sub.categoryId, name: sub.name, parentName: cat.name });
+        });
+        return results;
+      })
+    : [];
+
+  const close = () => { setOpen(false); setSearch(""); setExpandedId(null); };
+  const handleSelectParent = (id: string, name: string) => { onChange(id, name); setSelectedName(name); close(); };
+  const handleSelectSub = (id: string, name: string) => { onChange(id, name); setSelectedName(name); close(); };
+  const handleSelectResult = (id: string, name: string) => { onChange(id, name); setSelectedName(name); close(); };
+
+  const handleAddSub = async (parentId: string) => {
+    if (!newSubName.trim()) return;
     try {
-      const res = await createCategory.mutateAsync({ name: search.trim() });
+      const res = await createCategory.mutateAsync({ name: newSubName.trim(), parentCategoryId: parentId });
       const newCat = res.data;
       onChange(newCat.categoryId, newCat.name);
       setSelectedName(newCat.name);
-      setOpen(false);
-      setSearch("");
+      setOpen(false); setAddingSubFor(null); setNewSubName("");
+      toast.success(`Subcategory "${newCat.name}" created`);
+    } catch { toast.error("Failed to create subcategory"); }
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCatName.trim()) return;
+    try {
+      const res = await createCategory.mutateAsync({ name: newCatName.trim() });
+      const newCat = res.data;
+      onChange(newCat.categoryId, newCat.name);
+      setSelectedName(newCat.name);
+      setOpen(false); setAddingNewCat(false); setNewCatName("");
       toast.success(`Category "${newCat.name}" created`);
-    } catch {
-      toast.error("Failed to create category");
-    }
+    } catch { toast.error("Failed to create category"); }
   };
 
   return (
@@ -359,44 +401,140 @@ function CategoryDropdown({
       <button type="button" onClick={() => setOpen(v => !v)}
         className="w-full h-11 px-3 rounded-lg border border-border bg-muted/30 text-sm flex items-center justify-between cursor-pointer hover:border-primary/60 focus:outline-none transition-colors">
         <span className={value ? "text-foreground" : "text-muted-foreground"}>
-          {value ? selectedName || "Selected" : "Search category..."}
+          {value ? selectedName || "Selected" : "Select category..."}
         </span>
         <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
+
       {open && (
-        <div className="absolute left-0 right-0 z-50 bg-white border border-border rounded-xl shadow-lg mt-1">
+        <div className="absolute left-0 right-0 z-50 bg-white border border-border rounded-xl shadow-xl mt-1 overflow-hidden">
+          {/* Search bar */}
           <div className="p-2 border-b border-border">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search or type new category..."
-                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-border focus:outline-none focus:border-primary transition-colors" />
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input ref={searchRef} value={search} onChange={e => { setSearch(e.target.value); setExpandedId(null); }}
+                placeholder="Search categories..."
+                className="w-full h-8 pl-8 pr-7 text-sm rounded-md border border-border focus:outline-none focus:border-primary transition-colors bg-white" />
+              {search && (
+                <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
           </div>
-          <div className="max-h-44 overflow-y-auto">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
-            ) : filtered.length === 0 && !search.trim() ? (
-              <p className="text-sm text-muted-foreground px-4 py-3">No categories found</p>
-            ) : (
-              filtered.map(c => (
-                <button key={c.categoryId} type="button"
-                  onClick={() => { onChange(c.categoryId, c.name); setSelectedName(c.name); setOpen(false); setSearch(""); }}
-                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors ${value === c.categoryId ? "text-primary font-medium" : "text-foreground"}`}>
-                  {c.name}
-                </button>
-              ))
-            )}
-          </div>
-          {search.trim() && !exactMatch && (
-            <div className="p-2 border-t border-border">
-              <button type="button" onClick={handleAdd} disabled={createCategory.isPending}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-primary hover:bg-primary/5 transition-colors disabled:opacity-60">
-                {createCategory.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Add "{search.trim()}" as new category
-              </button>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : q ? (
+            <div className="max-h-56 overflow-y-auto py-1">
+              {searchResults.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-muted-foreground">
+                  <span className="block font-medium text-foreground">No matches for "{search}"</span>
+                  <span className="block mt-1">You can easily create it as a new category below, or clear this search to add it as a subcategory to an existing parent.</span>
+                </div>
+              ) : (
+                searchResults.map(r => (
+                  <button key={r.id} type="button" onClick={() => handleSelectResult(r.id, r.name)}
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors flex items-baseline gap-2 ${value === r.id ? "text-primary font-medium" : "text-foreground"}`}>
+                    <span>{r.name}</span>
+                    {r.parentName && <span className="text-xs text-muted-foreground font-normal">in {r.parentName}</span>}
+                  </button>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="max-h-56 overflow-y-auto py-1">
+              {rawCategories.length === 0 ? (
+                <p className="text-sm text-muted-foreground px-4 py-3">No categories yet</p>
+              ) : (
+                rawCategories.map(cat => {
+                  const isExpanded = expandedId === cat.categoryId;
+                  const subs = cat.children || [];
+                  const isSelected = value === cat.categoryId;
+                  return (
+                    <div key={cat.categoryId}>
+                      <div className="flex items-center">
+                        <button type="button"
+                          onClick={() => handleSelectParent(cat.categoryId, cat.name)}
+                          className={`flex-1 text-left px-4 py-2.5 text-sm font-medium hover:bg-muted/40 transition-colors ${isSelected ? "text-primary" : "text-foreground"}`}>
+                          {cat.name}
+                          {isSelected && <span className="ml-2 text-xs font-normal text-muted-foreground">(selected)</span>}
+                        </button>
+                        <button type="button"
+                          onClick={() => setExpandedId(isExpanded ? null : cat.categoryId)}
+                          className={`w-9 h-9 flex items-center justify-center mr-1 rounded-lg transition-colors ${isExpanded ? "text-primary bg-primary/5" : "text-muted-foreground hover:bg-muted/40"}`}
+                          title={`${subs.length} subcategory${subs.length !== 1 ? "s" : ""}`}>
+                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                        </button>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="bg-muted/10 border-t border-b border-border/40">
+                          {subs.map(sub => (
+                            <button key={sub.categoryId} type="button"
+                              onClick={() => handleSelectSub(sub.categoryId, sub.name)}
+                              className={`w-full text-left pl-7 pr-4 py-2 text-sm flex items-center gap-2 hover:bg-muted/40 transition-colors ${value === sub.categoryId ? "text-primary font-medium" : "text-foreground"}`}>
+                              <span className="w-1 h-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                              {sub.name}
+                            </button>
+                          ))}
+                          {addingSubFor === cat.categoryId ? (
+                            <div className="flex items-center gap-1.5 px-4 py-2">
+                              <input autoFocus value={newSubName} onChange={e => setNewSubName(e.target.value)}
+                                onKeyDown={e => { if (e.key === "Enter") handleAddSub(cat.categoryId); if (e.key === "Escape") { setAddingSubFor(null); setNewSubName(""); } }}
+                                placeholder="Subcategory name..."
+                                className="flex-1 h-7 px-2 text-sm rounded border border-primary/50 focus:outline-none focus:border-primary transition-colors bg-white" />
+                              <button type="button" onClick={() => handleAddSub(cat.categoryId)}
+                                disabled={createCategory.isPending || !newSubName.trim()}
+                                className="h-7 px-2.5 rounded bg-primary text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-1">
+                                {createCategory.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add"}
+                              </button>
+                              <button type="button" onClick={() => { setAddingSubFor(null); setNewSubName(""); }}
+                                className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted/60 text-muted-foreground">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button type="button" onClick={() => { setAddingSubFor(cat.categoryId); setNewSubName(""); }}
+                              className="w-full text-left pl-7 pr-4 py-2 text-xs text-primary/80 hover:text-primary hover:bg-primary/5 flex items-center gap-2 transition-colors">
+                              <Plus className="w-3 h-3" /> Add subcategory
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
+
+          <div className="border-t border-border">
+            {addingNewCat ? (
+              <div className="flex items-center gap-1.5 p-2">
+                <input autoFocus value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") handleAddCategory(); if (e.key === "Escape") { setAddingNewCat(false); setNewCatName(""); } }}
+                  placeholder="New category name..."
+                  className="flex-1 h-8 px-2 text-sm rounded border border-primary/50 focus:outline-none focus:border-primary transition-colors bg-white" />
+                <button type="button" onClick={handleAddCategory}
+                  disabled={createCategory.isPending || !newCatName.trim()}
+                  className="h-8 px-3 rounded bg-primary text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 flex items-center gap-1">
+                  {createCategory.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add"}
+                </button>
+                <button type="button" onClick={() => { setAddingNewCat(false); setNewCatName(""); }}
+                  className="h-8 w-8 flex items-center justify-center rounded hover:bg-muted/60 text-muted-foreground">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setAddingNewCat(true)}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary hover:bg-primary/5 transition-colors">
+                <Plus className="w-4 h-4" /> Add new category
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -579,7 +717,8 @@ export default function PRDetailPage() {
 
   const pr: PurchaseRequest | undefined = data?.data;
   const departments = (deptData?.data || []).map(d => ({ label: d.departmentName, value: d.departmentId }));
-  const categories = catData?.data || [];
+  const rawCategories = catData?.data || [];
+  const categories = rawCategories.flatMap(c => [c, ...(c.children || [])]);
   const currency = pr?.currency || "USD";
 
   const isDraft = pr?.status === "draft";
