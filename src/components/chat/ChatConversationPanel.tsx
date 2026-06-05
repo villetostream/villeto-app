@@ -201,11 +201,11 @@ export function ChatConversationPanel({ conversation, onBack }: Props) {
 
       {/* Input area */}
       <div className="px-4 pb-4 pt-2 flex-shrink-0">
-        <div className="flex items-end gap-2 border border-gray-200 rounded-xl px-3 py-2 bg-white focus-within:border-[#0D9488] transition-colors">
+        <div className="flex items-end gap-2 border border-gray-200 rounded-xl px-3 py-2 bg-white focus-within:border-primary transition-colors">
           {/* Attachment button */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="text-gray-400 hover:text-[#0D9488] transition-colors flex-shrink-0 mb-0.5"
+            className="text-gray-400 hover:text-primary transition-colors flex-shrink-0 mb-0.5"
             aria-label="Add attachment"
             type="button"
           >
@@ -243,7 +243,7 @@ export function ChatConversationPanel({ conversation, onBack }: Props) {
             className={cn(
               "flex-shrink-0 mb-0.5 transition-colors",
               text.trim() || pendingAttachments.length > 0
-                ? "text-[#0D9488]"
+                ? "text-primary"
                 : "text-gray-300"
             )}
             aria-label="Send message"
@@ -274,8 +274,8 @@ function ThreadChip({
       className={cn(
         "px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all",
         selected
-          ? "bg-[#0D9488] border-[#0D9488] text-white"
-          : "border-gray-200 text-gray-600 hover:border-[#0D9488] hover:text-[#0D9488]"
+          ? "bg-primary border-primary text-primary-foreground"
+          : "border-gray-200 text-gray-600 hover:border-primary hover:text-primary"
       )}
     >
       {thread.label}

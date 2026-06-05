@@ -195,8 +195,8 @@ export function ChatWidget() {
         >
           {/* ── Header ── */}
           <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
-            <div className="w-8 h-8 rounded-full bg-[#CCFBF1] flex items-center justify-center">
-              <Messages2 size={16} className="text-[#0D9488]" />
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <Messages2 size={16} className="text-primary" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold text-gray-900">Messages</p>
@@ -392,7 +392,7 @@ function TabButton({
       className={cn(
         "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold border-b-2 transition-colors",
         active
-          ? "border-[#0D9488] text-[#0D9488]"
+          ? "border-primary text-primary"
           : "border-transparent text-gray-500 hover:text-gray-700"
       )}
     >
@@ -440,11 +440,11 @@ function TeamMemberRow({
         )}
       </div>
       {conversation && conversation.unreadCount > 0 ? (
-        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#0D9488] text-white text-[10px] font-semibold flex items-center justify-center flex-shrink-0 mt-1">
+        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center flex-shrink-0 mt-1">
           {conversation.unreadCount}
         </span>
       ) : conversation ? (
-        <span className="w-2 h-2 rounded-full bg-[#0D9488] flex-shrink-0 mt-2" />
+        <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />
       ) : null}
     </button>
   );
@@ -470,7 +470,7 @@ function VendorRow({
         <p className="text-[11px] text-gray-500">{vendor.code}</p>
       </div>
       {vendor.unreadCount && vendor.unreadCount > 0 ? (
-        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#0D9488] text-white text-[10px] font-semibold flex items-center justify-center flex-shrink-0">
+        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center flex-shrink-0">
           {vendor.unreadCount}
         </span>
       ) : null}
@@ -551,7 +551,7 @@ function VendorInboxPanel({
       <div className="px-4 pb-4 flex-shrink-0">
         <button
           onClick={onNewConversation}
-          className="w-full py-2.5 rounded-xl bg-[#0D9488] text-white text-sm font-semibold hover:bg-[#0f766e] transition-colors flex items-center justify-center gap-2"
+          className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
         >
           <Add size={16} />
           Start a new conversation
@@ -581,8 +581,8 @@ function ThreadRow({
       onClick={onClick}
       className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors text-left border border-gray-100 mb-1"
     >
-      <div className="w-8 h-8 rounded-full bg-[#F0FDF4] flex items-center justify-center flex-shrink-0 mt-0.5">
-        <Messages2 size={14} className="text-[#0D9488]" />
+      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Messages2 size={14} className="text-primary" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -611,7 +611,7 @@ function ThreadRow({
         )}
       </div>
       {unread && unread > 0 ? (
-        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#0D9488] text-white text-[10px] font-semibold flex items-center justify-center flex-shrink-0">
+        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center flex-shrink-0">
           {unread}
         </span>
       ) : null}
