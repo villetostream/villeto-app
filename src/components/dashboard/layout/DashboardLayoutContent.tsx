@@ -22,6 +22,7 @@ import DashboardModals from "@/components/dashboard/layout/DashboardModals";
 import VilletoTourGuide from "@/components/tour/VilletoTourGuide";
 import VilletoSetupGuide from "@/components/tour/VilletoSetupGuide";
 import { useTourStore } from "@/stores/useTourStore";
+import { ChatPortal } from "@/components/chat";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -125,6 +126,7 @@ export default function DashboardLayoutContent({
        * Activates AFTER SetPasswordModal closes (via setupGuideReady flag).
        */}
       <VilletoSetupGuide />
+      <ChatPortal />
     </div>
   );
 }

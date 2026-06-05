@@ -98,10 +98,6 @@ function CategoryDropdown({
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedName, setSelectedName] = useState("");
-  const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
-  const [newSubName, setNewSubName] = useState("");
-  const [addingNewCat, setAddingNewCat] = useState(false);
-  const [newCatName, setNewCatName] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -112,8 +108,6 @@ function CategoryDropdown({
     const h = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
-        setAddingSubFor(null);
-        setAddingNewCat(false);
         setSearch("");
       }
     };
@@ -156,27 +150,7 @@ function CategoryDropdown({
   const handleSelectSub = (id: string, name: string) => { onChange(id, name); setSelectedName(name); close(); };
   const handleSelectResult = (id: string, name: string) => { onChange(id, name); setSelectedName(name); close(); };
 
-  const handleAddSub = async (parentId: string) => {
-    if (!newSubName.trim()) return;
-    try {
-      const res = await createCategory.mutateAsync({ name: newSubName.trim(), parentCategoryId: parentId });
-      const newCat = res.data;
-      onChange(newCat.categoryId, newCat.name); setSelectedName(newCat.name);
-      close(); setAddingSubFor(null); setNewSubName("");
-      toast.success(`Subcategory "${newCat.name}" created`);
-    } catch { toast.error("Failed to create subcategory"); }
-  };
 
-  const handleAddCategory = async () => {
-    if (!newCatName.trim()) return;
-    try {
-      const res = await createCategory.mutateAsync({ name: newCatName.trim() });
-      const newCat = res.data;
-      onChange(newCat.categoryId, newCat.name); setSelectedName(newCat.name);
-      close(); setAddingNewCat(false); setNewCatName("");
-      toast.success(`Category "${newCat.name}" created`);
-    } catch { toast.error("Failed to create category"); }
-  };
 
   return (
     <div className="relative" ref={ref}>
@@ -213,9 +187,8 @@ function CategoryDropdown({
             /* ── Search results (flat) ── */
             <div className="max-h-56 overflow-y-auto py-1">
               {searchResults.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-muted-foreground">
+                <div className="px-4 py-3 text-sm text-muted-foreground text-center">
                   <span className="block font-medium text-foreground">No matches for "{search}"</span>
-                  <span className="block mt-1">You can easily create it as a new category below, or clear this search to add it as a subcategory to an existing parent.</span>
                 </div>
               ) : (
                 searchResults.map(r => (
@@ -261,28 +234,7 @@ function CategoryDropdown({
                               {sub.name}
                             </button>
                           ))}
-                          {addingSubFor === cat.categoryId ? (
-                            <div className="flex items-center gap-1.5 px-4 py-2">
-                              <input autoFocus value={newSubName} onChange={e => setNewSubName(e.target.value)}
-                                onKeyDown={e => { if (e.key === "Enter") handleAddSub(cat.categoryId); if (e.key === "Escape") { setAddingSubFor(null); setNewSubName(""); } }}
-                                placeholder="Subcategory name..."
-                                className="flex-1 h-7 px-2 text-sm rounded border border-primary/50 focus:outline-none focus:border-primary transition-colors bg-white" />
-                              <button type="button" onClick={() => handleAddSub(cat.categoryId)}
-                                disabled={createCategory.isPending || !newSubName.trim()}
-                                className="h-7 px-2.5 rounded bg-primary text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-1">
-                                {createCategory.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add"}
-                              </button>
-                              <button type="button" onClick={() => { setAddingSubFor(null); setNewSubName(""); }}
-                                className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted/60 text-muted-foreground">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button type="button" onClick={() => { setAddingSubFor(cat.categoryId); setNewSubName(""); }}
-                              className="w-full text-left pl-7 pr-4 py-2 text-xs text-primary/80 hover:text-primary hover:bg-primary/5 flex items-center gap-2 transition-colors">
-                              <Plus className="w-3 h-3" /> Add subcategory
-                            </button>
-                          )}
+
                         </div>
                       )}
                     </div>
@@ -292,31 +244,7 @@ function CategoryDropdown({
             </div>
           )}
 
-          {/* Add new top-level category */}
-          <div className="border-t border-border">
-            {addingNewCat ? (
-              <div className="flex items-center gap-1.5 p-2">
-                <input autoFocus value={newCatName} onChange={e => setNewCatName(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") handleAddCategory(); if (e.key === "Escape") { setAddingNewCat(false); setNewCatName(""); } }}
-                  placeholder="New category name..."
-                  className="flex-1 h-8 px-2 text-sm rounded border border-primary/50 focus:outline-none focus:border-primary transition-colors bg-white" />
-                <button type="button" onClick={handleAddCategory}
-                  disabled={createCategory.isPending || !newCatName.trim()}
-                  className="h-8 px-3 rounded bg-primary text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 flex items-center gap-1">
-                  {createCategory.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add"}
-                </button>
-                <button type="button" onClick={() => { setAddingNewCat(false); setNewCatName(""); }}
-                  className="h-8 w-8 flex items-center justify-center rounded hover:bg-muted/60 text-muted-foreground">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setAddingNewCat(true)}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary hover:bg-primary/5 transition-colors">
-                <Plus className="w-4 h-4" /> Add new category
-              </button>
-            )}
-          </div>
+
         </div>
       )}
     </div>

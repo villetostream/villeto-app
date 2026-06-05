@@ -199,6 +199,13 @@ export const useOnboardingStore = create<VilletoState & OnboardingState>()(
         {
             name: 'onboarding-storage',
             storage: createJSONStorage(() => sessionStorage),
+            onRehydrateStorage: () => (state) => {
+                if (state && state.villetoProducts) {
+                    state.villetoProducts = state.villetoProducts.map(p => 
+                        p.id === '4' ? { ...p, name: 'Procurement', value: 'PROCUREMENT' } : p
+                    );
+                }
+            }
         }
     )
 );
