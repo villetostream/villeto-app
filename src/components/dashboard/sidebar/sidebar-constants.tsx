@@ -142,6 +142,11 @@ export const navigationItems: NavItem[] = [
         href: "/procurement/confirmation",
         permission: ["read:users"],
       },
+      {
+        label: "Categories",
+        href: "/procurement/categories",
+        permission: ["read:users"],
+      },
     ],
   },
   {

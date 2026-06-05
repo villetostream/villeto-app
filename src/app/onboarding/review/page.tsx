@@ -12,6 +12,11 @@ import OnboardingTitle from "@/components/onboarding/_shared/OnboardingTitle";
 import {
   CheckmarkBadge03Icon,
   PencilEdit02Icon,
+  CreditCardIcon, 
+  Invoice04Icon, 
+  Store01Icon, 
+  ShoppingCart01Icon, 
+  Invoice03Icon
 } from "@hugeicons/core-free-icons";
 import { OwnerCard } from "../leadership/page";
 import { useRouter } from "next/navigation";
@@ -36,6 +41,14 @@ export default function ReviewConfirmation() {
     onboardingId,
   } = useOnboardingStore();
   useHydrateOnboardingData();
+
+  const ICON_MAP: Record<string, any> = {
+    '1': CreditCardIcon,
+    '2': Invoice04Icon,
+    '3': Store01Icon,
+    '4': ShoppingCart01Icon,
+    '5': Invoice03Icon,
+  };
 
   const selectedProducts = villetoProducts.filter((p) => p.selected);
   const router = useRouter();
@@ -272,16 +285,20 @@ export default function ReviewConfirmation() {
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-5">
-            {selectedProducts.map((product) => (
-              <Badge
-                key={product.id}
-                variant="secondary"
-                className={`${product.color} px-5 py-3 text-sm font-medium rounded-[50px]`}
-              >
-                {product.name}
-              </Badge>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-fit">
+            {selectedProducts.map((product) => {
+              const Icon = ICON_MAP[product.id];
+              return (
+                <Badge
+                  key={product.id}
+                  variant="secondary"
+                  className={`${product.color} px-6 py-3.5 text-base font-medium rounded-[50px] flex w-fit items-center gap-3`}
+                >
+                  {Icon && <HugeiconsIcon icon={Icon} className="w-8 h-8 shrink-0" />}
+                  <span>{product.name}</span>
+                </Badge>
+              );
+            })}
           </div>
         </CardContent>
       </Card>

@@ -387,6 +387,7 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
   if (pathname.startsWith("/procurement/purchase-order")) return "Purchase Orders";
   if (pathname.match(/^\/procurement\/confirmation\/[^/]+$/)) return "Confirmation Details";
   if (pathname.startsWith("/procurement/confirmation")) return "Confirmation";
+  if (pathname.startsWith("/procurement/categories")) return "Categories";
   if (pathname.startsWith("/procurement")) return "Procurement";
 
   const exactMatch = navigationItems.find((item) => {
