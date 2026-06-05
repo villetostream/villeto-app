@@ -26,8 +26,8 @@ export function ChatFAB() {
         "flex items-center justify-center",
         "transition-colors duration-200",
         isOpen
-          ? "bg-[#0D9488] text-white"
-          : "bg-[#0D9488] text-white hover:bg-[#0f766e]",
+          ? "bg-primary text-primary-foreground"
+          : "bg-primary text-primary-foreground hover:opacity-90",
       ].join(" ")}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}

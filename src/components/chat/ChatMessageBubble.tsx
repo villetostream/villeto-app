@@ -45,7 +45,7 @@ export function ChatMessageBubble({ message, isOwn, showSender = true }: Props) 
           className={cn(
             "px-3 py-2 rounded-2xl text-sm leading-relaxed",
             isOwn
-              ? "bg-[#134E4A] text-white rounded-tr-sm"
+              ? "bg-primary text-primary-foreground rounded-tr-sm"
               : "bg-gray-100 text-gray-900 rounded-tl-sm"
           )}
         >
@@ -90,7 +90,7 @@ function AttachmentPreview({
       className={cn(
         "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm max-w-[200px]",
         isOwn
-          ? "border-teal-700 bg-[#0f766e] text-white"
+          ? "border-primary/80 bg-primary/95 text-primary-foreground"
           : "border-gray-200 bg-white text-gray-800"
       )}
     >
