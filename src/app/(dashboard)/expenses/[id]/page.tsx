@@ -12,10 +12,9 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { logger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/auth-stores";
-import { canApproveReport } from "@/core/permissions/expensePermissions";
 
 const Page = () => {
-  const { user, hasPermission } = useAuthStore();
+  const { can } = useAuthStore();
   const params = useParams();
   const expenseId = Number(params.id);
   const [currentStatus, setCurrentStatus] = useState<
@@ -97,12 +96,11 @@ const Page = () => {
     .toUpperCase()
     .slice(0, 2);
 
-  // Calculate granular approval rights
-  const isAuthorizedToApprove = canApproveReport(
-    user,
-    hasPermission,
-    expenseData.departmentManagerId // Assumes backend populates this, or similar field
-  );
+  // Authorization: does this user have approval rights?
+  // Workflow state: is the expense in a reviewable status?
+  const isAuthorizedToApprove = can('expense.report', 'approve_department');
+  const canApprove = isAuthorizedToApprove && statusToDisplay === 'pending';
+  const canReject = can('expense.report', 'reject_department') && statusToDisplay === 'pending';
 
   const handleApprove = (note: string) => {
     setCurrentStatus("approved");

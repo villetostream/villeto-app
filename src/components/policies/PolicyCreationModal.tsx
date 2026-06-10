@@ -74,12 +74,13 @@ const RULE_TYPE_LABELS: Record<RuleType, { label: string; amountLabel: string }>
    PortalDropdown — fixed positioning, escapes overflow parents
 ───────────────────────────────────────────────────────────── */
 function PortalDropdown({
-  triggerRef, open, onClose, children,
+  triggerRef, open, onClose, children, minWidth,
 }: {
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  minWidth?: string | number;
 }) {
   const [pos, setPos] = useState<{
     top?: number; bottom?: number; left: number; width: number; maxHeight: number;
@@ -105,7 +106,7 @@ function PortalDropdown({
       <div className="fixed inset-0 z-[60]" onClick={onClose} />
       <div
         className="fixed z-[61] bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden"
-        style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, maxHeight: pos.maxHeight, overflowY: "auto" }}
+        style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, minWidth: minWidth, maxHeight: pos.maxHeight, overflowY: "auto" }}
       >
         {children}
       </div>
@@ -238,12 +239,11 @@ function DropdownList({
               const sel = selectedValues.includes(opt.value);
               const hasPolicy = (opt.policyCount ?? 0) > 0;
               return (
-                <button
+                <div
                   key={opt.value}
-                  type="button"
                   onClick={() => onSelect(opt.value)}
                   style={{ minHeight: 48 }}
-                  className={`w-full flex items-center justify-between gap-3 px-3 rounded-xl text-left transition-colors ${
+                  className={`w-full flex items-center justify-between gap-3 px-3 rounded-xl text-left transition-colors cursor-pointer ${
                     sel ? "bg-[#03C3A6]/10" : "hover:bg-gray-50"
                   }`}
                 >
@@ -262,33 +262,35 @@ function DropdownList({
                   {/* Right side: policy badge + info icon + checkbox */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     {/* Policy count badge */}
-                    {hasPolicy ? (
-                      <span className="inline-flex items-center h-5 px-2 rounded-full bg-[#03C3A6]/15 text-[#03C3A6] text-[10px] font-semibold gap-1 whitespace-nowrap">
-                        <ShieldCheck className="w-2.5 h-2.5" />
-                        {opt.policyCount} {opt.policyCount === 1 ? "policy" : "policies"}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center h-5 px-2 rounded-full bg-gray-100 text-gray-400 text-[10px] font-medium whitespace-nowrap">
-                        No policy
-                      </span>
+                    {opt.policyCount !== undefined && (
+                      hasPolicy ? (
+                        <span className="inline-flex items-center h-5 px-2 rounded-full bg-[#03C3A6]/15 text-[#03C3A6] text-[10px] font-semibold gap-1 whitespace-nowrap">
+                          <ShieldCheck className="w-2.5 h-2.5" />
+                          {opt.policyCount} {opt.policyCount === 1 ? "policy" : "policies"}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center h-5 px-2 rounded-full bg-gray-100 text-gray-400 text-[10px] font-medium whitespace-nowrap">
+                          No policy
+                        </span>
+                      )
                     )}
 
                     {/* Info icon — peek attached policies */}
                     {hasPolicy && (
-                      <button
-                        type="button"
+                      <span
+                        role="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setPeekOpt(p => p?.value === opt.value ? null : opt);
                         }}
-                        className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
+                        className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                           peekOpt?.value === opt.value
                             ? "bg-[#03C3A6] text-white"
                             : "bg-gray-100 hover:bg-[#03C3A6]/20 text-gray-400 hover:text-[#03C3A6]"
                         }`}
                       >
                         <Info className="w-3 h-3" />
-                      </button>
+                      </span>
                     )}
 
                     {/* Checkbox / checkmark */}
@@ -302,7 +304,7 @@ function DropdownList({
                       sel && <Check className="w-4 h-4 text-[#03C3A6]" strokeWidth={2.5} />
                     )}
                   </div>
-                </button>
+                </div>
               );
             }) : (
               <div className="py-5 text-sm text-center text-muted-foreground italic">
@@ -838,10 +840,13 @@ export default function PolicyCreationModal({
   // Step 4 — Approvers (multi-select IDs)
   const [approvers, setApprovers] = useState<string[]>([]);
 
-  const rolesApi         = useGetCompanyRolesApi({ enabled: open });
-  const invitedUsersApi  = useGetInvitedUsersApi({ enabled: open });
-  const departmentsApi   = useGetAllDepartmentsApi({ enabled: open });
-  const expCatApi        = useGetExpenseCategoriesApi({ enabled: open });
+  const can = useAuthStore(state => state.can);
+
+  const rolesApi         = useGetCompanyRolesApi({ enabled: open && can("read", "Role") });
+  const invitedUsersApi  = useGetInvitedUsersApi({ enabled: open && can("read", "People") });
+  const departmentsApi   = useGetAllDepartmentsApi({ enabled: open && can("read", "Department") });
+  // Expense categories are viewed within the context of Expense / Policies.
+  const expCatApi        = useGetExpenseCategoriesApi({ enabled: open && (can("read", "Expense") || can("read", "Policy")) });
 
   const createPolicyMutation = useCreatePolicyApi();
   const updatePolicyMutation = useUpdatePolicyApi();
@@ -1364,7 +1369,7 @@ export default function PolicyCreationModal({
                               className="flex items-center gap-1.5 text-sm font-medium text-[#03C3A6] hover:underline">
                               <Plus className="w-3.5 h-3.5" strokeWidth={2.5} /> Add Another Rule
                             </button>
-                            <PortalDropdown triggerRef={addRuleRef} open={showAddRule} onClose={() => setShowAddRule(false)}>
+                            <PortalDropdown triggerRef={addRuleRef} open={showAddRule} onClose={() => setShowAddRule(false)} minWidth={280}>
                               <DropdownList options={availableRuleTypes} selectedValues={[]} multiSelect={false}
                                 onSelect={(v) => addRule(v as RuleType)} />
                             </PortalDropdown>

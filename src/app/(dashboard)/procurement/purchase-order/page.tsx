@@ -3,6 +3,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
+import { useAuthStore } from "@/stores/auth-stores";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 import { Search, Eye, Download, ChevronDown } from "lucide-react";
 import { Pagination } from "@/components/ui/custom-pagination";
 
@@ -58,18 +60,23 @@ function POStatusBadge({ status }: { status: POStatus }) {
   return <span className={`text-sm font-medium ${cfg.className}`}>{cfg.label}</span>;
 }
 
-export default function PurchaseOrderPage() {
+function PurchaseOrderPage() {
   const router = useRouter();
   const { setAction, clearAction } = useHeaderActionStore();
+  const canCreatePO = useAuthStore(s => s.can)('procurement.purchase_order', 'create');
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch]       = useState("");
   const [page, setPage]           = useState(1);
   const [perPage, setPerPage]     = useState(11);
 
   useEffect(() => {
-    setAction({ label: "Create PO", onClick: () => {} });
+    if (canCreatePO) {
+      setAction({ label: "Create PO", onClick: () => {} });
+    } else {
+      clearAction();
+    }
     return () => clearAction();
-  }, [setAction, clearAction]);
+  }, [setAction, clearAction, canCreatePO]);
 
   const filtered = useMemo(() => {
     let list = SEED_POS;
@@ -142,3 +149,8 @@ export default function PurchaseOrderPage() {
     </div>
   );
 }
+
+export default withPermissions(PurchaseOrderPage, [
+  { resource: "procurement.purchase_order", action: "read_company" },
+  { resource: "procurement.purchase_order", action: "read_own" }
+]);

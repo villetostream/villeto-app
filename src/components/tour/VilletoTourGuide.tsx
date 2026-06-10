@@ -970,7 +970,7 @@ export default function VilletoTourGuide() {
   const isFirstLogin =
     !!user &&
     mountLoginCountRef.current !== null &&
-    mountLoginCountRef.current < 1;
+    mountLoginCountRef.current === 0;
 
   // Exclude only the company founder — the CONTROLLING_OFFICER whose account
   // was created at the same moment as the company (createdAt timestamps match).

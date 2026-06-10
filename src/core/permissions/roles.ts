@@ -1,4 +1,7 @@
 /**
+ * @deprecated Do NOT use these static roles for UI gating, feature tracking, or visibility checks.
+ * Use the dynamic `can(resource, action)` helper from `useAuthStore` exclusively.
+ * 
  * Centralised role name constants — import from here instead of using raw strings.
  * Replaces all scattered "CONTROLLING_OFFICER", "EMPLOYEE", etc. literals.
  */

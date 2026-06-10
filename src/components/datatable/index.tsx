@@ -148,6 +148,9 @@ function DataTable<Data extends object, Value = unknown>(
       : "company"
     : null;
 
+  // Derive scope for company expense row-click navigation
+  const expensesScope = currentTab === "team-expenses" ? "team" : "company";
+
   const memoizedColumns = useMemo(() => columns, [columns]);
   const memoizedData = useMemo(() => data, [data]);
 
@@ -389,7 +392,7 @@ function DataTable<Data extends object, Value = unknown>(
                         }
                       } else {
                         // Company expenses -> Detail page (/expenses/company/[id])
-                        router.push(`/expenses/company/${id}`);
+                        router.push(`/expenses/company/${id}?scope=${expensesScope}`);
                       }
                       }
                     }}

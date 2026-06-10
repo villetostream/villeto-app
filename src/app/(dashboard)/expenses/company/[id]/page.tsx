@@ -4,9 +4,16 @@ import { useParams, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { getStatusIcon } from "@/lib/helper";
 import { CompanyExpenseItemModal } from "@/components/expenses/company/CompanyExpenseItemModal";
-import { CompanyReceiptViewModal } from "@/components/expenses/company/CompanyReceiptViewModal";
+import { ExpenseTimeline } from "@/components/expenses/personal/ExpenseTimeline";
 import type { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
 import {
   useCompanyExpenseDetail,
@@ -17,90 +24,164 @@ import { ExpenseDetailSkeleton } from "@/components/expenses/ExpenseDetailSkelet
 import { useState, useEffect } from "react";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { CheckCircle } from "lucide-react";
+import { Check } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { logger } from "@/lib/logger";
 
+// ─── Status helpers ────────────────────────────────────────────────────────────
+
 const getStatusBadgeVariant = (status: PersonalExpenseStatus) => {
   switch (status) {
-    case "paid":
-      return "paid";
-    case "approved":
-      return "approved";
-    case "pending":
-      return "pending";
-    case "draft":
-      return "draft";
+    case "paid":     return "paid";
+    case "approved": return "approved";
+    case "pending":  return "pending";
+    case "draft":    return "draft";
     case "rejected":
-    case "declined":
-      return "rejected";
-    case "flagged":
-      return "pending";
-    default:
-      return "pending";
+    case "declined": return "rejected";
+    default:         return "pending";
   }
 };
 
 const getStatusColor = (status: PersonalExpenseStatus) => {
   switch (status) {
-    case "paid":
-      return "bg-[#38B2AC] text-white border-0";
-    case "approved":
-      return "bg-purple-100 text-purple-700 border-0";
-    case "pending":
-      return "bg-orange-100 text-orange-700 border-0";
-    case "draft":
-      return "bg-gray-200 text-gray-700 border-0";
+    case "paid":     return "bg-[#38B2AC] text-white border-0";
+    case "approved": return "bg-purple-100 text-purple-700 border-0";
+    case "pending":  return "bg-orange-100 text-orange-700 border-0";
+    case "draft":    return "bg-gray-200 text-gray-700 border-0";
     case "rejected":
-    case "declined":
-      return "bg-red-100 text-red-700 border-0";
-    case "flagged":
-      return "bg-orange-100 text-orange-700 border-0";
-    default:
-      return "bg-gray-200 text-gray-700 border-0";
+    case "declined": return "bg-red-100 text-red-700 border-0";
+    case "flagged":  return "bg-orange-100 text-orange-700 border-0";
+    default:         return "bg-gray-200 text-gray-700 border-0";
   }
 };
 
 const getStatusLabel = (status: PersonalExpenseStatus): string => {
   switch (status) {
-    case "declined":
-      return "Rejected";
-    case "paid":
-      return "Paid Out";
-    case "flagged":
-      return "Flagged";
-    default:
-      return status.charAt(0).toUpperCase() + status.slice(1);
+    case "declined": return "Rejected";
+    case "paid":     return "Paid Out";
+    case "flagged":  return "Flagged";
+    default:         return status.charAt(0).toUpperCase() + status.slice(1);
   }
 };
 
-// Helper function to format date
 const formatDate = (dateString: string): string => {
   try {
     const date = new Date(dateString);
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const year = date.getFullYear();
-    const hours = date.getHours();
+    const month   = String(date.getMonth() + 1).padStart(2, "0");
+    const day     = String(date.getDate()).padStart(2, "0");
+    const year    = date.getFullYear();
+    const hours   = date.getHours();
     const minutes = String(date.getMinutes()).padStart(2, "0");
-    const ampm = hours >= 12 ? "PM" : "AM";
+    const ampm    = hours >= 12 ? "PM" : "AM";
     const displayHours = hours % 12 || 12;
-    
     return `${month}-${day}-${year} ${String(displayHours).padStart(2, "0")}:${minutes} ${ampm}`;
   } catch {
     return dateString;
   }
 };
 
-// Helper for initials
-const getInitials = (name: string) => {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-};
+const getInitials = (name: string) =>
+  name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+
+// ─── Reject reason modal ───────────────────────────────────────────────────────
+
+function RejectReasonModal({
+  open,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+  isLoading: boolean;
+}) {
+  const [reason, setReason] = useState("");
+  const handleClose = () => { setReason(""); onClose(); };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Reject Report</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground -mt-1">
+          Please provide a reason for rejecting this expense. This will be shared with the employee.
+        </p>
+        <div className="space-y-2 mt-1">
+          <label className="text-sm font-medium text-foreground">
+            Enter Rejection Reason <span className="text-destructive">(Required)</span>
+          </label>
+          <Textarea
+            placeholder="Write note here......"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="min-h-[100px] resize-none"
+          />
+        </div>
+        <div className="flex justify-end pt-1">
+          <Button
+            onClick={() => { if (reason.trim()) onConfirm(reason); }}
+            disabled={!reason.trim() || isLoading}
+            className="bg-destructive hover:bg-destructive/90 text-white"
+          >
+            {isLoading ? "Processing..." : "Reject Report"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Feedback modal ────────────────────────────────────────────────────────────
+
+function FeedbackModal({
+  open,
+  onClose,
+  type,
+}: {
+  open: boolean;
+  onClose: () => void;
+  type: "approved" | "rejected";
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-sm">
+        <div className="flex flex-col items-center text-center gap-5 py-4">
+          <div className="relative w-20 h-20">
+            <span className="absolute -top-3 left-0 w-2.5 h-2.5 bg-blue-500 rotate-45 rounded-sm" />
+            <span className="absolute -top-5 left-7 w-2 h-2 bg-orange-400 rounded-sm rotate-12" />
+            <span className="absolute top-0 -right-2 text-green-400 text-xl leading-none">✦</span>
+            <span className="absolute top-8 -right-4 w-1.5 h-5 bg-blue-400 rounded-full rotate-12" />
+            <span className="absolute top-3 -left-5 text-orange-400 text-sm leading-none">✦</span>
+            <span className="absolute -bottom-2 right-1 text-green-400 text-sm leading-none">★</span>
+            <div className="w-20 h-20 rounded-full bg-teal-500 flex items-center justify-center shadow-lg">
+              <Check className="w-9 h-9 text-white" strokeWidth={3} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-lg font-semibold text-foreground">
+              {type === "approved" ? "Expense Approved Successfully" : "Expense Rejected"}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {type === "approved"
+                ? "The expense has been approved and the requester has been notified. You can view this approval in the expense audit trail."
+                : "The expense has been rejected. The requester has been informed and can make corrections or resubmit for approval."}
+            </p>
+          </div>
+          <Button onClick={onClose} className="w-full bg-teal-500 hover:bg-teal-600 text-white">
+            View Audi Trail
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Page ──────────────────────────────────────────────────────────────────────
+
+import { useSearchParams } from "next/navigation";
+import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
 
 interface User {
   firstName: string;
@@ -109,312 +190,280 @@ interface User {
 }
 
 export default function CompanyExpenseDetailPage() {
-  const params = useParams();
-  const router = useRouter();
+  const params  = useParams();
+  const searchParams = useSearchParams();
+  const scope   = (searchParams.get("scope") || "company") as "own" | "team" | "company";
+  const router  = useRouter();
   const reportId = params.id as string;
-  const axios = useAxios();
+  const axios   = useAxios();
   const currencySymbol = useAuthStore((state) => state.getCurrencySymbol());
+  const { can } = useAuthStore();
 
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [overrideUnlocked, setOverrideUnlocked] = useState(false);
+
+  const [user, setUser]               = useState<User | null>(null);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [rejectOpen, setRejectOpen]   = useState(false);
+  const [feedbackModal, setFeedbackModal] = useState<{ open: boolean; type: "approved" | "rejected" } | null>(null);
 
-  // Fetch expense detail from API using React Query
-  const {
-    data: expenseDetail,
-    isLoading,
-    error,
-  } = useCompanyExpenseDetail(reportId);
-
-
-
-  // Mutation for updating status
+  const { data: expenseDetail, isLoading, error } = useCompanyExpenseDetail(reportId);
   const updateStatusMutation = useUpdateCompanyExpenseStatus();
 
-  // Fetch user data
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        setIsLoadingUser(true);
-        const response = await axios.get<{
-          data: User;
-        }>(API_KEYS.USER.ME);
+        const response = await axios.get<{ data: User }>(API_KEYS.USER.ME);
         setUser(response.data.data);
-      } catch (error) {
-        logger.error("Failed to fetch user:", error);
-        setUser(null);
-      } finally {
-        setIsLoadingUser(false);
+      } catch (err) {
+        logger.error("Failed to fetch user:", err);
       }
     };
-
     fetchUser();
   }, [axios]);
 
-  if (isLoading) {
-    return <ExpenseDetailSkeleton />;
-  }
+  if (isLoading) return <ExpenseDetailSkeleton />;
 
   if (error || !expenseDetail) {
     return (
       <div className="max-w-7xl mx-auto space-y-6 p-6">
         <div className="text-center py-12">
-          <h1 className="text-2xl font-semibold text-foreground mb-2">
-            Expense not found
-          </h1>
+          <h1 className="text-2xl font-semibold text-foreground mb-2">Expense not found</h1>
           <p className="text-muted-foreground mb-4">
-            The expense you&apos;re looking for doesn&apos;t exist or failed to
-            load.
+            The expense you&apos;re looking for doesn&apos;t exist or failed to load.
           </p>
         </div>
       </div>
     );
   }
 
-  const reportName = expenseDetail.reportTitle;
-  const reportDate = formatDate(expenseDetail.createdAt);
   const expenses = expenseDetail.expenses || [];
 
-  // Check if we have any expenses
   if (expenses.length === 0) {
     return (
       <div className="max-w-7xl mx-auto space-y-6 p-6">
         <div className="text-center py-12">
-          <h1 className="text-2xl font-semibold text-foreground mb-2">
-            No expenses found
-          </h1>
-          <p className="text-muted-foreground mb-4">
-            This report doesn&apos;t contain any expense items.
-          </p>
+          <h1 className="text-2xl font-semibold text-foreground mb-2">No expenses found</h1>
+          <p className="text-muted-foreground mb-4">This report doesn&apos;t contain any expense items.</p>
         </div>
       </div>
     );
   }
 
-  const totalAmount = expenses.reduce(
-    (sum, exp) => sum + parseFloat(exp.amount),
-    0,
-  );
+  const reportName   = expenseDetail.reportTitle;
+  const reportDate   = formatDate(expenseDetail.createdAt);
+  const totalAmount  = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
+  const reportStatus = (expenseDetail.status || expenses[0]?.status || "draft") as PersonalExpenseStatus;
+  const reporterName = expenseDetail.reporter || "Unknown Reporter";
+  
+  // Extract approver name if available
+  const approverObj = (expenseDetail as any).approvedBy;
+  const approverName = approverObj?.firstName ? `${approverObj.firstName} ${approverObj.lastName || ""}`.trim() : undefined;
 
-  // Get the overall report status from the detail response, with fallbacks
-  const reportStatus = (expenseDetail.status ||
-    expenses[0]?.status ||
-    "draft") as PersonalExpenseStatus;
+  const isOwnScope = scope === "own";
+  const isTeamScope = scope === "team";
+  const isCompanyScope = scope === "company";
 
-  const userName = user ? `${user.firstName} ${user.lastName}` : "...";
+  const hasApprovePermission =
+    can("expense.report", "approve_department") ||
+    can("expense.report", "approve_company") ||
+    can("expense.report", "approve") ||
+    can("expense.report", "manage");
 
-  const handleExpenseClick = (expense: ExpenseItem) => {
-    setSelectedExpense(expense);
-    setIsExpenseModalOpen(true);
-  };
+  const isPendingOrSubmitted = (reportStatus as string) === "pending" || (reportStatus as string) === "submitted";
 
+  // Show approve/reject if:
+  // not own scope, AND pending/submitted, AND hasApprovePermission, AND (team scope OR (company scope AND overrideUnlocked))
+  const canTakeAction = !isOwnScope && isPendingOrSubmitted && hasApprovePermission && (isTeamScope || (isCompanyScope && overrideUnlocked));
+
+  // Show lock/unlock banner if: company scope AND pending/submitted AND hasApprovePermission
+  const showOverrideBanner = isCompanyScope && isPendingOrSubmitted && hasApprovePermission;
 
   const handleApprove = async () => {
     setIsApproving(true);
     try {
-      await updateStatusMutation.mutateAsync({
-        reportId,
-        status: "approved",
-      });
-      // Navigate back to company expenses tab after successful approval
-      router.push("/expenses?tab=company-expenses");
-    } catch (error) {
-      logger.error("Failed to approve:", error);
+      await updateStatusMutation.mutateAsync({ reportId, status: "approved" });
+      setFeedbackModal({ open: true, type: "approved" });
+    } catch (err) {
+      logger.error("Failed to approve:", err);
     } finally {
       setIsApproving(false);
     }
   };
 
-  const handleReject = async () => {
+  const handleReject = async (reason: string) => {
     setIsRejecting(true);
     try {
-      await updateStatusMutation.mutateAsync({
-        reportId,
-        status: "rejected",
-      });
-      // Navigate back to company expenses tab after successful rejection
-      router.push("/expenses?tab=company-expenses");
-    } catch (error) {
-      logger.error("Failed to reject:", error);
+      await updateStatusMutation.mutateAsync({ reportId, status: "rejected" });
+      setRejectOpen(false);
+      setFeedbackModal({ open: true, type: "rejected" });
+    } catch (err) {
+      logger.error("Failed to reject:", err);
     } finally {
       setIsRejecting(false);
     }
   };
 
-  // Extract reporter name from expenseDetail
-  const reporterName = expenseDetail.reporter || "Unknown Reporter";
-
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      {/* Header with Reporter Avatar */}
-      <div className="mb-6">
+    <>
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Submitter header */}
         <div className="flex items-center gap-3 mb-4">
           <Avatar className="h-12 w-12">
+            <AvatarImage src={user?.avatar} alt={reporterName} />
             <AvatarFallback>{getInitials(reporterName)}</AvatarFallback>
           </Avatar>
-          <div>
-            <p className="text-sm font-semibold text-foreground">{reporterName}</p>
-          </div>
+          <p className="text-sm font-semibold text-foreground">{reporterName}</p>
         </div>
-        <div className="flex items-center gap-3 mb-2">
-          <h1 className="text-2xl font-semibold text-foreground">
-            {reportName}
-          </h1>
-          <Badge
-            variant={getStatusBadgeVariant(reportStatus)}
-            className={getStatusColor(reportStatus)}
-          >
+
+        {/* Report title + status */}
+        <div className="mb-2 flex items-center gap-3">
+          <h1 className="text-2xl font-semibold text-foreground">{reportName}</h1>
+          <Badge variant={getStatusBadgeVariant(reportStatus)} className={getStatusColor(reportStatus)}>
             {getStatusIcon(reportStatus)}
             <span className="ml-1">{getStatusLabel(reportStatus)}</span>
           </Badge>
         </div>
-        <p className="text-sm text-muted-foreground">{reportDate}</p>
-      </div>
+        <p className="text-sm text-muted-foreground mb-6">{reportDate}</p>
 
-      {/* Preview Items Section */}
-      <div className="bg-white border border-border rounded-lg mb-6">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h3 className="text-base font-semibold text-foreground">
-            Items{" "}
-            <span className="text-muted-foreground">{expenses.length}</span>
-          </h3>
-          <div className="text-base font-semibold text-foreground">
-            Total: {currencySymbol}{totalAmount.toLocaleString("en-US", {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 2,
-            })}
+        {/* Two-column: items left, timeline right */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left — items table */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white border border-border rounded-lg">
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <h3 className="text-base font-semibold text-foreground">
+                  Items <span className="text-muted-foreground font-normal">{expenses.length}</span>
+                </h3>
+                <span className="text-base font-semibold text-foreground">
+                  Total: {currencySymbol}
+                  {totalAmount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-muted/30">
+                    <tr>
+                      {["Expenses Details", "Category", "Merchant", "Amount", "Receipt", "Policy Compliance"].map((h) => (
+                        <th key={h} className="text-left p-3 text-sm font-medium text-muted-foreground">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expenses.map((expense) => (
+                      <tr
+                        key={expense.expenseId}
+                        className="border-t border-border hover:bg-muted/20 cursor-pointer"
+                        onClick={() => { setSelectedExpense(expense); setIsExpenseModalOpen(true); }}
+                      >
+                        <td className="p-3">
+                          <p className="text-sm font-medium text-foreground">{expense.title}</p>
+                          {expense.description && (
+                            <p className="text-xs text-muted-foreground">{expense.description}</p>
+                          )}
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground">{expense.categoryName}</td>
+                        <td className="p-3 text-sm text-muted-foreground">{expense.merchantName || "N/A"}</td>
+                        <td className="p-3 text-sm font-medium text-foreground">
+                          {currencySymbol}
+                          {parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-3">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedExpense(expense); setIsExpenseModalOpen(true); }}
+                            className="text-sm text-primary hover:underline font-medium"
+                          >
+                            View
+                          </button>
+                        </td>
+                        <td className="p-3">
+                          <span className="flex items-center gap-1.5 text-green-600 text-sm font-medium">
+                            <Check className="h-4 w-4" />
+                            Within limit
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Approve / Reject — only for users with approve_department on pending reports */}
+            {canTakeAction && (
+              <div className="flex justify-end gap-3">
+                <Button
+                  onClick={() => setRejectOpen(true)}
+                  disabled={isApproving || isRejecting}
+                  className="bg-red-500 text-white hover:bg-red-600 px-8 h-11 rounded-lg font-medium min-w-[100px]"
+                >
+                  Reject
+                </Button>
+                <Button
+                  onClick={handleApprove}
+                  disabled={isApproving || isRejecting}
+                  className="bg-teal-500 text-white hover:bg-teal-600 px-8 h-11 rounded-lg font-medium min-w-[100px]"
+                >
+                  {isApproving ? "Processing..." : "Approve"}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Right — Expense Timeline (visible to all roles) */}
+          <div className="lg:col-span-1 space-y-4">
+            {showOverrideBanner && (
+              <ManagerOverrideBanner
+                isUnlocked={overrideUnlocked}
+                onUnlock={() => setOverrideUnlocked(true)}
+                onLock={() => setOverrideUnlocked(false)}
+              />
+            )}
+            
+            <ExpenseTimeline
+              status={reportStatus}
+              submissionDate={reportDate}
+              submitterName={reporterName}
+              approverName={approverName}
+            />
           </div>
         </div>
-
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className="text-left p-3 text-sm font-medium text-muted-foreground">
-                  Expenses Details
-                </th>
-                <th className="text-left p-3 text-sm font-medium text-muted-foreground">
-                  Category
-                </th>
-                <th className="text-left p-3 text-sm font-medium text-muted-foreground">
-                  Merchant
-                </th>
-                <th className="text-left p-3 text-sm font-medium text-muted-foreground">
-                  Amount
-                </th>
-                <th className="text-left p-3 text-sm font-medium text-muted-foreground">
-                  Receipt
-                </th>
-                <th className="text-left p-3 text-sm font-medium text-muted-foreground">
-                  Policy Compliance
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {expenses.map((expense) => (
-                <tr
-                  key={expense.expenseId}
-                  className="border-t border-border hover:bg-muted/20 cursor-pointer"
-                  onClick={() => handleExpenseClick(expense)}
-                >
-                  <td className="p-3">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {expense.title}
-                      </p>
-                      {expense.description && (
-                        <p className="text-xs text-muted-foreground">
-                          {expense.description}
-                        </p>
-                      )}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <span className="text-sm text-muted-foreground">
-                      {expense.categoryName}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <span className="text-sm text-muted-foreground">
-                      {expense.merchantName || "N/A"}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <span className="text-sm font-medium text-foreground">
-                      {currencySymbol}{parseFloat(expense.amount).toLocaleString("en-US", {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 2,
-                      })}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleExpenseClick(expense);
-                      }}
-                      className="text-sm text-primary hover:underline font-medium"
-                    >
-                      View
-                    </button>
-                  </td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-sm text-green-600 font-medium">
-                        Within limit
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
-
-      {/* Approve/Reject Buttons - Only show if status is pending */}
-      {reportStatus === "pending" && (
-        <div className="flex justify-end gap-4">
-          <Button
-            onClick={handleApprove}
-            disabled={isApproving || isRejecting}
-            className="bg-[#38B2AC] text-white hover:bg-[#38B2AC]/90 px-8 h-11 rounded-lg font-medium"
-          >
-            {isApproving ? "Approving..." : "Approve"}
-          </Button>
-          <Button
-            onClick={handleReject}
-            disabled={isRejecting || isApproving}
-            className="bg-red-500 text-white hover:bg-red-600 px-8 h-11 rounded-lg font-medium"
-          >
-            {isRejecting ? "Rejecting..." : "Reject"}
-          </Button>
-        </div>
-      )}
 
       {/* Modals */}
       <CompanyExpenseItemModal
         isOpen={isExpenseModalOpen}
-        onClose={() => {
-          setIsExpenseModalOpen(false);
-          setSelectedExpense(null);
-        }}
+        onClose={() => { setIsExpenseModalOpen(false); setSelectedExpense(null); }}
         expense={selectedExpense ? {
-          title: selectedExpense.title || "Untitled Expense",
-          amount: selectedExpense.amount,
+          title:        selectedExpense.title || "Untitled Expense",
+          amount:       selectedExpense.amount,
           merchantName: selectedExpense.merchantName,
           categoryName: selectedExpense.categoryName || "Uncategorized",
-          description: selectedExpense.description,
-          receiptUrl: selectedExpense.receiptUrl,
+          description:  selectedExpense.description,
+          receiptUrl:   selectedExpense.receiptUrl,
         } : null}
       />
 
-    </div>
+      <RejectReasonModal
+        open={rejectOpen}
+        onClose={() => setRejectOpen(false)}
+        onConfirm={handleReject}
+        isLoading={isRejecting}
+      />
+
+      {feedbackModal && (
+        <FeedbackModal
+          open={feedbackModal.open}
+          onClose={() => {
+            setFeedbackModal(null);
+            router.push("/expenses?tab=company-expenses");
+          }}
+          type={feedbackModal.type}
+        />
+      )}
+    </>
   );
 }

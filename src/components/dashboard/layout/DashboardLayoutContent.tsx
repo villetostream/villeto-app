@@ -35,7 +35,7 @@ export default function DashboardLayoutContent({
 }: DashboardLayoutProps) {
   const [isMounted, setIsMounted] = useState(false);
   const axios = useAxios();
-  const { setUserPermissions, login, user, isLoading } = useAuthStore();
+  const { setCompanyPermissions, login, user, isLoading } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
   const isTourActive = useTourStore((s) => s.isTourActive);
@@ -76,8 +76,9 @@ export default function DashboardLayoutContent({
           login(userWithCompany as User);
         }
 
-        if (role) {
-          setUserPermissions(role.permissions);
+        if (role || responseData?.companyRole) {
+          const permissions = responseData?.companyRole?.permissions ?? role?.permissions ?? [];
+          setCompanyPermissions(permissions);
         }
       } catch {
         // Silently handle — user session may still be valid
@@ -87,14 +88,14 @@ export default function DashboardLayoutContent({
 
   if (!isMounted) {
     return (
-      <div className="flex h-screen bg-dashboard-background">
-        <div className="flex-1 flex flex-col overflow-hidden" />
+      <div className="flex h-screen bg-dashboard-background" suppressHydrationWarning>
+        <div className="flex-1 flex flex-col overflow-hidden" suppressHydrationWarning />
       </div>
     );
   }
 
   return (
-    <div className="flex bg-dashboard-background h-screen overflow-hidden">
+    <div className="flex bg-dashboard-background h-screen overflow-hidden" suppressHydrationWarning>
       <SidebarProvider defaultOpen={defaultOpen}>
         <DashboardSidebar />
         <div className="flex flex-col flex-1 h-full overflow-hidden">

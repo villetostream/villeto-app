@@ -8,6 +8,31 @@ import { AppUser } from "../departments/get-all-departments";
 import { Meta } from "../users/get-all-users";
 
 
+export interface CapabilityGroupPermission {
+    permissionId: string;
+    name: string;
+    description: string;
+    resource: string;
+    action: string;
+}
+
+export interface CapabilityGroup {
+    capabilityGroupId: string;
+    key: string;
+    name: string;
+    description: string;
+    module: string;
+    sortOrder: number;
+    isActive: boolean;
+    permissions: CapabilityGroupPermission[];
+}
+
+export interface CapabilitiesByModule {
+    [module: string]: {
+        capabilityGroups: CapabilityGroup[];
+    };
+}
+
 export interface Role {
     roleId: string,
     name: string,
@@ -17,8 +42,13 @@ export interface Role {
     createdAt: Date,
     updatedAt: Date,
     totalAssignedUsers?: number,
-    createdBy?: AppUser
-
+    createdBy?: AppUser,
+    // New fields from roles?type=company
+    templateKey?: string | null,
+    source?: string,
+    isDefault?: boolean,
+    capabilityGroupKeys?: string[],
+    capabilitiesByModule?: CapabilitiesByModule,
 }
 interface Response {
     data: Role[]
@@ -73,9 +103,9 @@ export const useGetVilletoRolesApi = (
 ): UseQueryResult<Response, Error> => {
     const axiosInstance = useAxios();
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.ROLES, "villeto"],
+        queryKey: [QUERY_KEYS.ROLES, "company"], // align cache key with the new endpoint logic if needed
         queryFn: async () => {
-            const response = await axiosInstance.get(API_KEYS.ROLE.ROLES_VILLETO);
+            const response = await axiosInstance.get(API_KEYS.ROLE.ROLES_COMPANY); // Changed from ROLES_VILLETO
             return response.data;
         },
         staleTime: 0,

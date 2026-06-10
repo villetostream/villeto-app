@@ -11,8 +11,16 @@ export function CongratulationsModal() {
   const router = useRouter();
 
   return (
-    <Dialog open={showCongratulations} onOpenChange={() => { router.replace("/login"); closeCongratulations() }}>
-      <DialogContent className="max-w-md mx-4 p-8 text-center border-0 rounded-2xl">
+    <Dialog open={showCongratulations} onOpenChange={(open) => { 
+      if (!open) { 
+        router.replace("/login"); 
+        closeCongratulations(); 
+      } 
+    }}>
+      <DialogContent 
+        className="max-w-md mx-4 p-8 text-center border-0 rounded-2xl"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
 
 
         {/* Celebration Icon */}

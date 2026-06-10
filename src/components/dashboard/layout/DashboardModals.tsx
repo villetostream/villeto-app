@@ -53,7 +53,7 @@ export default function DashboardModals() {
     user?.createdAt === user?.company?.createdAt;
 
   const isFirstLogin =
-    typeof user?.loginCount === "number" && user.loginCount < 1;
+    typeof user?.loginCount === "number" && user.loginCount === 0;
 
   const mustChangePassword = shouldChangePassword;
 
@@ -75,7 +75,7 @@ export default function DashboardModals() {
   useEffect(() => {
     if (hasCompletedFlow || !user) return;
 
-    const isBlockingModalNeeded = (isFirstLogin && isCompanyFounder) || mustChangePassword;
+    const isBlockingModalNeeded = isFirstLogin && (isCompanyFounder || mustChangePassword);
 
     if (isBlockingModalNeeded) {
       // Latch immediately — even if loginCount gets updated by a background

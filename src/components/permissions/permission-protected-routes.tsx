@@ -2,44 +2,58 @@
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { useAuthStore, useHasPermission } from "@/stores/auth-stores";
+import { useAuthStore } from "@/stores/auth-stores";
 
-// Higher-Order Component
+// ─── withPermissions HOC ──────────────────────────────────────────────────────
+// Wraps a page component and redirects to /dashboard if the user lacks the
+// required permission. Uses the new can(resource, action) shape.
+//
+// Usage:
+//   export default withPermissions(MyPage, [
+//     { resource: "vendor", action: "read_company" }
+//   ]);
+//
+// Legacy usage (deprecated — string[] still supported via hasPermission shim):
+//   export default withPermissions(MyPage, ["vendor.read_company"]);
+
+interface PermissionGate {
+  resource: string;
+  action: string;
+}
+
 const withPermissions = (
   WrappedComponent: React.ComponentType,
-  requiredPermissions: string[]
+  requiredPermissions: PermissionGate[] | string[]
 ) => {
   return function PermissionWrapper(props: any) {
     const router = useRouter();
     const pathName = usePathname();
+    const can = useAuthStore(state => state.can);
+    const hasPermission = useAuthStore(state => state.hasPermission);
 
-    const userPermissions = useAuthStore(state => state.getUserPermissions());
-    const user = useAuthStore(state => state.user);
+    const hasAccess = (): boolean => {
+      if (!requiredPermissions || requiredPermissions.length === 0) return true;
 
-    // Helper function to check for permission matches
-    const hasPermissionForRoute = (permissions: string[]) => {
-      const roleName = user?.villetoRole?.name?.toUpperCase() || user?.position?.toUpperCase() || "";
-      if (["OWNER", "CONTROLLING_OFFICER", "ADMIN"].includes(roleName)) {
-          return true;
+      // New structured shape: { resource, action }[]
+      if (typeof requiredPermissions[0] === "object") {
+        return (requiredPermissions as PermissionGate[]).some(
+          p => can(p.resource, p.action)
+        );
       }
 
-      return permissions?.some((permission) =>
-        userPermissions?.some((userPermission) =>
-          userPermission.name.includes(permission)
-        )
-      );
+      // Legacy string[] shape — delegate to hasPermission shim
+      return hasPermission(requiredPermissions as string[]);
     };
 
     useEffect(() => {
-      if (!hasPermissionForRoute(requiredPermissions)) {
-        // router.back();
-        router.push(pathName && pathName);
-        router.push(`/dashboard`);
+      if (!hasAccess()) {
+        router.push("/dashboard");
       }
-    }, [router, pathName, userPermissions, requiredPermissions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pathName]);
 
-    if (!hasPermissionForRoute(requiredPermissions)) {
-      return null; // Optionally show loading spinner or fallback content here
+    if (!hasAccess()) {
+      return null;
     }
 
     return <WrappedComponent {...props} />;

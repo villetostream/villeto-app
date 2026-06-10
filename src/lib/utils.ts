@@ -66,20 +66,59 @@ const ACTION_LABELS: Record<string, string> = {
   restore: "Restore",
   view: "View",
   send: "Send",
+  submit: "Submit",
+  read_own: "View Own",
+  update_own_draft: "Edit Own Draft",
+  read_department: "View Department",
+  approve_department: "Approve Department",
+  reject_department: "Reject Department",
+  read_company: "View Company",
+  convert_to_po: "Convert to PO",
+  review: "Review",
+  update_payment_status: "Update Payment Status",
+  activate: "Activate",
+  deactivate: "Deactivate",
+  assign_approvers: "Assign Approvers",
+  assign_vendor: "Assign Vendor",
+  issue: "Issue",
+  cancel: "Cancel",
+  close: "Close"
 };
 
 export function formatPermissionName(name: string): string {
   if (!name) return name;
 
-  // Handle "action:resource" pattern (e.g. "read:users" → "View Users")
-  if (name.includes(":")) {
-    const [action, resource] = name.split(":", 2);
-    const actionLabel = ACTION_LABELS[action.toLowerCase()] ?? capitalize(action);
+  const isColonFormat = name.includes(":");
+  const isDotFormat = name.includes(".");
+
+  if (isColonFormat || isDotFormat) {
+    const separator = isColonFormat ? ":" : ".";
+    const parts = name.split(separator);
     
-    let fixedResource = resource.toLowerCase();
+    let action = "";
+    let resourceStr = "";
+
+    if (isColonFormat) {
+      action = parts[0];
+      resourceStr = parts.slice(1).join(":");
+    } else {
+      action = parts[parts.length - 1];
+      resourceStr = parts.slice(0, -1).join(" ");
+      
+      // If it's a dot format, it could simply be a resource grouping header like "expense.report" without an action.
+      // We check if the supposed 'action' is a known standard UI action.
+      const isKnownAction = ACTION_LABELS[action.toLowerCase()] || ["create", "submit", "manage", "review"].includes(action.toLowerCase());
+      if (!isKnownAction) {
+        return capitalize(name.replace(/[._-]/g, " "));
+      }
+    }
+
+    const actionLabel = ACTION_LABELS[action.toLowerCase()] ?? capitalize(action.replace(/_/g, " "));
+
+    let fixedResource = resourceStr.toLowerCase().replace(/[._-]/g, " ");
     if (fixedResource === "categorie") fixedResource = "category";
 
-    const resourceLabel = capitalize(fixedResource.replace(/[_-]/g, " "));
+    const resourceLabel = capitalize(fixedResource);
     
     // If the action is "View" and resource is singular (doesn't end with 's' or 'ies')
     if (actionLabel === "View" && !fixedResource.endsWith("s")) {
@@ -89,11 +128,11 @@ export function formatPermissionName(name: string): string {
     return `${actionLabel} ${resourceLabel}`;
   }
 
-  // Handle snake_case or kebab-case permission names (also fixes group headers)
+  // Handle singular resource variables (snake_case, kebab-case, etc)
   let fixedName = name.toLowerCase();
   if (fixedName === "categorie") fixedName = "category";
 
-  return fixedName.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return fixedName.replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function capitalize(str: string): string {

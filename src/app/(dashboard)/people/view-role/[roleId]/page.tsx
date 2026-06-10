@@ -1,167 +1,308 @@
 "use client"
 
 import { useEffect, useState } from "react";
-import { ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronUp, ChevronRight, Edit2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 import { useGetARoleApi } from "@/actions/role/get-a-role";
-import { groupPermissionsByResource, PermissionsGroup, formatPermissionName } from "@/lib/utils";
+import { CapabilityGroup, CapabilitiesByModule, Role } from "@/actions/role/get-all-roles";
+import { groupPermissionsByResource, formatPermissionName } from "@/lib/utils";
 import withPermissions from "@/components/permissions/permission-protected-routes";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import PermissionGuard from "@/components/permissions/permission-protected-components";
+import ConfirmationModal from "@/components/modals/ConfirmationModal";
+import { useDeleteRoleApi } from "@/actions/role/delete-role";
+import toast from "react-hot-toast";
 
+// ── Capability Group Card (expandable, read-only) ──────────────────────────
+function CapabilityGroupCard({ group, index }: { group: CapabilityGroup; index: number }) {
+    const [expanded, setExpanded] = useState(false);
+    return (
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div
+                onClick={() => setExpanded(v => !v)}
+                className="w-full flex items-start justify-between p-4 text-left hover:bg-slate-50 transition-colors cursor-pointer select-none"
+            >
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <Checkbox
+                        checked={true}
+                        disabled
+                        className="mt-0.5 w-4 h-4 border-2 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary shrink-0"
+                    />
+                    <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800">{index}. {group.name}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{group.description}</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                    <span className="text-xs text-slate-400">{group.permissions.length} permissions</span>
+                    {expanded
+                        ? <ChevronUp className="w-4 h-4 text-slate-400" />
+                        : <ChevronDown className="w-4 h-4 text-slate-400" />
+                    }
+                </div>
+            </div>
+            {expanded && (
+                <div className="border-t border-slate-100 bg-slate-50/60 px-4 pb-4 pt-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
+                        {group.permissions.map(p => (
+                            <div key={p.permissionId} className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
+                                <span className="text-xs text-slate-600">{formatPermissionName(p.name)}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Module Section ─────────────────────────────────────────────────────────
+function ModuleSection({ moduleName, groups }: { moduleName: string; groups: CapabilityGroup[] }) {
+    const [open, setOpen] = useState(true);
+    const label = moduleName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    return (
+        <div className="space-y-3">
+            <button
+                type="button"
+                onClick={() => setOpen(v => !v)}
+                className="flex items-center gap-2 w-full text-left"
+            >
+                <span className="text-sm font-bold text-slate-700 uppercase tracking-widest">{label}</span>
+                <div className="flex-1 h-px bg-slate-200" />
+                {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+            </button>
+            {open && (
+                <div className="space-y-2">
+                    {groups.map((g, i) => <CapabilityGroupCard key={g.capabilityGroupId} group={g} index={i + 1} />)}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── View Role Page ─────────────────────────────────────────────────────────
 function ViewRolePage() {
     const params = useParams();
+    const router = useRouter();
     const roleId = params.roleId as string;
     const { data: roleData, isLoading } = useGetARoleApi(roleId, { enabled: !!roleId });
-    const role = roleData?.data;
+    const deleteRoleMutation = useDeleteRoleApi();
+    const role = roleData?.data as Role | undefined;
 
-    const [permissionsGroups, setPermissionsGroups] = useState<PermissionsGroup[]>([]);
+    const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
 
-    useEffect(() => {
-        if (role?.permissions) {
-            const grouped = groupPermissionsByResource(role.permissions);
-            setPermissionsGroups(grouped);
+    const handleDelete = async () => {
+        try {
+            await deleteRoleMutation.mutateAsync(roleId);
+            toast.success("Role deleted successfully.");
+            setDeleteModalOpen(false);
+            router.push("/people?tab=roles");
+        } catch (error) {
+            toast.error("Failed to delete the role.");
+            setDeleteModalOpen(false);
         }
-    }, [role?.permissions]);
+    };
 
     if (isLoading) {
         return (
             <div className="p-6">
-                <h1 className="text-2xl font-semibold mb-8">Role Details</h1>
                 <div className="flex items-center justify-center h-64">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
                 </div>
             </div>
         );
     }
 
-    const roleName = role?.name?.replace(/_/g, ' ') || "Role";
-    const roleDescription = role?.description || "";
-    const totalUsers = role?.totalAssignedUsers || 0;
+    if (!role) {
+        return (
+            <div className="p-6 text-center text-slate-400 text-sm">Role not found.</div>
+        );
+    }
 
-    // Generate placeholder user entries matching the total assigned users count
-    // TODO: Replace with real user data when the API returns assigned users
-    const assignedUsers = Array.from({ length: totalUsers }, (_, i) => ({
-        name: `User ${i + 1}`,
-        email: `user${i + 1}@company.com`,
-    }));
+    const roleName = role.name?.replace(/_/g, ' ') || "Role";
+    const totalUsers = role.totalAssignedUsers || 0;
+
+    // Capability groups from capabilitiesByModule
+    const capModules: CapabilitiesByModule = (role as any).capabilitiesByModule ?? {};
+    const hasCapabilities = Object.values(capModules).some(m => m.capabilityGroups?.length > 0);
+
+    // Flat individual permissions (directly assigned, not from groups)
+    const directPermissions = role.permissions ?? [];
+    const hasDirectPermissions = directPermissions.length > 0;
+
+    // Group direct permissions by resource for display
+    const groupPermissionsByResource = (perms: any[]) => {
+        const map: Record<string, { resource: string; permissions: any[] }> = {};
+        for (const p of perms) {
+            const res = p.resource || "other";
+            if (!map[res]) map[res] = { resource: res, permissions: [] };
+            map[res].permissions.push(p);
+        }
+        return Object.values(map);
+    };
+    const permissionGroups = groupPermissionsByResource(directPermissions);
 
     return (
-        <div className="p-6">
-            <h1 className="text-2xl font-semibold mb-8">Role Details</h1>
+        <div className="p-6 pt-0 space-y-6">
+            {/* Header / Actions - Sticky */}
+            <div className="flex items-center justify-between gap-4 sticky -top-5 z-50 bg-dashboard-background pt-5 pb-4 -mx-6 px-6 -mt-5">
+                <h1 className="text-2xl font-semibold">Role Details</h1>
+                
+                <div className="flex items-center gap-3 shrink-0">
+                    <PermissionGuard resource="role" action="manage">
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => setDeleteModalOpen(true)}
+                        >
+                            Delete Role
+                        </Button>
+                    </PermissionGuard>
 
-            <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-12">
-                {/* Left Sidebar */}
-                <aside className="space-y-4">
+                    <PermissionGuard resource="role" action="manage">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2 border-primary text-primary hover:bg-primary/5 bg-white"
+                            onClick={() => router.push(`/people/create-role?id=${roleId}`)}
+                        >
+                            <Edit2 className="w-4 h-4" />
+                            Edit Role
+                        </Button>
+                    </PermissionGuard>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-10">
+                {/* Sidebar */}
+                <aside className="space-y-4 md:sticky md:top-24 self-start">
                     {/* Role Card */}
                     <div className="w-full flex items-center justify-between p-4 border-2 border-primary rounded-xl bg-white">
                         <div>
-                            <p className="font-semibold text-primary capitalize">{roleName}</p>
-                            <p className="text-sm text-slate-500 mt-0.5 first-letter:uppercase">{roleDescription}</p>
+                            <div className="flex items-center gap-2 mb-1">
+                                <p className="font-semibold text-primary capitalize">{roleName}</p>
+                                <Badge variant={role.isActive ? "active" : "inactive"} className="text-xs">
+                                    {role.isActive ? "Active" : "Inactive"}
+                                </Badge>
+                            </div>
+                            <p className="text-sm text-slate-500 first-letter:uppercase">
+                                {role.description || "No description provided."}
+                            </p>
+                            {role.source && (
+                                <p className="text-xs text-slate-400 mt-1 capitalize">
+                                    {role.isDefault ? "Default" : "Custom"} · {role.source.replace(/_/g, ' ')}
+                                </p>
+                            )}
                         </div>
                         <ChevronRight className="w-5 h-5 text-primary flex-shrink-0" />
                     </div>
 
-                    {/* Users List */}
-                    <div className="border border-slate-200 rounded-xl p-4 space-y-4">
+                    {/* User Count */}
+                    <div className="border border-slate-200 rounded-xl p-4">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-slate-700">User(s)</span>
-                            <span className="text-sm text-slate-500">{totalUsers}</span>
+                            <span className="text-sm font-semibold text-slate-700">Assigned Users</span>
+                            <span className="text-sm font-bold text-primary">{totalUsers}</span>
                         </div>
-                        <div className="space-y-3">
-                            {assignedUsers.map((user, index) => (
-                                <div key={index} className="flex items-center justify-between">
-                                    <span className="text-sm text-slate-700">{user.name}</span>
-                                    <span className="text-sm text-slate-500">{user.email}</span>
-                                </div>
-                            ))}
-                        </div>
+                        {totalUsers === 0 && (
+                            <p className="text-xs text-slate-400 mt-1">No users assigned to this role yet.</p>
+                        )}
                     </div>
                 </aside>
 
-                {/* Main Content - Right Side */}
-                <main className="max-w-2xl">
-                    <div className="space-y-8">
-                        {/* Roles and Permissions Heading */}
-                        <h2 className="text-xl font-semibold">Roles and Permissions</h2>
-
-                        {/* Role Name Field */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700">
-                                Role Name<span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                                value={roleName}
-                                readOnly
-                                className="h-12 border-slate-200 rounded-lg bg-slate-50 capitalize"
-                            />
+                {/* Main Content */}
+                <main className="space-y-8">
+                    {/* Section: Capabilities by Module */}
+                    <div className="space-y-5">
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-lg font-semibold text-slate-800">Capabilities</h2>
+                            <span className="text-xs text-slate-400 font-normal">(grouped by module)</span>
                         </div>
 
-                        {/* Description Field */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700">
-                                Description<span className="text-destructive">*</span>
-                            </Label>
-                            <Textarea
-                                value={roleDescription}
-                                readOnly
-                                className="min-h-[80px] resize-none border-slate-200 rounded-lg bg-slate-50 first-letter:uppercase"
-                            />
-                        </div>
-
-                        {/* Permissions Accordion */}
-                        <Accordion type="single" collapsible defaultValue="permissions" className="w-full bg-slate-50/50 rounded-xl">
-                            <AccordionItem value="permissions" className="border-none">
-                                <AccordionTrigger className="px-6 py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180">
-                                    <span className="text-lg font-medium">Permission</span>
-                                    <ChevronUp className="w-5 h-5 transition-transform duration-200" />
-                                </AccordionTrigger>
-                                <AccordionContent className="px-6 pb-6 border-t border-slate-100 mt-2 pt-6">
-                                    <div className="space-y-10">
-                                        {permissionsGroups.map((group) => (
-                                            <div key={group.resource} className="space-y-6">
-                                                <h3 className="text-base font-semibold text-slate-800">{formatPermissionName(group.resource)}</h3>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
-                                                    {group.permissions.map((permission) => (
-                                                        <div key={permission.permissionId} className="flex items-center space-x-3">
-                                                            <Checkbox
-                                                                id={permission.permissionId}
-                                                                checked={true}
-                                                                disabled
-                                                                className="w-5 h-5 border-2 border-primary rounded data-[state=checked]:border-primary data-[state=checked]:bg-primary"
-                                                            />
-                                                            <label
-                                                                htmlFor={permission.permissionId}
-                                                                className="text-sm leading-none text-slate-600"
-                                                            >
-                                                                {formatPermissionName(permission.name)}
-                                                            </label>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-
-                                        {permissionsGroups.length === 0 && (
-                                            <p className="text-sm text-slate-400">No permissions assigned to this role.</p>
-                                        )}
-                                    </div>
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
+                        {hasCapabilities ? (
+                            <div className="space-y-8">
+                                {(Array.isArray(capModules) ? capModules : Object.values(capModules)).map((modData: any) =>
+                                    modData.capabilityGroups?.length > 0 ? (
+                                        <ModuleSection key={modData.module || Math.random().toString()} moduleName={modData.module || "Unknown Module"} groups={modData.capabilityGroups} />
+                                    ) : null
+                                )}
+                            </div>
+                        ) : (
+                            <div className="border border-dashed border-slate-200 rounded-xl p-8 text-center">
+                                <p className="text-sm text-slate-400">No capability groups assigned to this role.</p>
+                                <PermissionGuard resource="role" action="manage">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-3"
+                                        onClick={() => router.push(`/people/create-role?id=${roleId}`)}
+                                    >
+                                        Assign Capabilities
+                                    </Button>
+                                </PermissionGuard>
+                            </div>
+                        )}
                     </div>
+
+                    {/* Section: Directly Assigned Permissions */}
+                    {hasDirectPermissions && (
+                        <div className="space-y-5">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-lg font-semibold text-slate-800">Direct Permissions</h2>
+                                <span className="text-xs text-slate-400 font-normal">(individually assigned)</span>
+                            </div>
+                            <div className="border border-slate-200 rounded-xl p-5 space-y-6">
+                                {permissionGroups.map(group => (
+                                    <div key={group.resource} className="space-y-3">
+                                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                            {formatPermissionName(group.resource)}
+                                        </h3>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-8">
+                                            {group.permissions.map((p: any) => (
+                                                <div key={p.permissionId} className="flex items-center gap-3">
+                                                    <Checkbox
+                                                        checked
+                                                        disabled
+                                                        className="w-4 h-4 border-2 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+                                                    />
+                                                    <label className="text-sm text-slate-600">
+                                                        {formatPermissionName(p.name)}
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {!hasCapabilities && !hasDirectPermissions && (
+                        <div className="border border-dashed border-slate-200 rounded-xl p-10 text-center">
+                            <p className="text-slate-400 text-sm">No capabilities or permissions assigned to this role.</p>
+                        </div>
+                    )}
+
+                    <ConfirmationModal
+                        isOpen={isDeleteModalOpen}
+                        onClose={() => setDeleteModalOpen(false)}
+                        onConfirm={handleDelete}
+                        title="Delete Role"
+                        description={
+                            <>
+                                Are you sure you want to delete <span className="font-semibold text-slate-900">{roleName}</span>?
+                                Users assigned to this role might lose their access. This action cannot be undone.
+                            </>
+                        }
+                    />
                 </main>
             </div>
         </div>
     );
 }
 
-export default withPermissions(ViewRolePage, ["read:roles"]);
+export default withPermissions(ViewRolePage, []);

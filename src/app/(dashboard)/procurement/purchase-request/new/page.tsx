@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
-import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthStore, useCan } from "@/stores/auth-stores";
 import {
   useCreatePurchaseRequest,
   useAddLineItem,
@@ -35,8 +35,7 @@ const PRIORITIES: { label: string; value: string }[] = [
 
 const CURRENCIES = ["USD", "NGN", "EUR", "GBP", "CAD", "AUD", "GHS", "KES", "ZAR", "JPY", "CNY"];
 
-// Roles that may change department
-const CAN_CHANGE_DEPT_ROLES = ["CONTROLLING_OFFICER", "FINANCE", "OWNER", "ORGANIZATION_OWNER"];
+// Department editability is now driven by permissions, not role names
 
 // ─── Generic Select Dropdown ──────────────────────────────────────────────────
 
@@ -425,10 +424,14 @@ export default function NewPurchaseRequestPage() {
   const router = useRouter();
   const user = useAuthStore(s => s.user);
 
-  // Role-based dept editability
-  const userPosition = user?.position?.toUpperCase() || "";
-  const villetoRole = (user as any)?.villetoRole?.name?.toUpperCase() || "";
-  const canChangeDept = CAN_CHANGE_DEPT_ROLES.includes(userPosition) || CAN_CHANGE_DEPT_ROLES.includes(villetoRole);
+  // Permission-based dept editability:
+  // Users who can create PO or manage procurement see a dept dropdown;
+  // regular requesters get their own dept auto-filled (read-only)
+  const can = useAuthStore(s => s.can);
+  const canChangeDept =
+    can("procurement.purchase_request", "manage") ||
+    can("procurement.purchase_order", "create") ||
+    can("department", "manage");
 
   // Step state
   const [step, setStep] = useState<1 | 2>(1);
@@ -473,10 +476,11 @@ export default function NewPurchaseRequestPage() {
 
   const currencyOptions = CURRENCIES.map(c => ({ label: c, value: c }));
 
-  // Sync user's department on mount
+  // Sync user's department on mount — use departmentId or nested department object
   useEffect(() => {
-    if (user?.departmentId) setDepartmentId(user.departmentId);
-  }, [user?.departmentId]);
+    const deptId = user?.departmentId || (user?.department as any)?.departmentId || "";
+    if (deptId) setDepartmentId(deptId);
+  }, [user?.departmentId, user?.department]);
 
   const handleSaveHeader = async () => {
     if (!title.trim()) { toast.error("Request title is required"); return; }
@@ -666,9 +670,9 @@ export default function NewPurchaseRequestPage() {
               {canChangeDept ? (
                 <SelectDropdown value={departmentId} onChange={setDepartmentId} options={departments} placeholder="Select department" />
               ) : (
-                <div className="w-full h-11 px-3 rounded-lg border border-border bg-muted/30 flex items-center gap-2 text-sm text-foreground">
-                  {selectedDeptName || <span className="text-muted-foreground italic">No department assigned</span>}
-                  <span className="ml-auto text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">Your department</span>
+                <div className="w-full h-11 px-3 rounded-lg border border-border bg-muted/30 flex items-center justify-between text-sm text-foreground">
+                  <span>{selectedDeptName || <span className="text-muted-foreground italic">No department assigned</span>}</span>
+                  <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">Your department</span>
                 </div>
               )}
             </div>
@@ -878,4 +882,3 @@ export default function NewPurchaseRequestPage() {
     </>
   );
 }
-

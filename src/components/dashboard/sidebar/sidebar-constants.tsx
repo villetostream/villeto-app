@@ -1,19 +1,13 @@
 import {
-  Menu,
   Cards,
-  MoneySend,
   Profile2User,
-  WalletMoney,
   Shop,
   LampOn,
-  StatusUp,
   Messages,
   Setting2,
-  Logout,
   DocumentText,
   ShoppingCart,
 } from "iconsax-reactjs";
-import { Permission } from "@/actions/auth/auth-permissions";
 import {
   Home09Icon,
   InvoiceIcon,
@@ -21,11 +15,22 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+// ─── Permission Gate Shape ────────────────────────────────────────────────────
+// Each nav item declares zero or more { resource, action } pairs.
+// A user sees the item if they pass can(resource, action) for ANY one of them,
+// OR if the array is empty (always visible to all authenticated users).
+
+export interface NavPermission {
+  resource: string;
+  action: string;
+}
+
 export interface NavItem {
   icon: any;
   label: string;
   href: string;
-  permission: string[];
+  /** Empty = always visible. One or more = user needs at least one of these. */
+  permissions: NavPermission[];
   subItems?: SubItem[];
   badge?: string;
   section: string;
@@ -36,49 +41,50 @@ export interface NavItem {
 interface SubItem {
   label: string;
   href: string;
-  permission: string[];
+  /** Empty = always visible. One or more = user needs at least one of these. */
+  permissions: NavPermission[];
   badge?: string;
   imageUrl?: string;
-  /** If true, renders as disabled span with a "Coming Soon" pill — no navigation */
   comingSoon?: boolean;
 }
+
+// ─── Navigation Items ─────────────────────────────────────────────────────────
 
 export const navigationItems: NavItem[] = [
   {
     icon: <HugeiconsIcon icon={Home09Icon} />,
     label: "Overview",
     href: "/dashboard",
-    permission: [],             // All roles see the dashboard
+    permissions: [], // Always visible
     section: "MAIN MENU",
   },
   {
     icon: <HugeiconsIcon icon={MoneySendSquareFreeIcons} />,
     label: "Expenses",
-    permission: [],             // All roles have expenses (personal at minimum)
     href: "/expenses",
+    permissions: [], // Always visible — personal tab is the minimum
     section: "MAIN MENU",
     subItems: [
       {
         label: "All Expenses",
         href: "/expenses",
-        permission: [],
+        permissions: [],
       },
       {
         label: "Card Transactions",
         href: "/expenses/card-transactions",
-        permission: ["company_expenses:read"],  // Manager and above
+        permissions: [{ resource: "expense.report", action: "read_company" }],
         comingSoon: true,
       },
       {
         label: "Reimbursements",
         href: "/expenses/reimbursements",
-        permission: [],         // All roles
-        comingSoon: true,
+        permissions: [],
       },
       {
         label: "Travel",
         href: "/expenses/travel",
-        permission: [],
+        permissions: [],
         comingSoon: true,
       },
     ],
@@ -87,7 +93,7 @@ export const navigationItems: NavItem[] = [
     icon: <Cards />,
     label: "Cards",
     href: "/cards",
-    permission: [],
+    permissions: [],
     section: "MAIN MENU",
     comingSoon: true,
   },
@@ -95,21 +101,24 @@ export const navigationItems: NavItem[] = [
     icon: <Profile2User />,
     label: "People",
     href: "/people",
-    permission: ["read:users"],  // Finance Admin and above
+    permissions: [
+      { resource: "user", action: "manage" },
+      { resource: "user", action: "read" },
+    ],
     section: "MANAGEMENT",
   },
   {
     icon: <DocumentText />,
     label: "Policies",
     href: "/policies",
-    permission: ["expense_policies:read"],   // Finance Admin and above
+    permissions: [{ resource: "policy", action: "read_company" }],
     section: "MANAGEMENT",
   },
   {
     icon: <HugeiconsIcon icon={InvoiceIcon} />,
     label: "Bill Pay",
     href: "/bill-pay",
-    permission: [],
+    permissions: [],
     section: "MANAGEMENT",
     comingSoon: true,
   },
@@ -117,35 +126,35 @@ export const navigationItems: NavItem[] = [
     icon: <Shop />,
     label: "Vendors",
     href: "/vendors",
-    permission: ["vendors:read"],            // Finance Admin and above
+    permissions: [{ resource: "vendor", action: "read_company" }],
     section: "MANAGEMENT",
   },
   {
     icon: <ShoppingCart />,
     label: "Procurement",
     href: "/procurement/purchase-request",
-    permission: [],
+    permissions: [], // Always visible — everyone can have own PRs
     section: "MANAGEMENT",
     subItems: [
       {
         label: "Purchase Requests",
         href: "/procurement/purchase-request",
-        permission: [],
+        permissions: [], // read_own is implied for all users
       },
       {
         label: "Purchase Orders",
         href: "/procurement/purchase-order",
-        permission: ["read:users"],
+        permissions: [{ resource: "procurement.purchase_order", action: "read_company" }],
       },
       {
         label: "Confirmation",
         href: "/procurement/confirmation",
-        permission: ["read:users"],
+        permissions: [{ resource: "procurement.vendor_invoice", action: "read_company" }],
       },
       {
         label: "Categories",
         href: "/procurement/categories",
-        permission: ["read:users"],
+        permissions: [{ resource: "expense.category", action: "manage" }],
       },
     ],
   },
@@ -153,7 +162,7 @@ export const navigationItems: NavItem[] = [
     icon: <LampOn />,
     label: "Insights",
     href: "/insights",
-    permission: [],
+    permissions: [],
     section: "ANALYTICS",
     comingSoon: true,
   },
@@ -161,7 +170,7 @@ export const navigationItems: NavItem[] = [
     icon: <Messages />,
     label: "Inbox",
     href: "/inbox",
-    permission: [],
+    permissions: [],
     section: "OTHERS",
     comingSoon: true,
   },
@@ -169,42 +178,42 @@ export const navigationItems: NavItem[] = [
     icon: <Setting2 />,
     label: "Settings",
     href: "/settings/data-integration",
-    permission: [],
+    permissions: [],
     section: "OTHERS",
     subItems: [
       {
         label: "Data Integration",
         href: "/settings/data-integration",
-        permission: [],
+        permissions: [],
         comingSoon: true,
       },
       {
         label: "Expense Policy",
         href: "/settings/expense-policy",
-        permission: ["expense_policies:read"],
+        permissions: [{ resource: "policy", action: "read_company" }],
         comingSoon: true,
       },
       {
         label: "Company Settings",
         href: "/settings/company-settings",
-        permission: ["company:read"],
+        permissions: [{ resource: "user", action: "manage" }],
       },
       {
         label: "Entities",
         href: "/settings/entities",
-        permission: [],
+        permissions: [],
         comingSoon: true,
       },
       {
         label: "Apps",
         href: "/settings/apps",
-        permission: [],
+        permissions: [],
         comingSoon: true,
       },
       {
         label: "Personal Settings",
         href: "/settings/personal-settings",
-        permission: [],  // All roles
+        permissions: [], // Always visible
       },
     ],
   },
