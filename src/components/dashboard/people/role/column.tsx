@@ -14,7 +14,11 @@ import { Role } from "@/actions/role/get-all-roles";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import Link from "next/link";
 import { logger } from "@/lib/logger";
-
+import { Edit2, Trash2 } from "lucide-react";
+import ConfirmationModal from "@/components/modals/ConfirmationModal";
+import { useDeleteRoleApi } from "@/actions/role/delete-role";
+import toast from "react-hot-toast";
+import { useState } from "react";
 const columnHelper = createColumnHelper<Role>();
 
 export const columns: ColumnDef<Role, any>[] = [
@@ -57,7 +61,6 @@ export const columns: ColumnDef<Role, any>[] = [
     columnHelper.accessor("createdAt", {
         header: "DATE CREATED",
         cell: (info) => {
-            // Using a simpler date format if needed to match screenshot "10 Sept 2025"
             const date = info.getValue() ? new Date(info.getValue()) : null;
             const formattedDate = date ? date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "-";
             return <p className="">{formattedDate}</p>;
@@ -77,44 +80,81 @@ export const columns: ColumnDef<Role, any>[] = [
         id: "actions",
         header: "ACTION",
         enableHiding: false,
-        cell: (data) => {
-            const roleId = data.row.original.roleId;
-            return (
-                <div className="flex justify-center">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl border-none shadow-lg">
-                            <PermissionGuard requiredPermissions={["read:roles"]}>
-                                <DropdownMenuItem asChild>
-                                    <Link 
-                                        href={`/people/view-role/${roleId}`}
-                                        className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#F0FDF4] text-[#475467]"
-                                    >
-                                        <Eye className="w-5 h-5" />
-                                        <span className="font-medium">View Role</span>
-                                    </Link>
-                                </DropdownMenuItem>
-                            </PermissionGuard>
-                            
-                            <div className="h-[1px] bg-[#F2F4F7] my-1 mx-2" />
-                            
-                            <PermissionGuard requiredPermissions={["update:roles"]}>
-                                <DropdownMenuItem 
-                                    className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
-                                    onClick={() => logger.log("Deactivate role:", roleId)}
-                                >
-                                    <Lock className="w-5 h-5" />
-                                    <span className="font-medium">Deactivate Role</span>
-                                </DropdownMenuItem>
-                            </PermissionGuard>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
-            );
-        },
+        cell: (data) => <ActionCell role={data.row.original} />,
     }),
 ];
+
+function ActionCell({ role }: { role: Role }) {
+    const roleId = role.roleId;
+    const { mutateAsync: deleteRole } = useDeleteRoleApi();
+    const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
+
+    const handleDelete = async () => {
+        try {
+            await deleteRole(roleId);
+            toast.success("Role deleted successfully");
+        } catch (error) {
+            toast.error("Failed to delete role");
+        } finally {
+            setDeleteModalOpen(false);
+        }
+    };
+
+    return (
+        <div className="flex justify-center">
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 p-2 rounded-xl border-none shadow-lg z-[9999]">
+                    <DropdownMenuItem asChild>
+                        <Link 
+                            href={`/people/view-role/${roleId}`}
+                            className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#F0FDF4] text-[#475467]"
+                        >
+                            <Eye className="w-5 h-5" />
+                            <span className="font-medium">View Role Details</span>
+                        </Link>
+                    </DropdownMenuItem>
+                    
+                    <PermissionGuard resource="role" action="manage">
+                        <DropdownMenuItem asChild>
+                            <Link 
+                                href={`/people/create-role?id=${roleId}`}
+                                className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-slate-50 text-[#475467]"
+                            >
+                                <Edit2 className="w-5 h-5 text-slate-500" />
+                                <span className="font-medium">Update Role</span>
+                            </Link>
+                        </DropdownMenuItem>
+                    </PermissionGuard>
+
+                    <div className="h-[1px] bg-[#F2F4F7] my-1 mx-2" />
+                    
+                    <PermissionGuard resource="role" action="manage">
+                        <DropdownMenuItem 
+                            className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteModalOpen(true);
+                            }}
+                        >
+                            <Trash2 className="w-5 h-5" />
+                            <span className="font-medium">Delete Role</span>
+                        </DropdownMenuItem>
+                    </PermissionGuard>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <ConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setDeleteModalOpen(false)}
+                onConfirm={handleDelete}
+                title="Delete Role"
+                description={`Are you sure you want to delete the "${role.name?.replace(/_/g, ' ')}" role? This action cannot be undone.`}
+            />
+        </div>
+    );
+}

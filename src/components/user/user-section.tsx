@@ -375,6 +375,8 @@ function DateRangePicker({ fromDate, toDate, onApply, onClear }: DateRangePicker
 // ─── Section label ────────────────────────────────────────────────────────────
 
 function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
+  if (pathname === "/expenses/reimbursements") return "Reimbursements";
+  if (pathname.match(/^\/expenses\/reimbursements\/[^/]+$/)) return "Reimbursement Details";
   if (pathname.startsWith("/settings/personal-settings") && tab === "company-profile") {
     return "Company Settings";
   }
@@ -447,8 +449,9 @@ export function UserSection() {
   const isPersonalExpenseDeletePage = pathname.match(/^\/expenses\/personal\/[a-f0-9\-]+\/delete$/i);
   const isCompanyExpenseDetailPage  = pathname.match(/^\/expenses\/company\/[a-f0-9\-]+$/i);
   const isBatchExpensePage          = pathname.match(/^\/expenses\/batch\/[^/]+$/);
+  const isReimbursementDetailPage   = pathname.match(/^\/expenses\/reimbursements\/[^/]+$/);
   const expenseIdFromPath           = pathname.match(/\/expenses\/(\d+)/)?.[1];
-  const isExpensesListPage          = pathname === "/expenses";
+  const isExpensesListPage          = pathname === "/expenses" || pathname === "/expenses/reimbursements";
   const isProcurementListPage       = pathname === "/procurement/purchase-request" ||
                                       pathname === "/procurement/purchase-order" ||
                                       pathname === "/procurement/confirmation";
@@ -467,7 +470,7 @@ export function UserSection() {
     isExpenseDetailPage || isAuditTrailPage || isSplitExpensePage ||
     isPersonalExpenseDeletePage || isPersonalExpenseDetailPage || isPersonalExpenseEditPage ||
     isCompanyExpenseDetailPage || isUploadReceiptPage || isNewExpensePage || isNewReportPage ||
-    isBatchExpensePage || isViewRolePage || isVendorBulkInvitePage || !!isVendorDetailPage ||
+    isBatchExpensePage || isReimbursementDetailPage || isViewRolePage || isVendorBulkInvitePage || !!isVendorDetailPage ||
     isNewPurchaseRequestPage || !!isPurchaseRequestDetailPage ||
     !!isPODetailPage || !!isConfirmationDetailPage ||
     pathname === "/people/invite/leadership" ||
@@ -495,6 +498,7 @@ export function UserSection() {
       return;
     }
     if (isCompanyExpenseDetailPage) { router.push("/expenses?tab=company-expenses"); return; }
+    if (isReimbursementDetailPage) { router.push("/expenses/reimbursements"); return; }
     if (isBatchExpensePage) {
       const tab = sessionStorage.getItem("expensesTab") || "company-expenses";
       const filters = sessionStorage.getItem("expensesFilters");
@@ -529,7 +533,11 @@ export function UserSection() {
       return;
     }
     if (isVendorBulkInvitePage || isVendorDetailPage) { router.push("/vendors"); return; }
-    if (isNewPurchaseRequestPage || isPurchaseRequestDetailPage) { router.push("/procurement/purchase-request"); return; }
+    if (isNewPurchaseRequestPage || isPurchaseRequestDetailPage) { 
+      const scope = searchParams.get("scope");
+      router.push(scope ? `/procurement/purchase-request?scope=${scope}` : "/procurement/purchase-request"); 
+      return; 
+    }
     if (isPODetailPage) { router.push("/procurement/purchase-order"); return; }
     if (isConfirmationDetailPage) { router.push("/procurement/confirmation"); return; }
     router.push("/expenses");

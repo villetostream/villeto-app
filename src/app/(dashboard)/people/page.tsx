@@ -17,12 +17,19 @@ import { useGetAllRolesApi } from "@/actions/role/get-all-roles";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import { InviteEmployeesWarningModal } from "@/components/dashboard/people/modals/InviteEmployeesWarningModal";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
+import { useAuthStore } from "@/stores/auth-stores";
 
 function People() {
-    const usersApi     = useGetAllUsersApi();
-    const deptsApi     = useGetAllDepartmentsApi();
-    const rolesApi     = useGetAllRolesApi();
-    const directoryApi = useGetDirectoryUsersApi();
+    const can = useAuthStore(s => s.can);
+    const canReadUsers      = can('user', 'read') || can('user', 'manage');
+    const canReadDepts      = can('department', 'read') || can('department', 'manage');
+    const canReadRoles      = can('role', 'read') || can('role', 'manage');
+    const canReadDirectory  = can('user', 'read') || can('user', 'manage');
+
+    const usersApi     = useGetAllUsersApi({ enabled: canReadUsers });
+    const deptsApi     = useGetAllDepartmentsApi({ enabled: canReadDepts });
+    const rolesApi     = useGetAllRolesApi({ enabled: canReadRoles });
+    const directoryApi = useGetDirectoryUsersApi({ enabled: canReadDirectory });
 
     const directoryTotalCount = directoryApi?.data?.meta?.totalCount ?? 0;
     const hasDirectoryData    = directoryTotalCount > 0;
@@ -65,41 +72,16 @@ function People() {
 
     // Register dynamic header CTA button
     const { setAction, clearAction } = useHeaderActionStore();
+    const canManageUsers = useAuthStore(s => s.can)('user', 'manage');
+    const canManageRoles = useAuthStore(s => s.can)('role', 'manage');
 
     // Register the correct header button per tab
     useEffect(() => {
         if (activeTab === "all-users") {
-            setAction({
-                label: "Invite Users",
-                dataTourId: "invite-button",
-                items: [
-                    {
-                        label: "Invite Employees",
-                        onClick: () => setIsInviteModalOpen(true),
-                    },
-                    {
-                        label: "Invite Leadership & Admin",
-                        onClick: () => router.push("/people/invite/leadership"),
-                    },
-                ],
-            });
-        } else if (activeTab === "roles") {
-            setAction({
-                label: "Create Role",
-                onClick: () => router.push("/people/create-role"),
-            });
-        } else if (activeTab === "directory") {
-            setAction({
-                label: "Upload Directory",
-                dataTourId: "upload-directory-button",
-                iconName: "upload",
-                onClick: () => {
-                    sessionStorage.setItem("uploadDirReferrer", "directory");
-                    router.push("/people/invite/employees?step=upload");
-                },
-                secondaryAction: {
-                    label: "Invite users",
-                    iconName: "plus",
+            if (canManageUsers) {
+                setAction({
+                    label: "Invite Users",
+                    dataTourId: "invite-button",
                     items: [
                         {
                             label: "Invite Employees",
@@ -110,8 +92,43 @@ function People() {
                             onClick: () => router.push("/people/invite/leadership"),
                         },
                     ],
-                }
+                });
+            } else {
+                clearAction();
+            }
+        } else if (activeTab === "roles") {
+            setAction({
+                label: "Create Role",
+                onClick: () => router.push("/people/create-role"),
             });
+        } else if (activeTab === "directory") {
+            if (canManageUsers) {
+                setAction({
+                    label: "Upload Directory",
+                    dataTourId: "upload-directory-button",
+                    iconName: "upload",
+                    onClick: () => {
+                        sessionStorage.setItem("uploadDirReferrer", "directory");
+                        router.push("/people/invite/employees?step=upload");
+                    },
+                    secondaryAction: {
+                        label: "Invite users",
+                        iconName: "plus",
+                        items: [
+                            {
+                                label: "Invite Employees",
+                                onClick: () => setIsInviteModalOpen(true),
+                            },
+                            {
+                                label: "Invite Leadership & Admin",
+                                onClick: () => router.push("/people/invite/leadership"),
+                            },
+                        ],
+                    }
+                });
+            } else {
+                clearAction();
+            }
         } else {
             clearAction();
         }
@@ -151,68 +168,76 @@ function People() {
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <TabsList className="bg-muted/50 p-1 h-auto rounded-lg">
-                            <PermissionGuard requiredPermissions={["read:users"]}>
-                                <TabsTrigger
-                                    value="all-users"
-                                    className="data-[state=active]:bg-background rounded-md px-6"
-                                >
-                                    Invited Users
-                                </TabsTrigger>
-                            </PermissionGuard>
-                            <PermissionGuard requiredPermissions={["read:roles"]}>
-                                <TabsTrigger
-                                    value="roles"
-                                    className="data-[state=active]:bg-background rounded-md px-6"
-                                >
-                                    Roles
-                                </TabsTrigger>
-                            </PermissionGuard>
-                            <PermissionGuard requiredPermissions={["read:users"]}>
-                                <TabsTrigger
-                                    value="directory"
-                                    data-tour="directory-tab"
-                                    className="data-[state=active]:bg-background rounded-md px-6"
-                                >
-                                    Directory
-                                </TabsTrigger>
-                            </PermissionGuard>
-                        </TabsList>
-
-                        <div id="tab-actions" className="flex items-center gap-2" />
-                    </div>
-
-                    <TabsContent value="all-users" className="mt-6">
-                        <AllUsersTab />
-                    </TabsContent>
-
-                    <TabsContent value="roles" className="mt-6">
-                        <RolesTab />
-                    </TabsContent>
-
-                    <TabsContent value="directory" className="mt-6">
-                        <DirectoryTab />
-                    </TabsContent>
-                </Tabs>
+                                <PermissionGuard resource="user" action="manage">
+                                    <TabsTrigger
+                                        value="all-users"
+                                        className="data-[state=active]:bg-background rounded-md px-6"
+                                    >
+                                        Invited Users
+                                    </TabsTrigger>
+                                </PermissionGuard>
+                                <PermissionGuard resource="role" action="manage">
+                                    <TabsTrigger
+                                        value="roles"
+                                        className="data-[state=active]:bg-background rounded-md px-6"
+                                    >
+                                        Roles
+                                    </TabsTrigger>
+                                </PermissionGuard>
+                                <PermissionGuard permissions={[
+                                    { resource: "user", action: "manage" },
+                                    { resource: "user", action: "read_company" }
+                                ]}>
+                                    <TabsTrigger
+                                        value="directory"
+                                        data-tour="directory-tab"
+                                        className="data-[state=active]:bg-background rounded-md px-6"
+                                    >
+                                        Directory
+                                    </TabsTrigger>
+                                </PermissionGuard>
+                            </TabsList>
+    
+                            <div id="tab-actions" className="flex items-center gap-2" />
+                        </div>
+    
+                        <TabsContent value="all-users" className="mt-6">
+                            <AllUsersTab />
+                        </TabsContent>
+    
+                        <TabsContent value="roles" className="mt-6">
+                            <RolesTab />
+                        </TabsContent>
+    
+                        <TabsContent value="directory" className="mt-6">
+                            <DirectoryTab />
+                        </TabsContent>
+                    </Tabs>
+                </div>
+    
+                <InviteEmployeesWarningModal
+                    isOpen={isInviteModalOpen}
+                    onClose={() => setIsInviteModalOpen(false)}
+                    onInviteLeaders={() => {
+                        setIsInviteModalOpen(false);
+                        router.push("/people/invite/leadership");
+                    }}
+                    onContinue={() => {
+                        setIsInviteModalOpen(false);
+                        router.push(
+                            hasDirectoryData
+                                ? "/people/invite/employees"
+                                : "/people/invite/employees?step=upload"
+                        );
+                    }}
+                />
             </div>
-
-            <InviteEmployeesWarningModal
-                isOpen={isInviteModalOpen}
-                onClose={() => setIsInviteModalOpen(false)}
-                onInviteLeaders={() => {
-                    setIsInviteModalOpen(false);
-                    router.push("/people/invite/leadership");
-                }}
-                onContinue={() => {
-                    setIsInviteModalOpen(false);
-                    router.push(
-                        hasDirectoryData
-                            ? "/people/invite/employees"
-                            : "/people/invite/employees?step=upload"
-                    );
-                }}
-            />
-        </div>
-    );
-}
-
-export default withPermissions(People, ["read:users", "read:roles", "read:departments"]);
+        );
+    }
+    
+    export default withPermissions(People, [
+        { resource: "user", action: "manage" },
+        { resource: "user", action: "read_company" },
+        { resource: "role", action: "manage" },
+        { resource: "department", action: "manage" }
+    ]);

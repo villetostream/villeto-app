@@ -33,7 +33,7 @@ export default async function RootLayout({
   }
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} antialiased bg-white min-h-svh`}>
+      <body suppressHydrationWarning className={`${geistSans.variable} antialiased bg-white min-h-svh`}>
         <QueryProvider>
           {children}
           <Toaster richColors expand />

@@ -55,7 +55,7 @@ export function DashboardSidebar() {
   });
 
   const logout = useAuthStore((state) => state.logout);
-  const hasPermission = useAuthStore((state) => state.hasPermission);
+  const can = useAuthStore((state) => state.can);
   const user = useAuthStore((state) => state.user);
   const router = useRouter();
   const axios = useAxios();
@@ -132,17 +132,36 @@ export function DashboardSidebar() {
       }
     }
 
+    if (basePath === "/expenses") {
+      if (
+        location.startsWith("/expenses/reimbursements") ||
+        location.startsWith("/expenses/card-transactions") ||
+        location.startsWith("/expenses/travel")
+      ) {
+        return false;
+      }
+      return location.startsWith(basePath);
+    }
+
     return location.startsWith(basePath);
   };
 
-  const canViewCompanyExpenses = hasPermission(["company_expenses:read"]);
+  // A nav item (or sub-item) is visible if its permissions list is empty
+  // (always visible) OR the user satisfies at least one of the listed gates.
+  const hasNavPermission = (permissions: NavItem["permissions"]): boolean => {
+    if (!permissions || permissions.length === 0) return true;
+    return permissions.some(p => can(p.resource, p.action));
+  };
+
+  const canViewCompanyExpenses =
+    can('expense.report', 'read_company') || can('expense.report', 'read_department');
 
   const filterItems = (items: NavItem[]): NavItem[] => {
     return items
       .map((item) => {
         let currentItem = { ...item };
 
-        // Append default tab query param for Expenses based on user role
+        // Append default tab query param for Expenses based on user capability
         if (currentItem.href === "/expenses") {
           currentItem.href = canViewCompanyExpenses
             ? "/expenses?tab=company-expenses"
@@ -151,14 +170,15 @@ export function DashboardSidebar() {
 
         if (currentItem.subItems) {
           const filteredSubs = currentItem.subItems.filter((sub) =>
-            hasPermission(sub.permission),
+            hasNavPermission(sub.permissions)
           );
-          if (!hasPermission(currentItem.permission) && filteredSubs.length === 0)
+          // Show the parent if it has its own permission OR at least one visible sub
+          if (!hasNavPermission(currentItem.permissions) && filteredSubs.length === 0)
             return null;
           currentItem.subItems = filteredSubs;
           return currentItem;
         } else {
-          if (!hasPermission(currentItem.permission)) return null;
+          if (!hasNavPermission(currentItem.permissions)) return null;
           return currentItem;
         }
       })

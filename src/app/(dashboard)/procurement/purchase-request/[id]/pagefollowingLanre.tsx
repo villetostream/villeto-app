@@ -23,7 +23,7 @@ import {
   useApprovePurchaseRequest,
   useRejectPurchaseRequest,
   useConvertToPO,
-  useCreateMultiplePO,
+  type ConvertToPOLineAssignment,
   useGetProcurementCategories,
   useGetVendors,
   type PurchaseRequest,
@@ -691,11 +691,9 @@ function CreatePOView({
 }: {
   pr: PurchaseRequest;
   vendors: Vendor[];
-  onCreatePO: (vendorId: string) => void;
-  onCreateMultiplePO: (groups: LineItemGroup[]) => void;
+  onCreatePO: (lineAssignments: ConvertToPOLineAssignment[]) => void;
   onReject: () => void;
   createPOLoading: boolean;
-  createMultiplePOLoading: boolean;
   rejectLoading: boolean;
   departmentName?: string | null;
 }) {
@@ -773,23 +771,22 @@ function CreatePOView({
     });
   };
 
-  const handleCreateMultiplePO = () => {
-    // Build groups from merged + individual
-    const result: LineItemGroup[] = [];
+  const handleCreatePOParams = () => {
+    const lineAssignments: ConvertToPOLineAssignment[] = [];
 
     mergedGroups.forEach(g => {
-      if (!g.vendorId) { toast.error("Please select a vendor for all merged groups"); return; }
-      result.push({ vendorId: g.vendorId, lineItemIds: g.lineItemIds });
+      g.lineItemIds.forEach(id => {
+        lineAssignments.push({ purchaseRequestLineItemId: id, vendorId: g.vendorId || undefined });
+      });
     });
 
     for (const li of individualItems) {
       const vendorId = groups[li.purchaseRequestLineItemId];
-      if (!vendorId) { toast.error(`Please select a vendor for ${li.name}`); return; }
-      result.push({ vendorId, lineItemIds: [li.purchaseRequestLineItemId] });
+      lineAssignments.push({ purchaseRequestLineItemId: li.purchaseRequestLineItemId, vendorId: vendorId || undefined });
     }
 
-    if (result.length === 0) { toast.error("No items to create PO from"); return; }
-    onCreateMultiplePO(result);
+    if (lineAssignments.length === 0) { toast.error("No items to create PO from"); return; }
+    onCreatePO(lineAssignments);
   };
 
   const user = useAuthStore(s => s.user);
@@ -812,10 +809,10 @@ function CreatePOView({
             {rejectLoading && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1 inline" />}
             Reject Request
           </button>
-          <button onClick={handleCreateMultiplePO} disabled={createMultiplePOLoading || createPOLoading}
+          <button onClick={handleCreatePOParams} disabled={createPOLoading}
             className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2">
-            {(createMultiplePOLoading || createPOLoading) && <Loader2 className="w-4 h-4 animate-spin inline" />}
-            {isSingleVendor ? "Create PO" : "Create Multiple PO"}
+            {createPOLoading && <Loader2 className="w-4 h-4 animate-spin inline" />}
+            Create PO
           </button>
         </div>
       </div>
@@ -1061,7 +1058,6 @@ export default function PRDetailPage() {
   const approvePR = useApprovePurchaseRequest(id);
   const rejectPR = useRejectPurchaseRequest(id);
   const convertToPO = useConvertToPO(id);
-  const createMultiplePO = useCreateMultiplePO(id);
   const canChangeDept = can("procurement.purchase_request", "manage") || can("department", "manage");
   const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
   const canCreatePOAccess = can("procurement.purchase_request", "convert_to_po") || can("procurement.purchase_order", "create");
@@ -1256,21 +1252,17 @@ export default function PRDetailPage() {
     }
   };
 
-  const handleCreateSinglePO = async (vendorId: string) => {
+  const handleCreatePO = async (lineAssignments: ConvertToPOLineAssignment[]) => {
     try {
-      await convertToPO.mutateAsync({ vendorId, deliveryDate: pr?.neededByDate || new Date().toISOString().split("T")[0] });
-      toast.success("Purchase order created successfully!");
+      await convertToPO.mutateAsync({
+        lineAssignments,
+        deliveryDate: pr?.neededByDate || new Date().toISOString().split("T")[0],
+        notes: "Buyer assigned vendors during conversion"
+      });
+      setModal(null);
+      toast.success("Purchase order(s) created successfully!");
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to create purchase order");
-    }
-  };
-
-  const handleCreateMultiplePO = async (groups: LineItemGroup[]) => {
-    try {
-      await createMultiplePO.mutateAsync({ groups });
-      toast.success("Purchase orders created successfully!");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to create purchase orders");
+      toast.error(err?.response?.data?.message || "Failed to create purchase order(s)");
     }
   };
 
@@ -1353,11 +1345,9 @@ export default function PRDetailPage() {
         <CreatePOView
           pr={pr}
           vendors={vendors}
-          onCreatePO={handleCreateSinglePO}
-          onCreateMultiplePO={handleCreateMultiplePO}
+          onCreatePO={handleCreatePO}
           onReject={() => setModal("reject")}
           createPOLoading={convertToPO.isPending}
-          createMultiplePOLoading={createMultiplePO.isPending}
           rejectLoading={rejectPR.isPending}
           departmentName={deptNameFallback}
         />

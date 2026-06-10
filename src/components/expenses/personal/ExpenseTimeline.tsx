@@ -1,254 +1,206 @@
 "use client";
 
-import { logger } from "@/lib/logger";
-
-import React, { useEffect, useState } from "react";
-import { useAxios } from "@/hooks/useAxios";
-import { API_KEYS } from "@/lib/constants/apis";
+import React from "react";
 import type { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
 
 interface TimelineEntry {
   stage: string;
-  user: string;
+  by: string;
   timestamp: string;
-  color: string;
+  dotColor: string;
   isActive: boolean;
 }
 
 interface ExpenseTimelineProps {
   status: PersonalExpenseStatus;
   submissionDate: string;
-}
-
-interface User {
-  firstName: string;
-  lastName: string;
+  /** Name of the person who submitted the report. Falls back to "..." if not provided. */
+  submitterName?: string;
+  /** Name of the person who approved the report. If provided, replaces byApprover. */
+  approverName?: string;
 }
 
 const getTimelineEntries = (
   status: PersonalExpenseStatus,
-  user: User | null,
+  submitterName: string,
   submissionDate: string,
+  approverName?: string,
 ): TimelineEntry[] => {
-  const userName = user ? `${user.firstName} ${user.lastName}` : "...";
+  const bySubmitter = `By ${submitterName}`;
+  const byApprover  = approverName ? `By ${approverName}` : "By Manager";
+
+  const created: TimelineEntry = {
+    stage: "Created",
+    by: bySubmitter,
+    timestamp: submissionDate,
+    dotColor: "bg-gray-300",
+    isActive: true,
+  };
+
+  const submitted: TimelineEntry = {
+    stage: "Submitted for Approval",
+    by: bySubmitter,
+    timestamp: submissionDate,
+    dotColor: "bg-orange-500",
+    isActive: true,
+  };
 
   switch (status) {
     case "draft":
-      // Draft timeline - only shows creation
-      return [
-        {
-          stage: "Created",
-          user: `By ${userName}`,
-          timestamp: submissionDate,
-          color: "bg-gray-300",
-          isActive: true,
-        },
-      ];
+      return [created];
 
     case "pending":
-      // Pending timeline - created and submitted
       return [
-        {
-          stage: "Created",
-          user: `By ${userName}`,
-          timestamp: submissionDate,
-          color: "bg-gray-300",
-          isActive: true,
-        },
-        {
-          stage: "Submitted for Approval",
-          user: `By ${userName}`,
-          timestamp: submissionDate,
-          color: "bg-orange-500",
-          isActive: true,
-        },
+        created,
+        submitted,
         {
           stage: "Under Review",
-          user: "Awaiting Manager Review",
+          by: "Awaiting Manager Review",
           timestamp: "Pending",
-          color: "bg-yellow-500",
+          dotColor: "bg-yellow-500",
           isActive: false,
         },
       ];
 
     case "approved":
-      // Approved timeline - full approval chain
       return [
-        {
-          stage: "Created",
-          user: `By ${userName}`,
-          timestamp: submissionDate,
-          color: "bg-gray-300",
-          isActive: true,
-        },
-        {
-          stage: "Submitted for Approval",
-          user: `By ${userName}`,
-          timestamp: submissionDate,
-          color: "bg-orange-500",
-          isActive: true,
-        },
+        created,
+        submitted,
         {
           stage: "Under Review",
-          user: "Manager Review Completed",
-          timestamp: "Pending",
-          color: "bg-yellow-500",
+          by: "Manager Review Completed",
+          timestamp: "",
+          dotColor: "bg-yellow-500",
           isActive: true,
         },
         {
           stage: "Expense Approved",
-          user: "By Controlling Officer",
-          timestamp: "Pending",
-          color: "bg-green-600",
+          by: byApprover,
+          timestamp: "",
+          dotColor: "bg-green-600",
           isActive: true,
         },
       ];
 
     case "paid":
-      // Paid timeline - complete workflow
       return [
-        {
-          stage: "Created",
-          user: `By ${userName}`,
-          timestamp: submissionDate,
-          color: "bg-gray-300",
-          isActive: true,
-        },
-        {
-          stage: "Submitted for Approval",
-          user: `By ${userName}`,
-          timestamp: submissionDate,
-          color: "bg-orange-500",
-          isActive: true,
-        },
+        created,
+        submitted,
         {
           stage: "Under Review",
-          user: "Manager Review Completed",
-          timestamp: "Pending",
-          color: "bg-yellow-500",
+          by: "Manager Review Completed",
+          timestamp: "",
+          dotColor: "bg-yellow-500",
           isActive: true,
         },
         {
           stage: "Expense Approved",
-          user: "By Controlling Officer",
-          timestamp: "Pending",
-          color: "bg-green-600",
+          by: byApprover,
+          timestamp: "",
+          dotColor: "bg-green-600",
           isActive: true,
         },
         {
           stage: "Reimbursement Processing",
-          user: "By Finance Department",
-          timestamp: "Pending",
-          color: "bg-indigo-500",
+          by: "By Finance Department",
+          timestamp: "",
+          dotColor: "bg-indigo-500",
           isActive: true,
         },
         {
           stage: "Paid",
-          user: "Payment Completed",
-          timestamp: "Pending",
-          color: "bg-[#38B2AC]",
+          by: "Payment Completed",
+          timestamp: "",
+          dotColor: "bg-[#38B2AC]",
           isActive: true,
         },
       ];
 
     case "rejected":
     case "declined":
-      // Rejected/Declined timeline - stops at rejection
       return [
-        {
-          stage: "Created",
-          user: `By ${userName}`,
-          timestamp: submissionDate,
-          color: "bg-gray-300",
-          isActive: true,
-        },
-        {
-          stage: "Submitted for Approval",
-          user: `By ${userName}`,
-          timestamp: submissionDate,
-          color: "bg-orange-500",
-          isActive: true,
-        },
+        created,
+        submitted,
         {
           stage: "Under Review",
-          user: "Manager Review Completed",
-          timestamp: "Pending",
-          color: "bg-yellow-500",
+          by: "Manager Review Completed",
+          timestamp: "",
+          dotColor: "bg-yellow-500",
           isActive: true,
         },
         {
           stage: "Expense Rejected",
-          user: "By Controlling Officer",
-          timestamp: "Pending",
-          color: "bg-red-500",
+          by: byApprover,
+          timestamp: "",
+          dotColor: "bg-red-500",
           isActive: true,
         },
       ];
+
+    case "flagged":
+      return [
+        created,
+        submitted,
+        {
+          stage: "Under Review",
+          by: "Manager Review Completed",
+          timestamp: "",
+          dotColor: "bg-yellow-500",
+          isActive: true,
+        },
+        {
+          stage: "Expense Flagged",
+          by: byApprover,
+          timestamp: "",
+          dotColor: "bg-orange-500",
+          isActive: true,
+        },
+      ];
+
     default:
-      return [];
+      return [created];
   }
 };
 
 export function ExpenseTimeline({
   status,
   submissionDate,
+  submitterName = "...",
+  approverName,
 }: ExpenseTimelineProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const axios = useAxios();
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        setIsLoading(true);
-        const response = await axios.get<{
-          data: User;
-        }>(API_KEYS.USER.ME);
-        setUser(response.data.data);
-      } catch (error) {
-        logger.error("Failed to fetch user:", error);
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUser();
-  }, [axios]);
-
-  const entries = getTimelineEntries(status, user, submissionDate);
+  const entries = getTimelineEntries(status, submitterName, submissionDate, approverName);
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-foreground">
-        Expense Timeline
-      </h2>
-      <div className="relative">
-        {/* Vertical Line */}
-        <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
+      <h2 className="text-lg font-semibold text-foreground">Expense Timeline</h2>
 
-        {/* Timeline Entries */}
+      <div className="relative">
+        {/* Vertical connector line */}
+        <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-border" />
+
         <div className="space-y-6">
           {entries.map((entry, index) => (
             <div key={index} className="relative flex items-start gap-4">
-              {/* Circle */}
+              {/* Dot */}
               <div
-                className={`relative z-10 w-8 h-8 rounded-full ${entry.color} flex items-center justify-center shrink-0`}
+                className={`relative z-10 w-8 h-8 rounded-full ${entry.dotColor} flex items-center justify-center shrink-0`}
               >
                 {entry.isActive && (
                   <div className="w-3 h-3 rounded-full bg-white" />
                 )}
               </div>
 
-              {/* Content */}
-              <div className="flex-1 pt-1">
-                <p className="text-sm font-medium text-foreground">
+              {/* Text */}
+              <div className="flex-1 pt-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground leading-tight">
                   {entry.stage}
                 </p>
-                <p className="text-sm text-muted-foreground">{entry.user}</p>
-                <p className="text-xs text-muted-foreground mt-1 text-right">
-                  {entry.timestamp}
-                </p>
+                <p className="text-sm text-muted-foreground mt-0.5">{entry.by}</p>
+                {entry.timestamp && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {entry.timestamp}
+                  </p>
+                )}
               </div>
             </div>
           ))}

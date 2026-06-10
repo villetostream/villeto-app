@@ -28,7 +28,7 @@ export default function LoginPage() {
     const isLoading = login.isPending;
     const setUser = useAuthStore().login;
     const setAccessToken = useAuthStore().setAccessToken;
-    const setUserPermissions = useAuthStore().setUserPermissions;
+    const setCompanyPermissions = useAuthStore().setCompanyPermissions;
     const [error, setError] = useState<string | null>(null);
 
     const form = useForm<FormData>({
@@ -45,7 +45,7 @@ export default function LoginPage() {
             const response = await login.mutateAsync(data);
             setAccessToken(response.data.accessToken);
             setUser(response.data.user as User);
-            setUserPermissions(response.data.user?.villetoRole?.permissions ?? []);
+            setCompanyPermissions(response.data.user?.companyRole?.permissions ?? []);
             router.push('/dashboard');
         } catch (err: any) {
             setError(((err as AxiosError).response?.data as any)?.message as string ?? "Invalid email or password");

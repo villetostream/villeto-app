@@ -49,10 +49,13 @@ function checkExpenseAgainstPolicies(
   expense: ExpenseItem,
   categoryMeta: ExpenseCategory | undefined
 ): PolicyViolation | null {
-  if (!categoryMeta?.policies || categoryMeta.policies.length === 0) return null;
+  if (!categoryMeta?.policies || !Array.isArray(categoryMeta.policies) || categoryMeta.policies.length === 0) return null;
 
   for (const policy of categoryMeta.policies) {
-    for (const rule of policy.rules) {
+    // Backend sometimes returns policies without a rules array, which causes a crash.
+    const rules = Array.isArray(policy.rules) ? policy.rules : [];
+    
+    for (const rule of rules) {
       if (rule.type === "spend_limit" && rule.timeframe === "per_transaction") {
         if (rule.amount !== undefined && expense.amount > rule.amount) {
           return {
@@ -263,22 +266,31 @@ export default function NewReportPage() {
 
   // ── Policy + Submit flow ──────────────────────────────────────────────────
   const runPolicyAndSubmit = async (status: "draft" | "pending") => {
-    if (expenses.length === 0) { toast.error("Please add at least one expense"); return; }
+    try {
+      console.log("[runPolicyAndSubmit] Triggered with status:", status);
+      console.log("[runPolicyAndSubmit] Expenses:", expenses);
+      
+      if (expenses.length === 0) { toast.error("Please add at least one expense"); return; }
+      
+      if (status === "pending") {
+        // Run policy engine
+        const violations = runPolicyEngine(expenses, categories);
+        console.log("[runPolicyAndSubmit] Violations found:", violations);
 
-    if (status === "pending") {
-      // Run policy engine
-      const violations = runPolicyEngine(expenses, categories);
-
-      if (violations.length > 0) {
-        setPolicyViolations(violations);
-        setPendingSubmitStatus(status);
-        setIsPolicyModalOpen(true);
-        return; // Wait for user to resolve in modal
+        if (violations.length > 0) {
+          setPolicyViolations(violations);
+          setPendingSubmitStatus(status);
+          setIsPolicyModalOpen(true);
+          return; // Wait for user to resolve in modal
+        }
       }
-    }
 
-    // No violations (or draft) — submit directly
-    await doSubmit(status, {});
+      // No violations (or draft) — submit directly
+      await doSubmit(status, {});
+    } catch (err) {
+      console.error("[runPolicyAndSubmit] Sync Crash:", err);
+      toast.error("An unexpected error occurred during submission. See console.");
+    }
   };
 
   const handlePolicyContinue = async (justifications: Record<string, string>) => {
@@ -365,7 +377,7 @@ export default function NewReportPage() {
           title: expense.name,
           merchantName: expense.merchantName || "",
           description: expense.description || "",
-          expenseCategoryId: category.categoryId,
+          expenseCategoryId: category.categoryId || (category as any).id,
           amount: expense.amount,
           transactionDate: expense.transactionDate
             ? new Date(expense.transactionDate).toISOString()
@@ -379,7 +391,9 @@ export default function NewReportPage() {
         return payload;
       });
 
-      await axios.post(API_KEYS.EXPENSE.REPORTS, { reportTitle, status: status === "pending" ? "pending_policy_check" : status, expenses: expensesPayload });
+      const finalPayload = { reportTitle, status: status === "pending" ? "pending_policy_check" : status, expenses: expensesPayload };
+      console.log("[doSubmit] Final payload being sent:", JSON.stringify(finalPayload, null, 2));
+      await axios.post(API_KEYS.EXPENSE.REPORTS, finalPayload);
 
       toast.success(status === "draft" ? "Report saved as draft" : "Report submitted successfully!");
       if (status === "pending") notifySetupGuide("report");

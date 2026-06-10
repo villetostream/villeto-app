@@ -19,6 +19,7 @@ const ExpenseTable = ({
   onFilteredDataChange?: (filteredData: any[]) => void;
   columnsOverride?: ColumnDef<any, any>[];
   page?: number;
+  scope?: string;
 }) => {
   const [filteredData, setFilteredData] = useState(data);
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>(

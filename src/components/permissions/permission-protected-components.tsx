@@ -3,47 +3,70 @@
 import { useAuthStore } from "@/stores/auth-stores";
 import React from "react";
 
-// PermissionGuard Component
+// ─── PermissionGuard ──────────────────────────────────────────────────────────
+// Renders children only when the current user holds the given resource+action.
+//
+// Usage (preferred):
+//   <PermissionGuard resource="vendor" action="approve">
+//     <ApproveButton />
+//   </PermissionGuard>
+//
+// Optional fallback:
+//   <PermissionGuard resource="vendor" action="approve" fallback={<ReadOnlyView />}>
+//     <ApproveButton />
+//   </PermissionGuard>
+//
+// Legacy usage (deprecated but supported during migration):
+//   <PermissionGuard requiredPermissions={["vendor.approve"]}>...</PermissionGuard>
+
 interface PermissionGuardProps {
-  requiredPermissions?: string[]; // Permissions required for access
-  fallback?: React.ReactNode; // Optional fallback content
-  children: React.ReactNode; // Protected content
+  /** resource to check, e.g. "vendor", "expense.report" */
+  resource?: string;
+  /** action to check, e.g. "approve", "read_company" */
+  action?: string;
+
+  /** Array of structured permissions (evaluates as OR). Use this instead of resource/action for multiple gates. */
+  permissions?: { resource: string; action: string }[];
+
+  /**
+   * @deprecated Use resource + action props instead.
+   * Accepts "resource.action" or "resource:action" strings.
+   */
+  requiredPermissions?: string[];
+
+  /** Rendered when the user does NOT have the permission. Defaults to null (invisible). */
+  fallback?: React.ReactNode;
+  children: React.ReactNode;
 }
 
 const PermissionGuard: React.FC<PermissionGuardProps> = ({
+  resource,
+  action,
+  permissions,
   requiredPermissions,
   fallback = null,
   children,
 }) => {
-  const userPermissions = useAuthStore(state => state.getUserPermissions());
-  const user = useAuthStore(state => state.user);
+  const can = useAuthStore(state => state.can);
+  const hasPermission = useAuthStore(state => state.hasPermission);
 
-  // Helper function to check for exact permission matches
-  const hasPermissionForRoute = (permissions: string[]) => {
-    const roleName = user?.villetoRole?.name?.toUpperCase() || user?.position?.toUpperCase() || "";
-    if (["OWNER", "CONTROLLING_OFFICER", "ADMIN"].includes(roleName)) {
-        return true;
-    }
+  // ── New preferred path (Multiple OR) ──
+  if (permissions && permissions.length > 0) {
+    const hasAny = permissions.some((p) => can(p.resource, p.action));
+    return hasAny ? <>{children}</> : <>{fallback}</>;
+  }
 
-    return permissions?.some((permission) =>
-      (userPermissions ?? []).some(
-        (userPermission) => userPermission.name === permission
-      )
-    );
-  };
+  // ── New preferred path (Single) ──
+  if (resource && action) {
+    return can(resource, action) ? <>{children}</> : <>{fallback}</>;
+  }
 
-  // If no requiredPermissions are passed, render children by default
+  // ── Legacy path (deprecated) ──
   if (!requiredPermissions || requiredPermissions.length === 0) {
     return <>{children}</>;
   }
 
-  const hasAccess = hasPermissionForRoute(requiredPermissions);
-
-  if (!hasAccess) {
-    return <>{fallback}</>; // Render fallback content if no access
-  }
-
-  return <>{children}</>; // Render protected content if access is granted
+  return hasPermission(requiredPermissions) ? <>{children}</> : <>{fallback}</>;
 };
 
 export default PermissionGuard;

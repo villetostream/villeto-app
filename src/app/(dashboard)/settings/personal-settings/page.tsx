@@ -9,7 +9,6 @@ import { Pencil, Camera, Trash2, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { Roles } from "@/core/permissions/roles";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
@@ -1062,13 +1061,7 @@ export default function PersonalSettingsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const roleName = user?.villetoRole?.name?.toUpperCase() || user?.position?.toUpperCase() || "";
-  const canSeeCompany = [
-    Roles.ORGANIZATION_OWNER,
-    Roles.CONTROLLING_OFFICER,
-    "ADMIN",
-    "OWNER",
-  ].includes(roleName as any);
+  const canSeeCompany = useAuthStore((s) => s.can)("user", "manage");
 
   // Drive active tab from URL ?tab= so the sidebar "Company Settings" link
   // can deep-link here with ?tab=company-profile

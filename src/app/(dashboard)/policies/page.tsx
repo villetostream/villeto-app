@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import PolicyCreationModal, { type CreatedPolicyData } from "@/components/policies/PolicyCreationModal";
 import AddCategoryModal from "@/components/auth/AddCategoryModal";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 import { DataTable } from "@/components/datatable";
 import { ColumnDef } from "@tanstack/react-table";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
@@ -123,6 +124,9 @@ function formatUser(userObj: any, fallbackStr?: string) {
 /* ─── Expense Category Action Menu ───────────────────────────────────────────── */
 
 function ActionMenu({ onView, onCreatePolicy, onDelete }: { onView: () => void; onCreatePolicy: () => void; onDelete: () => void; }) {
+  const canDelete = useAuthStore(s => s.can)('expense.category', 'manage');
+  const canCreatePolicy = useAuthStore(s => s.can)('policy', 'create');
+
   return (
     <div className="flex justify-end">
       <DropdownMenu>
@@ -135,15 +139,16 @@ function ActionMenu({ onView, onCreatePolicy, onDelete }: { onView: () => void; 
           <DropdownMenuItem onClick={onView} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors border-b border-border/50 cursor-pointer">
             <Eye className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> View Details
           </DropdownMenuItem>
-          <DropdownMenuItem className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors border-b border-border/50 cursor-pointer">
-            <Pencil className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onCreatePolicy} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors border-b border-border/50 cursor-pointer">
-            <Shield className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Create policy
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onDelete} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer text-destructive">
-            <Trash2 className="w-[17px] h-[17px] text-destructive shrink-0" strokeWidth={1.5} /> Delete
-          </DropdownMenuItem>
+          {canCreatePolicy && (
+            <DropdownMenuItem onClick={onCreatePolicy} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors border-b border-border/50 cursor-pointer">
+              <Shield className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Create policy
+            </DropdownMenuItem>
+          )}
+          {canDelete && (
+            <DropdownMenuItem onClick={onDelete} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer text-destructive">
+              <Trash2 className="w-[17px] h-[17px] text-destructive shrink-0" strokeWidth={1.5} /> Delete
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -460,18 +465,22 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
 
         {/* ── Footer buttons ── */}
         <div className="px-6 pb-6 pt-1 shrink-0 flex gap-3">
-          <button
-            onClick={() => { onArchive(policy); onClose(); }}
-            className="flex-1 h-11 rounded-full border border-primary text-primary text-sm font-semibold hover:bg-primary/5 transition-colors"
-          >
-            Move to Archive
-          </button>
-          <button
-            onClick={() => { onEdit(policy); onClose(); }}
-            className="flex-1 h-11 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
-          >
-            Edit
-          </button>
+          {useAuthStore(s => s.can)('policy', 'deactivate') && (
+            <button
+              onClick={() => { onArchive(policy); onClose(); }}
+              className="flex-1 h-11 rounded-full border border-primary text-primary text-sm font-semibold hover:bg-primary/5 transition-colors"
+            >
+              Move to Archive
+            </button>
+          )}
+          {useAuthStore(s => s.can)('policy', 'update') && (
+            <button
+              onClick={() => { onEdit(policy); onClose(); }}
+              className="flex-1 h-11 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+            >
+              Edit
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -549,7 +558,7 @@ function ReviewPolicyModal({ policy, onClose, onApprove, onReject }: {
 
 /* ─── Page ───────────────────────────────────────────────────────────────────── */
 
-export default function PoliciesPage() {
+function PoliciesPage() {
   const axios = useAxios();
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
@@ -571,7 +580,14 @@ export default function PoliciesPage() {
   const [search, setSearch]                 = useState("");
   const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
 
-  const expCatApi = useGetExpenseCategoriesApi();
+  const can = useAuthStore(s => s.can);
+  const canReadExpenseCategories = can('expense.category', 'read') || can('expense.category', 'manage');
+  const canReadPolicies = can('policy', 'read') || can('policy', 'manage') || can('policy', 'create');
+
+  const expCatApi = useGetExpenseCategoriesApi({ enabled: canReadExpenseCategories });
+  const canManageCategories = user?.companyRole?.permissions.some(p => p.resource === 'expense.category' && p.action === 'manage') || false;
+  const canCreatePolicy = user?.companyRole?.permissions.some(p => p.resource === 'policy' && p.action === 'create') || false;
+
   const liveExpenseCategories = useMemo<ExpenseCategory[]>(() => {
     return (expCatApi.data?.data || []).map((c: any) => ({
       id: c.categoryId ?? c.id,
@@ -583,7 +599,7 @@ export default function PoliciesPage() {
     }));
   }, [expCatApi.data?.data]);
 
-  const policiesApi = useGetPoliciesApi();
+  const policiesApi = useGetPoliciesApi({ enabled: canReadPolicies });
   const queryClient = useQueryClient();
 
   // Pagination state for the policies table
@@ -662,16 +678,24 @@ export default function PoliciesPage() {
 
   useEffect(() => {
     if (activeTab === "policies") {
-      setAction({ label: "New Policy", dataTourId: "new-policy-button", onClick: () => setIsCreatePolicyOpen(true) });
+      if (canCreatePolicy) {
+        setAction({ label: "New Policy", dataTourId: "new-policy-button", onClick: () => setIsCreatePolicyOpen(true) });
+      } else {
+        clearAction();
+      }
     } else if (activeTab === "expense") {
-      setAction({ label: "New Expense Category", dataTourId: "new-expense-category-button", onClick: () => setIsAddCategoryOpen(true) });
+      if (canManageCategories) {
+        setAction({ label: "New Expense Category", dataTourId: "new-expense-category-button", onClick: () => setIsAddCategoryOpen(true) });
+      } else {
+        clearAction();
+      }
     } else {
       // Archived tab — no button
       clearAction();
     }
     // Cleanup on unmount
     return () => clearAction();
-  }, [activeTab, setAction, clearAction]);
+  }, [activeTab, setAction, clearAction, canCreatePolicy, canManageCategories]);
 
   /* derived */
   const activePolicies   = useMemo(() => policies.filter(p => !p.archivedOn), [policies]);
@@ -796,6 +820,10 @@ export default function PoliciesPage() {
       cell: ({ row }) => {
         const policy = row.original;
         const isApprover = policy.approversRaw.some((a: any) => a.userId === user?.userId);
+        const { can } = useAuthStore.getState();
+        const canUpdate = can('policy', 'update');
+        const canDeactivate = can('policy', 'deactivate');
+        
         return (
           <div className="flex items-center justify-end gap-2">
             {policy.status === "inactive" && isApprover && (
@@ -816,12 +844,16 @@ export default function PoliciesPage() {
                 <DropdownMenuItem onClick={() => setDetailPolicy(policy)} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/50">
                   <Eye className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> View Details
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleEdit(policy)} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/50">
-                  <Pencil className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Edit Policy
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleArchive(policy)} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer">
-                  <Archive className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Archive Policy
-                </DropdownMenuItem>
+                {canUpdate && (
+                  <DropdownMenuItem onClick={() => handleEdit(policy)} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/50">
+                    <Pencil className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Edit Policy
+                  </DropdownMenuItem>
+                )}
+                {canDeactivate && (
+                  <DropdownMenuItem onClick={() => handleArchive(policy)} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer">
+                    <Archive className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Archive Policy
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -972,15 +1004,17 @@ export default function PoliciesPage() {
             >
               Policies
             </button>
-            <button
-              data-tour="expense-category-tab"
-              onClick={() => { setActiveTab("expense"); setSearch(""); }}
-              className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                activeTab === "expense" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Expense Category
-            </button>
+            {canManageCategories && (
+              <button
+                data-tour="expense-category-tab"
+                onClick={() => { setActiveTab("expense"); setSearch(""); }}
+                className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+                  activeTab === "expense" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Expense Category
+              </button>
+            )}
             <button
               onClick={() => { setActiveTab("archived"); setSearch(""); }}
               className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
@@ -1031,13 +1065,15 @@ export default function PoliciesPage() {
                   <p className="text-sm text-muted-foreground max-w-xs leading-relaxed mb-9">
                     Policies help you automate expense approvals and enforce spending limits.
                   </p>
-                  <button
-                    onClick={() => setIsCreatePolicyOpen(true)}
-                    className="h-12 px-7 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
-                  >
-                    <PlusCircle className="w-4 h-4" strokeWidth={2} />
-                    Create First Policy
-                  </button>
+                  {canCreatePolicy && (
+                    <button
+                      onClick={() => setIsCreatePolicyOpen(true)}
+                      className="h-12 px-7 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
+                    >
+                      <PlusCircle className="w-4 h-4" strokeWidth={2} />
+                      Create First Policy
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1074,13 +1110,15 @@ export default function PoliciesPage() {
                   <p className="text-sm text-muted-foreground max-w-xs leading-relaxed mb-9">
                     Expense categories help you organize and control spending across your company.
                   </p>
-                  <button
-                    onClick={() => setIsAddCategoryOpen(true)}
-                    className="h-12 px-7 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
-                  >
-                    <PlusCircle className="w-4 h-4" strokeWidth={2} />
-                    Create First Category
-                  </button>
+                  {canManageCategories && (
+                    <button
+                      onClick={() => setIsAddCategoryOpen(true)}
+                      className="h-12 px-7 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
+                    >
+                      <PlusCircle className="w-4 h-4" strokeWidth={2} />
+                      Create First Category
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1185,3 +1223,7 @@ export default function PoliciesPage() {
     </div>
   );
 }
+
+export default withPermissions(PoliciesPage, [
+  { resource: "policy", action: "read_company" }
+]);

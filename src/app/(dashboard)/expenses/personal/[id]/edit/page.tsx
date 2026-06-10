@@ -329,7 +329,7 @@ export default function EditReportPage() {
           title: expense.name,
           merchantName: expense.merchantName || "",
           description: expense.description || "",
-          expenseCategoryId: category.categoryId,
+          expenseCategoryId: category.categoryId || (category as any).id,
           amount: expense.amount,
           transactionDate: expense.transactionDate
             ? new Date(expense.transactionDate).toISOString()

@@ -287,4 +287,4 @@ function AddSingleUser() {
     );
 }
 
-export default withPermissions(AddSingleUser, ["read:users", "create:users"]);
+export default withPermissions(AddSingleUser, []);

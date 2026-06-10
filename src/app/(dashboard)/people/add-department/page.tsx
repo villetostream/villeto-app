@@ -10,4 +10,4 @@ const Page = () => {
     )
 }
 
-export default withPermissions(Page, ["read:department", "create:departmets"])
+export default withPermissions(Page, [])

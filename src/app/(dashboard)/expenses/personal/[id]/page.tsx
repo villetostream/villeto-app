@@ -14,8 +14,6 @@ import {
   type ExpenseItem,
 } from "@/lib/react-query/expenses";
 import { ExpenseDetailSkeleton } from "@/components/expenses/ExpenseDetailSkeleton";
-import { useState, useEffect } from "react";
-import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { useAuthStore } from "@/stores/auth-stores";
 import { logger } from "@/lib/logger";
@@ -91,10 +89,7 @@ const formatDate = (dateString: string): string => {
   }
 };
 
-interface User {
-  firstName: string;
-  lastName: string;
-}
+
 
 export default function PersonalExpenseDetailPage() {
   const params = useParams();
@@ -102,9 +97,8 @@ export default function PersonalExpenseDetailPage() {
   const reportId = params.id as string;
   const axios = useAxios();
   const currencySymbol = useAuthStore((state) => state.getCurrencySymbol());
+  const currentUser = useAuthStore((state) => state.user);
 
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
 
@@ -114,26 +108,6 @@ export default function PersonalExpenseDetailPage() {
     isLoading,
     error,
   } = usePersonalExpenseDetail(reportId);
-
-  // Fetch user data
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        setIsLoadingUser(true);
-        const response = await axios.get<{
-          data: User;
-        }>(API_KEYS.USER.ME);
-        setUser(response.data.data);
-      } catch (error) {
-        logger.error("Failed to fetch user:", error);
-        setUser(null);
-      } finally {
-        setIsLoadingUser(false);
-      }
-    };
-
-    fetchUser();
-  }, [axios]);
 
   if (isLoading) {
     return <ExpenseDetailSkeleton />;
@@ -180,12 +154,12 @@ export default function PersonalExpenseDetailPage() {
     0,
   );
 
-  // Get the overall report status from the detail response, with fallbacks
   const reportStatus = (expenseDetail.status ||
     expenses[0]?.status ||
     "draft") as PersonalExpenseStatus;
 
-  const userName = user ? `${user.firstName} ${user.lastName}` : "...";
+  const fallbackName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Unknown User";
+  const userName = expenseDetail.reporter || fallbackName;
 
   const handleExpenseClick = (expense: ExpenseItem) => {
     setSelectedExpense(expense);
@@ -334,6 +308,7 @@ export default function PersonalExpenseDetailPage() {
           <ExpenseTimeline
             status={reportStatus}
             submissionDate={formatDate(expenseDetail.createdAt)}
+            submitterName={userName}
           />
         </div>
       </div>

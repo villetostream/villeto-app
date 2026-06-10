@@ -35,7 +35,7 @@ const formatDate = (dateString: string) => {
   }
 };
 
-function ActionsCell({ row }: { row: any }) {
+function ActionsCell({ row, scope }: { row: any; scope: string }) {
   const expense = row.original as CompanyExpenseReport;
   const router = useRouter();
 
@@ -44,14 +44,14 @@ function ActionsCell({ row }: { row: any }) {
       variant="ghost" 
       size="icon" 
       className="cursor-pointer"
-      onClick={() => router.push(`/expenses/company/${expense.reportId}`)}
+      onClick={() => router.push(`/expenses/company/${expense.reportId}?scope=${scope}`)}
     >
       <Eye className="w-4 h-4 text-muted-foreground" />
     </Button>
   );
 }
 
-export const companyColumns: ColumnDef<CompanyExpenseReport>[] = [
+export const getCompanyColumns = (scope: string): ColumnDef<CompanyExpenseReport>[] => [
   {
     accessorKey: "employee",
     header: "REQUESTED BY",
@@ -130,5 +130,9 @@ export const companyColumns: ColumnDef<CompanyExpenseReport>[] = [
       return <span>{formatDate(createdAt)}</span>;
     },
     enableHiding: true,
+  },
+  {
+    id: "actions",
+    cell: ({ row }) => <ActionsCell row={row} scope={scope} />,
   },
 ];

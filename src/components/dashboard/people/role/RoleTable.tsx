@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react'
+import React, { useMemo } from 'react'
+import { useRouter } from 'next/navigation';
 import { DataTable } from '@/components/datatable';
 import { columns } from './column';
 import { useDataTable } from '@/components/datatable/useDataTable';
@@ -6,13 +7,9 @@ import { Role, useGetAllRolesApi } from '@/actions/role/get-all-roles';
 
 const RoleTable = () => {
 
-    const depts = useGetAllRolesApi()
-    
+    const router = useRouter();
+    const depts = useGetAllRolesApi();
     const roles: Role[] = depts?.data?.data ?? [];
-    
-    // We create tableProps outside useMemo but passing initial length. 
-    // Wait, the hook `tableData(data)` creates it.
-    // However, length might change so we override total later.
     const tableprops = tableData(roles);
 
     const filteredRoles = useMemo(() => {
@@ -30,17 +27,12 @@ const RoleTable = () => {
         const filters = tableprops.filterBy || {};
         if (filters.status && filters.status !== "all") {
             const isActiveFilter = filters.status.toLowerCase() === "active";
-            // Check status against boolean isActive
-            result = result.filter(r => {
-                const isActive = r.isActive === true;
-                return isActive === isActiveFilter;
-            });
+            result = result.filter(r => r.isActive === isActiveFilter);
         }
 
         return result;
     }, [roles, tableprops.globalSearch, tableprops.filterBy]);
 
-    // Track totalItems
     useMemo(() => {
         tableprops.setTotalItems(filteredRoles.length);
     }, [filteredRoles.length]);
@@ -55,6 +47,7 @@ const RoleTable = () => {
             enableColumnVisibility={true}
             selectedDataIds={tableprops.selectedDataIds}
             setSelectedDataIds={tableprops.setSelectedDataIds}
+            onRowClick={(row) => router.push(`/people/view-role/${(row as Role).roleId}`)}
             tableHeader={{
                 actionButton: <></>,
                 isSearchable: true,
@@ -87,19 +80,15 @@ const RoleTable = () => {
                         tableprops.setPage(1);
                     },
                 },
-                bulkActions: [
-
-                ],
-
+                bulkActions: [],
             }}
         />
-    )
-}
+    );
+};
 
-export default RoleTable
+export default RoleTable;
 
 export const tableData = (data: Role[]) => {
-
     return useDataTable({
         initialPage: 1,
         initialPageSize: 10,
@@ -108,4 +97,4 @@ export const tableData = (data: Role[]) => {
         manualFiltering: false,
         manualPagination: false,
     });
-} 
+};

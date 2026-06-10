@@ -450,7 +450,7 @@ export function ManualExpenseForm({
         title: expense.title,
         merchantName: expense.vendor,
         description: expense.description || "",
-        expenseCategoryId: category.categoryId,
+        expenseCategoryId: category.categoryId || (category as any).id,
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
@@ -513,7 +513,7 @@ export function ManualExpenseForm({
         title: expense.title,
         merchantName: expense.vendor,
         description: expense.description || "",
-        expenseCategoryId: category.categoryId,
+        expenseCategoryId: category.categoryId || (category as any).id,
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };

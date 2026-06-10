@@ -123,7 +123,7 @@ export interface CompanyExpensesResponse {
   };
 }
 
-// Query for fetching personal expenses
+// Query for fetching personal expenses (scope=own)
 export const usePersonalExpenses = (
   page: number = 1,
   limit: number = 10,
@@ -133,55 +133,58 @@ export const usePersonalExpenses = (
   const axios = useAxios();
 
   return useQuery({
-    queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES, page, limit, sortBy, sortOrder],
+    queryKey: [API_KEYS.EXPENSE.REPORTS_SCOPED("own"), page, limit, sortBy, sortOrder],
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.append("scope", "own");
       params.append("page", page.toString());
       params.append("limit", limit.toString());
       if (sortBy) params.append("sortBy", sortBy);
       if (sortOrder) params.append("sortOrder", sortOrder);
 
       const response = await axios.get<PersonalExpensesApiResponse>(
-        `${API_KEYS.EXPENSE.PERSONAL_EXPENSES}?${params.toString()}`
+        `reports?${params.toString()}`
       );
-      // Map to the expected PersonalExpensesResponse shape to avoid breaking downstream code
       return {
         reports: response.data.data,
         meta: response.data.meta,
       } as PersonalExpensesResponse;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 };
 
-// Query for fetching company expenses
+// Query for fetching company/team expenses (scope-based)
 export const useCompanyExpenses = (
   page: number = 1,
   limit: number = 10,
+  scope: "team" | "company" = "company",
   sortBy?: string,
-  sortOrder?: "asc" | "desc"
+  sortOrder?: "asc" | "desc",
+  enabled: boolean = true
 ) => {
   const axios = useAxios();
 
   return useQuery({
-    queryKey: [API_KEYS.EXPENSE.COMPANY_REPORTS, page, limit, sortBy, sortOrder],
+    queryKey: [API_KEYS.EXPENSE.REPORTS_SCOPED(scope), page, limit, sortBy, sortOrder],
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.append("scope", scope);
       params.append("page", page.toString());
       params.append("limit", limit.toString());
       if (sortBy) params.append("sortBy", sortBy);
       if (sortOrder) params.append("sortOrder", sortOrder);
 
       const response = await axios.get<CompanyExpensesApiResponse>(
-        `${API_KEYS.EXPENSE.COMPANY_REPORTS}?${params.toString()}`
+        `reports?${params.toString()}`
       );
-      
       return {
         reports: response.data.data,
         meta: response.data.meta,
       } as CompanyExpensesResponse;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
+    enabled: !!scope && enabled,
   });
 };
 

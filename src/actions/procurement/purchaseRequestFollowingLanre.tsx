@@ -298,15 +298,21 @@ export const useCancelPurchaseRequest = (
 
 // ── Convert to PO ─────────────────────────────────────────────────────────
 
+export interface ConvertToPOLineAssignment {
+  purchaseRequestLineItemId: string;
+  vendorId?: string;
+  overrideReason?: string;
+}
+
 export interface ConvertToPOPayload {
-  vendorId: string;
-  deliveryDate: string;
+  deliveryDate?: string;
   notes?: string;
+  lineAssignments?: ConvertToPOLineAssignment[];
 }
 
 export const useConvertToPO = (
   id: string
-): UseMutationResult<ApiResponse<PurchaseRequest>, Error, ConvertToPOPayload> => {
+): UseMutationResult<ApiResponse<any>, Error, ConvertToPOPayload> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
@@ -475,35 +481,3 @@ export const useGetVendors = (
   });
 };
 
-// ── Create Multiple Purchase Orders ───────────────────────────────────────────
-
-export interface POLineItemGroup {
-  vendorId: string;
-  lineItemIds: string[];
-}
-
-export interface CreateMultiplePOPayload {
-  groups: POLineItemGroup[];
-  deliveryDate?: string;
-  notes?: string;
-}
-
-export const useCreateMultiplePO = (
-  purchaseRequestId: string
-): UseMutationResult<ApiResponse<any>, Error, CreateMultiplePOPayload> => {
-  const axiosInstance = useAxios();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload) => {
-      const res = await axiosInstance.post(
-        PROCUREMENT_KEYS.CREATE_MULTIPLE_PO(purchaseRequestId),
-        payload
-      );
-      return res.data;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, purchaseRequestId] });
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
-    },
-  });
-};

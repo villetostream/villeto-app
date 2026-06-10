@@ -6,11 +6,13 @@ import { useAxios } from "@/hooks/useAxios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
 import { CheckCircle2, XCircle, X, FileText } from "lucide-react";
+import { useAuthStore } from "@/stores/auth-stores";
 
 export default function VendorDetailsPage() {
   const { vendorId } = useParams() as { vendorId: string };
   const router = useRouter();
   const axiosInstance = useAxios();
+  const can = useAuthStore(s => s.can);
 
   const [vendor, setVendor] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -133,41 +135,41 @@ export default function VendorDetailsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {isUnderReview && (
-            <>
-              <button disabled={isSubmitting} onClick={() => setRejectModalOpen(true)}
-                className="px-5 h-10 rounded-xl border border-destructive text-destructive font-semibold text-sm hover:bg-destructive/10 transition-colors disabled:opacity-50">
-                Reject vendor
-              </button>
-              <button disabled={isSubmitting} onClick={() => setRequestInfoModalOpen(true)}
-                className="px-5 h-10 rounded-xl border border-[#00BFA5] text-[#00BFA5] font-semibold text-sm hover:bg-[#00BFA5]/5 transition-colors disabled:opacity-50">
-                Request Info
-              </button>
-              <button disabled={isSubmitting} onClick={() => handleDecision("approved")}
-                className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
-                {isSubmitting ? "Processing..." : "Approve vendor"}
-              </button>
-            </>
-          )}
-          {isApprovedPhase4 && (
-            <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Active")}
-              className="px-5 h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
-              {isSubmitting ? "Processing..." : "Activate vendor"}
+          {/* Approve / Reject / Request Info — Authorization: can('vendor','approve') + Workflow: isUnderReview */}
+          {isUnderReview && can('vendor', 'reject') && (
+            <button disabled={isSubmitting} onClick={() => setRejectModalOpen(true)}
+              className="px-5 h-10 rounded-xl border border-destructive text-destructive font-semibold text-sm hover:bg-destructive/10 transition-colors disabled:opacity-50">
+              Reject vendor
             </button>
           )}
-          {isActive && (
+          {isUnderReview && can('vendor', 'review') && (
+            <button disabled={isSubmitting} onClick={() => setRequestInfoModalOpen(true)}
+              className="px-5 h-10 rounded-xl border border-[#00BFA5] text-[#00BFA5] font-semibold text-sm hover:bg-[#00BFA5]/5 transition-colors disabled:opacity-50">
+              Request Info
+            </button>
+          )}
+          {isUnderReview && can('vendor', 'approve') && (
+            <button disabled={isSubmitting} onClick={() => handleDecision("approved")}
+              className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
+              {isSubmitting ? "Processing..." : "Approve vendor"}
+            </button>
+          )}
+          {/* Activate — Authorization: can('vendor','activate') + Workflow: isApprovedPhase4 || isDeactivated */}
+          {(isApprovedPhase4 || isDeactivated) && can('vendor', 'activate') && (
+            <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Active")}
+              className="px-5 h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
+              {isSubmitting ? "Processing..." : isDeactivated ? "Reactivate vendor" : "Activate vendor"}
+            </button>
+          )}
+          {/* Deactivate — Authorization: can('vendor','deactivate') + Workflow: isActive */}
+          {isActive && can('vendor', 'deactivate') && (
             <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Inactive")}
               className="px-5 h-10 rounded-xl bg-transparent border border-destructive text-destructive font-semibold text-sm hover:bg-destructive/5 transition-colors disabled:opacity-50">
               {isSubmitting ? "Processing..." : "Deactivate vendor"}
             </button>
           )}
-          {isDeactivated && (
-            <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Active")}
-              className="px-5 h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">
-              {isSubmitting ? "Processing..." : "Reactivate vendor"}
-            </button>
-          )}
-          {(isInvited || isOnboarding) && (
+          {/* Resend Invitation — Authorization: can('vendor','invite') + Workflow: isInvited || isOnboarding */}
+          {(isInvited || isOnboarding) && can('vendor', 'invite') && (
             <button disabled={isSubmitting} onClick={handleResendInvitation}
               className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer">
               {isSubmitting ? "Sending..." : "Resend Invitation"}
