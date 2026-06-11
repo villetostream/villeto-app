@@ -1,7 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -11,10 +10,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { getStatusIcon } from "@/lib/helper";
 import { CompanyExpenseItemModal } from "@/components/expenses/company/CompanyExpenseItemModal";
 import { ExpenseTimeline } from "@/components/expenses/personal/ExpenseTimeline";
-import type { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
+import {
+  ExpenseStatusBadge,
+  isPendingExpenseStatus,
+  normalizeExpenseReportStatus,
+} from "@/components/expenses/ExpenseStatusBadge";
 import {
   useCompanyExpenseDetail,
   useUpdateCompanyExpenseStatus,
@@ -27,42 +29,7 @@ import { API_KEYS } from "@/lib/constants/apis";
 import { Check } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { logger } from "@/lib/logger";
-
-// ─── Status helpers ────────────────────────────────────────────────────────────
-
-const getStatusBadgeVariant = (status: PersonalExpenseStatus) => {
-  switch (status) {
-    case "paid":     return "paid";
-    case "approved": return "approved";
-    case "pending":  return "pending";
-    case "draft":    return "draft";
-    case "rejected":
-    case "declined": return "rejected";
-    default:         return "pending";
-  }
-};
-
-const getStatusColor = (status: PersonalExpenseStatus) => {
-  switch (status) {
-    case "paid":     return "bg-[#38B2AC] text-white border-0";
-    case "approved": return "bg-purple-100 text-purple-700 border-0";
-    case "pending":  return "bg-orange-100 text-orange-700 border-0";
-    case "draft":    return "bg-gray-200 text-gray-700 border-0";
-    case "rejected":
-    case "declined": return "bg-red-100 text-red-700 border-0";
-    case "flagged":  return "bg-orange-100 text-orange-700 border-0";
-    default:         return "bg-gray-200 text-gray-700 border-0";
-  }
-};
-
-const getStatusLabel = (status: PersonalExpenseStatus): string => {
-  switch (status) {
-    case "declined": return "Rejected";
-    case "paid":     return "Paid Out";
-    case "flagged":  return "Flagged";
-    default:         return status.charAt(0).toUpperCase() + status.slice(1);
-  }
-};
+import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
 
 const formatDate = (dateString: string): string => {
   try {
@@ -180,9 +147,6 @@ function FeedbackModal({
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
-import { useSearchParams } from "next/navigation";
-import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
-
 interface User {
   firstName: string;
   lastName: string;
@@ -255,7 +219,8 @@ export default function CompanyExpenseDetailPage() {
   const reportName   = expenseDetail.reportTitle;
   const reportDate   = formatDate(expenseDetail.createdAt);
   const totalAmount  = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
-  const reportStatus = (expenseDetail.status || expenses[0]?.status || "draft") as PersonalExpenseStatus;
+  const rawReportStatus = expenseDetail.status || expenses[0]?.status || "draft";
+  const reportStatus = normalizeExpenseReportStatus(rawReportStatus);
   const reporterName = expenseDetail.reporter || "Unknown Reporter";
   
   // Extract approver name if available
@@ -272,7 +237,7 @@ export default function CompanyExpenseDetailPage() {
     can("expense.report", "approve") ||
     can("expense.report", "manage");
 
-  const isPendingOrSubmitted = (reportStatus as string) === "pending" || (reportStatus as string) === "submitted";
+  const isPendingOrSubmitted = isPendingExpenseStatus(rawReportStatus);
 
   // Show approve/reject if:
   // not own scope, AND pending/submitted, AND hasApprovePermission, AND (team scope OR (company scope AND overrideUnlocked))
@@ -321,10 +286,7 @@ export default function CompanyExpenseDetailPage() {
         {/* Report title + status */}
         <div className="mb-2 flex items-center gap-3">
           <h1 className="text-2xl font-semibold text-foreground">{reportName}</h1>
-          <Badge variant={getStatusBadgeVariant(reportStatus)} className={getStatusColor(reportStatus)}>
-            {getStatusIcon(reportStatus)}
-            <span className="ml-1">{getStatusLabel(reportStatus)}</span>
-          </Badge>
+          <ExpenseStatusBadge status={rawReportStatus} context="manager" />
         </div>
         <p className="text-sm text-muted-foreground mb-6">{reportDate}</p>
 
@@ -459,7 +421,11 @@ export default function CompanyExpenseDetailPage() {
           open={feedbackModal.open}
           onClose={() => {
             setFeedbackModal(null);
-            router.push("/expenses?tab=company-expenses");
+            router.push(
+              scope === "team"
+                ? "/expenses?tab=team-expenses"
+                : "/expenses?tab=company-expenses",
+            );
           }}
           type={feedbackModal.type}
         />

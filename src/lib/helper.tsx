@@ -6,6 +6,7 @@ export const getStatusIcon = (status: string) => {
         case 'approved':
             return <CheckCircle className="w-4 h-4" />;
         case 'pending':
+        case 'submitted':
             return <Timer className="w-4 h-4 " />;
         case 'declined':
         case 'rejected':

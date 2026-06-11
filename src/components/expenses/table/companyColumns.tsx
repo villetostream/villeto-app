@@ -1,9 +1,8 @@
 "use client";
 
 import { CompanyExpenseReport } from "@/lib/react-query/expenses";
-import { Badge } from "@/components/ui/badge";
+import { ExpenseStatusBadge } from "@/components/expenses/ExpenseStatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { getStatusIcon } from "@/lib/helper";
 import { ColumnDef } from "@tanstack/react-table";
 import { Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -96,21 +95,12 @@ export const getCompanyColumns = (scope: string): ColumnDef<CompanyExpenseReport
   {
     accessorKey: "status",
     header: "STATUS",
-    cell: ({ row }) => {
-      const rawStatus = row.getValue("status") as string;
-      const displayStatus = rawStatus === "pending_policy_check" ? "pending" : rawStatus;
-      
-      return (
-        <Badge
-          variant={
-            displayStatus as "draft" | "rejected" | "approved" | "paid" | "pending"
-          }
-        >
-          {getStatusIcon(displayStatus)}
-          <span className="ml-1 capitalize">{displayStatus}</span>
-        </Badge>
-      );
-    },
+    cell: ({ row }) => (
+      <ExpenseStatusBadge
+        status={row.getValue("status") as string}
+        context="manager"
+      />
+    ),
   },
   {
     accessorKey: "updatedAt",
