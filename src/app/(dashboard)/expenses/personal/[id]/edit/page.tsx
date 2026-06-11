@@ -352,7 +352,7 @@ export default function EditReportPage() {
 
       const requestPayload = {
         reportTitle: reportTitle,
-        status,
+        status: status === "pending" ? "pending_policy_check" : status,
         expenses: expensesPayload,
       };
 

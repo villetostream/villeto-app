@@ -373,6 +373,7 @@ export default function NewReportPage() {
       const expensesPayload = expenses.map((expense) => {
         const category = categories.find((c) => c.name === expense.category);
         if (!category) throw new Error(`Category not found: ${expense.category}`);
+        const justificationValue = justifications[expense.id] || expense.justification;
         const payload: Record<string, unknown> = {
           title: expense.name,
           merchantName: expense.merchantName || "",
@@ -382,7 +383,9 @@ export default function NewReportPage() {
           transactionDate: expense.transactionDate
             ? new Date(expense.transactionDate).toISOString()
             : new Date().toISOString(),
-          justification: justifications[expense.id] || expense.justification || undefined,
+          // Only include justification if it has an actual value — sending undefined/null
+          // causes the backend policy check pipeline to crash with a null read error.
+          ...(justificationValue ? { justification: justificationValue } : {}),
         };
         if (expense.receiptImage?.startsWith("data:")) {
           const b64 = extractBase64(expense.receiptImage);

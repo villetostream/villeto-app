@@ -6,7 +6,7 @@ import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideB
 import {
   Pencil, X, ChevronDown, AlertCircle, Loader2,
   Plus, Trash2, Calendar as CalendarIcon,
-  GitMerge, Scissors, Check,
+  Scissors, Check, Search,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
@@ -634,49 +634,95 @@ function VendorSelect({ value, onChange, vendors }: {
   vendors: Vendor[];
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  // Focus the search input whenever the dropdown opens
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => searchRef.current?.focus(), 50);
+    } else {
+      setSearch("");
+    }
+  }, [open]);
+
   const selected = vendors.find(v => v.vendorId === value);
+  const filtered = vendors.filter(v => {
+    const name = (v.displayName || v.legalName || "").toLowerCase();
+    return name.includes(search.toLowerCase());
+  });
 
   return (
     <div className="relative" ref={ref}>
       <button type="button" onClick={() => setOpen(v => !v)}
         className="w-full h-9 px-3 rounded-lg border border-border bg-white text-sm flex items-center justify-between hover:border-primary/60 focus:outline-none transition-colors">
         <span className={selected ? "text-foreground" : "text-muted-foreground text-xs"}>
-          {selected ? selected.name : "Select vendor"}
+          {selected ? (selected.displayName || selected.legalName || "Unknown Vendor") : "Select vendor"}
         </span>
         <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="absolute left-0 right-0 z-50 bg-white border border-border rounded-xl shadow-lg mt-1 max-h-48 overflow-y-auto">
-          {vendors.length === 0 ? (
-            <p className="text-sm text-muted-foreground px-4 py-3">No vendors available</p>
-          ) : vendors.map(v => (
-            <button key={v.vendorId} type="button" onClick={() => { onChange(v.vendorId); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors ${value === v.vendorId ? "text-primary font-medium" : "text-foreground"}`}>
-              {v.name}
-            </button>
-          ))}
+        <div className="absolute left-0 right-0 z-50 bg-white border border-border rounded-xl shadow-lg mt-1 overflow-hidden" style={{ minWidth: "200px" }}>
+          {/* Search input */}
+          <div className="px-2 pt-2 pb-1 border-b border-border/40">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search vendor..."
+                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-border/60 bg-muted/20 focus:outline-none focus:border-primary/50 focus:bg-white transition-colors"
+              />
+            </div>
+          </div>
+          {/* Vendor list */}
+          <div className="max-h-44 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-4 py-3 text-center">No vendors found</p>
+            ) : filtered.map(v => (
+              <button key={v.vendorId} type="button" onClick={() => { onChange(v.vendorId); setOpen(false); setSearch(""); }}
+                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors ${value === v.vendorId ? "text-primary font-medium bg-primary/5" : "text-foreground"}`}>
+                {v.displayName || v.legalName || "Unknown Vendor"}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Create PO View (for users with create_po permission, on approved PRs) ────
+// ─── Create PO View ───────────────────────────────────────────────────────────
 
 interface LineItemGroup {
   vendorId: string;
   lineItemIds: string[];
 }
+
+type PurchaseRequestLineItemType = NonNullable<PurchaseRequest["lineItems"]>[number];
+
+const CARD_ACCENTS = [
+  { border: "border-violet-300", header: "bg-violet-50 border-b border-violet-200", badge: "bg-violet-100 text-violet-700", dot: "bg-violet-500", rowAccent: "bg-violet-50/40" },
+  { border: "border-emerald-300", header: "bg-emerald-50 border-b border-emerald-200", badge: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500", rowAccent: "bg-emerald-50/40" },
+  { border: "border-sky-300",     header: "bg-sky-50 border-b border-sky-200",         badge: "bg-sky-100 text-sky-700",         dot: "bg-sky-500",     rowAccent: "bg-sky-50/40" },
+  { border: "border-amber-300",   header: "bg-amber-50 border-b border-amber-200",     badge: "bg-amber-100 text-amber-700",     dot: "bg-amber-500",   rowAccent: "bg-amber-50/40" },
+  { border: "border-pink-300",    header: "bg-pink-50 border-b border-pink-200",       badge: "bg-pink-100 text-pink-700",       dot: "bg-pink-500",    rowAccent: "bg-pink-50/40" },
+  { border: "border-teal-300",    header: "bg-teal-50 border-b border-teal-200",       badge: "bg-teal-100 text-teal-700",       dot: "bg-teal-500",    rowAccent: "bg-teal-50/40" },
+];
 
 function CreatePOView({
   pr,
@@ -699,105 +745,122 @@ function CreatePOView({
   rejectLoading: boolean;
   departmentName?: string | null;
 }) {
-  const lineItems = pr.lineItems || [];
-  const isSingleVendor = lineItems.length <= 1;
+  const lineItems: PurchaseRequestLineItemType[] = pr.lineItems || [];
   const currency = pr.currency || "USD";
+  const user = useAuthStore(s => s.user);
+  const totalAmount = pr.totalAmount || 0;
 
-  // Groups: each line item gets its own group initially, user assigns vendors
-  const [groups, setGroups] = useState<{ [lineItemId: string]: string }>(() => {
-    const init: { [key: string]: string } = {};
+  // ── Single source of truth: lineItemId → vendorId ─────────────────────
+  const [vendorMap, setVendorMap] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
     lineItems.forEach(li => { init[li.purchaseRequestLineItemId] = ""; });
     return init;
   });
 
-  // Merge mode: select items to merge under one vendor
-  const [mergeMode, setMergeMode] = useState<string | null>(null); // vendorId of anchor group or "new"
-  const [selectedForMerge, setSelectedForMerge] = useState<Set<string>>(new Set());
+  const assignVendor = (lineItemId: string, vendorId: string) =>
+    setVendorMap(prev => ({ ...prev, [lineItemId]: vendorId }));
 
-  // Merged groups: group key → { vendorId, lineItemIds[] }
-  const [mergedGroups, setMergedGroups] = useState<Map<string, { vendorId: string; lineItemIds: string[] }>>(new Map());
+  const removeFromGroup = (lineItemId: string) =>
+    setVendorMap(prev => ({ ...prev, [lineItemId]: "" }));
 
-  // Build display groups: items that have been merged vs. individual
-  const mergedItemIds = new Set(Array.from(mergedGroups.values()).flatMap(g => g.lineItemIds));
-  const individualItems = lineItems.filter(li => !mergedItemIds.has(li.purchaseRequestLineItemId));
-
-  const setVendorForItem = (lineItemId: string, vendorId: string) => {
-    setGroups(prev => ({ ...prev, [lineItemId]: vendorId }));
-  };
-
-  const setVendorForGroup = (groupKey: string, vendorId: string) => {
-    setMergedGroups(prev => {
-      const next = new Map(prev);
-      const g = next.get(groupKey);
-      if (g) next.set(groupKey, { ...g, vendorId });
+  const ungroupAllForVendor = (vendorId: string) =>
+    setVendorMap(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(id => { if (next[id] === vendorId) next[id] = ""; });
       return next;
     });
-  };
 
-  const startMerge = () => {
-    setMergeMode("selecting");
-    setSelectedForMerge(new Set());
-  };
-
-  const confirmMerge = () => {
-    if (selectedForMerge.size < 2) { toast.error("Select at least 2 items to merge"); return; }
-    const key = `merged_${Date.now()}`;
-    setMergedGroups(prev => {
-      const next = new Map(prev);
-      next.set(key, { vendorId: "", lineItemIds: Array.from(selectedForMerge) });
-      return next;
+  // ── Derived state ─────────────────────────────────────────────────────
+  const vendorGroups = useMemo(() => {
+    const map = new Map<string, PurchaseRequestLineItemType[]>();
+    lineItems.forEach(li => {
+      const vId = vendorMap[li.purchaseRequestLineItemId];
+      if (!vId) return;
+      if (!map.has(vId)) map.set(vId, []);
+      map.get(vId)!.push(li);
     });
-    setMergeMode(null);
-    setSelectedForMerge(new Set());
-  };
+    return map;
+  }, [vendorMap, lineItems]);
 
-  const cancelMerge = () => {
-    setMergeMode(null);
-    setSelectedForMerge(new Set());
-  };
+  const unassignedItems = lineItems.filter(li => !vendorMap[li.purchaseRequestLineItemId]);
+  const assignedCount = lineItems.length - unassignedItems.length;
+  const poCount = vendorGroups.size;
+  const readyToCreate = unassignedItems.length === 0 && poCount > 0;
 
-  const separateGroup = (groupKey: string) => {
-    setMergedGroups(prev => {
-      const next = new Map(prev);
-      next.delete(groupKey);
-      return next;
-    });
-  };
+  const vendorIdList = Array.from(vendorGroups.keys());
+  const accentFor = (vendorId: string) =>
+    CARD_ACCENTS[vendorIdList.indexOf(vendorId) % CARD_ACCENTS.length];
 
-  const toggleMergeSelect = (lineItemId: string) => {
-    setSelectedForMerge(prev => {
-      const next = new Set(prev);
-      if (next.has(lineItemId)) next.delete(lineItemId);
-      else next.add(lineItemId);
-      return next;
-    });
-  };
-
-  const handleCreateMultiplePO = () => {
-    // Build groups from merged + individual
-    const result: LineItemGroup[] = [];
-
-    mergedGroups.forEach(g => {
-      if (!g.vendorId) { toast.error("Please select a vendor for all merged groups"); return; }
-      result.push({ vendorId: g.vendorId, lineItemIds: g.lineItemIds });
-    });
-
-    for (const li of individualItems) {
-      const vendorId = groups[li.purchaseRequestLineItemId];
-      if (!vendorId) { toast.error(`Please select a vendor for ${li.name}`); return; }
-      result.push({ vendorId, lineItemIds: [li.purchaseRequestLineItemId] });
+  const handleCreate = () => {
+    if (unassignedItems.length > 0) {
+      toast.error(`${unassignedItems.length} item(s) still have no vendor assigned`);
+      return;
     }
-
-    if (result.length === 0) { toast.error("No items to create PO from"); return; }
-    onCreateMultiplePO(result);
+    const groups: LineItemGroup[] = [];
+    vendorGroups.forEach((items, vId) => {
+      groups.push({ vendorId: vId, lineItemIds: items.map(i => i.purchaseRequestLineItemId) });
+    });
+    if (groups.length === 0) { toast.error("No items to create PO from"); return; }
+    onCreateMultiplePO(groups);
   };
 
-  const user = useAuthStore(s => s.user);
-  const totalAmount = pr.totalAmount || 0;
+  const ItemRow = ({
+    item,
+    inGroup,
+    vendorId,
+    accent,
+  }: {
+    item: PurchaseRequestLineItemType;
+    inGroup: boolean;
+    vendorId: string;
+    accent?: typeof CARD_ACCENTS[0];
+  }) => (
+    <tr className={`border-b border-border/30 last:border-0 transition-colors hover:bg-muted/10 ${inGroup && accent ? accent.rowAccent : ""}`}>
+      <td className="px-4 py-3">
+        <p className="font-semibold text-foreground text-sm leading-tight">{item.name}</p>
+        {item.description && (
+          <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[180px]">{item.description}</p>
+        )}
+      </td>
+      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{item.quantity}</td>
+      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{formatAmount(item.unitPrice, currency)}</td>
+      <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">{formatAmount(item.subtotal, currency)}</td>
+      <td className="px-4 py-3 min-w-[180px]">
+        <VendorSelect
+          value={vendorId}
+          onChange={v => assignVendor(item.purchaseRequestLineItemId, v)}
+          vendors={vendors}
+        />
+      </td>
+      {inGroup && (
+        <td className="px-2 py-3">
+          <button
+            onClick={() => removeFromGroup(item.purchaseRequestLineItemId)}
+            title="Move back to Unassigned"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </td>
+      )}
+      {!inGroup && <td className="px-2 py-3" />}
+    </tr>
+  );
+
+  const TableHead = ({ showPlaceholderCol = false }: { showPlaceholderCol?: boolean }) => (
+    <thead>
+      <tr className="border-b border-border/60 bg-white">
+        {["Item", "Qty", "Unit Price", "Subtotal", "Vendor"].map(h => (
+          <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+        ))}
+        <th className="w-10" />
+      </tr>
+    </thead>
+  );
 
   return (
-    <div className="flex flex-col h-full max-w-6xl mx-auto pb-4">
-      {/* Global Header */}
+    <div className="flex flex-col max-w-6xl mx-auto pb-24">
+      {/* ── Page Header ──────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -808,20 +871,23 @@ function CreatePOView({
         </div>
         <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
           <button onClick={onReject} disabled={rejectLoading}
-            className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-60">
-            {rejectLoading && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1 inline" />}
+            className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-60 flex items-center gap-1.5">
+            {rejectLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             Reject Request
           </button>
-          <button onClick={handleCreateMultiplePO} disabled={createMultiplePOLoading || createPOLoading}
-            className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2">
-            {(createMultiplePOLoading || createPOLoading) && <Loader2 className="w-4 h-4 animate-spin inline" />}
-            {isSingleVendor ? "Create PO" : "Create Multiple PO"}
+          <button
+            onClick={handleCreate}
+            disabled={!readyToCreate || createMultiplePOLoading || createPOLoading}
+            className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2"
+          >
+            {(createMultiplePOLoading || createPOLoading) && <Loader2 className="w-4 h-4 animate-spin" />}
+            {poCount > 1 ? `Create ${poCount} Purchase Orders` : "Create Purchase Order"}
           </button>
         </div>
       </div>
 
       <div className="flex gap-6 items-start flex-1 min-h-0">
-        {/* Left */}
+        {/* ── Left ─────────────────────────────────────────────────────── */}
         <div className="flex-1 space-y-4 min-w-0">
           {/* Info cards */}
           <div className="flex gap-4">
@@ -830,184 +896,161 @@ function CreatePOView({
             <InfoCard label="Expected Date" value={formatDate(pr.neededByDate)} />
           </div>
 
-          <div className="bg-white rounded-2xl border border-border overflow-hidden">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-                Request Items
-                <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold px-1.5">
-                  {lineItems.length}
-                </span>
-              </h2>
-              {mergeMode === "selecting" ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{selectedForMerge.size} selected</span>
-                  <button onClick={cancelMerge} className="h-8 px-3 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted/40 transition-colors">Cancel</button>
-                  <button onClick={confirmMerge}
-                    className={`h-8 px-3 rounded-lg text-sm font-semibold transition-colors ${selectedForMerge.size >= 2 ? "bg-primary text-white hover:opacity-90" : "bg-muted/40 text-muted-foreground cursor-not-allowed"}`}>
-                    Merge Items
-                  </button>
-                </div>
-              ) : lineItems.length > 1 ? (
-                <button onClick={() => setMergeMode("selecting")}
-                  className="h-8 px-3 rounded-lg border border-border text-sm font-medium hover:bg-muted/40 transition-colors flex items-center gap-1.5">
-                  <GitMerge className="w-3.5 h-3.5" /> Merge Common Items
-                </button>
-              ) : null}
+          {/* Instructions */}
+          <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-sky-50 border border-sky-200">
+            <div className="w-5 h-5 rounded-full bg-sky-500 flex items-center justify-center shrink-0 mt-0.5">
+              <span className="text-white text-[10px] font-bold">i</span>
             </div>
+            <p className="text-sm text-sky-800 leading-relaxed">
+              Assign a <strong>vendor</strong> to each line item. Items sharing the same vendor are
+              automatically grouped into <strong>one Purchase Order</strong>. Different vendors create separate POs.
+            </p>
+          </div>
 
-            <div className="p-5 space-y-5">
-              {Array.from(mergedGroups.entries()).map(([groupKey, group]) => {
-                const checked = mergeMode === "selecting" &&
-                  group.lineItemIds.every(id => selectedForMerge.has(id));
+          {/* Progress */}
+          <div className="bg-white rounded-xl border border-border px-5 py-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Vendor assignment progress</span>
+              <span className="text-xs font-semibold text-foreground">{assignedCount} / {lineItems.length} items assigned</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: lineItems.length ? `${(assignedCount / lineItems.length) * 100}%` : "0%" }}
+              />
+            </div>
+            {poCount > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                <span className="font-semibold text-foreground">{poCount}</span>{" "}
+                Purchase Order{poCount > 1 ? "s" : ""} will be created
+              </p>
+            )}
+          </div>
+
+          {/* No vendors onboarded */}
+          {vendors.length === 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-6 flex flex-col items-center text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-amber-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">No vendors onboarded yet</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                  You need at least one approved vendor before creating a Purchase Order.
+                  Onboard a vendor first, then return here to complete this step.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {vendors.length > 0 && (
+            <div className="space-y-4">
+              {/* ── Vendor Group Cards ──────────────────────────────────── */}
+              {Array.from(vendorGroups.entries()).map(([vendorId, groupItems]) => {
+                const vendor = vendors.find(v => v.vendorId === vendorId);
+                const accent = accentFor(vendorId);
+                const groupTotal = groupItems.reduce((s, li) => s + (li.subtotal || 0), 0);
 
                 return (
-                  <div key={groupKey}
-                    className={`border rounded-xl overflow-hidden transition-colors ${mergeMode === "selecting" && checked ? "border-primary/50" : "border-primary/20"}`}>
-                    <div className="px-4 py-3 bg-primary/5 flex items-center justify-between border-b border-primary/20">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          <GitMerge className="w-4 h-4 text-primary" />
-                          <span className="font-semibold text-primary text-sm">Merged Items Group</span>
-                          <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                            {group.lineItemIds.length} items
-                          </span>
+                  <div key={vendorId} className={`rounded-2xl border-2 bg-white overflow-visible ${accent.border}`}>
+                    {/* Card header */}
+                    <div className={`px-5 py-3 flex items-center justify-between rounded-t-xl ${accent.header}`}>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${accent.dot}`} />
+                        <div>
+                          <p className="text-sm font-bold text-foreground leading-tight">{vendor?.displayName || vendor?.legalName || vendorId}</p>
+                          {vendor?.email && <p className="text-xs text-muted-foreground">{vendor.email}</p>}
                         </div>
-                        {mergeMode !== "selecting" && (
-                          <div className="flex items-center gap-2 ml-4">
-                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor Priority</span>
-                            <div className="w-48">
-                              <VendorSelect
-                                value={group.vendorId || ""}
-                                onChange={v => setVendorForMergedGroup(groupKey, v)}
-                                vendors={vendors}
-                              />
-                            </div>
-                          </div>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${accent.badge}`}>
+                          {groupItems.length} item{groupItems.length > 1 ? "s" : ""} · 1 PO
+                        </span>
+                        {groupTotal > 0 && (
+                          <span className="text-xs font-semibold text-foreground">
+                            · {formatAmount(groupTotal, currency)}
+                          </span>
                         )}
                       </div>
-                      {mergeMode !== "selecting" && (
-                        <button onClick={() => separateGroup(groupKey)}
-                          className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-md transition-colors tooltip-trigger"
-                          title="Separate Items">
-                          <Scissors className="w-4 h-4" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => ungroupAllForVendor(vendorId)}
+                        title="Move all items back to Unassigned"
+                        className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-red-200 text-red-500 text-xs font-medium hover:bg-red-50 transition-colors shrink-0"
+                      >
+                        <Scissors className="w-3.5 h-3.5" />
+                        Ungroup All
+                      </button>
                     </div>
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border/60 bg-muted/5">
-                          {mergeMode === "selecting" && <th className="w-10 px-4 py-3" />}
-                          {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal"].map(h => (
-                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                    {/* Items table */}
+                    <div className="bg-white overflow-visible">
+                      <table className="w-full text-sm">
+                        <TableHead />
+                        <tbody>
+                          {groupItems.map(item => (
+                            <ItemRow
+                              key={item.purchaseRequestLineItemId}
+                              item={item}
+                              inGroup
+                              vendorId={vendorId}
+                              accent={accent}
+                            />
                           ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.lineItemIds.map(id => {
-                          const item = pr.lineItems?.find(li => li.purchaseRequestLineItemId === id);
-                          if (!item) return null;
-                          return (
-                            <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
-                              {mergeMode === "selecting" && (
-                                <td className="px-4 py-3">
-                                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${checked ? "border-primary bg-primary" : "border-border"}`}>
-                                    {checked && <Check className="w-3 h-3 text-white" />}
-                                  </div>
-                                </td>
-                              )}
-                              <td className="px-4 py-3 font-semibold text-foreground">{item.name}</td>
-                              <td className="px-4 py-3 text-muted-foreground text-xs max-w-[150px] truncate">{item.description || "—"}</td>
-                              <td className="px-4 py-3">
-                                {item.categoryId ? <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">Category</span> : <span className="text-muted-foreground">—</span>}
-                              </td>
-                              <td className="px-4 py-3">{item.quantity}</td>
-                              <td className="px-4 py-3">{formatAmount(item.unitPrice, currency)}</td>
-                              <td className="px-4 py-3 font-medium">{formatAmount(item.subtotal, currency)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 );
               })}
 
-              {mergeMode === "selecting" ? (
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border/60 bg-muted/5">
-                        <th className="w-10 px-4 py-3" />
-                        {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal"].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {individualItems.map(item => {
-                        const checked = selectedForMerge.has(item.purchaseRequestLineItemId);
-                        return (
-                          <tr key={item.purchaseRequestLineItemId}
-                            onClick={() => toggleMergeSelect(item.purchaseRequestLineItemId)}
-                            className={`border-b border-border/40 last:border-0 cursor-pointer transition-colors ${checked ? "bg-primary/5" : "hover:bg-muted/10"}`}>
-                            <td className="px-4 py-3">
-                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${checked ? "border-primary bg-primary" : "border-border"}`}>
-                                {checked && <Check className="w-3 h-3 text-white" />}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 font-semibold text-foreground">{item.name}</td>
-                            <td className="px-4 py-3 text-muted-foreground text-xs max-w-[150px] truncate">{item.description || "—"}</td>
-                            <td className="px-4 py-3">—</td>
-                            <td className="px-4 py-3">{item.quantity}</td>
-                            <td className="px-4 py-3">{formatAmount(item.unitPrice, currency)}</td>
-                            <td className="px-4 py-3 font-medium">{formatAmount(item.subtotal, currency)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                individualItems.map(item => (
-                  <div key={item.purchaseRequestLineItemId} className="border border-border rounded-xl overflow-hidden">
+              {/* ── Unassigned Pool ─────────────────────────────────────── */}
+              {unassignedItems.length > 0 && (
+                <div className="rounded-2xl border-2 border-dashed border-border bg-white overflow-visible">
+                  <div className="px-5 py-3 bg-muted/20 flex items-center justify-between rounded-t-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+                      <p className="text-sm font-semibold text-muted-foreground">Unassigned Items</p>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+                        {unassignedItems.length} item{unassignedItems.length > 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Assign a vendor to proceed
+                    </span>
+                  </div>
+                  <div className="bg-white overflow-visible">
                     <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border/60 bg-muted/5">
-                          {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal"].map(h => (
-                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
+                      <TableHead />
                       <tbody>
-                        <tr>
-                          <td className="px-4 py-3 font-semibold text-foreground">{item.name}</td>
-                          <td className="px-4 py-3 text-muted-foreground text-xs max-w-[150px] truncate">{item.description || "—"}</td>
-                          <td className="px-4 py-3">
-                            {item.categoryId ? <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">Category</span> : <span className="text-muted-foreground">—</span>}
-                          </td>
-                          <td className="px-4 py-3">{item.quantity}</td>
-                          <td className="px-4 py-3">{formatAmount(item.unitPrice, currency)}</td>
-                          <td className="px-4 py-3 font-medium">{formatAmount(item.subtotal, currency)}</td>
-                        </tr>
+                        {unassignedItems.map(item => (
+                          <ItemRow
+                            key={item.purchaseRequestLineItemId}
+                            item={item}
+                            inGroup={false}
+                            vendorId=""
+                          />
+                        ))}
                       </tbody>
                     </table>
-                    <div className="px-4 py-3 border-t border-border/40 bg-muted/5 flex items-center gap-3">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor</span>
-                      <div className="w-48">
-                        <VendorSelect
-                          value={groups[item.purchaseRequestLineItemId] || ""}
-                          onChange={v => setVendorForItem(item.purchaseRequestLineItemId, v)}
-                          vendors={vendors}
-                        />
-                      </div>
-                    </div>
                   </div>
-                ))
+                </div>
+              )}
+
+              {/* All assigned confirmation */}
+              {unassignedItems.length === 0 && poCount > 0 && (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                    <Check className="w-3 h-3 text-white" />
+                  </div>
+                  <p className="text-sm text-emerald-800">
+                    All items assigned. Ready to create{" "}
+                    <strong>{poCount} Purchase Order{poCount > 1 ? "s" : ""}</strong>.
+                  </p>
+                </div>
               )}
             </div>
-          </div>
+          )}
         </div>
 
+        {/* ── Sidebar ───────────────────────────────────────────────────── */}
         <div className="w-[300px] shrink-0 space-y-4">
           <div className="bg-[#1C2B36] rounded-2xl p-5 text-white space-y-4">
             <h3 className="text-sm font-semibold">Request Summary</h3>
@@ -1020,8 +1063,44 @@ function CreatePOView({
                 <span className="text-xs text-gray-300">Total Amount</span>
                 <span className="text-sm font-semibold">{formatAmount(totalAmount, currency)}</span>
               </div>
+              <div className="h-px bg-white/10" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-300">Assigned</span>
+                <span className={`text-sm font-semibold ${assignedCount === lineItems.length ? "text-emerald-400" : "text-amber-400"}`}>
+                  {assignedCount} / {lineItems.length}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-300">POs to create</span>
+                <span className="text-sm font-semibold text-violet-300">{poCount}</span>
+              </div>
             </div>
           </div>
+
+          {/* PO Breakdown */}
+          {poCount > 0 && (
+            <div className="bg-white rounded-2xl border border-border p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">PO Breakdown</h3>
+              <div className="space-y-2.5">
+                {Array.from(vendorGroups.entries()).map(([vId, items], idx) => {
+                  const vendor = vendors.find(v => v.vendorId === vId);
+                  const accent = CARD_ACCENTS[idx % CARD_ACCENTS.length];
+                  const gTotal = items.reduce((s, li) => s + (li.subtotal || 0), 0);
+                  return (
+                    <div key={vId} className="flex items-start gap-2.5">
+                      <div className={`w-2 h-2 rounded-full ${accent.dot} mt-1.5 shrink-0`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-foreground truncate">{vendor?.displayName || vendor?.legalName || vId}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {items.length} item{items.length > 1 ? "s" : ""} · {formatAmount(gTotal, currency)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl border border-border p-5">
             <h3 className="text-sm font-semibold text-foreground mb-4">Workflow Progress</h3>

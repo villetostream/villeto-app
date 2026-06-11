@@ -97,15 +97,17 @@ export const getCompanyColumns = (scope: string): ColumnDef<CompanyExpenseReport
     accessorKey: "status",
     header: "STATUS",
     cell: ({ row }) => {
-      const status = row.getValue("status") as string;
+      const rawStatus = row.getValue("status") as string;
+      const displayStatus = rawStatus === "pending_policy_check" ? "pending" : rawStatus;
+      
       return (
         <Badge
           variant={
-            status as "draft" | "rejected" | "approved" | "paid" | "pending"
+            displayStatus as "draft" | "rejected" | "approved" | "paid" | "pending"
           }
         >
-          {getStatusIcon(status)}
-          <span className="ml-1 capitalize">{status}</span>
+          {getStatusIcon(displayStatus)}
+          <span className="ml-1 capitalize">{displayStatus}</span>
         </Badge>
       );
     },
