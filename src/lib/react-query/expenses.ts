@@ -3,6 +3,7 @@ import { PersonalExpenseStatus } from "@/components/expenses/table/personalColum
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { API_KEYS } from "@/lib/constants/apis";
 import { useAxios } from "@/hooks/useAxios";
+import { useAuthStore } from "@/stores/auth-stores";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -131,9 +132,12 @@ export const usePersonalExpenses = (
   sortOrder?: "asc" | "desc"
 ) => {
   const axios = useAxios();
+  const authReady = useAuthStore((state) => !state.isLoading);
+  const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
     queryKey: [API_KEYS.EXPENSE.REPORTS_SCOPED("own"), page, limit, sortBy, sortOrder],
+    enabled: authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("scope", "own");
@@ -164,9 +168,12 @@ export const useCompanyExpenses = (
   enabled: boolean = true
 ) => {
   const axios = useAxios();
+  const authReady = useAuthStore((state) => !state.isLoading);
+  const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
     queryKey: [API_KEYS.EXPENSE.REPORTS_SCOPED(scope), page, limit, sortBy, sortOrder],
+    enabled: !!scope && enabled && authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("scope", scope);
@@ -184,7 +191,6 @@ export const useCompanyExpenses = (
       } as CompanyExpensesResponse;
     },
     staleTime: 5 * 60 * 1000,
-    enabled: !!scope && enabled,
   });
 };
 

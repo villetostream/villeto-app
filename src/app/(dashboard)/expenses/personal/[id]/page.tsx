@@ -1,75 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getStatusIcon } from "@/lib/helper";
 import { ExpenseTimeline } from "@/components/expenses/personal/ExpenseTimeline";
 import { CONote } from "@/components/expenses/personal/CONote";
 import { ExpenseItemModal } from "@/components/expenses/personal/ExpenseItemModal";
-import { ReceiptViewModal } from "@/components/expenses/personal/ReceiptViewModal";
-import type { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
+import {
+  ExpenseStatusBadge,
+  normalizeExpenseReportStatus,
+} from "@/components/expenses/ExpenseStatusBadge";
 import {
   usePersonalExpenseDetail,
   type ExpenseItem,
 } from "@/lib/react-query/expenses";
 import { ExpenseDetailSkeleton } from "@/components/expenses/ExpenseDetailSkeleton";
-import { API_KEYS } from "@/lib/constants/apis";
 import { useAuthStore } from "@/stores/auth-stores";
-import { logger } from "@/lib/logger";
-
-const getStatusBadgeVariant = (status: PersonalExpenseStatus) => {
-  switch (status) {
-    case "paid":
-      return "paid";
-    case "approved":
-      return "approved";
-    case "pending":
-      return "pending";
-    case "draft":
-      return "draft";
-    case "rejected":
-    case "declined":
-      return "rejected";
-    case "flagged":
-      return "pending";
-    default:
-      return "pending";
-  }
-};
-
-const getStatusColor = (status: PersonalExpenseStatus) => {
-  switch (status) {
-    case "paid":
-      return "bg-[#38B2AC] text-white border-0";
-    case "approved":
-      return "bg-purple-100 text-purple-700 border-0";
-    case "pending":
-      return "bg-orange-100 text-orange-700 border-0";
-    case "draft":
-      return "bg-gray-200 text-gray-700 border-0";
-    case "rejected":
-    case "declined":
-      return "bg-red-100 text-red-700 border-0";
-    case "flagged":
-      return "bg-orange-100 text-orange-700 border-0";
-    default:
-      return "bg-gray-200 text-gray-700 border-0";
-  }
-};
-
-const getStatusLabel = (status: PersonalExpenseStatus): string => {
-  switch (status) {
-    case "declined":
-      return "Rejected";
-    case "paid":
-      return "Paid Out";
-    case "flagged":
-      return "Flagged";
-    default:
-      return status.charAt(0).toUpperCase() + status.slice(1);
-  }
-};
 
 // Helper function to format date
 const formatDate = (dateString: string): string => {
@@ -95,7 +41,6 @@ export default function PersonalExpenseDetailPage() {
   const params = useParams();
   const router = useRouter();
   const reportId = params.id as string;
-  const axios = useAxios();
   const currencySymbol = useAuthStore((state) => state.getCurrencySymbol());
   const currentUser = useAuthStore((state) => state.user);
 
@@ -154,9 +99,9 @@ export default function PersonalExpenseDetailPage() {
     0,
   );
 
-  const reportStatus = (expenseDetail.status ||
-    expenses[0]?.status ||
-    "draft") as PersonalExpenseStatus;
+  const rawReportStatus =
+    expenseDetail.status || expenses[0]?.status || "draft";
+  const reportStatus = normalizeExpenseReportStatus(rawReportStatus);
 
   const fallbackName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Unknown User";
   const userName = expenseDetail.reporter || fallbackName;
@@ -179,13 +124,7 @@ export default function PersonalExpenseDetailPage() {
           <h1 className="text-2xl font-semibold text-foreground">
             {reportName}
           </h1>
-          <Badge
-            variant={getStatusBadgeVariant(reportStatus)}
-            className={getStatusColor(reportStatus)}
-          >
-            {getStatusIcon(reportStatus)}
-            <span className="ml-1">{getStatusLabel(reportStatus)}</span>
-          </Badge>
+          <ExpenseStatusBadge status={rawReportStatus} />
         </div>
         <p className="text-sm text-muted-foreground">{reportDate}</p>
       </div>

@@ -13,11 +13,9 @@ import {
 import { useSearchParams, useRouter } from "next/navigation";
 import ExpenseEmptyState from "@/components/expenses/EmptyState";
 import { usePersonalExpenses, useCompanyExpenses, CompanyExpenseReport } from "@/lib/react-query/expenses";
-import { Loader2 } from "lucide-react";
 import { PersonalExpensesSkeleton } from "@/components/expenses/PersonalExpensesSkeleton";
 import { getCompanyColumns } from "@/components/expenses/table/companyColumns";
 import { useAuthStore } from "@/stores/auth-stores";
-import { Roles } from "@/core/permissions/roles";
 
 const statusMap: Record<string, string | null> = {
   all: null,
@@ -34,6 +32,7 @@ export default function Reimbursements() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const can = useAuthStore((state) => state.can);
+  const authReady = useAuthStore((state) => !state.isLoading);
 
   // Scope derivation
   const hasTeamScope    = can('expense.report', 'read_department');
@@ -280,7 +279,7 @@ export default function Reimbursements() {
             icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white"><img src="/images/svgs/money.svg" alt="money icon" /></div>}
             subtitle={<span className="text-xs leading-[125%]">Completed transactions</span>} />
         </div>
-        {isLoading ? (
+        {!authReady || isLoading ? (
           <PersonalExpensesSkeleton showStats={false} />
         ) : data.length === 0 ? (
           <ExpenseEmptyState title="No expense has been added" subtitle="" showButton={false} />
@@ -332,7 +331,7 @@ export default function Reimbursements() {
             icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white"><img src="/images/svgs/money.svg" alt="money icon" /></div>}
             subtitle={<span className="text-xs leading-[125%]">Access completed payments.</span>} />
         </div>
-        {isLoadingPersonalExpenses ? (
+        {!authReady || isLoadingPersonalExpenses ? (
           <PersonalExpensesSkeleton showStats={false} />
         ) : personalExpenses.length === 0 ? (
           <ExpenseEmptyState />
