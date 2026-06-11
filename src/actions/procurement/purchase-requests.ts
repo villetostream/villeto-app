@@ -454,10 +454,13 @@ export const useWithdrawPurchaseRequest = (
 
 export interface Vendor {
   vendorId: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
+  legalName: string | null;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  status: string;
+  approvalStatus: string;
 }
 
 export const useGetVendors = (
@@ -465,9 +468,11 @@ export const useGetVendors = (
 ): UseQueryResult<ApiResponse<Vendor[]>, Error> => {
   const axiosInstance = useAxios();
   return useQuery({
-    queryKey: ["vendors"],
+    queryKey: ["vendors", { approvalStatus: "approved" }],
     queryFn: async () => {
-      const res = await axiosInstance.get(PROCUREMENT_KEYS.VENDORS);
+      // Pass the approvalStatus query param as the user specified, ensuring we only fetch approved vendors
+      const url = `/vendors?page=1&limit=100&approvalStatus=approved`;
+      const res = await axiosInstance.get(url);
       return res.data;
     },
     staleTime: 60_000,

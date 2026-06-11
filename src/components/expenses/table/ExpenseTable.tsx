@@ -5,6 +5,8 @@ import { DataTable } from "@/components/datatable";
 import { useDateFilterStore } from "@/stores/useDateFilterStore";
 import type { ColumnDef } from "@tanstack/react-table";
 
+import { useRouter } from "next/navigation";
+
 const ExpenseTable = ({
   actionButton = <></>,
   statusFilter = null,
@@ -12,6 +14,7 @@ const ExpenseTable = ({
   onFilteredDataChange,
   columnsOverride,
   page = 1,
+  scope,
 }: {
   actionButton?: React.ReactElement;
   statusFilter?: string | null;
@@ -21,6 +24,7 @@ const ExpenseTable = ({
   page?: number;
   scope?: string;
 }) => {
+  const router = useRouter();
   const [filteredData, setFilteredData] = useState(data);
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>(
     {}
@@ -57,7 +61,11 @@ const ExpenseTable = ({
 
     // Apply status filter from tab
     if (statusFilter) {
-      filtered = filtered.filter((item) => item.status === statusFilter);
+      if (statusFilter === "pending") {
+        filtered = filtered.filter((item) => item.status === "pending" || item.status === "pending_policy_check");
+      } else {
+        filtered = filtered.filter((item) => item.status === statusFilter);
+      }
     }
 
     // Apply search filter
@@ -114,6 +122,7 @@ const ExpenseTable = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, globalSearch, appliedFilters, statusFilter, fromDate, toDate]);
+
   return (
     <DataTable
       initialColumnVisibility={{ actions: false }}
@@ -124,6 +133,19 @@ const ExpenseTable = ({
       enableColumnVisibility={true}
       selectedDataIds={tableprops.selectedDataIds}
       setSelectedDataIds={tableprops.setSelectedDataIds}
+      onRowClick={(row: any) => {
+        // If scope is undefined, it's Personal Expenses.
+        if (!scope) {
+          const isDraft = row.status === "draft";
+          const path = isDraft 
+            ? `/expenses/personal/${row.reportId ?? row.id}/edit`
+            : `/expenses/personal/${row.reportId ?? row.id}`;
+          router.push(path);
+        } else {
+          // Company or Team scope
+          router.push(`/expenses/company/${row.reportId ?? row.id}?scope=${scope}`);
+        }
+      }}
       tableHeader={{
         actionButton: actionButton,
         isSearchable: true,
