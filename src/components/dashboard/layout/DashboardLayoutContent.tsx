@@ -53,6 +53,35 @@ export default function DashboardLayoutContent({
     };
   }, []);
 
+  // Refreshes the current user's profile and permissions from the server.
+  // Called on initial mount, periodically, and on window focus, so that
+  // permission changes made by an admin mid-session (e.g. a role downgrade)
+  // take effect without requiring the user to log out and back in.
+  const refreshUserAndPermissions = async () => {
+    try {
+      const me = await axios.get("/users/me");
+      const responseData = me?.data?.data || me?.data;
+      const { role, company, companyId, ...userData } = responseData || {};
+
+      if (userData) {
+        const currentUser = useAuthStore.getState().user;
+        const userWithCompany = {
+          ...currentUser,
+          ...userData,
+          companyId: companyId || userData.companyId || currentUser?.companyId,
+        };
+        login(userWithCompany as User);
+      }
+
+      if (role || responseData?.companyRole) {
+        const permissions = responseData?.companyRole?.permissions ?? role?.permissions ?? [];
+        setCompanyPermissions(permissions);
+      }
+    } catch {
+      // Silently handle — user session may still be valid
+    }
+  };
+
   useEffect(() => {
     if (isLoading) return;
 
@@ -61,29 +90,22 @@ export default function DashboardLayoutContent({
       return;
     }
 
-    (async () => {
-      try {
-        const me = await axios.get("/users/me");
-        const responseData = me?.data?.data || me?.data;
-        const { role, company, companyId, ...userData } = responseData || {};
+    refreshUserAndPermissions();
 
-        if (userData) {
-          const userWithCompany = {
-            ...user,
-            ...userData,
-            companyId: companyId || userData.companyId || user?.companyId,
-          };
-          login(userWithCompany as User);
-        }
+    // Periodically re-check permissions every 5 minutes so role/permission
+    // changes made by an admin propagate without requiring re-login.
+    const interval = setInterval(refreshUserAndPermissions, 5 * 60 * 1000);
 
-        if (role || responseData?.companyRole) {
-          const permissions = responseData?.companyRole?.permissions ?? role?.permissions ?? [];
-          setCompanyPermissions(permissions);
-        }
-      } catch {
-        // Silently handle — user session may still be valid
-      }
-    })();
+    // Also refresh when the tab regains focus — covers the common case of
+    // an admin changing a user's role in another tab/session while this
+    // tab was inactive.
+    const onFocus = () => refreshUserAndPermissions();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isMounted) {

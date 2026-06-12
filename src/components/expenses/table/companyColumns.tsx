@@ -95,12 +95,18 @@ export const getCompanyColumns = (scope: string): ColumnDef<CompanyExpenseReport
   {
     accessorKey: "status",
     header: "STATUS",
-    cell: ({ row }) => (
-      <ExpenseStatusBadge
-        status={row.getValue("status") as string}
-        context="manager"
-      />
-    ),
+    cell: ({ row }) => {
+      const report = row.original as CompanyExpenseReport;
+      // Managers see approvalStatus — where the report sits in the approval chain.
+      // Fall back to status if approvalStatus isn't yet returned by the API.
+      const displayStatus = report.approvalStatus ?? report.status;
+      return (
+        <ExpenseStatusBadge
+          status={displayStatus}
+          context="manager"
+        />
+      );
+    },
   },
   {
     accessorKey: "updatedAt",

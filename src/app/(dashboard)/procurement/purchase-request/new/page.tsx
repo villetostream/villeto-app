@@ -424,14 +424,15 @@ export default function NewPurchaseRequestPage() {
   const router = useRouter();
   const user = useAuthStore(s => s.user);
 
-  // Permission-based dept editability:
-  // Users who can create PO or manage procurement see a dept dropdown;
-  // regular requesters get their own dept auto-filled (read-only)
+  // Department dropdown visibility:
+  // Only users who can create/convert POs (i.e. procurement staff who may
+  // need to raise a request on behalf of another department) see the
+  // department dropdown. All other requesters get their own department
+  // auto-filled (read-only) from their login/profile record.
   const can = useAuthStore(s => s.can);
   const canChangeDept =
-    can("procurement.purchase_request", "manage") ||
-    can("procurement.purchase_order", "create") ||
-    can("department", "manage");
+    can("procurement.purchase_request", "convert_to_po") ||
+    can("procurement.purchase_order", "create");
 
   // Step state
   const [step, setStep] = useState<1 | 2>(1);
@@ -455,7 +456,11 @@ export default function NewPurchaseRequestPage() {
 
   // API hooks
   const createPR = useCreatePurchaseRequest();
-  const { data: deptData } = useGetAllDepartmentsApi();
+  // Only fetch the full department list when the user can actually pick a
+  // different department. Read-only requesters get their department name
+  // directly from their profile (user.department.departmentName), avoiding
+  // an unnecessary request to an endpoint they have no use for.
+  const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
   const { data: catData } = useGetProcurementCategories();
   const addLineItem = useAddLineItem(purchaseRequestId || "");
   const updateLineItem = useUpdateLineItem(purchaseRequestId || "", editingItem?.item.purchaseRequestLineItemId || "");
@@ -592,7 +597,21 @@ export default function NewPurchaseRequestPage() {
     { subtotal: 0, tax: 0, total: 0 }
   );
 
-  const selectedDeptName = departments.find(d => d.value === departmentId)?.label || "";
+  // For the read-only "Your department" display, prefer the department name
+  // returned directly on the user's profile. The backend may return this
+  // either nested (user.department.departmentName) or as a flat sibling
+  // field next to departmentId (user.departmentName) — support both shapes.
+  // Either way, `departmentId` (set above from user?.departmentId) remains
+  // the only value sent to the backend on create; departmentName is purely
+  // for display.
+  const userDepartmentName =
+    user?.department?.departmentName ||
+    user?.departmentName ||
+    "";
+  const selectedDeptName =
+    userDepartmentName ||
+    departments.find(d => d.value === departmentId)?.label ||
+    "";
   const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
 
   return (

@@ -45,6 +45,12 @@ export interface PurchaseRequestLineItem {
   accountingResolutionStatus: AccountingResolutionStatus;
 }
 
+export type ApprovalStatus =
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "not_required";
+
 export interface PurchaseRequest {
   purchaseRequestId: string;
   requestNumber: string;
@@ -52,6 +58,8 @@ export interface PurchaseRequest {
   description?: string;
   priority: PRPriority;
   status: PRStatus;
+  /** Approval workflow state — use this (together with status) for display labels */
+  approvalStatus?: ApprovalStatus | null;
   neededByDate: string;
   currency: string;
   subtotal: number;
@@ -59,9 +67,20 @@ export interface PurchaseRequest {
   totalAmount: number;
   accountingResolutionStatus: AccountingResolutionStatus;
   departmentId: string;
+  departmentName?: string;
+  /** Flat name of the requester as returned by the API — prefer over nested user objects */
+  requesterName?: string;
+  requesterId?: string;
   lineItems: PurchaseRequestLineItem[];
   createdAt?: string;
   updatedAt?: string;
+  submittedAt?: string;
+  approvedAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string | null;
+  /** Whether the currently logged-in user has a pending action on this request */
+  currentUserActionRequired?: boolean;
+  availableActions?: string[];
 }
 
 export interface PurchaseRequestMeta {

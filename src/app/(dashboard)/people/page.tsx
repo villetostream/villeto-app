@@ -237,6 +237,7 @@ function People() {
     
     export default withPermissions(People, [
         { resource: "user", action: "manage" },
+        { resource: "user", action: "read" },
         { resource: "user", action: "read_company" },
         { resource: "role", action: "manage" },
         { resource: "department", action: "manage" }

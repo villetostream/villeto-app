@@ -8,6 +8,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
 import { useAxios } from "@/hooks/useAxios";
+import { toast } from "sonner";
+import { useAuthStore } from "@/stores/auth-stores";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   MoreHorizontal,
   Eye,
@@ -616,10 +619,17 @@ function VendorTable({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function VendorPage() {
+export default withPermissions(VendorPage, [
+  { resource: "vendor", action: "read_company" },
+  { resource: "vendor", action: "manage" },
+]);
+
+function VendorPage() {
   const router      = useRouter();
   const searchParams = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
+  const can = useAuthStore(s => s.can);
+  const canInviteVendor = can("vendor", "invite");
 
   const [isLoading, setIsLoading] = useState(true);
   const [vendors, setVendors]     = useState<Vendor[]>([]);
@@ -654,7 +664,8 @@ export default function VendorPage() {
           }
         } else {
           // approvalStatus === "pending" — use onboardingStatus to distinguish
-          if (onboardingStatus === "invited") {
+          if (!onboardingStatus || onboardingStatus === "invited") {
+            // null/undefined onboardingStatus means just invited, not yet started
             computedStatus = "invited";
           } else if (onboardingStatus === "submitted") {
             computedStatus = "pending";          // ready for admin review
@@ -694,8 +705,14 @@ export default function VendorPage() {
     router.replace(`?${params.toString()}`, { scroll: false });
   }, [activeTab]);
 
-  // Header CTA
+  // Header CTA — only show "Invite Vendor" to users who can actually invite.
+  // Without this, a read-only vendor viewer would see a button whose click
+  // opens a modal that POSTs to an endpoint they don't have permission to call.
   useEffect(() => {
+    if (!canInviteVendor) {
+      clearAction();
+      return;
+    }
     setAction({
       label: "Invite Vendor",
       items: [
@@ -704,7 +721,7 @@ export default function VendorPage() {
       ],
     });
     return () => clearAction();
-  }, [setAction, clearAction, router]);
+  }, [setAction, clearAction, router, canInviteVendor]);
 
   // Stats
   const stats = useMemo(() => ({
@@ -725,8 +742,10 @@ export default function VendorPage() {
     if (actionLabel === "Resend Invitation") {
       try {
         await axiosInstance.post(`/vendors/${vendor.id}/invitations/resend`);
+        toast.success("Invitation resent successfully");
       } catch (err) {
         logger.error("Failed to resend invitation", err);
+        toast.error("Failed to resend invitation. Please try again.");
       }
       return;
     }

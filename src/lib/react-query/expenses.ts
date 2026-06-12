@@ -42,7 +42,11 @@ export interface CompanyExpenseReport {
   deletedAt: string | null;
   reportId: string;
   reportTitle: string;
-  status: "draft" | "pending" | "approved" | "declined" | "rejected" | "paid";
+  status: "draft" | "submitted" | "pending" | "pending_policy_check" | "approved" | "declined" | "rejected" | "paid";
+  /** Where the report sits in the approval chain — shown to managers */
+  approvalStatus?: "pending_approval" | "approved" | "rejected" | "declined" | string;
+  /** Whether the report passed automated policy checks */
+  policyStatus?: "passed" | "failed" | string;
   costCenter: string;
   reportedBy: string;
   totalAmount: number;
@@ -60,7 +64,11 @@ export interface ExpenseItem {
   categoryName: string | null;
   receiptUrl: string;
   receiptMimeType: string;
-  status: "draft" | "pending" | "approved" | "declined" | "rejected" | "paid";
+  status: "draft" | "submitted" | "pending" | "pending_policy_check" | "approved" | "declined" | "rejected" | "paid";
+  /** Where the report sits in the approval chain — shown to managers */
+  approvalStatus?: "pending_approval" | "approved" | "rejected" | "declined" | string;
+  /** Whether the report passed automated policy checks */
+  policyStatus?: "passed" | "failed" | string;
 }
 
 export interface PersonalExpenseDetailResponse {

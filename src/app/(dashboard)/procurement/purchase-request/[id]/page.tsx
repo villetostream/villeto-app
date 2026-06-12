@@ -34,6 +34,12 @@ import {
 } from "@/actions/procurement/purchase-requests";
 import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
 import { toast } from "sonner";
+import withPermissions from "@/components/permissions/permission-protected-routes";
+import {
+  PR_STATUS_CFG,
+  PR_PRIORITY_CFG,
+  getPRDisplayStatus,
+} from "@/lib/constants/purchase-request-status";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -44,16 +50,6 @@ const PRIORITIES = [
 ];
 
 const CURRENCIES = ["USD", "NGN", "EUR", "GBP", "CAD", "AUD"];
-
-const STATUS_CFG: Record<string, { label: string; color: string }> = {
-  draft:                { label: "Draft",             color: "text-amber-600 bg-amber-50" },
-  submitted:            { label: "Awaiting Approval", color: "text-violet-600 bg-violet-50" },
-  approved:             { label: "Approved",          color: "text-emerald-600 bg-emerald-50" },
-  rejected:             { label: "Rejected",          color: "text-red-500 bg-red-50" },
-  partially_converted:  { label: "Partially Converted", color: "text-purple-600 bg-purple-50" },
-  converted_to_po:      { label: "Converted to PO",   color: "text-teal-600 bg-teal-50" },
-  cancelled:            { label: "Cancelled",         color: "text-slate-500 bg-slate-100" },
-};
 
 const PRIORITY_LABELS: Record<string, string> = {
   low: "Low", medium: "Medium", urgent: "High",
@@ -84,10 +80,11 @@ function formatTs(d?: string) {
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status] || { label: status, color: "text-muted-foreground bg-muted/40" };
+function StatusBadge({ status, approvalStatus }: { status: string; approvalStatus?: string | null }) {
+  const displayKey = getPRDisplayStatus(status, approvalStatus);
+  const cfg = PR_STATUS_CFG[displayKey] || PR_STATUS_CFG[status] || { label: status, className: "text-muted-foreground bg-muted/40" };
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${cfg.color}`}>
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${cfg.className}`}>
       {cfg.label}
     </span>
   );
@@ -269,7 +266,7 @@ function RejectModal({ onClose, onConfirm, loading }: {
 // ─── Generic Confirm Modal ─────────────────────────────────────────────────────
 
 function ConfirmModal({ title, message, onConfirm, onClose, confirmLabel = "Confirm", danger = false, loading = false }: {
-  title: string; message: string; onConfirm: () => void; onClose: () => void;
+  title: string; message: React.ReactNode; onConfirm: () => void; onClose: () => void;
   confirmLabel?: string; danger?: boolean; loading?: boolean;
 }) {
   return (
@@ -284,7 +281,7 @@ function ConfirmModal({ title, message, onConfirm, onClose, confirmLabel = "Conf
             <AlertCircle className={`w-7 h-7 ${danger ? "text-red-500" : "text-amber-500"}`} />
           </div>
           <h3 className="text-base font-bold text-foreground">{title}</h3>
-          <p className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: message }} />
+          <p className="text-sm text-muted-foreground">{message}</p>
         </div>
         <button onClick={onConfirm} disabled={loading}
           className={`w-full h-11 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 ${danger ? "bg-red-500" : "bg-primary"}`}>
@@ -865,7 +862,7 @@ function CreatePOView({
         <div>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl font-bold text-foreground">{pr.requestNumber}</h1>
-            <StatusBadge status={pr.status} />
+            <StatusBadge status={pr.status} approvalStatus={(pr as any).approvalStatus} />
           </div>
           {pr.title && <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>}
         </div>
@@ -1119,14 +1116,34 @@ function CreatePOView({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function PRDetailPage() {
+// Gate matches the list page and sidebar-constants.tsx — the backend
+// requires at least procurement.purchase_request.read_own to view any PR,
+// including the user's own.
+export default withPermissions(PRDetailPage, [
+  { resource: "procurement.purchase_request", action: "read_own" },
+  { resource: "procurement.purchase_request", action: "read_department" },
+  { resource: "procurement.purchase_request", action: "read_company" },
+]);
+
+function PRDetailPage() {
   const params       = useParams();
   const id           = params.id as string;
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const scope        = (searchParams.get("scope") || "own") as "own" | "team" | "company";
   const can          = useAuthStore(s => s.can);
   const user         = useAuthStore(s => s.user);
+
+  // ── Scope validation: never trust ?scope= blindly from the URL ────────────
+  // A user could manually type ?scope=company to try to elevate their view.
+  // We re-validate the requested scope against the same permission gates used
+  // on the list page before honouring it.
+  const hasTeamScopePermission    = can("procurement.purchase_request", "read_department");
+  const hasCompanyScopePermission = can("procurement.purchase_request", "read_company");
+  const rawScope  = searchParams.get("scope") || "own";
+  const scope = (
+    rawScope === "company" && hasCompanyScopePermission ? "company" :
+    rawScope === "team"    && hasTeamScopePermission    ? "team"    : "own"
+  ) as "own" | "team" | "company";
 
   // Company-scope override unlock state (session-only, resets on navigation)
   const [overrideUnlocked, setOverrideUnlocked] = useState(false);
@@ -1168,6 +1185,9 @@ export default function PRDetailPage() {
 
   const getRequesterName = (prObj: any) => {
     if (!prObj) return "Employee";
+    // API returns a flat requesterName field — use it directly first
+    if (prObj.requesterName && typeof prObj.requesterName === "string") return prObj.requesterName;
+    // Fallback: look for nested user objects
     const possibleUserKeys = ["createdBy", "user", "requester", "creator", "owner"];
     for (const key of possibleUserKeys) {
       if (prObj[key] && typeof prObj[key] === "object") {
@@ -1220,6 +1240,13 @@ export default function PRDetailPage() {
   const isTeamScope    = scope === "team";
   const isCompanyScope = scope === "company";
 
+  // True if the currently logged-in user is the requester of THIS specific PR —
+  // regardless of which scope tab they navigated from. A user with company-wide
+  // approve permission could still open their own request via the team/company
+  // tab; this flag ensures self-approval is blocked everywhere, matching the
+  // backend's rejection of self-approval.
+  const isOwnRequest = !!user?.userId && !!pr?.requesterId && user.userId === pr.requesterId;
+
   // Edit/manage own draft — only meaningful on own scope
   const canEdit   = isDraft && can("procurement.purchase_request", "update_own_draft");
   const canSubmit = isDraft && (pr?.lineItems?.length || 0) > 0 && can("procurement.purchase_request", "submit");
@@ -1229,16 +1256,17 @@ export default function PRDetailPage() {
     can("procurement.purchase_request", "approve_department") ||
     can("procurement.purchase_request", "approve_company");
 
-  // Withdraw: owner can withdraw on own scope, or admin can withdraw via override on company scope
+  // Withdraw: owner can withdraw their own request; admin can withdraw via override on company scope.
+  // Uses a dedicated "withdraw" permission rather than re-using "submit" — they are distinct actions.
   const canWithdraw = (isDraft || isSubmitted || isApproved) && (
-    (isOwnScope && can("procurement.purchase_request", "submit")) ||
+    (isOwnScope && (can("procurement.purchase_request", "withdraw") || can("procurement.purchase_request", "submit"))) ||
     (isCompanyScope && overrideUnlocked && hasApprovePermission)
   );
 
   // On own scope — never show approve/reject
-  // On team scope — show if permission + submitted
-  // On company scope — only show after override is unlocked
-  const canApprove = !isOwnScope && isSubmitted && hasApprovePermission &&
+  // On team/company scope — show if permission + submitted, AND the viewer is not the requester
+  // (the backend rejects self-approval, so the UI must not offer it either)
+  const canApprove = !isOwnScope && !isOwnRequest && isSubmitted && hasApprovePermission &&
     (isTeamScope || (isCompanyScope && overrideUnlocked));
   const canReject  = canApprove;
 
@@ -1248,8 +1276,10 @@ export default function PRDetailPage() {
     can("procurement.purchase_order", "create")
   );
 
-  // Whether to show the lock/unlock banner (company scope + submitted + has approval permission)
-  const showOverrideBanner = isCompanyScope && isSubmitted && hasApprovePermission;
+  // Whether to show the lock/unlock override banner.
+  // Never show it on the requester's own request — there is nothing to override
+  // since self-approval is not permitted regardless of unlock state.
+  const showOverrideBanner = isCompanyScope && isSubmitted && hasApprovePermission && !isOwnRequest;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -1453,7 +1483,7 @@ export default function PRDetailPage() {
       {modal === "submit" && (
         <ConfirmModal
           title="Submit Request"
-          message={`You are submitting <strong>${pr.title}</strong> for approval. Once submitted, items cannot be edited.`}
+          message={<>You are submitting <strong>{pr.title}</strong> for approval. Once submitted, items cannot be edited.</>}
           confirmLabel="Submit Request"
           loading={submitPR.isPending}
           onClose={() => setModal(null)}
@@ -1463,7 +1493,7 @@ export default function PRDetailPage() {
       {modal === "delete_item" && itemToDelete && (
         <ConfirmModal
           title="Remove Item"
-          message={`Are you sure you want to remove <strong>${itemToDelete.name}</strong> from the request?`}
+          message={<>Are you sure you want to remove <strong>{itemToDelete.name}</strong> from the request?</>}
           confirmLabel="Remove Item"
           danger
           loading={deleteLineItem.isPending}
@@ -1492,7 +1522,7 @@ export default function PRDetailPage() {
       {modal === "approve" && (
         <ConfirmModal
           title="Approve Request"
-          message={`You are approving <strong>${pr.title}</strong>. This will move the request to the procurement team for PO creation.`}
+          message={<>You are approving <strong>{pr.title}</strong>. This will move the request to the procurement team for PO creation.</>}
           confirmLabel="Approve Request"
           loading={approvePR.isPending}
           onClose={() => setModal(null)}
@@ -1531,7 +1561,7 @@ export default function PRDetailPage() {
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-xl font-bold text-foreground">{pr.requestNumber}</h1>
-              <StatusBadge status={pr.status} />
+              <StatusBadge status={pr.status} approvalStatus={(pr as any).approvalStatus} />
             </div>
             <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>
             {pr.description && <p className="text-xs text-muted-foreground mt-0.5">{pr.description}</p>}
@@ -1574,6 +1604,19 @@ export default function PRDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Self-approval restriction note — shown to requesters who hold approve
+            permission but are viewing their own pending request. Mirrors the
+            backend's rejection of self-approval so the UI doesn't offer an
+            action that will fail. */}
+        {isOwnRequest && isSubmitted && hasApprovePermission && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>
+              You can&apos;t approve or reject your own purchase request. This request is awaiting review from another approver.
+            </p>
+          </div>
+        )}
 
         {/* 2-Column Content */}
         <div className="flex flex-1 gap-6 items-start min-h-0">

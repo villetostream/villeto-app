@@ -50,7 +50,7 @@ import { useAuthStore } from "@/stores/auth-stores";
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 
 
-type PolicyStatus = "active" | "pending" | "draft";
+type PolicyStatus = "active" | "pending" | "draft" | "inactive";
 
 interface Policy {
   id: string;
@@ -102,9 +102,10 @@ function todayStr() {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    active:  "bg-success/10 text-success",
-    pending: "bg-pending/10 text-pending",
-    draft:   "bg-draft/10 text-draft",
+    active:   "bg-success/10 text-success",
+    pending:  "bg-pending/10 text-pending",
+    draft:    "bg-draft/10 text-draft",
+    inactive: "bg-slate-100 text-slate-500",
   };
   return (
     <span className={`inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold capitalize ${map[status.toLowerCase()] ?? "bg-muted text-muted-foreground"}`}>
@@ -585,8 +586,8 @@ function PoliciesPage() {
   const canReadPolicies = can('policy', 'read') || can('policy', 'manage') || can('policy', 'create');
 
   const expCatApi = useGetExpenseCategoriesApi({ enabled: canReadExpenseCategories });
-  const canManageCategories = user?.companyRole?.permissions.some(p => p.resource === 'expense.category' && p.action === 'manage') || false;
-  const canCreatePolicy = user?.companyRole?.permissions.some(p => p.resource === 'policy' && p.action === 'create') || false;
+  const canManageCategories = can('expense.category', 'manage');
+  const canCreatePolicy = can('policy', 'create');
 
   const liveExpenseCategories = useMemo<ExpenseCategory[]>(() => {
     return (expCatApi.data?.data || []).map((c: any) => ({
@@ -778,6 +779,33 @@ function PoliciesPage() {
   const handleApprove = (policy: Policy) => handleReviewAction(policy, "activate");
   const handleReject  = (policy: Policy) => handleReviewAction(policy, "deactivate");
 
+  /**
+   * Re-validates approver status against fresh server data before opening
+   * the Review modal. `approversRaw` on the row may be stale (loaded when
+   * the table was fetched) — if the user was removed as an approver since
+   * then, the button should not have appeared, but as a defense-in-depth
+   * check we re-fetch and confirm before allowing the action to surface.
+   */
+  const handleOpenReview = async (policy: Policy) => {
+    try {
+      const res = await axios.get(API_KEYS.EXPENSE.POLICY_BY_ID(policy.id));
+      const freshPolicy = res.data?.data;
+      const freshApprovers: any[] = freshPolicy?.approversRaw ?? freshPolicy?.approvers ?? [];
+      const stillApprover = Array.isArray(freshApprovers)
+        ? freshApprovers.some((a: any) => (a.userId ?? a.id) === user?.userId)
+        : false;
+
+      if (!stillApprover) {
+        toast.error("You are no longer an approver for this policy.");
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
+        return;
+      }
+      setReviewPolicy(policy);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to load policy details. Please try again.");
+    }
+  };
+
   const lastUpdated = `Last updated: ${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}`;
   const statCards = [
     { title: "Approved Policies", value: approvedCount,            icon: ShieldCheck, bg: "#418341" },
@@ -828,7 +856,7 @@ function PoliciesPage() {
           <div className="flex items-center justify-end gap-2">
             {policy.status === "inactive" && isApprover && (
               <button
-                onClick={() => setReviewPolicy(policy)}
+                onClick={() => handleOpenReview(policy)}
                 className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
               >
                 Review

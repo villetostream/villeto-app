@@ -43,6 +43,13 @@ export interface User {
     };
     department?: Department;
     departmentId?: string | null;
+    /**
+     * Some backend responses return the department name as a flat sibling
+     * of departmentId rather than nesting it under `department`. Display
+     * code should check both `department?.departmentName` and this field.
+     * `departmentId` remains the only value sent back to the backend.
+     */
+    departmentName?: string | null;
     position: string;
     /** Used for display purposes only (e.g. profile page badge). Do NOT
      *  branch on villetoRole.name for any UI gating logic. */
