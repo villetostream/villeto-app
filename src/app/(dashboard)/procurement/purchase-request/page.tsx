@@ -13,27 +13,18 @@ import type { PRStatus, PRPriority, PurchaseRequest } from "@/actions/procuremen
 import { useAuthStore } from "@/stores/auth-stores";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pagination } from "@/components/ui/custom-pagination";
+import withPermissions from "@/components/permissions/permission-protected-routes";
+import {
+  PR_STATUS_CFG,
+  PR_PRIORITY_CFG,
+  getPRDisplayStatus,
+} from "@/lib/constants/purchase-request-status";
 
-// ─── Status config ───────────────────────────────────────────────────────────
+// ─── Status / Priority Badges (use shared config) ────────────────────────────
 
-const STATUS_CFG: Record<string, { label: string; className: string }> = {
-  draft:               { label: "Draft",               className: "text-amber-600 bg-amber-50" },
-  submitted:           { label: "Submitted",           className: "text-blue-600 bg-blue-50" },
-  approved:            { label: "Approved",            className: "text-emerald-600 bg-emerald-50" },
-  rejected:            { label: "Rejected",            className: "text-red-500 bg-red-50" },
-  partially_converted: { label: "Partially Converted", className: "text-purple-600 bg-purple-50" },
-  converted_to_po:     { label: "Converted to PO",     className: "text-teal-600 bg-teal-50" },
-  cancelled:           { label: "Withdrawn",           className: "text-slate-500 bg-slate-100" },
-};
-
-const PRIORITY_CFG: Record<string, { label: string; className: string }> = {
-  low:    { label: "Low",    className: "text-slate-500 bg-slate-100" },
-  medium: { label: "Medium", className: "text-orange-500 bg-orange-50" },
-  urgent: { label: "High",   className: "text-red-500 bg-red-50" },
-};
-
-export function PRStatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status] || { label: status, className: "text-muted-foreground bg-muted/40" };
+export function PRStatusBadge({ status, approvalStatus }: { status: string; approvalStatus?: string | null }) {
+  const displayKey = getPRDisplayStatus(status, approvalStatus);
+  const cfg = PR_STATUS_CFG[displayKey] || PR_STATUS_CFG[status] || { label: status, className: "text-muted-foreground bg-muted/40" };
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${cfg.className}`}>
       {cfg.label}
@@ -42,7 +33,7 @@ export function PRStatusBadge({ status }: { status: string }) {
 }
 
 function PRPriorityBadge({ priority }: { priority: string }) {
-  const cfg = PRIORITY_CFG[priority] || { label: priority, className: "text-muted-foreground bg-muted/40" };
+  const cfg = PR_PRIORITY_CFG[priority] || { label: priority, className: "text-muted-foreground bg-muted/40" };
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
       {cfg.label}
@@ -63,7 +54,8 @@ const ALL_STATUS_TABS = [
   { key: "cancelled",          label: "Withdrawn",       status: "cancelled" },
 ];
 
-const OWN_STATUS_TABS      = ALL_STATUS_TABS.filter(t => ["all","draft","submitted","approved","rejected","cancelled"].includes(t.key));
+// Own scope: show full lifecycle so requesters can track their PO conversion
+const OWN_STATUS_TABS      = ALL_STATUS_TABS; // all statuses — requester owns their full history
 const ELEVATED_STATUS_TABS = ALL_STATUS_TABS.filter(t => t.key !== "draft");
 
 const PRIORITY_OPTIONS = [
@@ -81,6 +73,9 @@ function formatDate(dateStr?: string) {
 }
 
 function getRequesterName(pr: any): string {
+  // API returns a flat requesterName field — use it directly first
+  if (pr.requesterName && typeof pr.requesterName === "string") return pr.requesterName;
+  // Fallback: look for nested user objects under common keys
   const keys = ["createdBy", "user", "requester", "creator", "owner"];
   for (const key of keys) {
     if (pr[key] && typeof pr[key] === "object") {
@@ -353,7 +348,7 @@ function PRTable({
                 <td className="px-5 py-4 text-muted-foreground text-sm">{getDeptName(pr)}</td>
                 <td className="px-5 py-4"><PRPriorityBadge priority={pr.priority} /></td>
                 <td className="px-5 py-4 text-muted-foreground text-sm whitespace-nowrap">{formatDate(pr.neededByDate)}</td>
-                <td className="px-5 py-4"><PRStatusBadge status={pr.status} /></td>
+                <td className="px-5 py-4"><PRStatusBadge status={pr.status} approvalStatus={(pr as any).approvalStatus} /></td>
                 <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
                     <button
@@ -387,7 +382,19 @@ function PRTable({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function PurchaseRequestPage() {
+// Gate matches sidebar-constants.tsx and the backend's actual requirement —
+// confirmed via "User does not have the required permission:
+// procurement.purchase_request.read_own". A user with none of these three
+// scopes cannot load this page at all, so the sidebar item is hidden for
+// them (see sidebar-constants.tsx) and this guard redirects defensively if
+// they reach the URL directly.
+export default withPermissions(PurchaseRequestPage, [
+  { resource: "procurement.purchase_request", action: "read_own" },
+  { resource: "procurement.purchase_request", action: "read_department" },
+  { resource: "procurement.purchase_request", action: "read_company" },
+]);
+
+function PurchaseRequestPage() {
   const router                   = useRouter();
   const searchParams             = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
@@ -404,8 +411,11 @@ export default function PurchaseRequestPage() {
   ];
 
   const defaultTab = tabs[0].key;
-  // Read from both ?outerTab= (tab switcher) and ?scope= (back-button return)
-  const tabFromUrl = searchParams.get("outerTab") || searchParams.get("scope");
+  // Use ?outerTab= to restore the correct tab when navigating back.
+  // ?scope= is only used to pass context INTO the detail page, not to
+  // restore the outer tab, because "scope" on the detail is the PR's
+  // viewing context which may differ from which outer tab was active.
+  const tabFromUrl = searchParams.get("outerTab");
   const validTab   = tabs.find(t => t.key === tabFromUrl)?.key ?? defaultTab;
   const [outerTab, setOuterTab] = useState(validTab);
 

@@ -7,8 +7,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
 import { CheckCircle2, XCircle, X, FileText } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
+import { toast } from "sonner";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
-export default function VendorDetailsPage() {
+export default withPermissions(VendorDetailsPage, [
+  { resource: "vendor", action: "read_company" },
+  { resource: "vendor", action: "manage" },
+]);
+
+function VendorDetailsPage() {
   const { vendorId } = useParams() as { vendorId: string };
   const router = useRouter();
   const axiosInstance = useAxios();
@@ -47,8 +54,10 @@ export default function VendorDetailsPage() {
       await axiosInstance.patch(`/vendors/${vendorId}/review`, { decision, decisionNote: note });
       fetchVendor();
       if (decision === "rejected") { setRejectModalOpen(false); setRejectReason(""); }
+      toast.success(decision === "approved" ? "Vendor approved successfully" : "Vendor rejected");
     } catch (err) {
       logger.error(`Failed to ${decision} vendor`, err);
+      toast.error(`Failed to ${decision} vendor. Please try again.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -59,8 +68,10 @@ export default function VendorDetailsPage() {
     try {
       await axiosInstance.patch(`/vendors/${vendorId}/status`, { status: statusPayload });
       fetchVendor();
+      toast.success(`Vendor ${statusPayload === "Active" ? "activated" : "deactivated"} successfully`);
     } catch (err) {
       logger.error(`Failed to update vendor status to ${statusPayload}`, err);
+      toast.error(`Failed to ${statusPayload === "Active" ? "activate" : "deactivate"} vendor. Please try again.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -70,8 +81,10 @@ export default function VendorDetailsPage() {
     setIsSubmitting(true);
     try {
       await axiosInstance.post(`/vendors/${vendorId}/invitations/resend`);
+      toast.success("Invitation resent successfully");
     } catch (err) {
       logger.error(`Failed to resend invitation`, err);
+      toast.error("Failed to resend invitation. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -104,15 +117,18 @@ export default function VendorDetailsPage() {
   const onboardingStatus = vendor.onboardingStatus || "";
   const approvalStatus   = vendor.approvalStatus  || "";
 
-  const isInvited     = approvalStatus === "pending" && onboardingStatus === "invited";
-  const isOnboarding  = approvalStatus === "pending" && !["invited", "submitted"].includes(onboardingStatus);
+  const isInvited     = approvalStatus === "pending" && (!onboardingStatus || onboardingStatus === "invited");
+  const isOnboarding  = approvalStatus === "pending" && !["invited", "submitted", ""].includes(onboardingStatus);
   const isUnderReview = approvalStatus === "pending" && onboardingStatus === "submitted";
   const isRejected    = approvalStatus === "rejected";
   const isApprovedPhase4 = approvalStatus === "approved" && rawStatus !== "active" && !vendor.deactivatedAt;
   const isDeactivated    = approvalStatus === "approved" && rawStatus !== "active" && !!vendor.deactivatedAt;
   const isActive         = approvalStatus === "approved" && rawStatus === "active";
 
-  const hasBankMismatch = !vendor.bankName || !vendor.bankAccountNumber;
+  // Risk flag only makes sense once the vendor has completed onboarding and submitted for review.
+  // Invited vendors are expected to lack bank details — flagging them is misleading.
+  const isEligibleForRiskCheck = isUnderReview || isApprovedPhase4 || isActive;
+  const hasBankMismatch = isEligibleForRiskCheck && (!vendor.bankName || !vendor.bankAccountNumber);
   const riskLevel = hasBankMismatch ? "High" : "Low";
 
   return (

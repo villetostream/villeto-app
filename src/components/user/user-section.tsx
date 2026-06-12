@@ -30,6 +30,8 @@ import { navigationItems } from "@/components/dashboard/sidebar/sidebar-constant
 import { useDateFilterStore } from "@/stores/useDateFilterStore";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useNotificationCount } from "@/hooks/useNotificationCount";
+import { useAuthStore } from "@/stores/auth-stores";
+import NewExpenseHeaderAction from "@/components/expenses/NewExpenseHeaderAction";
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
@@ -435,10 +437,19 @@ export function UserSection() {
     clearAction();
   }, [pathname, resetDates, clearAction]);
 
+  const can = useAuthStore((state) => state.can);
+  const authReady = useAuthStore((state) => !state.isLoading);
+  const hasTeamScope    = authReady && can("expense.report", "read_department");
+  const hasCompanyScope = authReady && can("expense.report", "read_company");
+  const isPersonalOnly  = authReady && !hasTeamScope && !hasCompanyScope;
+
   const currentSectionLabel = useMemo(() => {
     const tab = searchParams.get("tab");
-    return getCurrentSectionLabel(pathname, tab);
-  }, [pathname, searchParams]);
+    const base = getCurrentSectionLabel(pathname, tab);
+    // For own-scope-only users on the expenses page, surface "My Expenses"
+    if (isPersonalOnly && pathname === "/expenses") return "My Expenses";
+    return base;
+  }, [pathname, searchParams, isPersonalOnly]);
 
   // Page detection
   const isExpenseDetailPage         = pathname.match(/^\/expenses\/\d+$/);
@@ -497,10 +508,16 @@ export function UserSection() {
       router.push(`/expenses?tab=${sessionStorage.getItem("expensesReturnTab") || "personal-expenses"}&page=${sessionStorage.getItem("expensesReturnPage") || "1"}`);
       return;
     }
-    if (isCompanyExpenseDetailPage) { router.push("/expenses?tab=company-expenses"); return; }
+    if (isCompanyExpenseDetailPage) {
+      const returnTab = sessionStorage.getItem("expensesReturnTab") ||
+        (hasCompanyScope ? "company-expenses" : hasTeamScope ? "team-expenses" : "personal-expenses");
+      router.push(`/expenses?tab=${returnTab}`);
+      return;
+    }
     if (isReimbursementDetailPage) { router.push("/expenses/reimbursements"); return; }
     if (isBatchExpensePage) {
-      const tab = sessionStorage.getItem("expensesTab") || "company-expenses";
+      const defaultTab = hasCompanyScope ? "company-expenses" : hasTeamScope ? "team-expenses" : "personal-expenses";
+      const tab = sessionStorage.getItem("expensesTab") || defaultTab;
       const filters = sessionStorage.getItem("expensesFilters");
       const params = new URLSearchParams(); params.set("tab", tab);
       if (filters) { try { const f = JSON.parse(filters); Object.entries(f).forEach(([k,v]) => { if(v) params.set(k,String(v)); }); } catch {} }
@@ -558,6 +575,11 @@ export function UserSection() {
           </Button>
         ) : (
           <h1 className="text-2xl font-bold">{currentSectionLabel}</h1>
+        )}
+        {/* For personal-only users on /expenses, mount the CTA here so it
+            registers into the header action store (no inline heading needed) */}
+        {isPersonalOnly && pathname === "/expenses" && !isBackButtonPage && (
+          <NewExpenseHeaderAction />
         )}
       </div>
 

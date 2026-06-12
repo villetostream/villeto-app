@@ -267,15 +267,15 @@ export default function NewReportPage() {
   // ── Policy + Submit flow ──────────────────────────────────────────────────
   const runPolicyAndSubmit = async (status: "draft" | "pending") => {
     try {
-      console.log("[runPolicyAndSubmit] Triggered with status:", status);
-      console.log("[runPolicyAndSubmit] Expenses:", expenses);
+      logger.log("[runPolicyAndSubmit] Triggered with status:", status);
+      logger.log("[runPolicyAndSubmit] Expenses:", expenses);
       
       if (expenses.length === 0) { toast.error("Please add at least one expense"); return; }
       
       if (status === "pending") {
         // Run policy engine
         const violations = runPolicyEngine(expenses, categories);
-        console.log("[runPolicyAndSubmit] Violations found:", violations);
+        logger.log("[runPolicyAndSubmit] Violations found:", violations);
 
         if (violations.length > 0) {
           setPolicyViolations(violations);
@@ -288,8 +288,8 @@ export default function NewReportPage() {
       // No violations (or draft) — submit directly
       await doSubmit(status, {});
     } catch (err) {
-      console.error("[runPolicyAndSubmit] Sync Crash:", err);
-      toast.error("An unexpected error occurred during submission. See console.");
+      logger.error("[runPolicyAndSubmit] Sync Crash:", err);
+      toast.error("An unexpected error occurred during submission.");
     }
   };
 
@@ -395,7 +395,7 @@ export default function NewReportPage() {
       });
 
       const finalPayload = { reportTitle, status: status === "pending" ? "pending_policy_check" : status, expenses: expensesPayload };
-      console.log("[doSubmit] Final payload being sent:", JSON.stringify(finalPayload, null, 2));
+      logger.log("[doSubmit] Final payload being sent:", finalPayload);
       await axios.post(API_KEYS.EXPENSE.REPORTS, finalPayload);
 
       toast.success(status === "draft" ? "Report saved as draft" : "Report submitted successfully!");

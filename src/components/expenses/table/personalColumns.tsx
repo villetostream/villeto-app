@@ -9,6 +9,7 @@ import { useAuthStore } from "@/stores/auth-stores";
 
 export type PersonalExpenseStatus =
   | "draft"
+  | "submitted"
   | "pending"
   | "approved"
   | "declined"

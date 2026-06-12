@@ -133,13 +133,26 @@ export const navigationItems: NavItem[] = [
     icon: <ShoppingCart />,
     label: "Procurement",
     href: "/procurement/purchase-request",
-    permissions: [], // Always visible — everyone can have own PRs
+    // Visible if the user can read at least one PR scope (own/department/company)
+    permissions: [
+      { resource: "procurement.purchase_request", action: "read_own" },
+      { resource: "procurement.purchase_request", action: "read_department" },
+      { resource: "procurement.purchase_request", action: "read_company" },
+    ],
     section: "MANAGEMENT",
     subItems: [
       {
         label: "Purchase Requests",
         href: "/procurement/purchase-request",
-        permissions: [], // read_own is implied for all users
+        // Backend requires procurement.purchase_request.read_own (or a
+        // broader scope) to load this page at all — confirmed via:
+        // "User does not have the required permission:
+        //  procurement.purchase_request.read_own"
+        permissions: [
+          { resource: "procurement.purchase_request", action: "read_own" },
+          { resource: "procurement.purchase_request", action: "read_department" },
+          { resource: "procurement.purchase_request", action: "read_company" },
+        ],
       },
       {
         label: "Purchase Orders",

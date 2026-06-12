@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { create } from "zustand";
+import { logger } from "@/lib/logger";
 
 // ── Global Store for Unread Count ──────────────────────────────────────────
 interface NotificationCountState {
@@ -39,7 +40,7 @@ export function useNotificationCountHook() {
       });
       if (!res.ok) return;
       const json = await res.json();
-      console.log("[fetchCount] Raw response:", json);
+      logger.log("[fetchCount] Raw response:", json);
 
       // Handle Villeto response format: { status: 200, data: 5 }
       let count = 0;
@@ -49,10 +50,10 @@ export function useNotificationCountHook() {
       else if (typeof json?.data?.count === "number") count = json.data.count;
       else if (typeof json?.unreadCount === "number") count = json.unreadCount;
       
-      console.log("[fetchCount] Extracted count:", count);
+      logger.log("[fetchCount] Extracted count:", count);
       setUnreadCount(Number(count));
     } catch (err) {
-      console.error("[fetchCount] Error:", err);
+      logger.error("[fetchCount] Error:", err);
       // Silently fail — badge stays at previous value
     }
   }, [accessToken, setUnreadCount]);
@@ -88,11 +89,11 @@ export function useNotificationCountHook() {
         });
 
         if (!res.ok || !res.body) {
-          console.warn("[useNotificationCount] SSE connection failed", res.status);
+          logger.warn("[useNotificationCount] SSE connection failed", res.status);
           return;
         }
 
-        console.log("[useNotificationCount] SSE connected successfully");
+        logger.log("[useNotificationCount] SSE connected successfully");
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
 
@@ -101,7 +102,7 @@ export function useNotificationCountHook() {
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
-          console.log("[SSE Raw Text Received (useNotificationCount)]:", chunk);
+          logger.log("[SSE Raw Text Received (useNotificationCount)]:", chunk);
           buffer += chunk;
           
           const blocks = buffer.split("\n\n");
@@ -118,7 +119,7 @@ export function useNotificationCountHook() {
 
             try {
               const parsed = JSON.parse(eventData); // validate it's real JSON
-              console.log("[SSE Raw Payload (useNotificationCount)]:", parsed);
+              logger.log("[SSE Raw Payload (useNotificationCount)]:", parsed);
               // Re-fetch so the badge count is always pinned to server state
               fetchCount();
             } catch {
@@ -128,7 +129,7 @@ export function useNotificationCountHook() {
         }
       } catch (err: any) {
         if (err?.name !== "AbortError") {
-          console.error("[useNotificationCount] SSE error:", err);
+          logger.error("[useNotificationCount] SSE error:", err);
         }
       }
     })();
