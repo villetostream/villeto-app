@@ -1,4 +1,5 @@
 import { logger } from "@/lib/logger";
+import { getApiErrorMessage } from "@/lib/types/api-error";
 import { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -244,14 +245,11 @@ export const useSubmitExpense = () => {
       queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES] });
       router.push("/expenses?tab=personal-expenses");
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       logger.error("Error submitting expenses:", error);
-      const errorMessage =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        error?.message ||
-        "Failed to submit expenses. Please try again.";
-      toast.error(errorMessage);
+      toast.error(
+        getApiErrorMessage(error, "Failed to submit expenses. Please try again.")
+      );
     },
   });
 };
@@ -273,20 +271,15 @@ export const useSaveExpenseAsDraft = () => {
       );
       return response.data;
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, _variables) => {
       toast.success("Expense saved as draft.");
       // Invalidate relevant queries to refetch data, e.g., personal expenses list
       queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES] });
       router.push("/expenses?tab=personal-expenses");
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       logger.error("Error saving draft:", error);
-      const errorMessage =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        error?.message ||
-        "Failed to save draft. Please try again.";
-      toast.error(errorMessage);
+      toast.error(getApiErrorMessage(error, "Failed to save draft. Please try again."));
     },
   });
 };
@@ -334,14 +327,9 @@ export const useUpdateCompanyExpenseStatus = () => {
         queryKey: [API_KEYS.EXPENSE.COMPANY_REPORTS, variables.reportId] 
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       logger.error("Error updating expense status:", error);
-      const errorMessage =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        error?.message ||
-        "Failed to update status. Please try again.";
-      toast.error(errorMessage);
+      toast.error(getApiErrorMessage(error, "Failed to update status. Please try again."));
     },
   });
 };

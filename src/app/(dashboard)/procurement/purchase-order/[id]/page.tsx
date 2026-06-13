@@ -180,7 +180,7 @@ export default function PODetailPage() {
               onClick={() => setStage(stageCycleMap[stage]!.next)}
               className="text-xs px-3 h-7 rounded-full border border-dashed border-primary/40 text-primary/70 hover:bg-primary/5 transition-colors"
             >
-              → Demo: advance to "{stageCycleMap[stage]!.label}"
+              → Demo: advance to &quot;{stageCycleMap[stage]!.label}&quot;
             </button>
           )}
 

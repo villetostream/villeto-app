@@ -3,8 +3,6 @@
 import { AuditTrailTable } from "@/components/expenses/AuditTrailTable";
 import React from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
 
 const auditEntries = [
   {
@@ -65,10 +63,10 @@ const auditEntries = [
   },
 ];
 
-const page = () => {
-  const router = useRouter();
+const Page = () => {
+  const _router = useRouter();
   const params = useParams();
-  const expenseId = params.id;
+  const _expenseId = params.id;
 
   return (
     <div className="space-y-6">
@@ -82,4 +80,4 @@ const page = () => {
   );
 };
 
-export default page;
+export default Page;

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,13 @@ import { useRouter } from "next/navigation";
 import OnboardingTitle from "@/components/onboarding/_shared/OnboardingTitle";
 import CircleProgress from "@/components/HalfProgressCircle";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
-import { useStartOnboardingApi } from "@/actions/pre-onboarding/get-started";
+import { useStartOnboardingApi } from "@/queries/pre-onboarding/get-started";
 import { toast } from "sonner";
 import { registrationSchema } from "@/lib/schemas/schemas";
+import { getApiErrorMessage } from "@/lib/types/api-error";
 import FormFieldInput from "@/components/form fields/formFieldInput";
 import { Check } from "lucide-react";
+import Image from "next/image";
 
 
 type FormData = z.infer<typeof registrationSchema>;
@@ -45,7 +47,7 @@ export default function GetStarted() {
                 contactEmail: onboarding.contactEmail || "",
             });
         }
-    }, [onboarding.preOnboarding, onboarding.contactEmail]);
+    }, [onboarding.preOnboarding, onboarding.contactEmail, form]);
 
     const onSubmit = async (data: FormData) => {
         try {
@@ -55,27 +57,29 @@ export default function GetStarted() {
             onboarding.setIsExistingUser(false);
             onboarding.setStoppedAtStep(null);
             router.push("/pre-onboarding/verify-otp");
-        } catch (error: any) {
-            toast.error(error.message);
+        } catch (error: unknown) {
+            toast.error(getApiErrorMessage(error, "Registration failed. Please try again."));
         }
     };
 
-    const accountType = form.watch("accountType");
+    useWatch({ control: form.control, name: "accountType" });
 
     return (
         <div className="h-full flex flex-col lg:justify-center pb-10">
             <div className=' p-10 flex w-full items-center justify-between'>
                 <div>
-                    <img src="/images/logo.png" className='h-14 w-32 object-cover' />
+                    <Image src="/images/logo.png" width={128} height={56} className='h-14 w-32 object-cover' alt="Villeto logo" />
                 </div>
                 <CircleProgress currentStep={2} />
             </div>
 
             <div className="px-[6.43777%] flex flex-col">
                 <div className="mb-8">
-                    <img
-                        src={"/images/svgs/chart-rose.svg"}
+                    <Image
+                        src="/images/svgs/chart-rose.svg"
                         alt="Welcome celebration"
+                        width={64}
+                        height={64}
                         className="size-16"
                     />
                 </div>

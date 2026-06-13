@@ -1,36 +1,29 @@
 import { useState, useMemo } from "react";
-import { Search, Filter, RefreshCw, Edit, MoreHorizontal } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
+
+
+
 import { UserPermissionsDialog } from "../UserPermissionDialog";
-import UsersTable from "./UserTable";
 import { UserProfileModal } from "../modals/UserProfileModal";
 import { columns } from "./column";
-import { AppUser } from "@/actions/departments/get-all-departments";
 import { DataTable } from "@/components/datatable";
-import { useGetInvitedUsersApi } from "@/actions/users/get-all-users";
-import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
-import { useGetAllRolesApi } from "@/actions/role/get-all-roles";
-import { tableData } from "./UserTable";
+import { useGetInvitedUsersApi } from "@/queries/users/get-all-users";
+import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
+import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
+import { useTableData } from "./UserTable";
+import {
+    getUserDepartmentId,
+    getUserManagerName,
+    getUserRoleId,
+    formatDepartmentOptionLabel,
+    formatRoleOptionLabel,
+    getDepartmentOptionValue,
+    toStringFilterRecord,
+    unwrapFilterKeys,
+} from "../user-table-utils";
 
 // Mock data
-const mockUsers = [
+const _mockUsers = [
     {
         id: "01",
         name: "Sarah Chen",
@@ -53,14 +46,17 @@ export function AllUsersTab() {
     const depts = useGetAllDepartmentsApi();
     const roles = useGetAllRolesApi();
 
-    const tableprops = tableData(usersApi?.data?.data ?? []);
+    const tableprops = useTableData(usersApi?.data?.data ?? []);
 
     const handleViewProfile = (userId: string) => {
         setSelectedUser(userId);
         setProfileModalOpen(true);
     };
 
-    const users: AppUser[] = usersApi?.data?.data ?? [];
+    const users = useMemo(
+        () => usersApi?.data?.data ?? [],
+        [usersApi.data?.data],
+    );
 
     const filteredUsers = useMemo(() => {
         let result = users;
@@ -86,26 +82,15 @@ export function AllUsersTab() {
             });
         }
         if (filters.roleId && filters.roleId !== "all") {
-            result = result.filter(u => {
-                const uRoleId = (u as any).roleId || u.villetoRole?.roleId || (u.villetoRole as any)?.id;
-                return uRoleId === filters.roleId;
-            });
+            result = result.filter(u => getUserRoleId(u) === filters.roleId);
         }
         if (filters.departmentId && filters.departmentId !== "all") {
-            result = result.filter(u => {
-                const uDeptId = typeof u.department === "object" ? ((u.department as any)?.departmentId || (u.department as any)?.id) : (u.departmentId || u.department);
-                return uDeptId === filters.departmentId;
-            });
+            result = result.filter(u => getUserDepartmentId(u) === filters.departmentId);
         }
         if (filters.manager && filters.manager !== "all") {
-            result = result.filter(u => {
-                const managerName = (u as any).manager 
-                    ? typeof (u as any).manager === "string" 
-                        ? (u as any).manager.toLowerCase() 
-                        : `${(u as any).manager.firstName || ""} ${(u as any).manager.lastName || ""}`.toLowerCase()
-                    : "";
-                return managerName.includes(filters.manager.toLowerCase());
-            });
+            result = result.filter(u =>
+                getUserManagerName(u).includes(filters.manager.toLowerCase())
+            );
         }
 
         return result;
@@ -146,8 +131,8 @@ export function AllUsersTab() {
                                 name: "roleId",
                                 label: "Role",
                                 type: "select",
-                                options: roles?.data?.data?.map((r: any) => ({
-                                    label: r.name ? r.name.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c: string) => c.toUpperCase()) : 'Unknown',
+                                options: roles?.data?.data?.map((r) => ({
+                                    label: formatRoleOptionLabel(r),
                                     value: r.roleId,
                                 })) || [],
                             },
@@ -155,20 +140,14 @@ export function AllUsersTab() {
                                 name: "departmentId",
                                 label: "Department",
                                 type: "select",
-                                options: depts?.data?.data?.map((d: any) => ({
-                                    label: d.departmentName || d.name,
-                                    value: d.departmentId || d.id,
+                                options: depts?.data?.data?.map((d) => ({
+                                    label: formatDepartmentOptionLabel(d),
+                                    value: getDepartmentOptionValue(d),
                                 })) || [],
                             }
                         ],
-                        onFilter: (filters: Record<string, any>) => {
-                            const unwrapped: Record<string, any> = {};
-                            Object.entries(filters).forEach(([key, value]) => {
-                                const match = key.match(/filters\[(.*?)\]/);
-                                if (match) unwrapped[match[1]] = value;
-                                else unwrapped[key] = value;
-                            });
-                            tableprops.setFilterBy(unwrapped);
+                        onFilter: (filters: Record<string, unknown>) => {
+                            tableprops.setFilterBy(toStringFilterRecord(unwrapFilterKeys(filters)));
                             tableprops.setPage(1); // Reset page on filter
                         },
                     },

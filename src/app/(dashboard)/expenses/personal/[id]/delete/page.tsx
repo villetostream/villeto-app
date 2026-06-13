@@ -97,9 +97,10 @@ export default function DeleteExpenseReportPage() {
   }, [reportId, axios]);
 
   useEffect(() => {
-    if (reportId) {
-      fetchReportDetail();
-    }
+    if (!reportId) return;
+    queueMicrotask(() => {
+      void fetchReportDetail();
+    });
   }, [reportId, fetchReportDetail]);
 
   const getReturnUrl = () => {

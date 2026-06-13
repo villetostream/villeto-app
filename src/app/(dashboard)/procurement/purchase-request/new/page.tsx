@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
-import { useAuthStore, useCan } from "@/stores/auth-stores";
+import { useAuthStore } from "@/stores/auth-stores";
 import {
   useCreatePurchaseRequest,
   useAddLineItem,
@@ -21,9 +21,16 @@ import {
   useCreateProcurementCategory,
   type LineItemPayload,
   type PurchaseRequestLineItem,
-} from "@/actions/procurement/purchase-requests";
-import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
+  type PRPriority,
+} from "@/queries/procurement/purchase-requests";
+import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { toast } from "sonner";
+import { getApiErrorMessage } from "@/lib/types/api-error";
+import { isPRPriority, parseLineItemsFromAddResponse, toApiLineItemPayload } from "@/lib/types/purchase-request-helpers";
+
+function cleanLineItemPayload(payload: LineItemPayload): LineItemPayload {
+  return toApiLineItemPayload(payload);
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -96,12 +103,11 @@ function CategoryDropdown({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [selectedName, setSelectedName] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const { data: catData, isLoading } = useGetProcurementCategories();
-  const createCategory = useCreateProcurementCategory();
+  const _createCategory = useCreateProcurementCategory();
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -114,22 +120,17 @@ function CategoryDropdown({
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  // Focus search input when dropdown opens
   useEffect(() => {
     if (open) setTimeout(() => searchRef.current?.focus(), 50);
   }, [open]);
 
-  const rawCategories = catData?.data || [];
+  const rawCategories = useMemo(() => catData?.data || [], [catData?.data]);
+  const selectedName = useMemo(() => {
+    if (!value) return "";
+    const all = rawCategories.flatMap(c => [c, ...(c.children || [])]);
+    return all.find(c => c.categoryId === value)?.name ?? "Selected";
+  }, [value, rawCategories]);
   const q = search.trim().toLowerCase();
-
-  // When a value is pre-set, find the name
-  useEffect(() => {
-    if (value && !selectedName) {
-      const all = rawCategories.flatMap(c => [c, ...(c.children || [])]);
-      const found = all.find(c => c.categoryId === value);
-      if (found) setSelectedName(found.name);
-    }
-  }, [value, rawCategories, selectedName]);
 
   // Flat search results: matches from parents and subcategories
   const searchResults: { id: string; name: string; parentName?: string }[] = q
@@ -145,9 +146,9 @@ function CategoryDropdown({
 
   const close = () => { setOpen(false); setSearch(""); setExpandedId(null); };
 
-  const handleSelectParent = (id: string, name: string) => { onChange(id, name); setSelectedName(name); close(); };
-  const handleSelectSub = (id: string, name: string) => { onChange(id, name); setSelectedName(name); close(); };
-  const handleSelectResult = (id: string, name: string) => { onChange(id, name); setSelectedName(name); close(); };
+  const handleSelectParent = (id: string, name: string) => { onChange(id, name); close(); };
+  const handleSelectSub = (id: string, name: string) => { onChange(id, name); close(); };
+  const handleSelectResult = (id: string, name: string) => { onChange(id, name); close(); };
 
 
 
@@ -187,7 +188,7 @@ function CategoryDropdown({
             <div className="max-h-56 overflow-y-auto py-1">
               {searchResults.length === 0 ? (
                 <div className="px-4 py-3 text-sm text-muted-foreground text-center">
-                  <span className="block font-medium text-foreground">No matches for "{search}"</span>
+                  <span className="block font-medium text-foreground">No matches for &quot;{search}&quot;</span>
                 </div>
               ) : (
                 searchResults.map(r => (
@@ -272,7 +273,7 @@ const EMPTY_MODAL: ModalItem = {
 };
 
 function LineItemModal({
-  onClose, onSave, initial, loading, departments, currency,
+  onClose, onSave, initial, loading, departments: _departments, currency,
 }: {
   onClose: () => void;
   onSave: (data: LineItemPayload) => void;
@@ -442,10 +443,12 @@ export default function NewPurchaseRequestPage() {
   // Header form
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("");
+  const [priority, setPriority] = useState<PRPriority | "">("");
   const [currency, setCurrency] = useState("USD");
   const [neededByDate, setNeededByDate] = useState("");
-  const [departmentId, setDepartmentId] = useState(user?.departmentId || "");
+  const defaultDepartmentId = user?.departmentId || (user?.department as { departmentId?: string })?.departmentId || "";
+  const [departmentOverride, setDepartmentOverride] = useState<string | null>(null);
+  const departmentId = departmentOverride ?? defaultDepartmentId;
   const [headerSaving, setHeaderSaving] = useState(false);
 
   // Modal state
@@ -481,15 +484,11 @@ export default function NewPurchaseRequestPage() {
 
   const currencyOptions = CURRENCIES.map(c => ({ label: c, value: c }));
 
-  // Sync user's department on mount — use departmentId or nested department object
-  useEffect(() => {
-    const deptId = user?.departmentId || (user?.department as any)?.departmentId || "";
-    if (deptId) setDepartmentId(deptId);
-  }, [user?.departmentId, user?.department]);
+  // Department defaults from the signed-in user when available.
 
   const handleSaveHeader = async () => {
     if (!title.trim()) { toast.error("Request title is required"); return; }
-    if (!priority) { toast.error("Priority is required"); return; }
+    if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
     if (!neededByDate) { toast.error("Expected date is required"); return; }
     if (!departmentId) { toast.error("Department is required"); return; }
 
@@ -498,7 +497,7 @@ export default function NewPurchaseRequestPage() {
       const res = await createPR.mutateAsync({
         title: title.trim(),
         description: description.trim() || undefined,
-        priority: priority as any,
+        priority,
         neededByDate,
         currency,
         departmentId,
@@ -508,8 +507,8 @@ export default function NewPurchaseRequestPage() {
       setSavedLineItems(res.data.lineItems || []);
       setStep(2);
       toast.success("Draft saved! Now add your line items.");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to save draft");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to save draft"));
     } finally {
       setHeaderSaving(false);
     }
@@ -520,22 +519,18 @@ export default function NewPurchaseRequestPage() {
     setModalLoading(true);
     try {
       // Remove forbidden properties defined by the backend
-      const { departmentId, accountingResolutionStatus, ...cleanPayload } = payload as any;
-      const res = await addLineItem.mutateAsync({ lineItems: [cleanPayload as any] });
+      const cleanPayload = cleanLineItemPayload(payload);
+      const res = await addLineItem.mutateAsync({ lineItems: [cleanPayload] });
       // The API might return the updated PR or an array of items. 
       const returnedData = res.data;
-      if (Array.isArray(returnedData)) {
-        setSavedLineItems(prev => [...prev, ...returnedData]);
-      } else if (returnedData?.lineItems) {
-        setSavedLineItems(returnedData.lineItems);
-      } else {
-        // Fallback or if it just returned the single item
-        setSavedLineItems(prev => [...prev, returnedData]);
+      const parsedItems = parseLineItemsFromAddResponse(returnedData);
+      if (parsedItems.length > 0) {
+        setSavedLineItems((prev) => [...prev, ...parsedItems]);
       }
       setShowModal(false);
       toast.success("Item added");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to add item");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to add item"));
     } finally {
       setModalLoading(false);
     }
@@ -550,8 +545,8 @@ export default function NewPurchaseRequestPage() {
       setEditingItem(null);
       setShowModal(false);
       toast.success("Item updated");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to update item");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to update item"));
     } finally {
       setModalLoading(false);
     }
@@ -563,8 +558,8 @@ export default function NewPurchaseRequestPage() {
       await deleteLineItem.mutateAsync(itemToDelete.item.purchaseRequestLineItemId);
       setSavedLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
       toast.success("Item removed");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to remove item");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to remove item"));
     } finally {
       setItemToDelete(null);
     }
@@ -656,7 +651,12 @@ export default function NewPurchaseRequestPage() {
             <div className="grid grid-cols-3 gap-5">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">Priority <span className="text-red-500">*</span></label>
-                <SelectDropdown value={priority} onChange={setPriority} options={PRIORITIES} placeholder="Select priority" />
+                <SelectDropdown
+                  value={priority}
+                  onChange={(v) => setPriority(isPRPriority(v) ? v : "")}
+                  options={PRIORITIES}
+                  placeholder="Select priority"
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">Currency <span className="text-red-500">*</span></label>
@@ -687,7 +687,7 @@ export default function NewPurchaseRequestPage() {
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Department <span className="text-red-500">*</span></label>
               {canChangeDept ? (
-                <SelectDropdown value={departmentId} onChange={setDepartmentId} options={departments} placeholder="Select department" />
+                <SelectDropdown value={departmentId} onChange={setDepartmentOverride} options={departments} placeholder="Select department" />
               ) : (
                 <div className="w-full h-11 px-3 rounded-lg border border-border bg-muted/30 flex items-center justify-between text-sm text-foreground">
                   <span>{selectedDeptName || <span className="text-muted-foreground italic">No department assigned</span>}</span>
@@ -774,7 +774,7 @@ export default function NewPurchaseRequestPage() {
 
               {savedLineItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <p className="text-sm text-muted-foreground">No items yet. Click "Add Item" to get started.</p>
+                  <p className="text-sm text-muted-foreground">No items yet. Click &quot;Add Item&quot; to get started.</p>
                   <button type="button" onClick={() => { setEditingItem(null); setShowModal(true); }}
                     className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
                     <Plus className="w-4 h-4" /> Add first item
@@ -867,8 +867,8 @@ export default function NewPurchaseRequestPage() {
                   await submitPR.mutateAsync();
                   toast.success("Purchase request submitted for review!");
                   router.push("/procurement/purchase-request");
-                } catch (err: any) {
-                  toast.error(err?.response?.data?.message || "Failed to submit");
+                } catch (err: unknown) {
+                  toast.error(getApiErrorMessage(err, "Failed to submit"));
                 }
               }}
               className="h-11 px-8 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">

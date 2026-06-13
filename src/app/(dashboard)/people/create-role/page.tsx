@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { logger } from "@/lib/logger";
+import { asRecord, getApiErrorMessage, getOptionalString, isRecord } from "@/lib/types/api-error";
 import { Plus, ChevronRight, ChevronDown, ChevronUp, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,18 +17,19 @@ import {
     AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useGetAllPermissionsApi } from "@/actions/auth/auth-permissions";
+import { useGetAllPermissionsApi } from "@/queries/auth/auth-permissions";
 import { groupPermissionsByResource, formatPermissionName } from "@/lib/utils";
-import { RoleFormData, roleSchema } from "@/lib/schemas/schemas";
-import { useCreateRoleApi } from "@/actions/role/create-role";
-import { useUpdateRoleApi } from "@/actions/role/update-role";
-import { useUpdateRoleCapabilitiesApi } from "@/actions/role/update-role-capabilities";
-import { useGetAllRoleCapabilitiesApi, SUPPORTED_MODULES } from "@/actions/role/get-role-capabilities";
+import { roleSchema, type RoleFormData } from "@/lib/schemas/schemas";
+import type { z } from "zod";
+import { useCreateRoleApi } from "@/queries/role/create-role";
+import { useUpdateRoleApi } from "@/queries/role/update-role";
+import { useUpdateRoleCapabilitiesApi } from "@/queries/role/update-role-capabilities";
+import { useGetAllRoleCapabilitiesApi, SUPPORTED_MODULES } from "@/queries/role/get-role-capabilities";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { useGetARoleApi } from "@/actions/role/get-a-role";
-import { useGetAllRolesApi } from "@/actions/role/get-all-roles";
-import { CapabilityGroup } from "@/actions/role/get-all-roles";
+import { useForm, useWatch } from "react-hook-form";
+import { useGetARoleApi } from "@/queries/role/get-a-role";
+import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
+import { CapabilityGroup } from "@/queries/role/get-all-roles";
 import toast from "react-hot-toast";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import SuccessModal from "@/components/modals/SuccessModal";
@@ -172,25 +174,23 @@ function CreateRolePage() {
         register,
         formState: { errors, isDirty },
         setValue,
-        watch,
+        watch: _watch,
         getValues,
         reset,
-    } = useForm<RoleFormData>({
-        resolver: zodResolver(roleSchema) as any,
-        defaultValues: { name: "", description: "", isActive: true, permissionIds: [] },
+        control,
+    } = useForm<z.input<typeof roleSchema>>({
+        resolver: zodResolver(roleSchema),
+        defaultValues: { name: "", description: "", isActive: true, permissionIds: [] as string[] },
     });
 
-    const selectedPermissionIds = watch("permissionIds") || [];
-    const formValues = watch();
+    const selectedPermissionIds = useWatch({ control, name: "permissionIds" }) || [];
+    const formValues = useWatch({ control });
 
     // Group flat permissions by resource (for Advanced tab), sorted alphabetically
-    const [permissionGroups, setPermissionGroups] = useState<ReturnType<typeof groupPermissionsByResource>>([]);
-    useEffect(() => {
-        if (allPermissions.data?.data) {
-            const grouped = groupPermissionsByResource(allPermissions.data.data)
-                .sort((a, b) => a.resource.localeCompare(b.resource));
-            setPermissionGroups(grouped);
-        }
+    const permissionGroups = useMemo(() => {
+        if (!allPermissions.data?.data) return [];
+        return groupPermissionsByResource(allPermissions.data.data)
+            .sort((a, b) => a.resource.localeCompare(b.resource));
     }, [allPermissions.data]);
 
     // Group capabilities by module, sorted alphabetically within each module
@@ -218,8 +218,10 @@ function CreateRolePage() {
                 permissionIds: (r.permissions ?? []).map(p => p.permissionId),
             });
             const keys = r.capabilityGroupKeys ?? [];
-            setSelectedCapabilityKeys(keys);
-            setInitialCapabilityKeys(keys);
+            queueMicrotask(() => {
+                setSelectedCapabilityKeys(keys);
+                setInitialCapabilityKeys(keys);
+            });
         }
     }, [roleData?.data, isEditMode, reset]);
 
@@ -253,7 +255,13 @@ function CreateRolePage() {
             if (isEditMode && roleId) {
                 // PATCH /roles/{roleId} — only if form fields changed (name, description, isActive, permissionIds)
                 if (isDirty) {
-                    await updateRoleMutation.mutateAsync({ id: roleId, data });
+                    const rolePayload: RoleFormData = {
+                      name: data.name,
+                      isActive: data.isActive,
+                      description: data.description,
+                      permissionIds: data.permissionIds ?? [],
+                    };
+                    await updateRoleMutation.mutateAsync({ id: roleId, data: rolePayload });
                 }
                 // PATCH /roles/{roleId}/capabilities — only if capability group selection changed
                 if (capabilitiesChanged) {
@@ -264,8 +272,8 @@ function CreateRolePage() {
                 }
             } else {
                 // Create new role
-                const res = await createRoleMutation.mutateAsync({ ...data, permissionIds: data.permissionIds ?? [] }) as any;
-                const savedRoleId = res?.data?.roleId ?? null;
+                const res = await createRoleMutation.mutateAsync({ ...data, permissionIds: data.permissionIds ?? [] });
+                const savedRoleId = getOptionalString(asRecord(isRecord(res) ? res.data : res).roleId) ?? null;
                 if (savedRoleId && selectedCapabilityKeys.length > 0) {
                     await updateCapabilitiesMutation.mutateAsync({
                         roleId: savedRoleId,
@@ -275,11 +283,9 @@ function CreateRolePage() {
             }
             toast.success(`Role ${isEditMode ? "updated" : "created"}!`);
             setShowSuccessModal(true);
-        } catch (error) {
+        } catch (error: unknown) {
             logger.error("Error submitting role:", error);
-            const err = error as any;
-            const msg = err?.response?.data?.message || err?.message || "Something went wrong. Please try again.";
-            toast.error(msg);
+            toast.error(getApiErrorMessage(error, "Something went wrong. Please try again."));
         }
     };
 

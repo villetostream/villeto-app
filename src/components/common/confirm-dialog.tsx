@@ -7,7 +7,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button, type ButtonProps as UIButtonProps } from "@/components/ui/button"
 
@@ -20,7 +19,7 @@ interface ConfirmDialogProps {
     loading: boolean
     onOpenChange?: (open: boolean) => void;
     onConfirm: (event: React.MouseEvent<HTMLButtonElement>) => Promise<void>
-    buttonText: String
+    buttonText: string
     variant?: UIButtonProps['variant']
 
 }

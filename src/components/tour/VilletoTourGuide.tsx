@@ -1,48 +1,11 @@
 "use client";
 
-/**
- * VilletoTourGuide
- * ─────────────────────────────────────────────────────────────
- * First-login workspace tour for ALL users EXCEPT those who see
- * the SetupGuide (CONTROLLING_OFFICER / ORGANIZATION_OWNER on
- * their very first login, who get the interactive Setup Guide
- * instead via VilletoSetupGuide).
- *
- * Bug-fixes applied (see CHANGELOG below):
- *  [FIX-1] SpotlightOverlay — replaced single requestAnimationFrame
- *          with setInterval(measure, 150) + scroll listener.
- *          A single rAF fires once (~16ms after mount) and never
- *          again, so after client-side navigation the spotlight
- *          hole never re-measured and stayed at the wrong position.
- *  [FIX-2] PointerArrow — same fix: rAF → setInterval(150).
- *  [FIX-3] useTooltipPosition — same fix: rAF → setInterval(150),
- *          plus the missing scroll capture listener that SetupGuide
- *          has but TourGuide was missing.
- *  [FIX-4] Start-tour effect — replaced requestAnimationFrame for
- *          setCardVisible(true) with a small setTimeout so the card
- *          appears after the DOM has settled, not just one paint tick.
- *  [FIX-5] advance() — replaced stepIndex closure with stepIndexRef
- *          so rapid navigation or StrictMode double-invocation cannot
- *          produce a stale index read. stepIndex removed from the
- *          useCallback deps, eliminating the keyboard-listener
- *          tear-down/re-attach on every step change.
- *  [FIX-6] Navigation effect — the router.push branch now explicitly
- *          registers a cleanup function so any pending settle timer is
- *          cancelled if the effect re-runs before navigation resolves.
- *  [FIX-7] TourCard — added role="dialog", aria-modal, aria-labelledby
- *          and programmatic focus management for screen-reader
- *          accessibility (enterprise readiness).
- *  [FIX-8] Keyboard handler — Enter key now checks the focused element
- *          tag so it doesn't advance the tour while the user is typing
- *          in the interactive Account Details form.
- * ─────────────────────────────────────────────────────────────
- */
-
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthStore, type User } from "@/stores/auth-stores";
 import { Roles } from "@/core/permissions/roles";
 import { useTourStore } from "@/stores/useTourStore";
+import { useLayoutSchedule } from "@/hooks/useLayoutSchedule";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -83,6 +46,7 @@ const ALL_STEPS: TourStep[] = [
     primaryLabel: "Start Tour",
     secondaryLabel: "Skip Tour",
     roles: [Roles.CONTROLLING_OFFICER, Roles.ORGANIZATION_OWNER],
+    targetIsInteractive: true,
   },
 
   // 1 — Upload Directory
@@ -210,7 +174,7 @@ const TOUR_KEY = (userId: string) => `villeto-tour-seen:${userId}`;
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-function getRoleString(user: ReturnType<typeof useAuthStore>["user"]): string {
+function getRoleString(user: User | null): string {
   return (
     user?.villetoRole?.name?.toUpperCase() ||
     user?.position?.toUpperCase() ||
@@ -219,8 +183,8 @@ function getRoleString(user: ReturnType<typeof useAuthStore>["user"]): string {
 }
 
 function getFilteredSteps(
-  user: ReturnType<typeof useAuthStore>["user"],
-  hasPermission: (p: string | string[]) => boolean
+  user: User | null,
+  can: (resource: string, action: string) => boolean
 ): TourStep[] {
   const roleStr = getRoleString(user);
   return ALL_STEPS.filter((step) => {
@@ -228,7 +192,16 @@ function getFilteredSteps(
       if (!step.roles.includes(roleStr)) return false;
     }
     if (step.requiredPermission) {
-      if (!hasPermission(step.requiredPermission)) return false;
+      const [resource, action] = step.requiredPermission.includes(".")
+        ? (() => {
+            const lastDot = step.requiredPermission.lastIndexOf(".");
+            return [
+              step.requiredPermission.substring(0, lastDot),
+              step.requiredPermission.substring(lastDot + 1),
+            ] as const;
+          })()
+        : (["", ""] as const);
+      if (resource && action && !can(resource, action)) return false;
     }
     return true;
   });
@@ -295,21 +268,7 @@ function SpotlightOverlay({
     }
   }, [sidebarHref, targetSelector]);
 
-  // [FIX-1] Replace single requestAnimationFrame with a polling interval.
-  // A one-shot rAF fires ~16ms after mount and never again, so after
-  // client-side navigation the hole never re-measured and sat at the
-  // wrong position until the next resize event.
-  useEffect(() => {
-    measure();
-    const interval = setInterval(measure, 150);
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-  }, [measure]);
+  useLayoutSchedule(measure, { pollMs: 1000 });
 
   if (vp.w === 0) return null;
 
@@ -460,21 +419,20 @@ function PointerArrow({
         return;
     }
 
-    setPos({ x, y, effectiveSide });
+    setPos((prev) => {
+      if (
+        prev &&
+        prev.x === x &&
+        prev.y === y &&
+        prev.effectiveSide === effectiveSide
+      ) {
+        return prev;
+      }
+      return { x, y, effectiveSide };
+    });
   }, [targetSelector, side]);
 
-  // [FIX-2] Replace single requestAnimationFrame with polling interval.
-  useEffect(() => {
-    compute();
-    const interval = setInterval(compute, 150);
-    window.addEventListener("resize", compute);
-    window.addEventListener("scroll", compute, true);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("resize", compute);
-      window.removeEventListener("scroll", compute, true);
-    };
-  }, [compute]);
+  useLayoutSchedule(compute, { pollMs: 1000 });
 
   if (!pos || side === "none") return null;
 
@@ -543,53 +501,85 @@ type TooltipPos = {
 
 function useTooltipPosition(
   selector: string | undefined,
-  arrowSide: ArrowSide = "none"
+  arrowSide: ArrowSide = "none",
+  enabled = false
 ): TooltipPos {
   const [pos, setPos] = useState<TooltipPos>({ placement: "center" });
 
   const compute = useCallback(() => {
-    if (!selector || arrowSide === "none") { setPos({ placement: "center" }); return; }
+    if (!selector || arrowSide === "none") {
+      setPos((p) =>
+        p.placement === "center" ? p : { placement: "center" }
+      );
+      return;
+    }
     const el = document.querySelector<HTMLElement>(selector);
-    if (!el) { setPos({ placement: "center" }); return; }
+    if (!el) {
+      setPos((p) =>
+        p.placement === "center" ? p : { placement: "center" }
+      );
+      return;
+    }
 
     const rect = el.getBoundingClientRect();
     const CARD_W = 380;
     const GAP = 52;
 
+    let next: TooltipPos = { placement: "center" };
+
     if (arrowSide === "top") {
       let left = rect.left + rect.width / 2 - CARD_W / 2;
       left = Math.max(12, Math.min(left, window.innerWidth - CARD_W - 12));
-      setPos({ top: rect.bottom + GAP, left, arrowLeft: rect.left + rect.width / 2 - left, placement: "near-target" });
+      next = {
+        top: rect.bottom + GAP,
+        left,
+        arrowLeft: rect.left + rect.width / 2 - left,
+        placement: "near-target",
+      };
     } else if (arrowSide === "bottom") {
       let left = rect.left + rect.width / 2 - CARD_W / 2;
       left = Math.max(12, Math.min(left, window.innerWidth - CARD_W - 12));
-      setPos({ top: rect.top - GAP - 400, left, arrowLeft: rect.left + rect.width / 2 - left, placement: "near-target" });
+      next = {
+        top: rect.top - GAP - 400,
+        left,
+        arrowLeft: rect.left + rect.width / 2 - left,
+        placement: "near-target",
+      };
     } else if (arrowSide === "left") {
       let top = rect.top + rect.height / 2 - 100;
       top = Math.max(12, Math.min(top, window.innerHeight - 300));
-      setPos({ top, left: rect.right + GAP + 10, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target" });
+      next = {
+        top,
+        left: rect.right + GAP + 10,
+        arrowTop: rect.top + rect.height / 2 - top,
+        placement: "near-target",
+      };
     } else if (arrowSide === "right") {
       let top = rect.top + rect.height / 2 - 100;
       top = Math.max(12, Math.min(top, window.innerHeight - 300));
-      setPos({ top, left: rect.left - CARD_W - GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target" });
-    } else {
-      setPos({ placement: "center" });
+      next = {
+        top,
+        left: rect.left - CARD_W - GAP,
+        arrowTop: rect.top + rect.height / 2 - top,
+        placement: "near-target",
+      };
     }
+
+    setPos((p) => {
+      if (
+        p.placement === next.placement &&
+        p.top === next.top &&
+        p.left === next.left &&
+        p.arrowLeft === next.arrowLeft &&
+        p.arrowTop === next.arrowTop
+      ) {
+        return p;
+      }
+      return next;
+    });
   }, [selector, arrowSide]);
 
-  // [FIX-3] Replace single requestAnimationFrame with polling interval and
-  // add the missing scroll capture listener (SetupGuide had it, TourGuide didn't).
-  useEffect(() => {
-    compute();
-    const interval = setInterval(compute, 150);
-    window.addEventListener("resize", compute);
-    window.addEventListener("scroll", compute, true);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("resize", compute);
-      window.removeEventListener("scroll", compute, true);
-    };
-  }, [compute]);
+  useLayoutSchedule(compute, { enabled, pollMs: enabled ? 1000 : 0 });
 
   return pos;
 }
@@ -928,17 +918,19 @@ function TourCard({
 
 export default function VilletoTourGuide() {
   const user          = useAuthStore((s) => s.user);
-  const hasPermission = useAuthStore((s) => s.hasPermission);
+  const can = useAuthStore((s) => s.can);
   const router        = useRouter();
   const pathname      = usePathname();
   const searchParams  = useSearchParams();
   const setTourActive = useTourStore((s) => s.setTourActive);
-  const setupGuideReady = useTourStore((s: any) => s.setupGuideReady ?? false);
+  const setupGuideReady = useTourStore((s) => s.setupGuideReady ?? false);
 
   const [visible,      setVisible]      = useState(false);
   const [cardVisible,  setCardVisible]  = useState(false);
   const [stepIndex,    setStepIndex]    = useState(0);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  
+  const closeVisibleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── alreadySeen — reactive, localStorage-backed ────────────
   // Using localStorage (not sessionStorage) so the flag survives browser
@@ -952,25 +944,23 @@ export default function VilletoTourGuide() {
     return key ? localStorage.getItem(key) === "1" : false;
   });
 
-  // ── [FIX-TDZ] Move derived keys, flags, and refs before the hooks that use them ──
-  const mountLoginCountRef = useRef<number | null>(null);
-  if (mountLoginCountRef.current === null && user !== null) {
-    mountLoginCountRef.current =
-      typeof user?.loginCount === "number" ? user.loginCount : -1;
+  // ── [FIX-TDZ] Freeze login count at first user hydration ──
+  const [mountLoginCount, setMountLoginCount] = useState<number | null>(null);
+  if (mountLoginCount === null && user !== null) {
+    setMountLoginCount(
+      typeof user.loginCount === "number" ? user.loginCount : -1
+    );
   }
 
   const tourKey = user?.userId ? TOUR_KEY(user.userId) : null;
-
-  // alreadySeen is reactive state (see useState above); do NOT re-read from
-  // storage here — the state is the single source of truth after hydration.
 
   // Use the login count that was in the store at mount time (frozen above).
   // This prevents the /users/me refresh from flipping isFirstLogin to false
   // after the 1500 ms start-tour timer has already been queued.
   const isFirstLogin =
     !!user &&
-    mountLoginCountRef.current !== null &&
-    mountLoginCountRef.current === 0;
+    mountLoginCount !== null &&
+    mountLoginCount === 0;
 
   // Exclude only the company founder — the CONTROLLING_OFFICER whose account
   // was created at the same moment as the company (createdAt timestamps match).
@@ -981,23 +971,13 @@ export default function VilletoTourGuide() {
 
   const shouldShow = isFirstLogin && !alreadySeen && !isCompanyFounder && setupGuideReady;
 
-  // ── Auto-dismiss: loginCount > 1 means this is not a first login ─
-  // The login API sometimes returns loginCount=0 even for returning users;
-  // /users/me (called in DashboardLayoutContent) returns the real value.
-  // When the refreshed count is > 1 we mark the tour as seen in localStorage
-  // so it is suppressed on this device and on any future session where the
-  // login response also returns a stale 0.
-  useEffect(() => {
-    if (!user?.userId || !setupGuideReady) return;
-    const lc = user.loginCount ?? 0;
-    if (lc > 1 && tourKey) {
-      if (localStorage.getItem(tourKey) !== "1") {
-        localStorage.setItem(tourKey, "1");
-      }
-      setAlreadySeen(true); // triggers shouldShow → false → cancels the start timer
+  const loginCount = user?.loginCount ?? 0;
+  if (user?.userId && setupGuideReady && loginCount > 1 && tourKey && !alreadySeen) {
+    if (typeof window !== "undefined" && localStorage.getItem(tourKey) !== "1") {
+      localStorage.setItem(tourKey, "1");
     }
-  }, [user?.loginCount, user?.userId, setupGuideReady, tourKey]);
-
+    setAlreadySeen(true);
+  }
 
   const SETTLE_MS = 700;
 
@@ -1008,9 +988,10 @@ export default function VilletoTourGuide() {
   const pendingRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const advanceRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stepIndexRef = useRef(0);
+  const settledRef   = useRef<{ pathname: string; tab: string | null; stepIndex: number } | null>(null);
 
-  const roleStr = getRoleString(user);
-  const steps   = getFilteredSteps(user, hasPermission);
+  const _roleStr = getRoleString(user);
+  const steps   = getFilteredSteps(user, can);
   const step    = steps[stepIndex];
 
   // ── [FIX-5] Keep stepIndexRef in sync ─────────────────────
@@ -1026,20 +1007,29 @@ export default function VilletoTourGuide() {
     };
   }, []);
 
-  // ── Broadcast tour state ───────────────────────────────────
+  // ── Broadcast tour state (only while the card is visible) ──
   useEffect(() => {
-    setTourActive(visible);
+    setTourActive(visible && cardVisible);
     return () => setTourActive(false);
-  }, [visible, setTourActive]);
+  }, [visible, cardVisible, setTourActive]);
 
-
-  // ── [FIX-4] Start tour ────────────────────────────────────
+  // ── Start or dismiss tour based on eligibility ─────────────
   useEffect(() => {
-    if (!shouldShow) return;
+    if (!shouldShow) {
+      settledRef.current = null;
+      const dismissId = window.setTimeout(() => {
+        setCardVisible(false);
+        setVisible(false);
+      }, 0);
+      return () => clearTimeout(dismissId);
+    }
+
     const t1 = setTimeout(() => setVisible(true), 1500);
     const t2 = setTimeout(() => setCardVisible(true), 1550);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [shouldShow]);
+
+  const currTab = searchParams.get("tab");
 
   // ── [FIX-6] Navigation + card visibility ──────────────────
   // The original router.push branch returned undefined (no cleanup
@@ -1053,31 +1043,50 @@ export default function VilletoTourGuide() {
 
     const tabMatch  = targetUrl.match(/tab=([^&]+)/);
     const targetTab = tabMatch ? tabMatch[1] : null;
-    const currTab   = searchParams.get("tab");
 
     const isOnWrongPage = pathname !== step.navigateTo;
     const isOnWrongTab  = targetTab ? currTab !== targetTab : false;
 
     if (isOnWrongPage || isOnWrongTab) {
+      settledRef.current = null;
       router.push(targetUrl);
       return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
     }
 
-    setCardVisible(false);
+    const settled = settledRef.current;
+    const alreadySettled =
+      settled &&
+      settled.pathname === pathname &&
+      settled.tab === currTab &&
+      settled.stepIndex === stepIndex;
+
+    if (alreadySettled) {
+      const showId = window.setTimeout(() => setCardVisible(true), 0);
+      return () => clearTimeout(showId);
+    }
+
+    settledRef.current = { pathname, tab: currTab, stepIndex };
+
+    const hideCardId = window.setTimeout(() => setCardVisible(false), 0);
     pendingRef.current = setTimeout(() => setCardVisible(true), SETTLE_MS);
-    return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
-  }, [pathname, searchParams, stepIndex, visible]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      clearTimeout(hideCardId);
+      if (pendingRef.current) clearTimeout(pendingRef.current);
+    };
+  }, [pathname, currTab, stepIndex, visible, step, router]);
 
   // ── Close tour ─────────────────────────────────────────────
   const closeTour = useCallback(() => {
-    if (!user) return;
-    // Persist in localStorage (survives browser restarts on the same device)
-    localStorage.setItem(TOUR_KEY(user.userId), "1");
-    setAlreadySeen(true);
-    setCardVisible(false);
-    setTimeout(() => setVisible(false), 350);
-  }, [user]);
-
+  if (!user) return;
+  localStorage.setItem(TOUR_KEY(user.userId), "1");
+  setAlreadySeen(true);
+  settledRef.current = null;
+  setCardVisible(false);
+  // Cancel any pending re-show before hiding visible
+  if (closeVisibleTimerRef.current) clearTimeout(closeVisibleTimerRef.current);
+  if (pendingRef.current) clearTimeout(pendingRef.current);   // ← cancel settle timer
+  closeVisibleTimerRef.current = setTimeout(() => setVisible(false), 350);
+}, [user]);
   // ── [FIX-5] Advance step ───────────────────────────────────
   // Read current index from ref so this callback never captures a stale
   // stepIndex from its closure — stepIndex is no longer a dep, which also
@@ -1182,7 +1191,11 @@ export default function VilletoTourGuide() {
   }, [visible, handlePrimary, closeTour]);
 
   // ── Tooltip position ───────────────────────────────────────
-  const pos = useTooltipPosition(step?.targetSelector, step?.arrowSide ?? "none");
+  const pos = useTooltipPosition(
+    step?.targetSelector,
+    step?.arrowSide ?? "none",
+    visible && cardVisible
+  );
 
   // ── Progress tracker ───────────────────────────────────────
   const progressList = PROGRESS_STEPS.filter((ps) =>
@@ -1197,37 +1210,36 @@ export default function VilletoTourGuide() {
   return (
     <>
       {/*
-       * Click-blocking layer.
-       * Blocks all page interactions EXCEPT for the interactive target
-       * element on steps where targetIsInteractive === true.
-       * zIndex 9989 — above content, below SVG overlay (9990).
+       * Click-blocking layer — only while the tour card is visible.
+       * Previously this blocked the entire page even during card fade
+       * transitions, leaving the dashboard unusable with no visible tour UI.
        */}
-      {step.targetIsInteractive ? (
-        // For interactive steps: pointer-events:none so the underlying
-        // interactive element is reachable through the overlay.
-        <div
-          aria-hidden
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9989,
-            pointerEvents: "none",
-            cursor: "default",
-          }}
-        />
-      ) : (
-        <div
-          aria-hidden
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9989,
-            pointerEvents: "all",
-            cursor: "default",
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-        />
+      {cardVisible && (
+        step.targetIsInteractive ? (
+          <div
+            aria-hidden
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 9989,
+              pointerEvents: "none",
+              cursor: "default",
+            }}
+          />
+        ) : (
+          <div
+            aria-hidden
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 9989,
+              pointerEvents: "all",
+              cursor: "default",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+        )
       )}
 
       {/* Full-screen SVG spotlight overlay */}

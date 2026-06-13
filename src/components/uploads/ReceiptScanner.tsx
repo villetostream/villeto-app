@@ -20,6 +20,75 @@ import ReceiptDataExtractor from './ReceiptExtractor';
 // Types
 import { FileWithPreview, ScanResult, ProcessingOptions as ProcessingOptionsType } from '@/lib/types/receipt';
 
+const compressImage = (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Invalid file type. Only images are supported.'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event: ProgressEvent<FileReader>) => {
+      const img = new Image();
+      if (typeof event.target?.result === 'string') {
+        img.src = event.target.result;
+      }
+
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Canvas context not available'));
+            return;
+          }
+
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 1000;
+
+          let { width, height } = img;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = (height * MAX_WIDTH) / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = (width * MAX_HEIGHT) / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              reject(new Error('Image compression failed'));
+            }
+          }, 'image/jpeg', 0.8);
+        } catch (error) {
+          reject(new Error(`Image processing error: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        }
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image'));
+    };
+
+    reader.onerror = () => reject(new Error('Failed to read file'));
+  });
+};
+
 const ReceiptScanner = () => {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -37,7 +106,7 @@ const ReceiptScanner = () => {
   // Ref to track the number of processed files
   const lastProcessedCountRef = useRef<number>(0);
 
-  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: unknown[]) => {
     // Handle rejected files
     if (rejectedFiles.length > 0) {
       logger.warn('Rejected files:', rejectedFiles);
@@ -142,82 +211,13 @@ const ReceiptScanner = () => {
   // Automatically process files when they are added
   useEffect(() => {
     if (shouldProcess && files.length > 0 && !isProcessing) {
-      setShouldProcess(false); // Reset the flag
-      processImages();
+      const timeoutId = window.setTimeout(() => {
+        setShouldProcess(false);
+        processImages();
+      }, 0);
+      return () => clearTimeout(timeoutId);
     }
   }, [shouldProcess, files.length, processImages, isProcessing]);
-
-  const compressImage = (file: File): Promise<File> => {
-    return new Promise((resolve, reject) => {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        reject(new Error('Invalid file type. Only images are supported.'));
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event: ProgressEvent<FileReader>) => {
-        const img = new Image();
-        if (typeof event.target?.result === 'string') {
-          img.src = event.target.result;
-        }
-
-        img.onload = () => {
-          try {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-              reject(new Error('Canvas context not available'));
-              return;
-            }
-
-            // Set maximum dimensions
-            const MAX_WIDTH = 800;
-            const MAX_HEIGHT = 1000;
-
-            let { width, height } = img;
-
-            // Calculate new dimensions while maintaining aspect ratio
-            if (width > height) {
-              if (width > MAX_WIDTH) {
-                height = (height * MAX_WIDTH) / width;
-                width = MAX_WIDTH;
-              }
-            } else {
-              if (height > MAX_HEIGHT) {
-                width = (width * MAX_HEIGHT) / height;
-                height = MAX_HEIGHT;
-              }
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-
-            ctx.drawImage(img, 0, 0, width, height);
-
-            canvas.toBlob((blob) => {
-              if (blob) {
-                const compressedFile = new File([blob], file.name, {
-                  type: 'image/jpeg',
-                  lastModified: Date.now()
-                });
-                resolve(compressedFile);
-              } else {
-                reject(new Error('Image compression failed'));
-              }
-            }, 'image/jpeg', 0.8); // Slightly higher quality for better OCR accuracy
-          } catch (error) {
-            reject(new Error(`Image processing error: ${error instanceof Error ? error.message : 'Unknown error'}`));
-          }
-        };
-
-        img.onerror = () => reject(new Error('Failed to load image'));
-      };
-
-      reader.onerror = () => reject(new Error('Failed to read file'));
-    });
-  };
 
   // Memoize file size calculations for performance
   const fileSizes = useMemo(() =>

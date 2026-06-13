@@ -18,7 +18,7 @@ export interface CookieOptions {
 /**
  * Sets a cookie with proper encoding and expiration
  */
-export function setCookie(name: string, value: any, options: CookieOptions = {}): void {
+export function setCookie(name: string, value: unknown, options: CookieOptions = {}): void {
   if (typeof document === 'undefined') return;
   try {
     // Validate the data structure
@@ -42,7 +42,7 @@ export function setCookie(name: string, value: any, options: CookieOptions = {})
 /**
  * Gets a cookie value with proper decoding and validation
  */
-export function getCookie<T = any>(name: string): T | null {
+export function getCookie<T = unknown>(name: string): T | null {
   if (typeof document === 'undefined') return null;
   try {
     const nameEQ = name + '=';

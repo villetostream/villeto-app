@@ -5,16 +5,25 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { X, Plus, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import FormFieldInput from "../form fields/formFieldInput";
 import { Form } from "../ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { getFormSchema, LeadershipFormData } from "@/lib/schemas/schemas";
+import { getFormSchema } from "@/lib/schemas/schemas";
 import z from "zod";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Briefcase01Icon, InformationCircleIcon, MailAtSign01Icon, User03FreeIcons, UserAdd01FreeIcons } from "@hugeicons/core-free-icons";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
+
+interface EditingPerson {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    role?: string;
+    villetoRole?: { name?: string };
+    ownershipPercentage?: number;
+}
 
 interface AddBeneficialOwnerModalProps {
     isOpen: boolean;
@@ -27,7 +36,7 @@ interface AddBeneficialOwnerModalProps {
         ownershipPercentage?: number;
     }) => void;
     mode?: "beneficial" | "officer";
-    editingPerson?: any;
+    editingPerson?: EditingPerson | null;
     isOwner?: boolean;
 }
 
@@ -55,7 +64,7 @@ export const AddBeneficialOwnerModal = ({
             ownershipPercentage: undefined,
         }
     });
-    const { handleSubmit, formState: { errors }, setValue, watch, reset, control } = form;
+    const { handleSubmit, formState: { errors: _errors }, setValue, reset, control } = form;
 
     // "I'm also a beneficiary owner" checkbox state
     const [isSelf, setIsSelf] = useState(false);
@@ -63,7 +72,7 @@ export const AddBeneficialOwnerModal = ({
     // compliance checkbox — tracks whether ownership is capped at 25%
     const [complianceChecked, setComplianceChecked] = useState(true);
 
-    const ownershipValue = watch("ownershipPercentage", undefined);
+    const ownershipValue = useWatch({ control, name: "ownershipPercentage" });
     const maxOwnership = complianceChecked ? 25 : 100;
 
     // When the "I'm also" checkbox is toggled ON, populate from current user or onboarding state
@@ -87,29 +96,29 @@ export const AddBeneficialOwnerModal = ({
         }
     };
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
-        setIsSelf(false);
-        if (editingPerson) {
-            reset({
-                firstName: editingPerson.firstName || "",
-                lastName: editingPerson.lastName || "",
-                ...(isBeneficialOwner ? {} : { role: editingPerson.role || editingPerson.villetoRole?.name || "" }),
-                email: editingPerson.email || "",
-                ownershipPercentage: editingPerson.ownershipPercentage || undefined,
-            });
-        } else {
-            reset({
-                firstName: "",
-                lastName: "",
-                ...(isBeneficialOwner ? {} : { role: "" }),
-                email: "",
-                ownershipPercentage: undefined,
-            });
-        }
-    // `reset` is stable (react-hook-form guarantee) but listing it causes infinite loop — intentionally omitted
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [editingPerson, isOpen]);
+        const timeoutId = window.setTimeout(() => {
+            setIsSelf(false);
+            if (editingPerson) {
+                reset({
+                    firstName: editingPerson.firstName || "",
+                    lastName: editingPerson.lastName || "",
+                    ...(isBeneficialOwner ? {} : { role: editingPerson.role || editingPerson.villetoRole?.name || "" }),
+                    email: editingPerson.email || "",
+                    ownershipPercentage: editingPerson.ownershipPercentage || undefined,
+                });
+            } else {
+                reset({
+                    firstName: "",
+                    lastName: "",
+                    ...(isBeneficialOwner ? {} : { role: "" }),
+                    email: "",
+                    ownershipPercentage: undefined,
+                });
+            }
+        }, 0);
+        return () => clearTimeout(timeoutId);
+    }, [editingPerson, isOpen, isBeneficialOwner, reset]);
 
     const onSubmit = (data: z.infer<typeof schema>) => {
         if (isBeneficialOwner && (data.ownershipPercentage ?? 0) > maxOwnership) {
@@ -119,7 +128,9 @@ export const AddBeneficialOwnerModal = ({
         onAdd({
             firstName: data.firstName,
             lastName: data.lastName,
-            role: isBeneficialOwner ? (isSelf ? "ORGANIZATION_OWNER" : "ORGANIZATION_OWNER") : (data as any).role ?? "",
+            role: isBeneficialOwner
+                ? "ORGANIZATION_OWNER"
+                : ("role" in data && typeof data.role === "string" ? data.role : ""),
             email: data.email,
             ownershipPercentage: data.ownershipPercentage
         });

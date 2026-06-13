@@ -1,25 +1,24 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react";
-import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
+import { useState, useMemo } from "react";
+import { FieldValues, SubmitHandler, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import SuccessModal from "@/components/modals/SuccessModal";
 import { useRouter } from "next/navigation";
-import { useGetADepartmentApi } from "@/actions/departments/get-a-department";
+import { useGetADepartmentApi } from "@/queries/departments/get-a-department";
 import { Form } from "@/components/ui/form";
 import FormFieldInput from "@/components/form fields/formFieldInput";
 import FormFieldSelect from "@/components/form fields/formFieldSelect";
 import FormFieldTextArea from "@/components/form fields/formFieldTextArea";
 import MembersDropdown from "./AddMembersModal";
-import { CreateDepartmentPayload, useCreateDepartmentApi } from "@/actions/departments/create-department";
-import { useUpdateDepartmentApi } from "@/actions/departments/update-department";
-import { AppUser, useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
+import { CreateDepartmentPayload, useCreateDepartmentApi } from "@/queries/departments/create-department";
+import { useUpdateDepartmentApi } from "@/queries/departments/update-department";
+import { AppUser, useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import z from "zod";
-import { useGetAllUsersApi } from "@/actions/users/get-all-users";
-import { CustomSelect } from "@/components/form fields/custom-select";
+import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 import { toast } from "sonner";
 
 const createDepartmentSchema = z.object({
@@ -80,35 +79,29 @@ const DepartmentForm = () => {
 
     const {
         handleSubmit,
-        watch,
         control,
         reset
     } = form;
 
-    const formValues = watch();
+    const formValues = useWatch({ control });
 
-    // Set form values when department data is loaded
-    useEffect(() => {
-        if (departmentData?.data && departmentId) {
-            const department = departmentData.data;
-
-
-            reset({
-                departmentName: department.departmentName || "",
-                departmentCode: department.code || "",
-                departmentManager: department.head?.userId || undefined,
-                reportsTo: department.manager?.userId || undefined,
-                isActive: department.isActive ?? true,
-                description: department.description || "",
-                id: department.departmentId,
-            });
-
-            // Set selected members if available
-            if (department.members) {
-                setSelectedMembers(department.members ?? []);
-            }
+    const department = departmentData?.data;
+    const [syncedDepartmentId, setSyncedDepartmentId] = useState<string | null>(null);
+    if (department && departmentId && departmentId !== syncedDepartmentId) {
+        setSyncedDepartmentId(departmentId);
+        reset({
+            departmentName: department.departmentName || "",
+            departmentCode: department.code || "",
+            departmentManager: department.head?.userId || undefined,
+            reportsTo: department.manager?.userId || undefined,
+            isActive: department.isActive ?? true,
+            description: department.description || "",
+            id: department.departmentId,
+        });
+        if (department.members) {
+            setSelectedMembers(department.members ?? []);
         }
-    }, [departmentData, departmentId, reset]);
+    }
 
     const handleRemoveMember = (memberId: string) => {
         setSelectedMembers((prev) => prev.filter((m) => m.userId !== memberId));
@@ -135,7 +128,7 @@ const DepartmentForm = () => {
             reset({})
             allDepts.refetch()
             setShowSuccessModal(true);
-        } catch (error) {
+        } catch (_error) {
             toast.error("Failed to save department. Please try again.");
         }
     };

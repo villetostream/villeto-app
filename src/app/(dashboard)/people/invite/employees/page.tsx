@@ -1,16 +1,17 @@
 
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback } from "react";
 import Papa from "papaparse";
 import EmployeeInviteFileUpload from "@/components/dashboard/people/invite/EmployeeInviteFileUpload";
 import EmployeePreviewTable, { EmployeeData } from "@/components/dashboard/people/invite/EmployeePreviewTable";
 import { OrganizationDirectoryPage } from "@/components/dashboard/people/directory/OrganizationDirectoryPage";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useBulkImportApi } from "@/actions/users/bulk-import";
+import { useBulkImportApi } from "@/queries/users/bulk-import";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
-import { useGetDirectoryUsersApi } from "@/actions/users/get-all-users";
+import { useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
 import { toast } from "sonner";
+import { getApiErrorMessage } from "@/lib/types/api-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Upload04Icon } from "@hugeicons/core-free-icons";
@@ -36,35 +37,15 @@ function clearReferrer() {
 export default function InviteEmployeesPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const initialStep = (searchParams.get("step") as Step) || "directory";
+    const step = (searchParams.get("step") as Step) || "directory";
 
-    const [step, setStep] = useState<Step>(initialStep);
     const [employeeData, setEmployeeData] = useState<EmployeeData[]>([]);
     const [rawFile, setRawFile] = useState<File | null>(null);
     // True immediately after a successful bulk-import upload so we skip the
     // stale directoryTotalCount check and always show the directory picker.
     const [justUploaded, setJustUploaded] = useState(false);
 
-    // Capture the referrer dynamically upon client mount to avoid SSR hydration mismatch
-    const [referrer, setReferrer] = useState<string | null>(null);
-
-    useEffect(() => {
-        setReferrer(getReferrer());
-    }, []);
-
-    // Sync URL step param → React state so browser back/forward updates the view
-    useEffect(() => {
-        const urlStep = (searchParams.get("step") as Step) || "directory";
-        if (urlStep !== step) {
-            setStep(urlStep);
-            // Clear preview data when navigating back to upload
-            if (urlStep === "upload") {
-                setEmployeeData([]);
-                setRawFile(null);
-            }
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchParams]);
+    const [referrer, setReferrer] = useState<string | null>(() => getReferrer());
 
     const bulkImportMutation = useBulkImportApi();
     const usersApi = useGetDirectoryUsersApi();
@@ -102,7 +83,6 @@ export default function InviteEmployeesPage() {
                 }
 
                 setEmployeeData(mapped);
-                setStep("preview");
                 router.replace("/people/invite/employees?step=preview");
                 toast.success(`${mapped.length} employee(s) loaded from file.`);
             },
@@ -110,7 +90,7 @@ export default function InviteEmployeesPage() {
                 toast.error("Failed to parse file. Please ensure it is a valid CSV.");
             },
         });
-    }, []);
+    }, [router]);
 
     const handleDataChange = (newData: EmployeeData[]) => {
         setEmployeeData(newData);
@@ -125,7 +105,6 @@ export default function InviteEmployeesPage() {
     const handleUploadDifferent = () => {
         setEmployeeData([]);
         setRawFile(null);
-        setStep("upload");
         router.replace("/people/invite/employees?step=upload");
     };
 
@@ -169,14 +148,13 @@ export default function InviteEmployeesPage() {
                 // Refresh the directory data and go back to directory selection
                 setJustUploaded(true);
                 await usersApi.refetch();
-                setStep("directory");
                 router.replace("/people/invite/employees");
             } else {
                 // Default: came from the Directory tab header "Upload Directory"
                 router.push("/people?tab=directory");
             }
-        } catch (error: any) {
-            toast.error(error?.response?.data?.message || "Failed to save directory. Please try again.");
+        } catch (error: unknown) {
+            toast.error(getApiErrorMessage(error, "Failed to save directory. Please try again."));
         }
     };
 
@@ -193,9 +171,9 @@ export default function InviteEmployeesPage() {
             // API count to refresh.
             setJustUploaded(true);
             await usersApi.refetch();
-            setStep("directory");
-        } catch (error: any) {
-            toast.error(error?.response?.data?.message || "Failed to save directory. Please try again.");
+            router.replace("/people/invite/employees");
+        } catch (error: unknown) {
+            toast.error(getApiErrorMessage(error, "Failed to save directory. Please try again."));
         }
     };
 
@@ -267,7 +245,6 @@ export default function InviteEmployeesPage() {
                                 // Track that we came from the empty-directory state
                                 sessionStorage.setItem("uploadDirReferrer", "empty-directory");
                                 setReferrer("empty-directory");
-                                setStep("upload");
                                 router.replace("/people/invite/employees?step=upload");
                             }}
                             className="inline-flex items-center gap-2 bg-[#00BFA5] hover:bg-[#00BFA5]/90 text-white px-6 py-2.5 rounded-lg font-medium text-sm transition-colors"

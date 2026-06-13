@@ -8,7 +8,7 @@ import {
   FormLabel,
   FormMessage,
 } from "../ui/form";
-import { Path } from "react-hook-form";
+import { Control, FieldValues, Path } from "react-hook-form";
 import {
   Select,
   SelectContent,
@@ -18,9 +18,9 @@ import {
 } from "../ui/select";
 import { X } from "lucide-react";
 
-interface FormFieldSelectProps<T extends Record<string, any>> {
+interface FormFieldSelectProps<T extends FieldValues = FieldValues> {
   placeholder: string;
-  control: any;
+  control: Control<T>;
   name: Path<T>;
   label: string;
   description?: string;
@@ -35,7 +35,7 @@ const sharedInputClasses =
 const focusVariants =
   "focus:outline-none focus-visible:outline-none focus:border-primary focus-visible:border-primary focus:ring-primary/50 focus-visible:ring-primary/50 focus:ring-2 data-[state=open]:border-primary data-[state=open]:ring-primary/50 data-[state=open]:ring-2";
 
-const FormFieldSelect = <T extends Record<string, any>>({
+const FormFieldSelect = <T extends FieldValues = FieldValues>({
   control,
   name,
   label,
@@ -68,10 +68,8 @@ const FormFieldSelect = <T extends Record<string, any>>({
                 onOpenChange={setIsOpen}
                 onValueChange={(val) => {
                   if (val === "__CLEAR__") {
-                    field.onChange(
-                      // keep identical default logic you had
-                      (formState.defaultValues as any)?.[name] ?? undefined
-                    );
+                    const defaults = formState.defaultValues as Partial<T> | undefined;
+                    field.onChange(defaults?.[name] ?? undefined);
                     return;
                   }
 
@@ -145,7 +143,7 @@ const FormFieldSelect = <T extends Record<string, any>>({
                       e.preventDefault();
                       e.stopPropagation();
                       field.onChange(
-                        (formState.defaultValues as any)?.[name] ?? ""
+                        (formState.defaultValues as Partial<T> | undefined)?.[name] ?? ""
                       );
                       setIsOpen(true);
                     }}

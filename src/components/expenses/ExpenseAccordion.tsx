@@ -36,7 +36,7 @@ interface ExpenseAccordionProps {
 export function ExpenseAccordion({ expense, defaultOpen = false, onApprove, onReject, previousPage }: ExpenseAccordionProps) {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
-    const handleLinkClick = (type: "split-expense" | "audit-trail") => {
+    const handleLinkClick = (_type: "split-expense" | "audit-trail") => {
         // Store previous page info for back navigation
         if (previousPage) {
             sessionStorage.setItem("expensePreviousPage", previousPage);

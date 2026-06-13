@@ -30,7 +30,7 @@ const ExpenseEmptyState = ({
         </p>
         {showButton && (
           <p className="text-sm text-muted-foreground italic">
-            Use the "New Report" button in the header to get started.
+            Use the &quot;New Report&quot; button in the header to get started.
           </p>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { logger } from "@/lib/logger";
-// function flattenObject(ob: any, prefix = "", result: any = {}): any {
+import { isRecord } from "@/lib/types/api-error";
+// function flattenObject(ob: unknown, prefix = "", result: unknown = {}): unknown {
 //     for (const key in ob) {
 //       if (Object.prototype.hasOwnProperty.call(ob, key)) {
 //         const value = ob[key];
@@ -27,7 +28,7 @@ import { logger } from "@/lib/logger";
 
 //   // Function to export data as CSV. If filename isn't provided, it is generated based on the type.
 //   export default function exportToCSV(
-//     data: any,
+//     data: unknown,
 //     type: string,
 //     filename?: string
 //   ) {
@@ -52,7 +53,7 @@ import { logger } from "@/lib/logger";
 //     csvContent += headers.join(",") + "\n";
 
 //     // Escape CSV values if needed
-//     const escapeCSV = (value: any) => {
+//     const escapeCSV = (value: unknown) => {
 //       if (value === null || value === undefined) return "";
 //       let str = String(value);
 //       if (str.includes(",") || str.includes('"') || str.includes("\n")) {
@@ -80,7 +81,11 @@ import { logger } from "@/lib/logger";
 //   }
 
 //for exclusion of id
-function flattenObject(ob: any, prefix = "", result: any = {}): any {
+function flattenObject(
+  ob: Record<string, unknown>,
+  prefix = "",
+  result: Record<string, unknown> = {}
+): Record<string, unknown> {
   for (const key in ob) {
     if (Object.prototype.hasOwnProperty.call(ob, key)) {
       // Ignore keys that include "id" (case-insensitive)
@@ -93,13 +98,13 @@ function flattenObject(ob: any, prefix = "", result: any = {}): any {
         if (Array.isArray(value)) {
           // For arrays, flatten each item with its index
           value.forEach((item, index) => {
-            if (item !== null && typeof item === "object") {
+            if (isRecord(item)) {
               flattenObject(item, `${newKey}[${index}]`, result);
             } else {
               result[`${newKey}[${index}]`] = item;
             }
           });
-        } else {
+        } else if (isRecord(value)) {
           flattenObject(value, newKey, result);
         }
       } else {
@@ -112,7 +117,7 @@ function flattenObject(ob: any, prefix = "", result: any = {}): any {
 
 // Function to export data as CSV. If filename isn't provided, it is generated based on the type.
 export default function exportToCSV(
-  data: any,
+  data: unknown,
   type: string,
   filename?: string
 ) {
@@ -127,7 +132,9 @@ export default function exportToCSV(
   logger.log("dataArray", dataArray)
 
   // Flatten each item in the data array
-  const flatData = dataArray.map((item) => flattenObject(item));
+  const flatData = dataArray.map((item) =>
+    flattenObject(isRecord(item) ? item : {})
+  );
   logger.log("flatData", flatData);
 
   // Collect all unique headers
@@ -139,7 +146,7 @@ export default function exportToCSV(
   csvContent += headers.join(",") + "\n";
 
   // Escape CSV values if needed
-  const escapeCSV = (value: any) => {
+  const escapeCSV = (value: unknown) => {
     if (value === null || value === undefined) return "";
     let str = String(value);
     if (str.includes(",") || str.includes('"') || str.includes("\n")) {
@@ -167,7 +174,7 @@ export default function exportToCSV(
 }
 
 //alternative
-// function flattenObject(ob: any, prefix = "", result: any = {}): any {
+// function flattenObject(ob: unknown, prefix = "", result: unknown = {}): unknown {
 //   for (const key in ob) {
 //     if (Object.prototype.hasOwnProperty.call(ob, key)) {
 //       const value = ob[key];
@@ -186,7 +193,7 @@ export default function exportToCSV(
 
 // // Function to export data as CSV. If filename isn't provided, it is generated based on the type.
 // export default function exportToCSV(
-//   data: any,
+//   data: unknown,
 //   type: string,
 //   filename?: string
 // ) {
@@ -210,7 +217,7 @@ export default function exportToCSV(
 //   csvContent += headers.join(",") + "\n";
 
 //   // Escape CSV values if needed
-//   const escapeCSV = (value: any) => {
+//   const escapeCSV = (value: unknown) => {
 //     if (value === null || value === undefined) return "";
 //     let str = String(value);
 //     if (str.includes(",") || str.includes('"') || str.includes("\n")) {
@@ -238,14 +245,22 @@ export default function exportToCSV(
 // }
 
 
+function ensureArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function ensureRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
 // Helper to convert flattened keys into nested objects/arrays
-export function unflatten(obj: Record<string, any>) {
-  const result: Record<string, any> = {};
+export function unflatten(obj: Record<string, unknown>) {
+  const result: Record<string, unknown> = {};
 
   for (const flatKey in obj) {
     const value = obj[flatKey];
     const segments = flatKey.split('.');
-    let current = result;
+    let current: Record<string, unknown> = result;
 
     segments.forEach((segment, idx) => {
       const arrayMatch = segment.match(/^(.+)\[(\d+)\]$/);
@@ -254,13 +269,15 @@ export function unflatten(obj: Record<string, any>) {
       if (arrayMatch) {
         const key = arrayMatch[1];
         const index = parseInt(arrayMatch[2], 10);
-        current[key] = current[key] || [];
+        const arr = ensureArray(current[key]);
+        current[key] = arr;
 
         if (isLast) {
-          current[key][index] = value;
+          arr[index] = value;
         } else {
-          current[key][index] = current[key][index] || {};
-          current = current[key][index];
+          const nested = ensureRecord(arr[index]);
+          arr[index] = nested;
+          current = nested;
         }
       } else {
         // plain object key
@@ -268,8 +285,9 @@ export function unflatten(obj: Record<string, any>) {
         if (isLast) {
           current[key] = value;
         } else {
-          current[key] = current[key] || {};
-          current = current[key];
+          const nested = ensureRecord(current[key]);
+          current[key] = nested;
+          current = nested;
         }
       }
     });

@@ -1,22 +1,26 @@
 "use client";
 
-import { useState, useMemo, useRef, useLayoutEffect, useEffect } from "react";
+import { useState, useMemo, useRef, useLayoutEffect } from "react";
 import {
   X, Plus, ChevronDown, ChevronUp, Loader2, UserCircle, Check, Trash2,
-  MapPin, Users, Building2, Tag, ShieldCheck, Info,
+  MapPin, Users, Tag, ShieldCheck, Info,
 } from "lucide-react";
-import { useGetCompanyRolesApi } from "@/actions/role/get-all-roles";
-import { useGetExpenseCategoriesApi } from "@/actions/companies/get-expense-categories";
-import { useGetInvitedUsersApi } from "@/actions/users/get-all-users";
-import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
-import { useCreatePolicyApi, CreatePolicyPayload } from "@/actions/companies/create-policy";
-import { useUpdatePolicyApi } from "@/actions/companies/update-policy";
-import { useGetPolicyDetailsApi } from "@/actions/companies/get-policy-details";
-import { Policy } from "@/actions/companies/get-policies";
+import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
+import { useGetExpenseCategoriesApi } from "@/queries/companies/get-expense-categories";
+import { useGetInvitedUsersApi } from "@/queries/users/get-all-users";
+import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
+import { useCreatePolicyApi, type CreatePolicyPayload } from "@/queries/companies/create-policy";
+import type { UpdatePolicyPayload } from "@/queries/companies/update-policy";
+import { useUpdatePolicyApi } from "@/queries/companies/update-policy";
+import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
 import AddCategoryModal from "@/components/auth/AddCategoryModal";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
 import { getCurrencyConfig } from "@/lib/utils/currency";
+import { getApiErrorMessage } from "@/lib/types/api-error";
+import { ExpenseCategory } from "@/queries/companies/get-expense-categories";
+import { Role } from "@/queries/role/get-all-roles";
+import { AppUser, Department } from "@/queries/departments/get-all-departments";
 import { Roles } from "@/core/permissions/roles";
 
 /* ─── Types ───────────────────────────────────────────────── */
@@ -98,7 +102,7 @@ function PortalDropdown({
     } else {
       setPos({ bottom: window.innerHeight - r.top + GAP, left: r.left, width: r.width, maxHeight: Math.max(120, spaceAbove) });
     }
-  }, [open]);
+  }, [open, triggerRef]);
 
   if (!open) return null;
   return (
@@ -171,10 +175,10 @@ function DropdownList({
   const [peekOpt, setPeekOpt] = useState<DropdownOption | null>(null);
 
   useLayoutEffect(() => {
-    setQuery("");
-    setPeekOpt(null);
-    if (searchable) setTimeout(() => searchRef.current?.focus(), 0);
-  }, []);
+    if (searchable) {
+      window.setTimeout(() => searchRef.current?.focus(), 0);
+    }
+  }, [searchable]);
 
   const checkFade = () => {
     const el = scrollRef.current;
@@ -660,10 +664,10 @@ function Preview({
 
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Expense categories</p>
         <div className="flex flex-wrap gap-1.5 mb-4">
-          {categories.map((c: string) => {
-            const label = expenseCategoryOptions.find((o: DropdownOption) => o.value === c)?.label ?? (typeof c === 'string' ? c : (c as any)?.name || 'Category');
+          {categories.map((c: string, categoryIndex: number) => {
+            const label = expenseCategoryOptions.find((o: DropdownOption) => o.value === c)?.label ?? (typeof c === 'string' ? c : (c as { name?: string })?.name || 'Category');
             return (
-              <span key={typeof c === 'string' ? c : (c as any)?.id || Math.random()} className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-[#03C3A6]/10 text-[#03C3A6] text-[11px] font-semibold">
+              <span key={`${c}-${categoryIndex}`} className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-[#03C3A6]/10 text-[#03C3A6] text-[11px] font-semibold">
                 <Tag className="w-2.5 h-2.5" /> {label}
               </span>
             );
@@ -738,7 +742,7 @@ function Preview({
                   <UserCircle className="w-3.5 h-3.5 text-[#03C3A6]" />
                 </div>
                 <span className="text-xs font-medium text-gray-700">
-                  {adminOptions.find(o => o.value === a)?.label ?? (typeof a === 'string' ? a : (a?.firstName ? `${a.firstName} ${a.lastName || ''}` : a.email || 'User'))}
+                  {adminOptions.find(o => o.value === a)?.label ?? (typeof a === "string" ? a : "User")}
                 </span>
               </div>
             ))}
@@ -856,67 +860,88 @@ export default function PolicyCreationModal({
   const isFetchingDetails = isEditing && detailsApi.isLoading;
   const isLoading = createPolicyMutation.isPending || updatePolicyMutation.isPending;
 
-  // Populate data when editing
-  useEffect(() => {
-    if (open && isEditing && detailsApi.data?.data) {
-      const data = detailsApi.data.data;
-      setPolicyName(data.name || "");
-      const scopeType = data.scope?.type === "all" || data.scope?.type === "all_employees" ? "all" : "specific";
-      setScope(scopeType);
-      
-      if (data.scope?.type === "specific") {
-        setSelectedDepts(data.scope.departments || []);
-        setSelectedRoles(data.scope.userRoles || []);
-        setLocation(data.scope.location || "");
-      } else {
-        // @ts-ignore
-        setLocation(data.scope?.location || "");
-      }
+  const reset = () => {
+    setStep(1); setPolicyName(""); setScope("all");
+    setSelectedRoles([]); setSelectedDepts([]);
+    setCategories([]); setLocation(resolveDefaultLocation(userCountry));
+    setRules([mkRule("spend_limit"), mkRule("receipt_requirement")]);
+    setApprovers([]);
+  };
 
-      // Map expense categories to IDs if they are objects
-      const categoryIds = (data.expenseCategories || []).map((c: any) => typeof c === 'string' ? c : (c?.categoryId || c?.id || ''));
-      setCategories(categoryIds);
-      // Map approvers to IDs if they are objects
-      const approverIds = (data.approvers || []).map((a: any) => typeof a === 'string' ? a : (a?.userId || a?.id || '')).filter(Boolean);
-      setApprovers(approverIds);
+  const detailsData = detailsApi.data?.data;
+  const [syncedDetails, setSyncedDetails] = useState(detailsData);
+  if (open && isEditing && detailsData && detailsData !== syncedDetails) {
+    setSyncedDetails(detailsData);
+    const data = detailsData;
+    setPolicyName(data.name || "");
+    const scopeType = data.scope?.type === "all" || data.scope?.type === "all_employees" ? "all" : "specific";
+    setScope(scopeType);
 
-      if (data.rules?.length) {
-        setRules(data.rules.map((r: any) => {
-          const isReceipt = r.type === "receipt_requirement";
-          const rawAmount = (r.amount ?? r.requiredAboveAmount ?? "").toString();
-          // If requiredAboveAmount is 0 or empty it means "Required for All" mode
-          const receiptMode: "all" | "threshold" =
-            isReceipt && rawAmount !== "" && parseFloat(rawAmount) > 0
-              ? "threshold"
-              : "all";
-          const tf = r.timeUnit || r.timeframe;
-          const mappedTimeframe = tf === "day" ? "daily" : tf === "week" ? "weekly" : tf === "month" ? "monthly" : tf === "year" ? "yearly" : (tf || "daily");
-          return {
-            id: Math.random().toString(36).slice(2),
-            type: r.type,
-            amount: isReceipt && receiptMode === "all" ? "" : rawAmount,
-            enforcement: r.enforcementAction === "block" ? "block" : r.enforcementAction === "warn" ? "warn" : r.enforcementAction || "",
-            timeframe: mappedTimeframe,
-            receiptMode: isReceipt ? receiptMode : undefined,
-          };
-        }));
-      }
-    } else if (open && !isEditing) {
-      reset();
+    if (data.scope?.type === "specific") {
+      setSelectedDepts(data.scope.departments || []);
+      setSelectedRoles(data.scope.userRoles || []);
+      setLocation(data.scope.location || "");
+    } else {
+      setLocation((data.scope as { location?: string } | undefined)?.location || "");
     }
-  }, [open, policyId, detailsApi.data]);
+
+    const categoryIds = (data.expenseCategories || []).map((c: string | { categoryId?: string; id?: string }) => typeof c === 'string' ? c : (c?.categoryId || c?.id || ''));
+    setCategories(categoryIds);
+    const approverIds = (data.approvers || []).map((a: string | { userId?: string; id?: string }) => typeof a === 'string' ? a : (a?.userId || a?.id || '')).filter(Boolean);
+    setApprovers(approverIds);
+
+    if (data.rules?.length) {
+      setRules(data.rules.map((r: {
+        type: RuleType;
+        amount?: string | number;
+        requiredAboveAmount?: string | number;
+        timeUnit?: string;
+        timeframe?: string;
+        enforcementAction?: string;
+      }, ruleIndex: number) => {
+        const isReceipt = r.type === "receipt_requirement";
+        const rawAmount = (r.amount ?? r.requiredAboveAmount ?? "").toString();
+        const receiptMode: "all" | "threshold" =
+          isReceipt && rawAmount !== "" && parseFloat(rawAmount) > 0
+            ? "threshold"
+            : "all";
+        const tf = r.timeUnit || r.timeframe;
+        const mappedTimeframe = tf === "day" ? "daily" : tf === "week" ? "weekly" : tf === "month" ? "monthly" : tf === "year" ? "yearly" : (tf || "daily");
+        return {
+          id: `rule-${ruleIndex}-${r.type}`,
+          type: r.type,
+          amount: isReceipt && receiptMode === "all" ? "" : rawAmount,
+          enforcement: r.enforcementAction === "block" ? "block" : r.enforcementAction === "warn" ? "warn" : r.enforcementAction || "",
+          timeframe: mappedTimeframe as PolicyRule["timeframe"],
+          receiptMode: isReceipt ? receiptMode : undefined,
+        };
+      }));
+    }
+  } else if (open && !isEditing && syncedDetails) {
+    setSyncedDetails(undefined);
+    reset();
+  }
 
   const expenseCategoryOptions = useMemo<DropdownOption[]>(() =>
-    (expCatApi.data?.data ?? []).map((c: any) => {
+    (expCatApi.data?.data ?? []).map((c: ExpenseCategory) => {
       const policyNames: string[] = Array.isArray(c.policies)
-        ? c.policies.map((p: any) => p.name || p.policyName || "Unnamed policy").filter(Boolean)
+        ? c.policies
+            .map((p) => {
+              if (typeof p === "object" && p !== null && "name" in p) {
+                const name = (p as { name?: string; policyName?: string }).name
+                  ?? (p as { policyName?: string }).policyName;
+                return name || "Unnamed policy";
+              }
+              return "Unnamed policy";
+            })
+            .filter(Boolean)
         : [];
       const policyCount = c.isPolicyAttached
         ? (policyNames.length > 0 ? policyNames.length : 1)
         : 0;
       return {
         label: c.name,
-        value: c.categoryId ?? c.id ?? c.name,
+        value: c.categoryId ?? c.name,
         subLabel: c.description || undefined,
         policyCount,
         policyNames,
@@ -924,7 +949,7 @@ export default function PolicyCreationModal({
     }), [expCatApi.data?.data]);
 
   const roleOptions = useMemo<DropdownOption[]>(() =>
-    (rolesApi.data?.data ?? []).map((r: any) => {
+    (rolesApi.data?.data ?? []).map((r: Role) => {
       const n = (r.name ?? "").replace(/_/g, " ");
       return { label: n.charAt(0).toUpperCase() + n.slice(1).toLowerCase(), value: r.roleId };
     }), [rolesApi.data?.data]);
@@ -933,11 +958,11 @@ export default function PolicyCreationModal({
 
   const adminOptions = useMemo<DropdownOption[]>(() =>
     (invitedUsersApi.data?.data ?? [])
-      .filter((u: any) =>
-        u.userId !== currentUserId && // exclude self — a user cannot be their own approver
+      .filter((u: AppUser) =>
+        u.userId !== currentUserId &&
         (u.position ?? u.villetoRole?.name) !== Roles.EMPLOYEE
       )
-      .map((u: any) => {
+      .map((u: AppUser) => {
         const rawRole = u.position ?? u.villetoRole?.name ?? "";
         const villetoRoleName = rawRole
           ? rawRole.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
@@ -947,14 +972,14 @@ export default function PolicyCreationModal({
 
         return {
           label: `${u.firstName} ${u.lastName}`,
-          value: u.userId ?? u.id,
+          value: u.userId,
           sideBadge: villetoRoleName,
           ...(jobTitle && { subLabel: jobTitle }),
         };
       }), [invitedUsersApi.data?.data, currentUserId]);
 
   const departmentOptions = useMemo<DropdownOption[]>(() =>
-    (departmentsApi.data?.data ?? []).map((d: any) => ({
+    (departmentsApi.data?.data ?? []).map((d: Department) => ({
       label: d.departmentName,
       value: String(d.departmentId),
     })), [departmentsApi.data?.data]);
@@ -988,14 +1013,6 @@ export default function PolicyCreationModal({
     return `${rolePart} in ${deptPart}`;
   }, [scope, selectedDepts, selectedRoles, departmentOptions, roleOptions]);
 
-  const reset = () => {
-    setStep(1); setPolicyName(""); setScope("all");
-    setSelectedRoles([]); setSelectedDepts([]);
-    setCategories([]); setLocation(resolveDefaultLocation(userCountry));
-    setRules([mkRule("spend_limit"), mkRule("receipt_requirement")]);
-    setApprovers([]);
-  };
-
   const handleClose   = () => { onOpenChange(false); reset(); };
   const handleBack    = () => setStep((s) => (s > 1 ? (s - 1) as 1|2|3|4|5 : s));
   const handleForward = () => {
@@ -1013,9 +1030,9 @@ export default function PolicyCreationModal({
       description: formattedName,
       expenseCategories: categories,
       scope: scope === "all"
-        ? { type: "all", ...(location ? { location } : {}) }
+        ? { type: "all_employees" as const, ...(location ? { location } : {}) }
         : {
-            type: "specific",
+            type: "specific" as const,
             departments: selectedDepts,
             userRoles: selectedRoles,
             ...(location ? { location } : {}),
@@ -1024,14 +1041,13 @@ export default function PolicyCreationModal({
         .filter(r => {
           if (r.type === "receipt_requirement") {
             const mode = r.receiptMode ?? "all";
-            // threshold mode requires amount + enforcement; "always" mode only needs enforcement
             return mode === "all" ? !!r.enforcement : !!(r.amount && r.enforcement);
           }
           return !!(r.amount && r.enforcement);
         })
         .map(r => {
-          // enforcement values are already the API values: "block" | "warn"
-          const enforcementAction = r.enforcement as "block" | "warn";
+          const enforcementAction =
+            r.enforcement === "warn" ? "warning" : (r.enforcement as string);
           if (r.type === "spend_limit") return {
             type: "spend_limit" as const,
             timeUnit: r.timeframe || "daily",
@@ -1044,11 +1060,8 @@ export default function PolicyCreationModal({
           const isThreshold = mode === "threshold";
           return {
             type: "receipt_requirement" as const,
-            receiptNeeded: true,
-            ...(isThreshold ? {
-              receiptAmountThreshold: parseFloat(r.amount),
-              currency: currencyCode,
-            } : {}),
+            requiredAboveAmount: isThreshold ? parseFloat(r.amount) : 0,
+            currency: currencyCode,
             enforcementAction,
           };
         }),
@@ -1072,7 +1085,15 @@ export default function PolicyCreationModal({
       const payload = buildPayload();
       
       if (isEditing && policyId) {
-        await updatePolicyMutation.mutateAsync({ id: policyId, payload });
+        const updatePayload: UpdatePolicyPayload = {
+          name: payload.name,
+          description: payload.description,
+          expenseCategories: payload.expenseCategories,
+          scope: payload.scope,
+          rules: payload.rules,
+          approvers: payload.approvers,
+        };
+        await updatePolicyMutation.mutateAsync({ id: policyId, payload: updatePayload });
         toast.success("Policy updated successfully!");
       } else {
         await createPolicyMutation.mutateAsync(payload);
@@ -1085,8 +1106,8 @@ export default function PolicyCreationModal({
         location, rules, approvers: approvers.filter(Boolean),
       });
       handleClose();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || `Failed to ${isEditing ? 'update' : 'create'} policy`);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, `Failed to ${isEditing ? 'update' : 'create'} policy`));
     }
   };
 

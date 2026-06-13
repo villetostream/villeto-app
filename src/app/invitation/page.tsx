@@ -2,12 +2,13 @@
 
 import { logger } from "@/lib/logger";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Loader2 } from "lucide-react";
 import SetPasswordModal from "@/components/invitation/SetPasswordModal";
 import Link from "next/link";
+import Image from "next/image";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
@@ -15,7 +16,7 @@ import { toast } from "sonner";
 const CODE_LENGTH = 6;
 
 export default function InvitationPage() {
-    const router = useRouter();
+    const _router = useRouter();
     const searchParams = useSearchParams();
     const axios = useAxios();
 
@@ -75,10 +76,10 @@ export default function InvitationPage() {
                     email,
                     otp: code.join("")
                 },
-                { _skipErrorToast: true } as any
+                { _skipErrorToast: true }
             );
             setShowPasswordModal(true);
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error(error);
             toast.error("Invalid invitation code. Please check and try again.");
         } finally {
@@ -94,7 +95,7 @@ export default function InvitationPage() {
                 <div className="flex-1 flex flex-col w-full h-full bg-white overflow-y-auto relative">
                     {/* Villeto logo — top left */}
                     <Link href="/" className="absolute top-8 left-8">
-                        <img src="/images/logo.png" className="h-12 w-28 object-cover" alt="Villeto" />
+                        <Image src="/images/logo.png" width={112} height={48} className="h-12 w-28 object-cover" alt="Villeto" />
                     </Link>
 
                     {/* Email badge — top right */}

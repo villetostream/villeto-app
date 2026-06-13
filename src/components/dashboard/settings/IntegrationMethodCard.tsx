@@ -1,5 +1,5 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { Link, FileUp } from "lucide-react";
 
 interface IntegrationMethodCardProps {
     type: "integration" | "csv";
@@ -32,14 +32,14 @@ export const IntegrationMethodCard = ({ type, selected, onClick }: IntegrationMe
                     <div className="relative ">
                         <div className="">
 
-                            <img src={"/images/cloud-connect.webp"} alt="csv-upload" loading="eager" className="aspect-square size-32 text-primary" />
+                            <Image src="/images/cloud-connect.webp" alt="Cloud integration" width={128} height={128} className="aspect-square size-32 text-primary" />
                         </div>
                     </div>
                 ) : (
                     <div className="relative">
                         <div className="">
 
-                            <img src={"/images/csv-upload.webp"} alt="csv-upload" loading="eager" className="aspect-square size-32 text-primary" />
+                            <Image src="/images/csv-upload.webp" alt="CSV upload" width={128} height={128} className="aspect-square size-32 text-primary" />
                         </div>
                     </div>
                 )}

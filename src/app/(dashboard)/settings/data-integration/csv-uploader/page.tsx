@@ -1,10 +1,10 @@
 import CSVProcessor from '@/components/uploads/CsvProcessor'
 import React from 'react'
 
-const page = () => {
+const Page = () => {
     return (
         <CSVProcessor />
     )
 }
 
-export default page
+export default Page

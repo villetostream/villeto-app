@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Loader2, Plus, Pencil, Trash2, X } from "lucide-react";
 import {
     Dialog,
@@ -20,9 +20,11 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useCreateExpenseCategoryApi } from "@/actions/companies/create-expense-category";
-import { useGetExpenseCategoriesApi } from "@/actions/companies/get-expense-categories";
-import { useDeleteCategoryApi } from "@/actions/companies/delete-category";
+import { useCreateExpenseCategoryApi } from "@/queries/companies/create-expense-category";
+import { useGetExpenseCategoriesApi } from "@/queries/companies/get-expense-categories";
+import { useDeleteCategoryApi } from "@/queries/companies/delete-category";
+import { ExpenseCategory } from "@/queries/companies/get-expense-categories";
+import { getApiErrorMessage } from "@/lib/types/api-error";
 
 interface AddCategoryModalProps {
     open: boolean;
@@ -41,23 +43,23 @@ export default function AddCategoryModal({
     cancelText = "Cancel",
     showOnboardingIntro = true,
 }: AddCategoryModalProps) {
-    const [categories, setCategories] = useState<{ id: number | string; name: string; description: string }[]>([]);
+    type CategoryItem = { id: number | string; name: string; description: string };
+    const [categories, setCategories] = useState<CategoryItem[]>([]);
 
     const categoriesQuery = useGetExpenseCategoriesApi({ enabled: open });
 
-    // Sync fetched categories into local state (only on first load)
-    const [hasSynced, setHasSynced] = useState(false);
-    useEffect(() => {
-        if (categoriesQuery.data?.data && !hasSynced) {
-            const mappedCategories = categoriesQuery.data.data.map((c: any) => ({
-                id: c.categoryId ?? c.id,
+    const fetchedCategories = categoriesQuery.data?.data;
+    const [syncedCategories, setSyncedCategories] = useState(fetchedCategories);
+    if (fetchedCategories && fetchedCategories !== syncedCategories) {
+        setSyncedCategories(fetchedCategories);
+        setCategories(
+            fetchedCategories.map((c: ExpenseCategory) => ({
+                id: c.categoryId ?? "",
                 name: c.name,
                 description: c.description || "",
-            }));
-            setCategories(mappedCategories);
-            setHasSynced(true);
-        }
-    }, [categoriesQuery.data?.data, hasSynced]);
+            }))
+        );
+    }
 
     const [showAddForm, setShowAddForm] = useState(false);
     const [name, setName] = useState("");
@@ -93,8 +95,8 @@ export default function AddCategoryModal({
             try {
                 await deleteCategoryMutation.mutateAsync({ categoryId: id });
                 toast.success("Category deleted!");
-            } catch (error: any) {
-                toast.error(error?.response?.data?.message || "Failed to delete category");
+            } catch (error: unknown) {
+                toast.error(getApiErrorMessage(error, "Failed to delete category"));
                 setCategoryToDelete(null);
                 return;
             }
@@ -128,12 +130,8 @@ export default function AddCategoryModal({
             setCategories(prev => [...prev, { id: Date.now(), name: name.trim(), description: description.trim() }]);
             toast.success("Category added!");
             setShowAddForm(false);
-        } catch (error: any) {
-            const errorMessage =
-                error?.response?.data?.message ||
-                error?.response?.data?.error ||
-                "Failed to add category";
-            toast.error(errorMessage);
+        } catch (error: unknown) {
+            toast.error(getApiErrorMessage(error, "Failed to add category"));
         }
     };
 

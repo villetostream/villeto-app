@@ -1,10 +1,10 @@
-import React from 'react'
+import { Control, FieldValues, Path } from "react-hook-form";
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { FormItem, FormLabel, FormControl, FormDescription, FormMessage, FormField } from '../ui/form'
+import { FormItem, FormLabel, FormControl, FormMessage, FormField } from '../ui/form'
 import { Button } from '../ui/button';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
@@ -12,7 +12,7 @@ import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
 
 
-const FormFieldCalendar = ({ name, label, control }: { name: string, label: string, control: any }) => {
+const FormFieldCalendar = <T extends FieldValues = FieldValues>({ name, label, control }: { name: Path<T>, label: string, control: Control<T> }) => {
     return (
         <FormField
             control={control}

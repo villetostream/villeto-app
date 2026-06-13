@@ -12,17 +12,25 @@
  * ─────────────────────────────────────────────────────────────
  */
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { ChatFAB } from "./ChatFAB";
 import { ChatWidget } from "./ChatWidget";
 
-export function ChatPortal() {
-  const [mounted, setMounted] = useState(false);
+function subscribe() {
+  return () => {};
+}
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+function getClientSnapshot() {
+  return true;
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
+export function ChatPortal() {
+  const mounted = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
 
   if (!mounted) return null;
 

@@ -21,9 +21,52 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { useUpdateCompanyDetailsApi } from "@/actions/companies/update-company-details";
+import { useUpdateCompanyDetailsApi } from "@/queries/companies/update-company-details";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
 import { getCurrencyConfig } from "@/lib/utils/currency";
+import { asArray, asRecord, getNumber, getOptionalString, getString, pickString } from "@/lib/types/api-error";
+
+function parseCompanyData(value: unknown): CompanyData {
+  const record = asRecord(value);
+  const spendLimitRaw = asRecord(record.spendLimit);
+  const spendLimit =
+    typeof spendLimitRaw.lower === "number" && typeof spendLimitRaw.upper === "number"
+      ? { lower: spendLimitRaw.lower, upper: spendLimitRaw.upper }
+      : undefined;
+  return {
+    companyId: getOptionalString(record.companyId),
+    companyName: getOptionalString(record.companyName),
+    businessName: getOptionalString(record.businessName),
+    countryOfRegistration: getOptionalString(record.countryOfRegistration),
+    contactPhone: getOptionalString(record.contactPhone),
+    contactNumber: getOptionalString(record.contactNumber),
+    website: getOptionalString(record.website),
+    websiteUrl: getOptionalString(record.websiteUrl),
+    industry: getOptionalString(record.industry),
+    companySize: getOptionalString(record.companySize),
+    logo: getOptionalString(record.logo),
+    logoUrl: getOptionalString(record.logoUrl),
+    bankStatus: getOptionalString(record.bankStatus),
+    primaryCurrency: getOptionalString(record.primaryCurrency),
+    currency: getOptionalString(record.currency),
+    spendLimit,
+    expectedMonthlySpend: getOptionalString(record.expectedMonthlySpend),
+  };
+}
+
+function parseAdminEntry(value: unknown): AdminEntry | null {
+  const record = asRecord(value);
+  const userId = getOptionalString(record.userId);
+  if (!userId) return null;
+  const villetoRoleRaw = asRecord(record.villetoRole);
+  return {
+    userId,
+    firstName: getString(record.firstName),
+    lastName: getString(record.lastName),
+    position: getOptionalString(record.position),
+    villetoRole: pickString(villetoRoleRaw, "name") ? { name: pickString(villetoRoleRaw, "name") } : undefined,
+  };
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ProfileFormData {
@@ -186,13 +229,15 @@ function MyProfileTab() {
 
   useEffect(() => {
     if (user) {
-      setForm({
-        firstName: user.firstName || "",
-        lastName: String(user.lastName || ""),
-        email: user.email || "",
-        phone: String(user.phone || ""),
-        country: user.company?.countryOfRegistration || "",
-        city: "",
+      queueMicrotask(() => {
+        setForm({
+          firstName: user.firstName || "",
+          lastName: String(user.lastName || ""),
+          email: user.email || "",
+          phone: String(user.phone || ""),
+          country: user.company?.countryOfRegistration || "",
+          city: "",
+        });
       });
     }
   }, [user]);
@@ -231,7 +276,7 @@ function MyProfileTab() {
     notifySetupGuide("account-details");
   };
 
-  const Field = ({
+  const _Field = ({
     label,
     value,
     field,
@@ -606,18 +651,22 @@ function CompanyProfileTab() {
     return { lower: range.lower, upper: range.upper };
   };
 
-  const companyId = user?.companyId || user?.company?.companyId || user?.company?.id;
+  const companyId =
+    getOptionalString(user?.companyId) ||
+    getOptionalString(asRecord(user?.company).companyId) ||
+    getOptionalString(asRecord(user?.company).id);
 
   useEffect(() => {
-    // Initial logo from user store
-    const storeLogo = user?.company?.logoUrl || user?.company?.logo;
-    if (storeLogo) setLogoPreview(storeLogo);
+    const storeLogo = getOptionalString(user?.company?.logoUrl) ?? getOptionalString(user?.company?.logo);
+    if (storeLogo) {
+      queueMicrotask(() => setLogoPreview(storeLogo));
+    }
   }, [user]);
 
   useEffect(() => {
-    if (!user) return; // Wait for user to be populated
+    if (!user) return;
     if (!companyId) {
-      setIsLoading(false);
+      queueMicrotask(() => setIsLoading(false));
       return;
     }
     const fetchData = async () => {
@@ -631,60 +680,65 @@ function CompanyProfileTab() {
         const compResult = results[0];
         const usersResult = results[1];
 
-        let companyPayload = user?.company || {};
+        let companyPayload: CompanyData = parseCompanyData(user?.company);
         if (compResult.status === 'fulfilled' && compResult.value?.data) {
           const resp = compResult.value.data;
-          // Robust check for nested data: data.data.company...
-          companyPayload = resp?.data?.company || resp?.data || resp || companyPayload;
+          const respRecord = asRecord(resp);
+          companyPayload = parseCompanyData(respRecord.data ? asRecord(respRecord.data).company ?? respRecord.data : resp);
         }
-        setCompanyData(companyPayload as any);
+        setCompanyData(companyPayload);
         
-        const fetchedLogo = companyPayload?.logoUrl || companyPayload?.logo || user?.company?.logoUrl || user?.company?.logo;
+        const fetchedLogo =
+          companyPayload.logoUrl ||
+          companyPayload.logo ||
+          getOptionalString(user?.company?.logoUrl) ||
+          getOptionalString(user?.company?.logo);
         if (fetchedLogo) setLogoPreview(fetchedLogo);
 
         if (usersResult.status === 'fulfilled' && usersResult.value?.data) {
           const usersData = usersResult.value.data;
-          // Robust check for array: could be data.data (array) or data (array) or data.data.users (array)
-          let allUsersResponse = [];
-          if (Array.isArray(usersData?.data)) allUsersResponse = usersData.data;
-          else if (Array.isArray(usersData)) allUsersResponse = usersData;
-          else if (usersData?.data?.data && Array.isArray(usersData.data.data)) allUsersResponse = usersData.data.data;
+          const usersDataRecord = asRecord(usersData);
+          const nested = asRecord(usersDataRecord.data);
+          const allUsersResponse = asArray(
+            Array.isArray(usersData) ? usersData : nested.data ?? usersDataRecord.data
+          );
           
-          const meta = usersData?.meta || usersData?.data?.meta;
-          const totalCount = meta?.totalCount || allUsersResponse.length;
+          const meta = asRecord(usersDataRecord.meta ?? asRecord(usersDataRecord.data).meta);
+          const totalCount = getNumber(meta.totalCount, allUsersResponse.length);
           setRealCompanySize(totalCount.toString());
 
           const filteredAdmins = allUsersResponse
-              .filter((u: any) => {
+              .map(parseAdminEntry)
+              .filter((entry): entry is AdminEntry => entry !== null)
+              .filter((u) => {
                 const role = u.villetoRole?.name?.toUpperCase() || u.position?.toUpperCase() || "";
                 return role !== "EMPLOYEE" && role !== "";
               })
               .slice(0, 6);
           setAdmins(filteredAdmins);
 
-          // Sync form states
-          const currentCountryCode = companyPayload?.countryOfRegistration || user?.company?.countryOfRegistration || onboarding?.businessSnapshot?.countryOfRegistration || "NGA";
+          const currentCountryCode = companyPayload.countryOfRegistration || user?.company?.countryOfRegistration || onboarding?.businessSnapshot?.countryOfRegistration || "NGA";
           const config = getCurrencyConfig(currentCountryCode);
           
           let spendIdx = 0;
-          if (companyPayload?.spendLimit?.lower !== undefined) {
-             const idx = config.spendingRanges.findIndex(r => r.lower === companyPayload.spendLimit.lower);
+          if (companyPayload.spendLimit?.lower !== undefined) {
+             const idx = config.spendingRanges.findIndex(r => r.lower === companyPayload.spendLimit?.lower);
              if (idx >= 0) spendIdx = idx;
           } else if (onboarding?.monthlySpend !== undefined) {
              spendIdx = onboarding.monthlySpend;
           }
 
           setInfoForm({
-            businessName: companyPayload?.companyName || companyPayload?.businessName || user?.company?.companyName || onboarding?.businessSnapshot?.businessName || "",
+            businessName: companyPayload.companyName || companyPayload.businessName || getOptionalString(user?.company?.companyName) || onboarding?.businessSnapshot?.businessName || "",
             country: currentCountryCode,
-            phone: companyPayload?.contactPhone || companyPayload?.contactNumber || user?.company?.phone || onboarding?.businessSnapshot?.contactNumber || "",
-            website: companyPayload?.website || companyPayload?.websiteUrl || user?.company?.website || onboarding?.businessSnapshot?.website || "",
-            industry: companyPayload?.industry || user?.company?.industry || ""
+            phone: companyPayload.contactPhone || companyPayload.contactNumber || getOptionalString(user?.company?.phone) || onboarding?.businessSnapshot?.contactNumber || "",
+            website: companyPayload.website || companyPayload.websiteUrl || getOptionalString(user?.company?.website) || onboarding?.businessSnapshot?.website || "",
+            industry: companyPayload.industry || getOptionalString(user?.company?.industry) || "",
           });
 
           setFinancialsForm({
             spendIndex: spendIdx,
-            currency: companyPayload?.primaryCurrency || companyPayload?.currency || user?.company?.currency || config.code || ""
+            currency: companyPayload.primaryCurrency || companyPayload.currency || getOptionalString(user?.company?.currency) || config.code || "",
           });
 
         } else {
@@ -696,8 +750,10 @@ function CompanyProfileTab() {
         setIsLoading(false);
       }
     };
-    fetchData();
-  }, [user, companyId, axios]);
+    queueMicrotask(() => {
+      void fetchData();
+    });
+  }, [user, companyId, axios, onboarding?.businessSnapshot?.businessName, onboarding?.businessSnapshot?.contactNumber, onboarding?.businessSnapshot?.countryOfRegistration, onboarding?.businessSnapshot?.website, onboarding?.monthlySpend]);
 
   const handleSaveInfo = async () => {
     setIsSaving(true);
@@ -711,7 +767,7 @@ function CompanyProfileTab() {
       });
       toast.success("Company information updated");
       setIsEditingInfo(false);
-    } catch (err) {
+    } catch (_err) {
       toast.error("Failed to update company information");
     } finally {
       setIsSaving(false);
@@ -728,7 +784,7 @@ function CompanyProfileTab() {
       });
       toast.success("Financial details updated");
       setIsEditingFinancials(false);
-    } catch (err) {
+    } catch (_err) {
       toast.error("Failed to update financial details");
     } finally {
       setIsSaving(false);
@@ -755,10 +811,10 @@ function CompanyProfileTab() {
       setPendingLogoFile(null);
       if (user?.companyId) {
         const res = await axios.get(API_KEYS.COMPANY.COMPANY_DETAILS(user.companyId));
-        const updated = res?.data?.data || res?.data;
-        if (updated?.logo) setLogoPreview(updated.logo);
+        const updated = parseCompanyData(res?.data?.data ?? res?.data);
+        if (updated.logo) setLogoPreview(updated.logo);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error("Logo update error:", err);
       toast.info("Logo saved locally. Backend update will be available soon.");
       setPendingLogoFile(null);
@@ -784,19 +840,20 @@ function CompanyProfileTab() {
   }
 
   const LOCATION_MAP: Record<string, string> = { NGA: "Nigeria", GHA: "Ghana", KEN: "Kenya", ZAF: "South Africa" };
-  const businessName = companyData?.companyName || companyData?.businessName || user?.company?.companyName || user?.company?.businessName || onboarding?.businessSnapshot?.businessName || "Company Details";
-  const rawLocation = companyData?.countryOfRegistration || user?.company?.countryOfRegistration || onboarding?.businessSnapshot?.countryOfRegistration || "";
+  const userCompany = asRecord(user?.company);
+  const businessName = companyData?.companyName || companyData?.businessName || getString(userCompany.companyName) || getString(userCompany.businessName) || onboarding?.businessSnapshot?.businessName || "Company Details";
+  const rawLocation = companyData?.countryOfRegistration || getString(userCompany.countryOfRegistration) || onboarding?.businessSnapshot?.countryOfRegistration || "";
   const location = LOCATION_MAP[rawLocation] || rawLocation || "—";
   
-  const phone = companyData?.contactPhone || companyData?.contactNumber || user?.company?.phone || user?.company?.contactNumber || onboarding?.businessSnapshot?.contactNumber || "—";
-  const website = companyData?.website || companyData?.websiteUrl || user?.company?.website || user?.company?.websiteUrl || onboarding?.businessSnapshot?.website || "—";
-  const industry = companyData?.industry || user?.company?.industry || "—";
+  const phone = companyData?.contactPhone || companyData?.contactNumber || getString(userCompany.phone) || getString(userCompany.contactNumber) || onboarding?.businessSnapshot?.contactNumber || "—";
+  const website = companyData?.website || companyData?.websiteUrl || getString(userCompany.website) || getString(userCompany.websiteUrl) || onboarding?.businessSnapshot?.website || "—";
+  const industry = companyData?.industry || getString(userCompany.industry) || "—";
 
   const config = getCurrencyConfig(rawLocation || "NGA");
   
   let expectedSpend = "—";
   if (companyData?.spendLimit?.lower !== undefined) {
-    const range = config.spendingRanges.find((r: any) => r.lower === companyData.spendLimit?.lower);
+    const range = config.spendingRanges.find((r) => r.lower === companyData.spendLimit?.lower);
     if (range) expectedSpend = range.label;
     else expectedSpend = `${config.symbol}${companyData.spendLimit.lower} - ${config.symbol}${companyData.spendLimit.upper}`;
   } else if (companyData?.expectedMonthlySpend) {
@@ -810,7 +867,12 @@ function CompanyProfileTab() {
     expectedSpend = onboarding.spendRange;
   }
 
-  const actCurrencyCode = companyData?.primaryCurrency || companyData?.currency || user?.company?.currency || config.code || "—";
+  const actCurrencyCode =
+    companyData?.primaryCurrency ||
+    companyData?.currency ||
+    getOptionalString(user?.company?.currency) ||
+    config.code ||
+    "—";
   const actCurrencyDisplay = actCurrencyCode !== "—" ? `${config.symbol} ${actCurrencyCode}` : "—";
   const currBankStatus = companyData?.bankStatus || (onboarding?.bankConnected ? "Connected" : "Not connected");
 
@@ -1057,7 +1119,7 @@ function CompanyProfileTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function PersonalSettingsPage() {
-  const user = useAuthStore((s) => s.user);
+  const _user = useAuthStore((s) => s.user);
   const searchParams = useSearchParams();
   const router = useRouter();
 

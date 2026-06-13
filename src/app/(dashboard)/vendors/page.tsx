@@ -6,15 +6,15 @@ import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
-import { logger } from "@/lib/logger";
+import { asRecord, getApiErrorMessage, getString, pickString } from "@/lib/types/api-error";
 import { useAxios } from "@/hooks/useAxios";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/auth-stores";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   MoreHorizontal,
   Eye,
-  ClipboardCheck,
   Mail,
   X,
   ChevronDown,
@@ -25,7 +25,6 @@ import {
   BadgeCheck,
   Search,
   SlidersHorizontal,
-  Trash2,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -222,12 +221,13 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
   ], []);
 
   useEffect(() => {
-    if (!open) {
-      setLegalName(""); setEmail(""); setCountry("Nigeria"); setPhone("+234"); 
+    if (!open) return;
+    queueMicrotask(() => {
+      setLegalName(""); setEmail(""); setCountry("Nigeria"); setPhone("+234");
       setDescription(""); setContactFirstName(""); setContactLastName("");
       setErrors({}); setSuccess(false); setLoading(false);
       setCountryOpen(false);
-    }
+    });
   }, [open]);
 
   useEffect(() => {
@@ -283,10 +283,17 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
       await axiosInstance.post("/vendors", payload);
       setSuccess(true);
       if (onSuccess) onSuccess();
-    } catch (err) {
+    } catch (err: unknown) {
       logger.error("Invite vendor error", err);
-      // Fallback for demo purposes if API isn't actually reachable
-      setSuccess(true);
+      
+      const msg = getApiErrorMessage(err, "Failed to invite vendor");
+      
+      // If the backend mentions the email already exists, show it inline on the email field
+      if (msg.toLowerCase().includes("already exists") && msg.toLowerCase().includes(email.toLowerCase())) {
+        setErrors(prev => ({ ...prev, email: msg }));
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -636,7 +643,7 @@ function VendorPage() {
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
   const [page, setPage] = useState(1);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+  const [_selectedVendorId, _setSelectedVendorId] = useState<string | null>(null);
 
   const axiosInstance = useAxios();
 
@@ -646,11 +653,14 @@ function VendorPage() {
       const res = await axiosInstance.get("/vendors");
       const json = res.data;
       
-      const mappedVendors: Vendor[] = (json.data || []).map((v: any) => {
+      const mappedVendors: Vendor[] = (json.data || []).map((raw: unknown) => {
+        const v = asRecord(raw);
         let computedStatus: VendorStatus = "invited";
         
-        const { status, onboardingStatus, approvalStatus } = v;
-        const normalizedStatus = (status || "").toLowerCase();
+        const status = getString(v.status);
+        const onboardingStatus = getString(v.onboardingStatus);
+        const approvalStatus = getString(v.approvalStatus);
+        const normalizedStatus = status.toLowerCase();
 
         if (approvalStatus === "rejected") {
           computedStatus = "rejected";
@@ -675,13 +685,13 @@ function VendorPage() {
         }
         
         return {
-          id: v.vendorId,
-          vendorName: v.legalName || v.displayName || "Unknown",
-          regNo: v.taxId || "N/A",
-          email: v.email,
-          invitedOn: v.invitationSentAt ? new Date(v.invitationSentAt).toLocaleDateString() : "N/A",
+          id: getString(v.vendorId),
+          vendorName: pickString(v, "legalName", "displayName") || "Unknown",
+          regNo: getString(v.taxId) || "N/A",
+          email: getString(v.email),
+          invitedOn: v.invitationSentAt ? new Date(getString(v.invitationSentAt)).toLocaleDateString() : "N/A",
           status: computedStatus,
-          lastUpdated: v.updatedAt ? new Date(v.updatedAt).toLocaleDateString() : "N/A"
+          lastUpdated: v.updatedAt ? new Date(getString(v.updatedAt)).toLocaleDateString() : "N/A"
         };
       });
       
@@ -694,7 +704,9 @@ function VendorPage() {
   };
 
   useEffect(() => {
-    fetchVendors();
+    queueMicrotask(() => {
+      void fetchVendors();
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -703,7 +715,7 @@ function VendorPage() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", activeTab);
     router.replace(`?${params.toString()}`, { scroll: false });
-  }, [activeTab]);
+  }, [activeTab, router, searchParams]);
 
   // Header CTA — only show "Invite Vendor" to users who can actually invite.
   // Without this, a read-only vendor viewer would see a button whose click

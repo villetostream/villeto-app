@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import {
-  PlusCircle, Trash2, Search, RefreshCcw, Loader2, X, Plus, FolderOpen, Tag, ArrowUpDown, Check,
+import { Trash2, Search, RefreshCcw, Loader2, X, Plus, FolderOpen, Tag, ArrowUpDown, Check,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -17,10 +16,12 @@ import {
 import {
   useGetProcurementCategories,
   useCreateProcurementCategory,
-} from "@/actions/procurement/purchase-requests";
-import { useDeleteCategoryApi } from "@/actions/companies/delete-category";
+  type ProcurementCategory,
+} from "@/queries/procurement/purchase-requests";
+import { useDeleteCategoryApi } from "@/queries/companies/delete-category";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { toast } from "sonner";
+import { getApiErrorMessage } from "@/lib/types/api-error";
 
 // ─── Add Category / Subcategory Modal ─────────────────────────────────────────
 
@@ -33,12 +34,26 @@ function AddProcurementCategoryModal({
   onClose: () => void;
   parentCategory?: { id: string; name: string } | null;
 }) {
+  if (!open) return null;
+
+  return (
+    <AddProcurementCategoryForm
+      key={parentCategory?.id ?? "root"}
+      onClose={onClose}
+      parentCategory={parentCategory}
+    />
+  );
+}
+
+function AddProcurementCategoryForm({
+  onClose,
+  parentCategory,
+}: {
+  onClose: () => void;
+  parentCategory?: { id: string; name: string } | null;
+}) {
   const [name, setName] = useState("");
   const createCategory = useCreateProcurementCategory();
-
-  useEffect(() => { if (open) setName(""); }, [open]);
-
-  if (!open) return null;
 
   const handleSubmit = async () => {
     if (!name.trim()) { toast.error("Name is required"); return; }
@@ -47,8 +62,8 @@ function AddProcurementCategoryModal({
       toast.success(parentCategory ? `Subcategory added to "${parentCategory.name}"` : `Category "${name.trim()}" created`);
       setName("");
       onClose();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to create");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to create"));
     }
   };
 
@@ -116,7 +131,8 @@ export default function ProcurementCategoriesPage() {
   const { data: catData, isLoading, refetch } = useGetProcurementCategories();
   const deleteCategoryMutation = useDeleteCategoryApi();
 
-  const rawCategories = useMemo(() => catData?.data || [], [catData?.data]);
+  const rawCategories = useMemo<ProcurementCategory[]>(() => catData?.data || [], [catData?.data]);
+  const effectiveSelectedId = selectedId ?? rawCategories[0]?.categoryId ?? null;
 
   // Register header CTA
   const { setAction, clearAction } = useHeaderActionStore();
@@ -125,24 +141,19 @@ export default function ProcurementCategoriesPage() {
     return () => clearAction();
   }, [setAction, clearAction]);
 
-  // Auto-select first category
-  useEffect(() => {
-    if (rawCategories.length > 0 && !selectedId) {
-      setSelectedId(rawCategories[0].categoryId);
-    }
-  }, [rawCategories, selectedId]);
+  // Auto-select first category handled via effectiveSelectedId fallback
 
   const filteredCategories = useMemo(() => {
     const q = search.trim().toLowerCase();
     let results = !q
       ? rawCategories
-      : rawCategories.filter((cat: any) =>
+      : rawCategories.filter((cat) =>
           cat.name.toLowerCase().includes(q) ||
-          (cat.children || []).some((sub: any) => sub.name.toLowerCase().includes(q))
+          (cat.children || []).some((sub) => sub.name.toLowerCase().includes(q))
         );
 
     // Sort
-    results = [...results].sort((a: any, b: any) => {
+    results = [...results].sort((a, b) => {
       if (sortBy === "az") return a.name.localeCompare(b.name);
       if (sortBy === "za") return b.name.localeCompare(a.name);
       const aCount = (a.children || []).length;
@@ -156,26 +167,26 @@ export default function ProcurementCategoriesPage() {
   }, [search, rawCategories, sortBy]);
 
   const selectedCategory = useMemo(
-    () => rawCategories.find((c: any) => c.categoryId === selectedId) || null,
-    [rawCategories, selectedId]
+    () => rawCategories.find((c) => c.categoryId === effectiveSelectedId) || null,
+    [rawCategories, effectiveSelectedId]
   );
 
   const executeDelete = async () => {
     if (!categoryToDelete) return;
-    const isParent = rawCategories.some((c: any) => c.categoryId === categoryToDelete.id);
+    const isParent = rawCategories.some((c) => c.categoryId === categoryToDelete.id);
     try {
       await deleteCategoryMutation.mutateAsync({ categoryId: categoryToDelete.id });
       toast.success("Deleted successfully");
       if (isParent && selectedId === categoryToDelete.id) setSelectedId(null);
       refetch();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to delete");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to delete"));
     } finally {
       setCategoryToDelete(null);
     }
   };
 
-  const totalSubs = rawCategories.reduce((acc: number, c: any) => acc + (c.children?.length || 0), 0);
+  const totalSubs = rawCategories.reduce((acc, c) => acc + (c.children?.length || 0), 0);
 
   return (
     <div className="flex flex-col gap-4" style={{ height: "calc(100vh - 7rem)" }}>
@@ -254,8 +265,8 @@ export default function ProcurementCategoriesPage() {
                 <p className="text-sm text-muted-foreground">{search ? "No matches found." : "No categories yet."}</p>
               </div>
             ) : (
-              filteredCategories.map((cat: any) => {
-                const isActive = selectedId === cat.categoryId;
+              filteredCategories.map((cat) => {
+                const isActive = effectiveSelectedId === cat.categoryId;
                 const subCount = (cat.children || []).length;
                 return (
                   <button
@@ -351,7 +362,7 @@ export default function ProcurementCategoriesPage() {
                   </div>
                 ) : (
                   <div className="divide-y divide-border">
-                    {(selectedCategory.children || []).map((sub: any, i: number) => (
+                    {(selectedCategory.children || []).map((sub, i) => (
                       <div key={sub.categoryId || i} className="flex items-center justify-between px-6 py-3.5 group hover:bg-muted/20 transition-colors">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-7 h-7 rounded-lg bg-muted/60 flex items-center justify-center shrink-0">
@@ -385,7 +396,7 @@ export default function ProcurementCategoriesPage() {
       <AlertDialog open={categoryToDelete !== null} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
         <AlertDialogContent className="rounded-2xl border-none shadow-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{categoryToDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>Delete &quot;{categoryToDelete?.name}&quot;?</AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-muted-foreground">
               This will permanently delete this item. If it is a parent category, its subcategories may also be removed.
             </AlertDialogDescription>

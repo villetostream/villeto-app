@@ -1,12 +1,11 @@
 "use client"
 
 import { useState } from "react";
-import { Building2, X, ExternalLink } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Building2, ExternalLink } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
-import { cn } from "@/lib/utils";
 
 import { HugeiconsIcon } from '@hugeicons/react';
 import { BankIcon, Link04Icon } from '@hugeicons/core-free-icons';

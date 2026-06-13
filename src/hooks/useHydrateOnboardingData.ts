@@ -1,6 +1,13 @@
 import { useEffect, useRef } from "react";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
-import { useGetOnboardingDetailsApi } from "@/actions/pre-onboarding/get-onboarding-details";
+import {
+    useGetOnboardingDetailsApi,
+    type Onboarding,
+} from "@/queries/pre-onboarding/get-onboarding-details";
+
+type Company = Onboarding["company"];
+type Owner = NonNullable<Company["owners"]>[number];
+type ControllingOfficer = NonNullable<Company["controllingOfficers"]>[number];
 
 /**
  * Fetches onboarding details from the API and hydrates the Zustand store.
@@ -13,7 +20,6 @@ export const useHydrateOnboardingData = () => {
         businessSnapshot,
         updateBusinessSnapshot,
         updateUserProfiles,
-        villetoProducts,
     } = useOnboardingStore();
 
     const hasHydrated = useRef(false);
@@ -39,21 +45,21 @@ export const useHydrateOnboardingData = () => {
         });
 
         // Hydrate leadership (owners + controlling officers → userProfiles)
-        const ownerProfiles = (company.owners || []).map((owner: any) => ({
+        const ownerProfiles = (company.owners || []).map((owner: Owner) => ({
             id: owner.ownerId || owner.user?.userId || Date.now().toString(),
             firstName: owner.user?.firstName || "",
             lastName: owner.user?.lastName || "",
             email: owner.user?.email || "",
-            role: owner.user?.villetoRole?.name || owner.user?.role || "",
+            role: owner.user?.role || "",
             phone: owner.user?.phone || undefined,
         }));
 
-        const officerProfiles = (company.controllingOfficers || []).map((officer: any) => ({
+        const officerProfiles = (company.controllingOfficers || []).map((officer: ControllingOfficer) => ({
             id: officer.controllingOfficerId || officer.user?.userId || Date.now().toString(),
             firstName: officer.user?.firstName || "",
             lastName: officer.user?.lastName || "",
             email: officer.user?.email || "",
-            role: officer.user?.villetoRole?.name || officer.user?.role || "",
+            role: officer.user?.role || "",
         }));
 
         const allProfiles = [...ownerProfiles, ...officerProfiles];
@@ -62,7 +68,7 @@ export const useHydrateOnboardingData = () => {
         }
 
         // Hydrate financial pulse (spend limit)
-        const spendLimit = (company as any).spendLimit;
+        const spendLimit = company.spendLimit;
         if (spendLimit) {
             const ranges = [
                 { value: 0, label: "<$10k", lower: 0 },
@@ -92,7 +98,7 @@ export const useHydrateOnboardingData = () => {
         // This prevents stale API cache data from overwriting fresh local selections.
         const store = useOnboardingStore.getState();
         const hasLocalSelections = store.villetoProducts.some((p) => p.selected);
-        const apiModules: string[] = (company as any).productModules || [];
+        const apiModules: string[] = [...(company.productModules ?? [])];
         if (apiModules.length > 0 && !hasLocalSelections) {
             const updatedProducts = store.villetoProducts.map((product) => ({
                 ...product,
@@ -102,7 +108,7 @@ export const useHydrateOnboardingData = () => {
         }
 
         hasHydrated.current = true;
-    }, [data]);
+    }, [data, businessSnapshot.logo, updateBusinessSnapshot, updateUserProfiles]);
 
     return { isLoading, isError, data };
 };

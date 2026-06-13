@@ -179,16 +179,16 @@ function DateRangePicker({ fromDate, toDate, onApply, onClear }: DateRangePicker
   const [rightYear, setRightYear]  = useState(today.getFullYear());
   const [rightMonth,setRightMonth] = useState(today.getMonth());
 
-  // Sync with store when opened
-  useEffect(() => {
-    if (open) {
+  // Sync draft range when the picker opens
+  const handleToggleOpen = () => {
+    if (!open) {
       setDraftFrom(fromDate);
       setDraftTo(toDate);
       setActivePreset(null);
     }
-  }, [open]);
+    setOpen(!open);
+  };
 
-  // Clicking phase: first click = from, second click = to
   const handleDayClick = (d: Date) => {
     setActivePreset(null);
     if (!draftFrom || (draftFrom && draftTo)) {
@@ -262,7 +262,7 @@ function DateRangePicker({ fromDate, toDate, onApply, onClear }: DateRangePicker
     <div className="relative" ref={panelRef}>
       {/* Trigger */}
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={handleToggleOpen}
         className={cn(
           "flex items-center gap-2 h-9 pl-3.5 pr-3 rounded-xl border text-sm font-medium transition-all",
           "bg-white hover:bg-muted/30",
@@ -451,42 +451,91 @@ export function UserSection() {
     return base;
   }, [pathname, searchParams, isPersonalOnly]);
 
-  // Page detection
-  const isExpenseDetailPage         = pathname.match(/^\/expenses\/\d+$/);
-  const isAuditTrailPage            = pathname.match(/^\/expenses\/\d+\/audit-trail$/);
-  const isSplitExpensePage          = pathname.match(/^\/expenses\/\d+\/split-expense$/);
-  const isPersonalExpenseDetailPage = pathname.match(/^\/expenses\/personal\/[a-f0-9\-]+$/i);
-  const isPersonalExpenseEditPage   = pathname.match(/^\/expenses\/personal\/[a-f0-9\-]+\/edit$/i);
-  const isPersonalExpenseDeletePage = pathname.match(/^\/expenses\/personal\/[a-f0-9\-]+\/delete$/i);
-  const isCompanyExpenseDetailPage  = pathname.match(/^\/expenses\/company\/[a-f0-9\-]+$/i);
-  const isBatchExpensePage          = pathname.match(/^\/expenses\/batch\/[^/]+$/);
-  const isReimbursementDetailPage   = pathname.match(/^\/expenses\/reimbursements\/[^/]+$/);
-  const expenseIdFromPath           = pathname.match(/\/expenses\/(\d+)/)?.[1];
-  const isExpensesListPage          = pathname === "/expenses" || pathname === "/expenses/reimbursements";
-  const isProcurementListPage       = pathname === "/procurement/purchase-request" ||
-                                      pathname === "/procurement/purchase-order" ||
-                                      pathname === "/procurement/confirmation";
-  const isUploadReceiptPage         = pathname === "/expenses/new-expense/upload";
-  const isNewExpensePage            = pathname === "/expenses/new-expense";
-  const isNewReportPage             = pathname === "/expenses/new-report";
-  const isViewRolePage              = pathname.startsWith("/people/view-role/");
-  const isVendorBulkInvitePage      = pathname === "/vendors/bulk-invite-page";
-  const isNewPurchaseRequestPage    = pathname === "/procurement/purchase-request/new";
-  const isPurchaseRequestDetailPage = pathname.match(/^\/procurement\/purchase-request\/[^/]+$/) && pathname !== "/procurement/purchase-request/new";
-  const isPODetailPage              = pathname.match(/^\/procurement\/purchase-order\/[^/]+$/);
-  const isConfirmationDetailPage    = pathname.match(/^\/procurement\/confirmation\/[^/]+$/);
-  const isVendorDetailPage          = pathname.match(/^\/vendors\/[^/]+$/) && pathname !== "/vendors/bulk-invite-page";
+  // All page-detection flags in one memoized block — runs once per pathname change
+  const {
+    isAuditTrailPage,
+    isSplitExpensePage,
+    isPersonalExpenseDetailPage,
+    isPersonalExpenseEditPage,
+    isPersonalExpenseDeletePage,
+    isCompanyExpenseDetailPage,
+    isBatchExpensePage,
+    isReimbursementDetailPage,
+    expenseIdFromPath,
+    isExpensesListPage,
+    isProcurementListPage,
+    isUploadReceiptPage,
+    isNewExpensePage,
+    isNewReportPage,
+    isViewRolePage,
+    isVendorBulkInvitePage,
+    isNewPurchaseRequestPage,
+    isPurchaseRequestDetailPage,
+    isPODetailPage,
+    isConfirmationDetailPage,
+    isVendorDetailPage,
+    isBackButtonPage,
+  } = useMemo(() => {
+    const expDetailMatch      = /^\/expenses\/\d+$/.test(pathname);
+    const auditTrailMatch     = /^\/expenses\/\d+\/audit-trail$/.test(pathname);
+    const splitMatch          = /^\/expenses\/\d+\/split-expense$/.test(pathname);
+    const personalDetailMatch = /^\/expenses\/personal\/[a-f0-9-]+$/i.test(pathname);
+    const personalEditMatch   = /^\/expenses\/personal\/[a-f0-9-]+\/edit$/i.test(pathname);
+    const personalDeleteMatch = /^\/expenses\/personal\/[a-f0-9-]+\/delete$/i.test(pathname);
+    const companyDetailMatch  = /^\/expenses\/company\/[a-f0-9-]+$/i.test(pathname);
+    const batchMatch          = /^\/expenses\/batch\/[^/]+$/.test(pathname);
+    const reimbDetailMatch    = /^\/expenses\/reimbursements\/[^/]+$/.test(pathname);
+    const expIdMatch          = pathname.match(/\/expenses\/(\d+)/)?.[1];
+    const expListPage         = pathname === "/expenses" || pathname === "/expenses/reimbursements";
+    const procListPage        = pathname === "/procurement/purchase-request" ||
+                                pathname === "/procurement/purchase-order" ||
+                                pathname === "/procurement/confirmation";
+    const uploadPage          = pathname === "/expenses/new-expense/upload";
+    const newExpPage          = pathname === "/expenses/new-expense";
+    const newReportPage       = pathname === "/expenses/new-report";
+    const viewRolePage        = pathname.startsWith("/people/view-role/");
+    const vendorBulkPage      = pathname === "/vendors/bulk-invite-page";
+    const newPRPage           = pathname === "/procurement/purchase-request/new";
+    const prDetailMatch       = /^\/procurement\/purchase-request\/[^/]+$/.test(pathname) && !newPRPage;
+    const poDetailMatch       = /^\/procurement\/purchase-order\/[^/]+$/.test(pathname);
+    const confirmDetailMatch  = /^\/procurement\/confirmation\/[^/]+$/.test(pathname);
+    const vendorDetailMatch   = /^\/vendors\/[^/]+$/.test(pathname) && !vendorBulkPage;
 
-  const isBackButtonPage =
-    isExpenseDetailPage || isAuditTrailPage || isSplitExpensePage ||
-    isPersonalExpenseDeletePage || isPersonalExpenseDetailPage || isPersonalExpenseEditPage ||
-    isCompanyExpenseDetailPage || isUploadReceiptPage || isNewExpensePage || isNewReportPage ||
-    isBatchExpensePage || isReimbursementDetailPage || isViewRolePage || isVendorBulkInvitePage || !!isVendorDetailPage ||
-    isNewPurchaseRequestPage || !!isPurchaseRequestDetailPage ||
-    !!isPODetailPage || !!isConfirmationDetailPage ||
-    pathname === "/people/invite/leadership" ||
-    pathname === "/people/invite/employees" ||
-    pathname === "/people/create-role";
+    const backButtonPage =
+      expDetailMatch || auditTrailMatch || splitMatch ||
+      personalDeleteMatch || personalDetailMatch || personalEditMatch ||
+      companyDetailMatch || uploadPage || newExpPage || newReportPage ||
+      batchMatch || reimbDetailMatch || viewRolePage || vendorBulkPage || vendorDetailMatch ||
+      newPRPage || prDetailMatch || poDetailMatch || confirmDetailMatch ||
+      pathname === "/people/invite/leadership" ||
+      pathname === "/people/invite/employees" ||
+      pathname === "/people/create-role";
+
+    return {
+      isAuditTrailPage:            auditTrailMatch,
+      isSplitExpensePage:          splitMatch,
+      isPersonalExpenseDetailPage: personalDetailMatch,
+      isPersonalExpenseEditPage:   personalEditMatch,
+      isPersonalExpenseDeletePage: personalDeleteMatch,
+      isCompanyExpenseDetailPage:  companyDetailMatch,
+      isBatchExpensePage:          batchMatch,
+      isReimbursementDetailPage:   reimbDetailMatch,
+      expenseIdFromPath:           expIdMatch,
+      isExpensesListPage:          expListPage,
+      isProcurementListPage:       procListPage,
+      isUploadReceiptPage:         uploadPage,
+      isNewExpensePage:            newExpPage,
+      isNewReportPage:             newReportPage,
+      isViewRolePage:              viewRolePage,
+      isVendorBulkInvitePage:      vendorBulkPage,
+      isNewPurchaseRequestPage:    newPRPage,
+      isPurchaseRequestDetailPage: prDetailMatch,
+      isPODetailPage:              poDetailMatch,
+      isConfirmationDetailPage:    confirmDetailMatch,
+      isVendorDetailPage:          vendorDetailMatch,
+      isBackButtonPage:            backButtonPage,
+    };
+  }, [pathname]);
 
   const handleBack = () => {
     if (isUploadReceiptPage) {

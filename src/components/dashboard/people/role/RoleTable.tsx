@@ -1,16 +1,20 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation';
 import { DataTable } from '@/components/datatable';
 import { columns } from './column';
 import { useDataTable } from '@/components/datatable/useDataTable';
-import { Role, useGetAllRolesApi } from '@/actions/role/get-all-roles';
+import { Role, useGetAllRolesApi } from '@/queries/role/get-all-roles';
+import { toStringFilterRecord, unwrapFilterKeys } from '../user-table-utils';
 
 const RoleTable = () => {
 
     const router = useRouter();
     const depts = useGetAllRolesApi();
-    const roles: Role[] = depts?.data?.data ?? [];
-    const tableprops = tableData(roles);
+    const roles = useMemo(
+        () => depts?.data?.data ?? [],
+        [depts.data?.data],
+    );
+    const tableprops = useTableData(roles);
 
     const filteredRoles = useMemo(() => {
         let result = roles;
@@ -33,9 +37,9 @@ const RoleTable = () => {
         return result;
     }, [roles, tableprops.globalSearch, tableprops.filterBy]);
 
-    useMemo(() => {
+    useEffect(() => {
         tableprops.setTotalItems(filteredRoles.length);
-    }, [filteredRoles.length]);
+    }, [filteredRoles.length, tableprops.setTotalItems]);
 
     return (
         <DataTable
@@ -69,14 +73,8 @@ const RoleTable = () => {
                             ],
                         },
                     ],
-                    onFilter: (filters: Record<string, any>) => {
-                        const unwrapped: Record<string, any> = {};
-                        Object.entries(filters).forEach(([key, value]) => {
-                            const match = key.match(/filters\[(.*?)\]/);
-                            if (match) unwrapped[match[1]] = value;
-                            else unwrapped[key] = value;
-                        });
-                        tableprops.setFilterBy(unwrapped);
+                    onFilter: (filters: Record<string, unknown>) => {
+                        tableprops.setFilterBy(toStringFilterRecord(unwrapFilterKeys(filters)));
                         tableprops.setPage(1);
                     },
                 },
@@ -88,7 +86,7 @@ const RoleTable = () => {
 
 export default RoleTable;
 
-export const tableData = (data: Role[]) => {
+export const useTableData = (data: Role[]) => {
     return useDataTable({
         initialPage: 1,
         initialPageSize: 10,

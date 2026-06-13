@@ -10,29 +10,29 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { logger } from "@/lib/logger";
 
 import FormSectionHeader from "@/components/dashboard/people/FormSectionHeader";
 import withPermissions from "@/components/permissions/permission-protected-routes";
-import { useGetAllRolesApi } from "@/actions/role/get-all-roles";
-import { Department, useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
+import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
+import { Department, useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import FormFieldSelect from "@/components/form fields/formFieldSelect";
 import FormFieldInput from "@/components/form fields/formFieldInput";
 import { UserFormData, userSchema } from "@/lib/schemas/schemas";
 import { Form } from "@/components/ui/form";
-import { useInviteUserApi } from "@/actions/users/invite-user";
-import { useUpdateUserApi } from "@/actions/users/update-user";
-import { useGetAUsersApi } from "@/actions/users/get-a-user";
+import { useInviteUserApi } from "@/queries/users/invite-user";
+import { useUpdateUserApi } from "@/queries/users/update-user";
+import { useGetAUsersApi } from "@/queries/users/get-a-user";
 import { useEffect, useMemo } from "react";
-import { useGetAllUsersApi } from "@/actions/users/get-all-users";
+import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 import toast from "react-hot-toast";
 
 // Zod schema matching the API request body
 
 
-interface AddSingleUserProps {
+interface _AddSingleUserProps {
     initialData?: Partial<UserFormData>; // For edit mode
     isEditing?: boolean;
 }
@@ -62,7 +62,7 @@ function AddSingleUser() {
                     value: dept.departmentId.toString(),
                 })) || []
         );
-    }, [allDepts?.data?.data, user?.data]);
+    }, [allDepts?.data?.data]);
     const form = useForm<UserFormData>({
         resolver: zodResolver(userSchema),
         defaultValues: {
@@ -78,13 +78,11 @@ function AddSingleUser() {
         },
     });
     const {
-        register,
         handleSubmit,
         formState: { errors, isSubmitting },
         setValue,
-        watch,
         reset,
-        control
+        control,
     } = form
 
     useEffect(() => {
@@ -103,12 +101,13 @@ function AddSingleUser() {
                 id: data?.userId
             })
         }
-    }, [user?.data])
+    }, [user?.data, reset])
 
 
-    const cardIssued = watch("cardIssued");
+    const cardIssued = useWatch({ control, name: "cardIssued" });
+    const location = useWatch({ control, name: "location" });
 
-    logger.log(form.watch())
+    logger.log({ cardIssued })
     // Handle form submission
     const onSubmit = async (data: UserFormData) => {
         try {
@@ -215,7 +214,7 @@ function AddSingleUser() {
                                 <div className="space-y-2">
                                     <Label htmlFor="location">Location*</Label>
                                     <Select
-                                        value={watch("location")}
+                                        value={location}
                                         onValueChange={handleSelectChange("location")}
                                     >
                                         <SelectTrigger id="location" className="w-full">

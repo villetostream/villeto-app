@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useDropzone } from "react-dropzone";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import { Path, Control, FieldValues } from "react-hook-form";
+import { useDropzone, type FileRejection } from "react-dropzone";
 import {
   FormControl,
   FormDescription,
@@ -10,13 +12,12 @@ import {
   FormLabel,
   FormMessage,
 } from "../ui/form";
-import { Path } from "react-hook-form";
 import { X, Upload, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
-interface FormFieldLogoUploadProps<T extends Record<string, any>> {
-  control: any;
+interface FormFieldLogoUploadProps<T extends FieldValues = FieldValues> {
+  control: Control<T>;
   name: Path<T>;
   label: string;
   description?: string;
@@ -40,6 +41,11 @@ const LogoUploadContent: React.FC<LogoUploadContentProps> = ({
   accept,
   variant = "default",
 }) => {
+  const valueSyncKey =
+    value instanceof File
+      ? `${value.name}-${value.size}-${value.lastModified}`
+      : (value ?? "");
+  const [syncedKey, setSyncedKey] = useState(valueSyncKey);
   const [previewUrl, setPreviewUrl] = useState<string | null>(() => {
     if (value instanceof File) {
       return URL.createObjectURL(value);
@@ -50,21 +56,30 @@ const LogoUploadContent: React.FC<LogoUploadContentProps> = ({
   });
   const [error, setError] = useState<string | null>(null);
 
-  // Sync preview with field value
-  useEffect(() => {
+  if (valueSyncKey !== syncedKey) {
+    setSyncedKey(valueSyncKey);
+    if (previewUrl && previewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(previewUrl);
+    }
     if (value instanceof File) {
-      const url = URL.createObjectURL(value);
-      setPreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
+      setPreviewUrl(URL.createObjectURL(value));
     } else if (typeof value === "string" && value) {
       setPreviewUrl(value);
     } else {
       setPreviewUrl(null);
     }
-  }, [value]);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   const onDrop = useCallback(
-    (acceptedFiles: File[], rejectedFiles: any[]) => {
+    (acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
       setError(null);
 
       if (rejectedFiles && rejectedFiles.length > 0) {
@@ -171,9 +186,12 @@ const LogoUploadContent: React.FC<LogoUploadContentProps> = ({
         ) : (
           <div className="flex flex-col items-center justify-center gap-4 p-8 min-h-[200px]">
             <div className="relative w-13 h-13 bg-muted rounded-lg overflow-hidden">
-              <img
+              <Image
                 src={previewUrl}
                 alt="Business logo preview"
+                width={52}
+                height={52}
+                unoptimized
                 className="w-full h-full object-contain place-self-center"
               />
             </div>
@@ -211,7 +229,42 @@ const LogoUploadContent: React.FC<LogoUploadContentProps> = ({
   );
 };
 
-const FormFieldLogoUpload = <T extends Record<string, any>>({
+const LogoButtonPreview: React.FC<{ value: File | string | undefined }> = ({ value }) => {
+  const previewSrc = useMemo(() => {
+    if ((value as unknown) instanceof File) {
+      return URL.createObjectURL(value as File);
+    }
+    if (typeof value === "string" && value) {
+      return value;
+    }
+    return null;
+  }, [value]);
+
+  useEffect(() => {
+    return () => {
+      if (previewSrc?.startsWith("blob:")) {
+        URL.revokeObjectURL(previewSrc);
+      }
+    };
+  }, [previewSrc]);
+
+  if (!previewSrc) {
+    return <User className="w-8 h-8 text-black" />;
+  }
+
+  return (
+    <Image
+      src={previewSrc}
+      alt="Logo"
+      width={64}
+      height={64}
+      unoptimized
+      className="w-full h-full object-contain"
+    />
+  );
+};
+
+const FormFieldLogoUpload = <T extends FieldValues = FieldValues>({
   control,
   name,
   label,
@@ -235,15 +288,7 @@ const FormFieldLogoUpload = <T extends Record<string, any>>({
                 {/* Preview Circle / Placeholder */}
                 <div className={`relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 border border-gray-100 flex items-center justify-center ${field.value ? 'bg-transparent' : 'bg-teal-50'}`}>
                   {field.value ? (
-                    <img
-                      src={
-                        (field.value as any) instanceof File
-                          ? URL.createObjectURL(field.value as any)
-                          : field.value as string
-                      }
-                      alt="Logo"
-                      className="w-full h-full object-contain"
-                    />
+                    <LogoButtonPreview value={field.value} />
                   ) : (
                     <User className="w-8 h-8 text-black" />
                   )}

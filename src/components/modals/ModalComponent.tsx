@@ -19,13 +19,13 @@ interface ModalComponentInterface {
 const ModalComponent = ({
     title,
     description,
-    buttonText,
+    buttonText: _buttonText,
     children,
     isOpen,
     onOpen,
     variant = "outline",
-    icon: Icon,
-    iconPosition = 'left'
+    icon: _Icon,
+    iconPosition: _iconPosition = 'left'
 }: ModalComponentInterface) => {
     return (
         <Dialog open={isOpen} onOpenChange={onOpen}>

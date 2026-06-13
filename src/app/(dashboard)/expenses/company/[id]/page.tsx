@@ -30,6 +30,7 @@ import { Check } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { logger } from "@/lib/logger";
 import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
+import { asRecord, pickString } from "@/lib/types/api-error";
 
 const formatDate = (dateString: string): string => {
   try {
@@ -224,8 +225,10 @@ export default function CompanyExpenseDetailPage() {
   const reporterName = expenseDetail.reporter || "Unknown Reporter";
   
   // Extract approver name if available
-  const approverObj = (expenseDetail as any).approvedBy;
-  const approverName = approverObj?.firstName ? `${approverObj.firstName} ${approverObj.lastName || ""}`.trim() : undefined;
+  const approverObj = asRecord(asRecord(expenseDetail).approvedBy);
+  const approverName = pickString(approverObj, "firstName")
+    ? `${pickString(approverObj, "firstName")} ${pickString(approverObj, "lastName")}`.trim()
+    : undefined;
 
   const isOwnScope = scope === "own";
   const isTeamScope = scope === "team";
@@ -258,7 +261,7 @@ export default function CompanyExpenseDetailPage() {
     }
   };
 
-  const handleReject = async (reason: string) => {
+  const handleReject = async (_reason: string) => {
     setIsRejecting(true);
     try {
       await updateStatusMutation.mutateAsync({ reportId, status: "rejected" });

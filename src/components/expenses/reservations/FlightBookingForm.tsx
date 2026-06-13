@@ -1,12 +1,11 @@
 // components/forms/FlightBookingForm.tsx
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, ArrowLeftRight } from "lucide-react";
 import { Form } from "@/components/ui/form";
 import FormFieldSelect from "@/components/form fields/formFieldSelect";
 import FormFieldCalendar from "@/components/form fields/FormFieldCalendar";
-import { cn } from "@/lib/utils";
 import { CITIES, FLIGHT_CLASSES } from "./constants";
 import { FlightFormData, flightFormSchema } from "./schema";
 
@@ -27,11 +26,12 @@ const FlightBookingForm = ({ onSubmit, isSubmitting = false }: FlightBookingForm
         mode: "onChange"
     });
 
-    const { control, handleSubmit, watch, setValue, formState: { isValid } } = form;
-    const tripType = watch("tripType");
+    const { control, handleSubmit, setValue } = form;
+    const values = useWatch({ control });
+    const tripType = values?.tripType;
 
-    const isFormValid = watch("fromCity") && watch("toCity") && watch("departureDate") && watch("flightClass") &&
-        (tripType === "oneway" || (tripType === "roundtrip" && watch("returnDate")));
+    const isFormValid = values?.fromCity && values?.toCity && values?.departureDate && values?.flightClass &&
+        (tripType === "oneway" || (tripType === "roundtrip" && values?.returnDate));
 
     return (
         <Form {...form}>

@@ -3,7 +3,7 @@
 import { useOnboardingStore } from '@/stores/useVilletoStore';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ArrowRight, X } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export function CongratulationsModal() {

@@ -40,7 +40,7 @@ export function ExpenseDetailModal({
   expense,
   categories,
   onSave,
-  readOnly = true,
+  readOnly: _readOnly = true,
 }: ExpenseDetailModalProps) {
   if (!expense) return null;
 

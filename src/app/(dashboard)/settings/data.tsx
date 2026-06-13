@@ -1,22 +1,6 @@
 "use client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-
-    Shield,
-    Bell,
-    CreditCard,
-    Users,
-    Building,
-    Mail,
-    Smartphone,
-    Globe,
-    Download,
-    Trash2,
     ArrowRight
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

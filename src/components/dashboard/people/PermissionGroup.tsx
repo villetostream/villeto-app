@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Permission } from "@/actions/auth/auth-permissions";
+import { Permission } from "@/queries/auth/auth-permissions";
 
 
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Search, Users, X, Check, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { AppUser } from "@/actions/departments/get-all-departments";
-import { useGetAllUsersApi } from "@/actions/users/get-all-users";
+import { AppUser } from "@/queries/departments/get-all-departments";
+import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 import { logger } from "@/lib/logger";
 
 
@@ -31,14 +31,8 @@ const MembersDropdown = ({
 }: MembersDropdownProps) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [isOpen, setIsOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const allUsers = useGetAllUsersApi();
-    const [tempSelected, setTempSelected] = useState<AppUser[]>([]);
-
-    // Initialize tempSelected when selectedMembers changes or when dropdown opens
-    useEffect(() => {
-        setTempSelected(selectedMembers);
-    }, [selectedMembers, isOpen]); // Reset when dropdown opens or selectedMembers changes
+    const [tempSelected, setTempSelected] = useState<AppUser[]>(selectedMembers);
 
     // Memoized filtered members based on search query
     const filteredMembers = useMemo(() => {
@@ -86,7 +80,9 @@ const MembersDropdown = ({
     }, [selectedMembers]);
 
     const handleOpenChange = useCallback((open: boolean) => {
-        if (!open) {
+        if (open) {
+            setTempSelected(selectedMembers);
+        } else {
             // Reset to original selection when closing without confirming
             setTempSelected(selectedMembers);
             setSearchQuery("");
@@ -242,7 +238,7 @@ const MemberItem = ({ member, isSelected, onToggle }: MemberItemProps) => {
 
     const initials = useMemo(() =>
         [member.firstName[0], member.lastName[0]].map(n => n[0]).join("").toUpperCase(),
-        [member.firstName]
+        [member.firstName, member.lastName]
     );
 
     return (
@@ -257,7 +253,7 @@ const MemberItem = ({ member, isSelected, onToggle }: MemberItemProps) => {
                     handleClick();
                 }
             }}
-            aria-selected={isSelected}
+            aria-pressed={isSelected}
         >
             <div className="flex items-center space-x-2 flex-1">
                 <Checkbox

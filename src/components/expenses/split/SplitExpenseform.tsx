@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from "react";
-import { useFieldArray, useWatch } from "react-hook-form";
+import { Control, useFieldArray, useWatch } from "react-hook-form";
 import { useDebounce } from "use-debounce";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -8,8 +8,20 @@ import FormFieldInput from "@/components/form fields/formFieldInput";
 import FormFieldSelect from "@/components/form fields/formFieldSelect";
 import { useAuthStore } from "@/stores/auth-stores";
 
+interface SplitEntry {
+    amount?: string | number;
+    type?: string;
+    option?: string;
+}
+
+export type SplitExpenseFormValues = {
+    expenses: Array<{
+        splits?: SplitEntry[];
+    }>;
+};
+
 interface SplitExpenseProps {
-    control: any;
+    control: Control<SplitExpenseFormValues>;
     expenseIndex: number;
     totalAmount: number;
 }
@@ -39,28 +51,26 @@ const splitOptions = {
 };
 
 export function SplitExpense({ control, expenseIndex, totalAmount }: SplitExpenseProps) {
+    const splitsFieldName = `expenses.${expenseIndex}.splits` as `expenses.${number}.splits`;
     const { fields, append, remove } = useFieldArray({
         control,
-        name: `expenses.${expenseIndex}.splits`,
+        name: splitsFieldName,
     });
 
-    // Watch splits for this expense
     const watchedSplits = useWatch({
         control,
-        name: `expenses.${expenseIndex}.splits`,
-    });
+        name: splitsFieldName,
+    }) as SplitEntry[] | undefined;
 
-    // ✅ Debounce the totalAmount to avoid jitter when typing
     const [debouncedTotalAmount] = useDebounce(totalAmount, 300);
 
-    // ✅ Properly memoized calculations
     const { remainingAmount, splitTypes } = useMemo(() => {
         const splits = watchedSplits || [];
-        const allocatedAmount = splits.reduce((sum: number, split: any) => {
-            return sum + (parseFloat(split?.amount) || 0);
+        const allocatedAmount = splits.reduce((sum: number, split: SplitEntry) => {
+            return sum + (parseFloat(String(split.amount ?? 0)) || 0);
         }, 0);
 
-        const types = splits.map((split: any) => split?.type || "department");
+        const types = splits.map((split: SplitEntry) => split.type || "department");
 
         return {
             remainingAmount: debouncedTotalAmount - allocatedAmount,
@@ -71,7 +81,7 @@ export function SplitExpense({ control, expenseIndex, totalAmount }: SplitExpens
     const addSplit = useCallback(() => {
         append({
             type: "department",
-            option: null,
+            option: "",
             amount: 0,
         });
     }, [append]);
@@ -118,7 +128,6 @@ export function SplitExpense({ control, expenseIndex, totalAmount }: SplitExpens
     );
 }
 
-// ✅ SplitItem memoized to prevent unnecessary re-renders
 const SplitItem = React.memo(
     ({
         control,
@@ -127,7 +136,7 @@ const SplitItem = React.memo(
         splitType,
         onRemove,
     }: {
-        control: any;
+        control: Control<SplitExpenseFormValues>;
         expenseIndex: number;
         splitIndex: number;
         splitType: string;
@@ -181,3 +190,4 @@ const SplitItem = React.memo(
         );
     }
 );
+SplitItem.displayName = "SplitItem";

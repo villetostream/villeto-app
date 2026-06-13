@@ -1,18 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronDown, ChevronUp, ChevronRight, Edit2 } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, ChevronUp, ChevronRight, Edit2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { useGetARoleApi } from "@/actions/role/get-a-role";
-import { CapabilityGroup, CapabilitiesByModule, Role } from "@/actions/role/get-all-roles";
-import { groupPermissionsByResource, formatPermissionName } from "@/lib/utils";
+import { useGetARoleApi } from "@/queries/role/get-a-role";
+import { CapabilityGroup, CapabilitiesByModule, Role } from "@/queries/role/get-all-roles";
+import { Permission } from "@/queries/auth/auth-permissions";
+import { formatPermissionName } from "@/lib/utils";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import ConfirmationModal from "@/components/modals/ConfirmationModal";
-import { useDeleteRoleApi } from "@/actions/role/delete-role";
+import { useDeleteRoleApi } from "@/queries/role/delete-role";
 import toast from "react-hot-toast";
 
 // ── Capability Group Card (expandable, read-only) ──────────────────────────
@@ -101,7 +102,7 @@ function ViewRolePage() {
             toast.success("Role deleted successfully.");
             setDeleteModalOpen(false);
             router.push("/people?tab=roles");
-        } catch (error) {
+        } catch (_error) {
             toast.error("Failed to delete the role.");
             setDeleteModalOpen(false);
         }
@@ -127,7 +128,7 @@ function ViewRolePage() {
     const totalUsers = role.totalAssignedUsers || 0;
 
     // Capability groups from capabilitiesByModule
-    const capModules: CapabilitiesByModule = (role as any).capabilitiesByModule ?? {};
+    const capModules: CapabilitiesByModule = role.capabilitiesByModule ?? {};
     const hasCapabilities = Object.values(capModules).some(m => m.capabilityGroups?.length > 0);
 
     // Flat individual permissions (directly assigned, not from groups)
@@ -135,8 +136,8 @@ function ViewRolePage() {
     const hasDirectPermissions = directPermissions.length > 0;
 
     // Group direct permissions by resource for display
-    const groupPermissionsByResource = (perms: any[]) => {
-        const map: Record<string, { resource: string; permissions: any[] }> = {};
+    const groupPermissionsByResource = (perms: Permission[]) => {
+        const map: Record<string, { resource: string; permissions: Permission[] }> = {};
         for (const p of perms) {
             const res = p.resource || "other";
             if (!map[res]) map[res] = { resource: res, permissions: [] };
@@ -225,9 +226,9 @@ function ViewRolePage() {
 
                         {hasCapabilities ? (
                             <div className="space-y-8">
-                                {(Array.isArray(capModules) ? capModules : Object.values(capModules)).map((modData: any) =>
+                                {Object.entries(capModules).map(([moduleName, modData]) =>
                                     modData.capabilityGroups?.length > 0 ? (
-                                        <ModuleSection key={modData.module || Math.random().toString()} moduleName={modData.module || "Unknown Module"} groups={modData.capabilityGroups} />
+                                        <ModuleSection key={moduleName} moduleName={moduleName} groups={modData.capabilityGroups} />
                                     ) : null
                                 )}
                             </div>
@@ -262,7 +263,7 @@ function ViewRolePage() {
                                             {formatPermissionName(group.resource)}
                                         </h3>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-8">
-                                            {group.permissions.map((p: any) => (
+                                            {group.permissions.map((p) => (
                                                 <div key={p.permissionId} className="flex items-center gap-3">
                                                     <Checkbox
                                                         checked

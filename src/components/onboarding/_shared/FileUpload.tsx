@@ -1,10 +1,9 @@
 "use client";
 
 import { logger } from "@/lib/logger";
-import { FileType } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
-import { useDropzone } from "react-dropzone";
-import Tesseract from "tesseract.js";
+import React, { useCallback, useState } from "react";
+import Image from "next/image";
+import { useDropzone, type Accept } from "react-dropzone";
 
 type UploadState = "idle" | "uploading" | "scanning" | "verified" | "failed";
 
@@ -32,56 +31,47 @@ const extractFileType = (filename: string): string => {
 
   return typeToExtension[extension] || 'application/octet-stream';
 };
-export default function FileUpload({
-  accept = { "application/pdf": [".pdf"], "image/*": [".png", ".jpg", ".jpeg"] },
-  maxSize = 10 * 1024 * 1024,
-  onUploaded,
-  label,
-  helper,
-  originalUpload
-}: {
-  accept?: any;
+interface FileUploadProps {
+  accept?: Accept;
   maxSize?: number;
   onUploaded?: (meta: { name: string; s3Key?: string; text?: string }) => void;
   label?: string;
   helper?: string;
-  originalUpload: string | null
-}) {
-  const [state, setState] = useState<UploadState>("idle");
-  const [progress, setProgress] = useState<number>(0);
+  originalUpload: string | null;
+}
+
+export default function FileUpload({
+  accept = { "application/pdf": [".pdf"], "image/*": [".png", ".jpg", ".jpeg"] },
+  maxSize = 10 * 1024 * 1024,
+  onUploaded,
+  label: _label,
+  helper,
+  originalUpload,
+}: FileUploadProps) {
+  const [_state, setState] = useState<UploadState>("idle");
+  const [_progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
-  const [filename, setFilename] = useState<string | null>(null);
+  const [_filename, setFilename] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-
-  useEffect(() => {
-    if (originalUpload) {
-      logger.log(typeof originalUpload);
-      logger.log({ originalUpload });
-
-      // Directly set the base64 string as the preview URL
-      setPreviewUrl(originalUpload);
-      const mime = getMimeFromBase64(originalUpload)
-      const filetype = extractFileType(mime!)
-      logger.log({ mime }, { filetype })
-      setFile(new File([originalUpload], `receipt.${filetype}`, {
-        type: mime!
-      }))
-
-      // Simulate having a file when we have an originalUpload
-      setFilename("preview-image.png");
-      setState("verified");
-
-      if (onUploaded) {
-        onUploaded({ name: "preview-image.png" });
-      }
+  const [syncedOriginalUpload, setSyncedOriginalUpload] = useState(originalUpload);
+  if (originalUpload && originalUpload !== syncedOriginalUpload) {
+    setSyncedOriginalUpload(originalUpload);
+    setPreviewUrl(originalUpload);
+    const mime = getMimeFromBase64(originalUpload);
+    const filetype = mime ? extractFileType(mime) : "png";
+    if (mime) {
+      setFile(new File([originalUpload], `receipt.${filetype}`, { type: mime }));
     }
-  }, [originalUpload]);
+    setFilename("preview-image.png");
+    setState("verified");
+    onUploaded?.({ name: "preview-image.png" });
+  }
+
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       setError(null);
-      logger.log
       if (!acceptedFiles || acceptedFiles.length === 0) {
         return;
       }
@@ -109,7 +99,7 @@ export default function FileUpload({
 
       try {
 
-      } catch (e: any) {
+      } catch (_e: unknown) {
         setState("failed");
         setError("Failed scanning document.");
       }
@@ -124,7 +114,7 @@ export default function FileUpload({
     multiple: false
   });
 
-  const removeFile = () => {
+  const _removeFile = () => {
     setFile(null);
     setFilename(null);
     setPreviewUrl(null);
@@ -136,7 +126,7 @@ export default function FileUpload({
     }
   };
 
-  const formatFileSize = (bytes: number) => {
+  const _formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -188,9 +178,12 @@ export default function FileUpload({
                 {previewUrl && (
                   <div className="shrink-0 size-full object-contain rounded border overflow-auto">
                     {previewUrl}
-                    <img
+                    <Image
                       src={previewUrl}
                       alt="Preview"
+                      width={200}
+                      height={200}
+                      unoptimized
                       className="w-full h-full object-contain overflow-y-auto rounded"
                     />
                   </div>

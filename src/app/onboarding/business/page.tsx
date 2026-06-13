@@ -3,7 +3,7 @@
 import { logger } from "@/lib/logger";
 
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, Upload, X, Briefcase, Globe, Phone, Link as LinkIcon } from "lucide-react";
+import { ArrowRight, Loader2, Briefcase, Globe, Phone, Link as LinkIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   FormControl,
@@ -16,21 +16,19 @@ import {
 import { Input } from "@/components/ui/input";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import OnboardingTitle from "@/components/onboarding/_shared/OnboardingTitle";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
 import { Building03FreeIcons } from "@hugeicons/core-free-icons";
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
-import { useUpdateOnboardingCompanyDetailsApi } from "@/actions/onboarding/update-onboarding-company-details.ts";
-import { CountrySelectBox } from '@/components/dashboard/business/business-view/SelectCountry';
+import { useUpdateOnboardingCompanyDetailsApi } from "@/queries/onboarding/update-onboarding-company-details";
 import FormFieldSelect from "@/components/form fields/formFieldSelect";
 import FormFieldInput from "@/components/form fields/formFieldInput";
 import FormFieldLogoUpload from "@/components/form fields/formFieldLogoUpload";
 import { useEffect, useRef } from "react";
 import { onboardingBusinessSchema } from "@/lib/schemas/schemas";
-import Image from "next/image";
 import { useHydrateOnboardingData } from "@/hooks/useHydrateOnboardingData";
 
 /** Map from 3-letter country code → dial prefix */
@@ -56,7 +54,7 @@ function stripDialCode(phone: string): string {
 
 export default function Business() {
   const router = useRouter();
-  const { businessSnapshot, updateBusinessSnapshot, preOnboarding } =
+  const { businessSnapshot, updateBusinessSnapshot } =
     useOnboardingStore();
   useHydrateOnboardingData();
   const updateOnboarding = useUpdateOnboardingCompanyDetailsApi();
@@ -89,7 +87,7 @@ export default function Business() {
 
   // Track whether this is the first render so we don't override a pre-filled phone
   const isFirstCountryChange = useRef(true);
-  const watchedCountry = form.watch("countryOfRegistration");
+  const watchedCountry = useWatch({ control: form.control, name: "countryOfRegistration" });
 
   useEffect(() => {
     // Country cleared — strip the dial code, keep only local digits

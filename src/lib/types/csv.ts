@@ -8,7 +8,7 @@ export interface CSVFileData {
     id: string;
     fileName: string;
     headers: string[];
-    rows: any[];
+    rows: unknown[];
     rowCount: number;
     processedAt: Date;
 }

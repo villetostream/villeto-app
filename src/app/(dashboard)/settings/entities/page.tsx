@@ -3,7 +3,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -24,7 +23,7 @@ import {
 import { useState } from "react";
 
 export default function Entities() {
-    const [entities, setEntities] = useState([
+    const [entities, _setEntities] = useState([
         {
             id: 1,
             name: "ExpenseFlow Inc.",
@@ -76,7 +75,7 @@ export default function Entities() {
                     <div>
                         <h1 className="text-3xl font-bold text-dashboard-text-primary">Legal Entities</h1>
                         <p className="text-dashboard-text-secondary mt-1">
-                            Manage your company's legal entities, subsidiaries, and business units
+                            Manage your company&apos;s legal entities, subsidiaries, and business units
                         </p>
                     </div>
                     <Dialog open={showAddEntity} onOpenChange={setShowAddEntity}>

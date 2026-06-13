@@ -2,7 +2,7 @@
 
 import { UploadCloud, Download } from "lucide-react";
 import React, { useCallback, useState } from "react";
-import { useDropzone } from "react-dropzone";
+import { useDropzone, type FileRejection } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 
 interface EmployeeInviteFileUploadProps {
@@ -20,15 +20,14 @@ export default function EmployeeInviteFileUpload({
     },
     maxSize = 5 * 1024 * 1024 // 5MB default
 }: EmployeeInviteFileUploadProps) {
-    const [dragActive, setDragActive] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+    const onDrop = useCallback((acceptedFiles: File[], fileRejections: FileRejection[]) => {
         setError(null);
         
         if (fileRejections.length > 0) {
             const rejection = fileRejections[0];
-            if (rejection.errors[0].code === "file-too-large") {
+            if (rejection.errors[0]?.code === "file-too-large") {
                 setError(`File too large. Maximum ${Math.round(maxSize / 1024 / 1024)} MB.`);
             } else {
                 setError("File type not supported. Please upload CSV or Excel.");

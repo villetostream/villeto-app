@@ -23,7 +23,6 @@ import {
   useApprovePurchaseRequest,
   useRejectPurchaseRequest,
   useConvertToPO,
-  useCreateMultiplePO,
   useGetProcurementCategories,
   useGetVendors,
   type PurchaseRequest,
@@ -31,15 +30,38 @@ import {
   type LineItemPayload,
   type CreatePurchaseRequestPayload,
   type Vendor,
-} from "@/actions/procurement/purchase-requests";
-import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
+  type PRPriority,
+  type DraftPurchaseOrder,
+} from "@/queries/procurement/purchase-requests";
+import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   PR_STATUS_CFG,
-  PR_PRIORITY_CFG,
   getPRDisplayStatus,
 } from "@/lib/constants/purchase-request-status";
+import { getApiErrorMessage, isRecord, getOptionalString } from "@/lib/types/api-error";
+import {
+  getRequesterName,
+  getRoleName,
+  mergeDepartmentOption,
+  resolveDepartmentLabel,
+  toApiLineItemPayload,
+} from "@/lib/types/purchase-request-helpers";
+
+interface PurchaseRequestDetail extends PurchaseRequest {
+  approvedBy?: { firstName?: string; lastName?: string; [key: string]: unknown };
+  approvedAt?: string;
+  purchaseOrders?: Array<DraftPurchaseOrder & { createdBy?: Record<string, unknown> | string; createdAt?: string }>;
+}
+
+function cleanLineItemPayload(payload: LineItemPayload): LineItemPayload {
+  return toApiLineItemPayload(payload);
+}
+
+function isPRPriorityValue(value: string): value is PRPriority {
+  return value === "low" || value === "medium" || value === "urgent";
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -302,7 +324,6 @@ function CategoryDropdown({ value, onChange }: {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [selectedName, setSelectedName] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -322,16 +343,13 @@ function CategoryDropdown({ value, onChange }: {
     if (open) setTimeout(() => searchRef.current?.focus(), 50);
   }, [open]);
 
-  const rawCategories = catData?.data || [];
+  const rawCategories = useMemo(() => catData?.data || [], [catData?.data]);
+  const selectedName = useMemo(() => {
+    if (!value) return "";
+    const all = rawCategories.flatMap(c => [c, ...(c.children || [])]);
+    return all.find(c => c.categoryId === value)?.name ?? "Selected";
+  }, [value, rawCategories]);
   const q = search.trim().toLowerCase();
-
-  useEffect(() => {
-    if (value && !selectedName) {
-      const all = rawCategories.flatMap(c => [c, ...(c.children || [])]);
-      const found = all.find(c => c.categoryId === value);
-      if (found) setSelectedName(found.name);
-    }
-  }, [value, rawCategories, selectedName]);
 
   const searchResults: { id: string; name: string; parentName?: string }[] = q
     ? rawCategories.flatMap(cat => {
@@ -382,7 +400,7 @@ function CategoryDropdown({ value, onChange }: {
                 <p className="text-sm text-muted-foreground px-4 py-3 text-center">No matches for &ldquo;{search}&rdquo;</p>
               ) : (
                 searchResults.map(r => (
-                  <button key={r.id} type="button" onClick={() => { onChange(r.id, r.name); setSelectedName(r.name); close(); }}
+                  <button key={r.id} type="button" onClick={() => { onChange(r.id, r.name); close(); }}
                     className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors flex items-baseline gap-2 ${value === r.id ? "text-primary font-medium" : "text-foreground"}`}>
                     <span>{r.name}</span>
                     {r.parentName && <span className="text-xs text-muted-foreground font-normal">in {r.parentName}</span>}
@@ -402,7 +420,7 @@ function CategoryDropdown({ value, onChange }: {
                   return (
                     <div key={cat.categoryId}>
                       <div className="flex items-center">
-                        <button type="button" onClick={() => { onChange(cat.categoryId, cat.name); setSelectedName(cat.name); close(); }}
+                        <button type="button" onClick={() => { onChange(cat.categoryId, cat.name); close(); }}
                           className={`flex-1 text-left px-4 py-2.5 text-sm font-medium hover:bg-muted/40 transition-colors ${isSelected ? "text-primary" : "text-foreground"}`}>
                           {cat.name}
                         </button>
@@ -416,7 +434,7 @@ function CategoryDropdown({ value, onChange }: {
                       {isExpanded && (
                         <div className="bg-muted/10 border-t border-b border-border/40">
                           {subs.map(sub => (
-                            <button key={sub.categoryId} type="button" onClick={() => { onChange(sub.categoryId, sub.name); setSelectedName(sub.name); close(); }}
+                            <button key={sub.categoryId} type="button" onClick={() => { onChange(sub.categoryId, sub.name); close(); }}
                               className={`w-full text-left pl-7 pr-4 py-2 text-sm flex items-center gap-2 hover:bg-muted/40 transition-colors ${value === sub.categoryId ? "text-primary font-medium" : "text-foreground"}`}>
                               <span className="w-1 h-1 rounded-full bg-muted-foreground/50 shrink-0" />
                               {sub.name}
@@ -448,7 +466,7 @@ const EMPTY_ITEM: ModalItem = {
   quantity: 0, unitPrice: 0, taxAmount: 0, sku: "", unitOfMeasure: "unit",
 };
 
-function LineItemModal({ onClose, onSave, initial, loading, departments }: {
+function LineItemModal({ onClose, onSave, initial, loading, departments: _departments }: {
   onClose: () => void;
   onSave: (d: LineItemPayload) => void;
   initial?: ModalItem;
@@ -578,7 +596,7 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Priority</label>
-              <SimpleSelect value={priority} onChange={v => setPriority(v as any)} options={PRIORITIES} />
+              <SimpleSelect value={priority} onChange={v => { if (isPRPriorityValue(v)) setPriority(v); }} options={PRIORITIES} />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Currency</label>
@@ -613,7 +631,7 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
         </div>
         <div className="px-6 pb-6">
           <button type="button" disabled={loading}
-            onClick={() => onSave({ title, description: description || undefined, priority: priority as any, currency, neededByDate, departmentId })}
+            onClick={() => onSave({ title, description: description || undefined, priority, currency, neededByDate, departmentId })}
             className="w-full h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 transition-opacity">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />} Save Changes
           </button>
@@ -650,10 +668,10 @@ function VendorSelect({ value, onChange, vendors }: {
   useEffect(() => {
     if (open) {
       setTimeout(() => searchRef.current?.focus(), 50);
-    } else {
-      setSearch("");
     }
   }, [open]);
+
+  const clearSearch = () => setSearch("");
 
   const selected = vendors.find(v => v.vendorId === value);
   const filtered = vendors.filter(v => {
@@ -663,7 +681,12 @@ function VendorSelect({ value, onChange, vendors }: {
 
   return (
     <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen(v => !v)}
+      <button type="button" onClick={() => {
+        setOpen(v => {
+          if (v) clearSearch();
+          return !v;
+        });
+      }}
         className="w-full h-9 px-3 rounded-lg border border-border bg-white text-sm flex items-center justify-between hover:border-primary/60 focus:outline-none transition-colors">
         <span className={selected ? "text-foreground" : "text-muted-foreground text-xs"}>
           {selected ? (selected.displayName || selected.legalName || "Unknown Vendor") : "Select vendor"}
@@ -705,7 +728,7 @@ function VendorSelect({ value, onChange, vendors }: {
 
 // ─── Create PO View ───────────────────────────────────────────────────────────
 
-interface LineItemGroup {
+interface _LineItemGroup {
   vendorId: string;
   lineItemIds: string[];
 }
@@ -721,28 +744,37 @@ const CARD_ACCENTS = [
   { border: "border-teal-300",    header: "bg-teal-50 border-b border-teal-200",       badge: "bg-teal-100 text-teal-700",       dot: "bg-teal-500",    rowAccent: "bg-teal-50/40" },
 ];
 
+function PurchaseRequestTableHead() {
+  return (
+    <thead>
+      <tr className="border-b border-border/60 bg-white">
+        {["Item", "Qty", "Unit Price", "Subtotal", "Vendor"].map(h => (
+          <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+        ))}
+        <th className="w-10" />
+      </tr>
+    </thead>
+  );
+}
+
 function CreatePOView({
   pr,
   vendors,
-  onCreatePO,
-  onCreateMultiplePO,
+  onConvertToPOs,
   onReject,
-  createPOLoading,
-  createMultiplePOLoading,
+  convertLoading,
   rejectLoading,
   departmentName,
 }: {
   pr: PurchaseRequest;
   vendors: Vendor[];
-  onCreatePO: (vendorId: string) => void;
-  onCreateMultiplePO: (groups: LineItemGroup[]) => void;
+  onConvertToPOs: (draftPurchaseOrders: DraftPurchaseOrder[]) => void;
   onReject: () => void;
-  createPOLoading: boolean;
-  createMultiplePOLoading: boolean;
+  convertLoading: boolean;
   rejectLoading: boolean;
   departmentName?: string | null;
 }) {
-  const lineItems: PurchaseRequestLineItemType[] = pr.lineItems || [];
+  const lineItems = useMemo<PurchaseRequestLineItemType[]>(() => pr.lineItems || [], [pr.lineItems]);
   const currency = pr.currency || "USD";
   const user = useAuthStore(s => s.user);
   const totalAmount = pr.totalAmount || 0;
@@ -784,6 +816,8 @@ function CreatePOView({
   const poCount = vendorGroups.size;
   const readyToCreate = unassignedItems.length === 0 && poCount > 0;
 
+  const [vendorDetails, setVendorDetails] = useState<Record<string, { deliveryDate: string; notes: string }>>({});
+
   const vendorIdList = Array.from(vendorGroups.keys());
   const accentFor = (vendorId: string) =>
     CARD_ACCENTS[vendorIdList.indexOf(vendorId) % CARD_ACCENTS.length];
@@ -793,12 +827,21 @@ function CreatePOView({
       toast.error(`${unassignedItems.length} item(s) still have no vendor assigned`);
       return;
     }
-    const groups: LineItemGroup[] = [];
+    const draftPurchaseOrders: DraftPurchaseOrder[] = [];
+    let missingDate = false;
     vendorGroups.forEach((items, vId) => {
-      groups.push({ vendorId: vId, lineItemIds: items.map(i => i.purchaseRequestLineItemId) });
+      const details = vendorDetails[vId] || { deliveryDate: "", notes: "" };
+      if (!details.deliveryDate) missingDate = true;
+      draftPurchaseOrders.push({
+        vendorId: vId,
+        deliveryDate: details.deliveryDate,
+        notes: details.notes || undefined,
+        lineItems: items.map(i => ({ purchaseRequestLineItemId: i.purchaseRequestLineItemId }))
+      });
     });
-    if (groups.length === 0) { toast.error("No items to create PO from"); return; }
-    onCreateMultiplePO(groups);
+    if (draftPurchaseOrders.length === 0) { toast.error("No items to create PO from"); return; }
+    if (missingDate) { toast.error("Please specify a delivery date for all vendor groups"); return; }
+    onConvertToPOs(draftPurchaseOrders);
   };
 
   const ItemRow = ({
@@ -844,16 +887,6 @@ function CreatePOView({
     </tr>
   );
 
-  const TableHead = ({ showPlaceholderCol = false }: { showPlaceholderCol?: boolean }) => (
-    <thead>
-      <tr className="border-b border-border/60 bg-white">
-        {["Item", "Qty", "Unit Price", "Subtotal", "Vendor"].map(h => (
-          <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
-        ))}
-        <th className="w-10" />
-      </tr>
-    </thead>
-  );
 
   return (
     <div className="flex flex-col max-w-6xl mx-auto pb-24">
@@ -862,7 +895,7 @@ function CreatePOView({
         <div>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl font-bold text-foreground">{pr.requestNumber}</h1>
-            <StatusBadge status={pr.status} approvalStatus={(pr as any).approvalStatus} />
+            <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} />
           </div>
           {pr.title && <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>}
         </div>
@@ -874,11 +907,11 @@ function CreatePOView({
           </button>
           <button
             onClick={handleCreate}
-            disabled={!readyToCreate || createMultiplePOLoading || createPOLoading}
+            disabled={!readyToCreate || convertLoading}
             className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2"
           >
-            {(createMultiplePOLoading || createPOLoading) && <Loader2 className="w-4 h-4 animate-spin" />}
-            {poCount > 1 ? `Create ${poCount} Purchase Orders` : "Create Purchase Order"}
+            {convertLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+            Convert to {poCount} Purchase Order{poCount !== 1 ? "s" : ""}
           </button>
         </div>
       </div>
@@ -976,10 +1009,46 @@ function CreatePOView({
                         Ungroup All
                       </button>
                     </div>
+                    {/* Setup PO Details */}
+                    <div className="px-5 py-3 border-b border-border/50 bg-white grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground">Delivery Date <span className="text-red-500">*</span></label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button type="button" className={`w-full h-8 px-3 rounded-md border text-xs flex items-center justify-between transition-colors focus:outline-none focus:border-primary ${!vendorDetails[vendorId]?.deliveryDate ? "text-muted-foreground border-border" : "text-foreground border-border/80"}`}>
+                                  {vendorDetails[vendorId]?.deliveryDate ? format(new Date(vendorDetails[vendorId].deliveryDate), "PPP") : "Pick a date"}
+                                  <CalendarIcon className="w-3.5 h-3.5 ml-1.5 opacity-50 shrink-0" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarPicker
+                                  mode="single"
+                                  selected={vendorDetails[vendorId]?.deliveryDate ? new Date(vendorDetails[vendorId].deliveryDate) : undefined}
+                                  onSelect={(d) => {
+                                    if (!d) return;
+                                    setVendorDetails(p => ({...p, [vendorId]: { ...(p[vendorId] || {notes:""}), deliveryDate: format(d, "yyyy-MM-dd") }}));
+                                  }}
+                                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground">Notes <span className="text-muted-foreground/60 font-normal">(optional)</span></label>
+                            <input 
+                                type="text" 
+                                className="w-full h-8 px-2 text-sm border rounded-md focus:outline-none focus:border-primary" 
+                                placeholder="e.g. Hardware for new hires"
+                                value={vendorDetails[vendorId]?.notes || ""} 
+                                onChange={e => setVendorDetails(p => ({...p, [vendorId]: { ...(p[vendorId] || {deliveryDate:""}), notes: e.target.value }}))} 
+                            />
+                        </div>
+                    </div>
                     {/* Items table */}
                     <div className="bg-white overflow-visible">
                       <table className="w-full text-sm">
-                        <TableHead />
+                        <PurchaseRequestTableHead />
                         <tbody>
                           {groupItems.map(item => (
                             <ItemRow
@@ -1015,7 +1084,7 @@ function CreatePOView({
                   </div>
                   <div className="bg-white overflow-visible">
                     <table className="w-full text-sm">
-                      <TableHead />
+                      <PurchaseRequestTableHead />
                       <tbody>
                         {unassignedItems.map(item => (
                           <ItemRow
@@ -1157,7 +1226,6 @@ function PRDetailPage() {
   const approvePR = useApprovePurchaseRequest(id);
   const rejectPR = useRejectPurchaseRequest(id);
   const convertToPO = useConvertToPO(id);
-  const createMultiplePO = useCreateMultiplePO(id);
   const canChangeDept = can("procurement.purchase_request", "manage") || can("department", "manage");
   const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
   const canCreatePOAccess = can("procurement.purchase_request", "convert_to_po") || can("procurement.purchase_order", "create");
@@ -1168,7 +1236,7 @@ function PRDetailPage() {
   const updateLineItemHook = useUpdateLineItem(id, editingLineItem?.purchaseRequestLineItemId || "");
   const [modal, setModal] = useState<"submit" | "withdraw" | "reject" | "approve" | "add_item" | "edit_header" | "delete_item" | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
-  const pr: PurchaseRequest | undefined = data?.data;
+  const pr: PurchaseRequestDetail | undefined = data?.data;
   const departments = (deptData?.data || []).map(d => ({ label: d.departmentName, value: d.departmentId }));
   
   // Try to find the category name across all parent and child categories
@@ -1183,48 +1251,11 @@ function PRDetailPage() {
     return cat ? cat.name : "Category";
   };
 
-  const getRequesterName = (prObj: any) => {
-    if (!prObj) return "Employee";
-    // API returns a flat requesterName field — use it directly first
-    if (prObj.requesterName && typeof prObj.requesterName === "string") return prObj.requesterName;
-    // Fallback: look for nested user objects
-    const possibleUserKeys = ["createdBy", "user", "requester", "creator", "owner"];
-    for (const key of possibleUserKeys) {
-      if (prObj[key] && typeof prObj[key] === "object") {
-        if (prObj[key].firstName || prObj[key].lastName) {
-          return `${prObj[key].firstName || ""} ${prObj[key].lastName || ""}`.trim();
-        }
-      }
-      if (prObj[key] && typeof prObj[key] === "string") return prObj[key];
-    }
-    return "Employee";
-  };
-  
-  if (pr) {
-    const anyPr = pr as any;
-    const inlineName = anyPr.department?.departmentName || anyPr.department?.name || anyPr.departmentName || (typeof anyPr.department === 'string' && anyPr.department !== pr.departmentId ? anyPr.department : null);
-    const resolvedName = inlineName || (pr.departmentId === user?.department?.departmentId || pr.departmentId === user?.departmentId ? user?.department?.departmentName || (user?.department as any)?.name : null);
-    if (resolvedName && !departments.some(d => d.value === pr.departmentId)) {
-      departments.push({ label: resolvedName, value: pr.departmentId });
-    }
-  }
+  const departmentOptions = pr
+    ? mergeDepartmentOption(departments, pr, user)
+    : departments;
 
-  const deptNameFallback = (() => {
-    if (!pr?.departmentId) return "—";
-    const anyPr = pr as any;
-    const inlineName = anyPr.department?.departmentName || anyPr.department?.name || anyPr.departmentName || (typeof anyPr.department === 'string' && anyPr.department !== pr.departmentId ? anyPr.department : null);
-    if (inlineName) return inlineName;
-
-    const found = departments.find(d => d.value === pr.departmentId);
-    if (found && found.label) return found.label;
-
-    if (pr.departmentId === user?.department?.departmentId || pr.departmentId === user?.departmentId) {
-      if (user?.department?.departmentName) return user.department.departmentName;
-      if ((user?.department as any)?.name) return (user?.department as any)?.name;
-    }
-
-    return pr.departmentId;
-  })();
+  const deptNameFallback = pr ? resolveDepartmentLabel(pr, departmentOptions, user) : "—";
 
   const vendors: Vendor[] = vendorData?.data || [];
   const currency = pr?.currency || "USD";
@@ -1233,7 +1264,7 @@ function PRDetailPage() {
   const isDraft     = pr?.status === "draft";
   const isSubmitted = pr?.status === "submitted";
   const isApproved  = pr?.status === "approved" || pr?.status === "partially_converted";
-  const isLocked    = !isDraft; // once submitted, editing is locked
+  const _isLocked    = !isDraft; // once submitted, editing is locked
 
   // ── Permission gates ──────────────────────────────────────────────────────
   const isOwnScope     = scope === "own";
@@ -1268,7 +1299,7 @@ function PRDetailPage() {
   // (the backend rejects self-approval, so the UI must not offer it either)
   const canApprove = !isOwnScope && !isOwnRequest && isSubmitted && hasApprovePermission &&
     (isTeamScope || (isCompanyScope && overrideUnlocked));
-  const canReject  = canApprove;
+  const _canReject  = canApprove;
 
   // Create PO: available on team/company scope regardless of override state
   const canCreatePO = !isOwnScope && isApproved && (
@@ -1288,19 +1319,18 @@ function PRDetailPage() {
       await updatePR.mutateAsync(payload);
       setModal(null);
       toast.success("Request details updated");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to update");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to update"));
     }
   };
 
   const handleAddItem = async (payload: LineItemPayload) => {
     try {
-      const { departmentId, accountingResolutionStatus, ...cleanPayload } = payload as any;
-      await addLineItem.mutateAsync({ lineItems: [cleanPayload as any] });
+      await addLineItem.mutateAsync({ lineItems: [cleanLineItemPayload(payload)] });
       setModal(null);
       toast.success("Item added");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to add item");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to add item"));
     }
   };
 
@@ -1310,8 +1340,8 @@ function PRDetailPage() {
       setEditingLineItem(null);
       setModal(null);
       toast.success("Item updated");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to update item");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to update item"));
     }
   };
 
@@ -1319,8 +1349,8 @@ function PRDetailPage() {
     try {
       await deleteLineItem.mutateAsync(lineItemId);
       toast.success("Item removed");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to delete item");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to delete item"));
     }
   };
 
@@ -1329,8 +1359,8 @@ function PRDetailPage() {
       await submitPR.mutateAsync();
       setModal(null);
       toast.success("Purchase request submitted for review!");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to submit");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to submit"));
     }
   };
 
@@ -1340,8 +1370,8 @@ function PRDetailPage() {
       setModal(null);
       toast.success("Purchase request withdrawn");
       router.push("/procurement/purchase-request");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to withdraw");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to withdraw"));
     }
   };
 
@@ -1350,8 +1380,8 @@ function PRDetailPage() {
       await approvePR.mutateAsync();
       setModal(null);
       toast.success("Purchase request approved!");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to approve");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to approve"));
     }
   };
 
@@ -1360,26 +1390,17 @@ function PRDetailPage() {
       await rejectPR.mutateAsync({ reason });
       setModal(null);
       toast.success("Purchase request rejected");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to reject");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to reject"));
     }
   };
 
-  const handleCreateSinglePO = async (vendorId: string) => {
+  const handleConvertToPOs = async (draftPurchaseOrders: DraftPurchaseOrder[]) => {
     try {
-      await convertToPO.mutateAsync({ vendorId, deliveryDate: pr?.neededByDate || new Date().toISOString().split("T")[0] });
-      toast.success("Purchase order created successfully!");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to create purchase order");
-    }
-  };
-
-  const handleCreateMultiplePO = async (groups: LineItemGroup[]) => {
-    try {
-      await createMultiplePO.mutateAsync({ groups });
+      await convertToPO.mutateAsync({ draftPurchaseOrders });
       toast.success("Purchase orders created successfully!");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to create purchase orders");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to create purchase orders"));
     }
   };
 
@@ -1408,11 +1429,11 @@ function PRDetailPage() {
       },
       {
         label: "Manager Approved",
-        person: (pr as any).approvedBy ? `${(pr as any).approvedBy.firstName} ${(pr as any).approvedBy.lastName}` : undefined,
+        person: pr.approvedBy ? `${pr.approvedBy.firstName} ${pr.approvedBy.lastName}` : undefined,
         badge: pr.status === "rejected" ? "Rejected" : isApprovedOrBeyond ? "Approved" : undefined,
         badgeColor: pr.status === "rejected" ? "text-red-500 bg-red-50" : "text-emerald-600 bg-emerald-50",
         status: (isApprovedOrBeyond ? "done" : isSubmittedOrBeyond ? "pending" : "inactive") as StepStatus,
-        timestamp: isApprovedOrBeyond ? formatTs((pr as any).approvedAt || pr.updatedAt) : undefined,
+        timestamp: isApprovedOrBeyond ? formatTs(pr.approvedAt || pr.updatedAt) : undefined,
       },
       {
         label: "PO Created",
@@ -1462,11 +1483,9 @@ function PRDetailPage() {
         <CreatePOView
           pr={pr}
           vendors={vendors}
-          onCreatePO={handleCreateSinglePO}
-          onCreateMultiplePO={handleCreateMultiplePO}
+          onConvertToPOs={handleConvertToPOs}
           onReject={() => setModal("reject")}
-          createPOLoading={convertToPO.isPending}
-          createMultiplePOLoading={createMultiplePO.isPending}
+          convertLoading={convertToPO.isPending}
           rejectLoading={rejectPR.isPending}
           departmentName={deptNameFallback}
         />
@@ -1542,7 +1561,7 @@ function PRDetailPage() {
             unitOfMeasure: editingLineItem.unitOfMeasure || "unit",
           } : undefined}
           loading={addLineItem.isPending || updateLineItemHook.isPending}
-          departments={departments}
+          departments={departmentOptions}
         />
       )}
       {modal === "edit_header" && (
@@ -1551,7 +1570,7 @@ function PRDetailPage() {
           onClose={() => setModal(null)}
           onSave={handleEditHeader}
           loading={updatePR.isPending}
-          departments={departments}
+          departments={departmentOptions}
         />
       )}
 
@@ -1561,7 +1580,7 @@ function PRDetailPage() {
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-xl font-bold text-foreground">{pr.requestNumber}</h1>
-              <StatusBadge status={pr.status} approvalStatus={(pr as any).approvalStatus} />
+              <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} />
             </div>
             <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>
             {pr.description && <p className="text-xs text-muted-foreground mt-0.5">{pr.description}</p>}
@@ -1800,35 +1819,34 @@ function PRDetailPage() {
               </svg>
             );
 
-            // Helper to get role name from any user-like object
-            const getRole = (u: any) => u?.companyRole?.name || u?.villetoRole?.name || u?.role?.name || "Employee";
-            
-            const approvedBy     = (pr as any).approvedBy;
-            const purchaseOrders = (pr as any).purchaseOrders || [];
-            const hasPO          = purchaseOrders.length > 0;
-            const po             = purchaseOrders[0];
+            const approvedBy = pr.approvedBy;
+            const purchaseOrders = pr.purchaseOrders || [];
+            const hasPO = purchaseOrders.length > 0;
+            const po = purchaseOrders[0];
 
-            // Resolve PO Creator Name & Role
             const poCreatorName = (() => {
-              if (po?.createdBy?.firstName) {
-                const name = `${po.createdBy.firstName} ${po.createdBy.lastName || ""}`.trim();
-                return `${getRole(po.createdBy)} (${name})`;
+              const createdBy = po?.createdBy;
+              if (isRecord(createdBy)) {
+                const firstName = getOptionalString(createdBy.firstName);
+                if (firstName) {
+                  const name = `${firstName} ${getOptionalString(createdBy.lastName) || ""}`.trim();
+                  return `${getRoleName(createdBy)} (${name})`;
+                }
               }
-              if (po?.createdBy && typeof po.createdBy === "string") return `Procurement (${po.createdBy})`;
-              
+              if (typeof createdBy === "string") return `Procurement (${createdBy})`;
+
               const name = user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "Procurement";
-              return `${getRole(user)} (${name})`;
+              return `${getRoleName(user)} (${name})`;
             })();
 
-            // Determine if the current user is the PO creator
-            const isPoCreatorSelf = !po?.createdBy?.firstName && !po?.createdBy;
+            const isPoCreatorSelf = !isRecord(po?.createdBy) && typeof po?.createdBy !== "string";
 
             // Determine the single "next" step that should show Pending
             const nextStepKey = !approvedBy
               ? "manager"
               : !hasPO
               ? "create_po"
-              : (pr as any).status !== "converted_to_po"
+              : pr.status !== "converted_to_po"
               ? "po_approval"
               : null;
 
@@ -1838,7 +1856,7 @@ function PRDetailPage() {
                 key: "submitted",
                 label: "Submitted by",
                 done: true,
-                personName: `${getRole(pr.creator || pr.employee || user)} (${getRequesterName(pr) || "Employee"})`,
+                personName: `${getRoleName(pr.creator || pr.employee || user)} (${getRequesterName(pr) || "Employee"})`,
                 badge: null,
                 timestamp: formatTs(pr.createdAt),
               },
@@ -1847,14 +1865,14 @@ function PRDetailPage() {
                 label: "Manager Approval",
                 done: !!approvedBy,
                 personName: approvedBy
-                  ? `${getRole(approvedBy)} (${`${approvedBy.firstName || ""} ${approvedBy.lastName || ""}`.trim()})`
-                  : `${getRole(user)} (${`${user?.firstName || ""} ${user?.lastName || ""}`.trim()}) (You)`,
+                  ? `${getRoleName(approvedBy)} (${`${approvedBy.firstName || ""} ${approvedBy.lastName || ""}`.trim()})`
+                  : `${getRoleName(user)} (${`${user?.firstName || ""} ${user?.lastName || ""}`.trim()}) (You)`,
                 badge: approvedBy
                   ? { text: "Approved", color: "bg-emerald-50 text-emerald-600" }
                   : nextStepKey === "manager"
                   ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
                   : null,
-                timestamp: approvedBy ? formatTs((pr as any).approvedAt || pr.updatedAt) : null,
+                timestamp: approvedBy ? formatTs(pr.approvedAt || pr.updatedAt) : null,
               },
               {
                 key: "create_po",
@@ -1871,9 +1889,9 @@ function PRDetailPage() {
               {
                 key: "po_approval",
                 label: "PO Approval",
-                done: (pr as any).status === "converted_to_po",
+                done: pr.status === "converted_to_po",
                 personName: null,
-                badge: (pr as any).status === "converted_to_po"
+                badge: pr.status === "converted_to_po"
                   ? { text: "Approved", color: "bg-emerald-50 text-emerald-600" }
                   : nextStepKey === "po_approval"
                   ? { text: "Pending", color: "bg-amber-50 text-amber-600" }

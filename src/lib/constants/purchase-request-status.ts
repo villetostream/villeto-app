@@ -58,7 +58,7 @@ export const PR_PRIORITY_CFG: Record<string, { label: string; className: string 
  */
 export function getPRDisplayStatus(
   status: string,
-  approvalStatus?: string | null
+  _approvalStatus?: string | null
 ): string {
   if (status === "submitted") {
     // Map to the unified "pending_approval" display key

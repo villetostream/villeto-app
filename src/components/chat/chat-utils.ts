@@ -1,5 +1,5 @@
 import { ChatMessage } from "@/stores/useChatStore";
-import { format, isToday, isYesterday, isSameDay } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 
 // ─── Date grouping ─────────────────────────────────────────────
 

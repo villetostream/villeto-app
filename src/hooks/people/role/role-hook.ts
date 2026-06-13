@@ -1,17 +1,17 @@
 "use client";
-import { useDeleteRoleApi } from "@/actions/role/delete-role";
-import { Role, useGetAllRolesApi } from "@/actions/role/get-all-roles";
+import { useDeleteRoleApi } from "@/queries/role/delete-role";
+import { Role, useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import { STATE_KEYS } from "@/lib/constants/state_key";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
 
 
-export const useRoleHook = (id?: string) => {
+export const useRoleHook = (_id?: string) => {
 
 
     const [selected, setSelected] = useState<Role | null>(null);
-    const [state, setState] = useState<String | null>(null);
+    const [state, setState] = useState<string | null>(null);
     const deleteRole = useDeleteRoleApi();
     const allRoles = useGetAllRolesApi()
 
@@ -111,7 +111,7 @@ export const useRoleHook = (id?: string) => {
     //     setChannelCentralState(null)
     //     // roleUsers.refetch()
     //     close();
-    //   } catch (error: any) {
+    //   } catch (error: unknown) {
     //     const errorMessage =
     //       error?.response?.data?.message ||
     //       error.message ||
@@ -127,7 +127,7 @@ export const useRoleHook = (id?: string) => {
 
             const payload = selected?.roleId ?? 0;
 
-            const response = await deleteRole.mutateAsync(payload.toString());
+            await deleteRole.mutateAsync(payload.toString());
 
 
 
@@ -138,7 +138,7 @@ export const useRoleHook = (id?: string) => {
             setSelected(null)
             setState(STATE_KEYS.SUCCESS)
 
-        } catch (error: any) {
+        } catch (_error: unknown) {
 
         }
     };

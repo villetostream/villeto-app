@@ -1,19 +1,17 @@
 "use client"
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Users, Plus, Edit, Trash2, Info, ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { Plus, Trash2, Info, ArrowRight } from "lucide-react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TabsContent } from "@radix-ui/react-tabs";
 import { AddBeneficialOwnerModal } from "@/components/onboarding/AddBeneficialOwner";
 import OnboardingTitle from "@/components/onboarding/_shared/OnboardingTitle";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
-import { LeaderShipPayload, useUpdateOnboardingLeadersApi } from "@/actions/onboarding/update-leadership";
+import { LeaderShipPayload, useUpdateOnboardingLeadersApi } from "@/queries/onboarding/update-leadership";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PencilEdit02FreeIcons, UserGroup03FreeIcons, UserGroup03Icon } from "@hugeicons/core-free-icons";
+import { PencilEdit02FreeIcons, UserGroup03FreeIcons } from "@hugeicons/core-free-icons";
 import { useHydrateOnboardingData } from "@/hooks/useHydrateOnboardingData";
 
 interface Person {
@@ -64,7 +62,7 @@ export function EmptyState({ imageSrc, imageAlt, message }: EmptyStateProps) {
     return (
         <div className="text-center space-y-10">
             <div className="flex justify-center">
-                <img src={imageSrc} alt={imageAlt} className="w-48 h-48" />
+                <Image src={imageSrc} alt={imageAlt} width={192} height={192} className="w-48 h-48" />
             </div>
             <p className="text-muted-foreground text-base tracking-[0%] leading-[100%]">{message}</p>
         </div>
@@ -75,7 +73,7 @@ interface OwnerCardProps {
     owner: {
         id: string;
         firstName: string;
-        lastName: String;
+        lastName: string;
         role: string;
         email: string;
         ownershipPercentage?: number;
@@ -222,7 +220,8 @@ export default function Leadership() {
     const { userProfiles, updateUserProfiles } = useOnboardingStore();
     useHydrateOnboardingData();
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedTab, setSelectedTab] = useState<"beneficial" | "officer">("beneficial");
+    const [_selectedTab, _setSelectedTab] = useState<"beneficial" | "officer">("beneficial");
+    const newPersonIdRef = useRef(0);
     const [editingPerson, setEditingPerson] = useState<{ id: string; type: "beneficial" | "officer" } | null>(null);
 
     // Filter only beneficial owners (though we might clear others if they exist from before)
@@ -244,7 +243,7 @@ export default function Leadership() {
             // Adding new person
             const newPerson = {
                 ...person,
-                id: Date.now().toString(),
+                id: `person-${++newPersonIdRef.current}`,
                 avatar: `${person.firstName.split(' ')[0] + person.lastName.split(' ')[0]}`,
             };
             const updatedProfiles = [...userProfiles, newPerson];
@@ -289,7 +288,7 @@ export default function Leadership() {
             const payload = transformDataForPayload();
 
             // Submit the data
-            const response = await updateOnboarding.mutateAsync(payload);
+            const _response = await updateOnboarding.mutateAsync(payload);
             toast.success("Leader details updated successfully!");
             router.push("/onboarding/financial");
         } catch (error) {

@@ -22,8 +22,8 @@ const CircleProgress: React.FC<CircularProgressStepsProps> = ({
     circleColor = '#DDDDDD',
     progressColor = '#00B8A9',
     textColor = '#00000',
-    stepColor = '#00000',
-    stepTextColor = '#00000',
+    stepColor: _stepColor = '#00000',
+    stepTextColor: _stepTextColor = '#00000',
 }) => {
     // Calculate progress percentage
     const progress = (currentStep / totalSteps) * 100;
@@ -32,7 +32,7 @@ const CircleProgress: React.FC<CircularProgressStepsProps> = ({
     const strokeDashoffset = circumference - (progress / 100) * circumference;
 
     // Calculate positions for step markers
-    const getStepPosition = (stepIndex: number) => {
+    const _getStepPosition = (stepIndex: number) => {
         const angle = (360 / totalSteps) * stepIndex - 90; // Start from top
         const rad = (angle * Math.PI) / 180;
         const x = radius + radius * Math.cos(rad);

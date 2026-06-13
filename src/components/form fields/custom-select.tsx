@@ -1,13 +1,13 @@
-import React, { JSX, useEffect, useState } from "react";
+import React, { JSX, useState } from "react";
 import Select, { ActionMeta, MultiValue, SingleValue } from "react-select"
-import { Controller, Control } from "react-hook-form";
+import { Control, Controller, FieldValues, ControllerRenderProps, Path } from "react-hook-form";
 
 interface ISelect {
   label: string;
   value: string | number | boolean;
 }
 
-interface CustomSelectProps {
+interface CustomSelectProps<T extends FieldValues = FieldValues> {
   fieldProp?: {
     required?: boolean;
     error?: string;
@@ -25,16 +25,16 @@ interface CustomSelectProps {
   };
   data: Array<ISelect>;
   label: string;
-  name?: string;
-  control?: Control<any>;
+  name?: Path<T>;
+  control?: Control<T>;
   value?: string | string[] | number | number[] | boolean | boolean[];
   onChange?: (
     value: string | string[] | number | number[] | boolean | boolean[] | null
   ) => void;
-  getId?: (value: any) => void;
+  getId?: (value: unknown) => void;
 }
 
-export const CustomSelect = ({
+export const CustomSelect = <T extends FieldValues = FieldValues>({
   fieldProp,
   selectProp,
   data,
@@ -42,18 +42,19 @@ export const CustomSelect = ({
   name,
   control,
   value,
-  getId,
+  getId: _getId,
   onChange,
-}: CustomSelectProps): JSX.Element => {
+}: CustomSelectProps<T>): JSX.Element => {
   // Local state for direct control mode (when not using react-hook-form)
   const [localValue, setLocalValue] = useState<
     string | number | boolean | string[] | number[] | boolean[] | null | undefined
   >(value);
 
-  useEffect(() => {
+  const [syncedValue, setSyncedValue] = useState(value);
+  if (value !== syncedValue) {
+    setSyncedValue(value);
     setLocalValue(value);
-    //console.log(value);
-  }, [value]);
+  }
 
   // Handle direct changes when not using react-hook-form
   const handleDirectChange = (
@@ -78,7 +79,7 @@ export const CustomSelect = ({
   const handleControllerChange = (
     newValue: MultiValue<ISelect> | SingleValue<ISelect>,
     _actionMeta: ActionMeta<ISelect>,
-    field: any
+    field: ControllerRenderProps<T, Path<T>>
   ) => {
     if (selectProp?.isMultiple) {
       field.onChange(
@@ -89,7 +90,7 @@ export const CustomSelect = ({
     }
   };
 
-  const renderSelect = (field?: any) => {
+  const renderSelect = (field?: ControllerRenderProps<T, Path<T>>) => {
     // Determine if we're using react-hook-form or direct control
     const isDirectControl = !field;
     const currentValue = isDirectControl ? localValue : field?.value;

@@ -11,7 +11,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Check, ImagePlus } from "lucide-react";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 // Define the raw form values (what the inputs give us, e.g. strings for numbers)
 const expenseDetailSchema = z.object({
@@ -59,12 +59,12 @@ export function ExpenseForm({
   const [receiptImage, setReceiptImage] = useState<string>(
     initialData?.receiptImage || ""
   );
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const [hasReceiptChanged, setHasReceiptChanged] = useState(false);
 
   const form = useForm<ExpenseDetailFormData>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(expenseDetailSchema as any),
+     
+    resolver: zodResolver(expenseDetailSchema),
     defaultValues: {
       name: initialData?.name || "",
       amount: initialData?.amount || 0,
@@ -74,18 +74,18 @@ export function ExpenseForm({
     },
   });
 
-  useEffect(() => {
-    if (initialData) {
-      form.reset({
-        name: initialData.name || "",
-        amount: initialData.amount || 0,
-        merchantName: initialData.merchantName || "",
-        category: initialData.category || "",
-        description: initialData.description || "",
-      });
-      setReceiptImage(initialData.receiptImage || "");
-    }
-  }, [initialData, form]);
+  const [syncedInitialData, setSyncedInitialData] = useState(initialData);
+  if (initialData && initialData !== syncedInitialData) {
+    setSyncedInitialData(initialData);
+    form.reset({
+      name: initialData.name || "",
+      amount: initialData.amount || 0,
+      merchantName: initialData.merchantName || "",
+      category: initialData.category || "",
+      description: initialData.description || "",
+    });
+    setReceiptImage(initialData.receiptImage || "");
+  }
 
   const categoryOptions = categories.map((cat) => ({
     label: cat.name,

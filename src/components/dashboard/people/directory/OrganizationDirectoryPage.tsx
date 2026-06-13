@@ -23,13 +23,14 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { useGetUninvitedUsersApi } from "@/actions/users/get-all-users";
+import { useGetUninvitedUsersApi } from "@/queries/users/get-all-users";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAxios } from "@/hooks/useAxios";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
+import { getApiErrorMessage, isRecord } from "@/lib/types/api-error";
 import {
   Table,
   TableBody,
@@ -47,7 +48,7 @@ interface DirectoryUser {
   jobTitle?: string | null;
   position?: string | null;
   status?: string | null;
-  manager?: any;
+  manager?: { firstName?: string; lastName?: string } | string | null;
   department?: { name?: string; departmentName?: string; departmentId?: string } | string | null;
   corporateCard?: boolean;
 }
@@ -55,8 +56,9 @@ interface DirectoryUser {
 function getDepartmentName(dept: DirectoryUser["department"]): string {
   if (!dept) return "—";
   if (typeof dept === "string") return dept || "—";
-  if (typeof dept === "object" && Object.keys(dept).length > 0) {
-    return (dept.departmentName || (dept as any).name) ?? "—";
+  if (isRecord(dept)) {
+    const name = dept.departmentName ?? dept.name;
+    if (typeof name === "string" && name) return name;
   }
   return "—";
 }
@@ -90,7 +92,10 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
   const [businessName, setBusinessName] = useState<string>("your company");
   const [isInviting, setIsInviting] = useState(false);
 
-  const users: DirectoryUser[] = usersApi?.data?.data ?? [];
+  const users = useMemo(
+    () => (usersApi?.data?.data ?? []) as DirectoryUser[],
+    [usersApi.data?.data],
+  );
   const isLoading = usersApi.isLoading;
 
   const [search, setSearch] = useState("");
@@ -100,6 +105,17 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
   // Corporate card toggle state (keyed by userId)
   const [corporateCardState, setCorporateCardState] = useState<Record<string, boolean>>({});
 
+  const usersKey = users.map((u) => u.userId).join(",");
+  const [syncedUsersKey, setSyncedUsersKey] = useState("");
+  if (users.length > 0 && usersKey !== syncedUsersKey) {
+    setSyncedUsersKey(usersKey);
+    const cardState: Record<string, boolean> = {};
+    users.forEach((u) => {
+      cardState[u.userId] = u.corporateCard ?? false;
+    });
+    setCorporateCardState(cardState);
+  }
+
   const uniqueDepartments = useMemo(() => {
     const depts = new Set<string>();
     users.forEach((u) => {
@@ -107,17 +123,6 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
       if (dept !== "—") depts.add(dept);
     });
     return Array.from(depts).sort();
-  }, [users]);
-
-  // Init corporate card state when users load (selection starts empty by design)
-  useEffect(() => {
-    if (users.length > 0) {
-      const cardState: Record<string, boolean> = {};
-      users.forEach((u) => {
-        cardState[u.userId] = u.corporateCard ?? false;
-      });
-      setCorporateCardState(cardState);
-    }
   }, [users]);
 
   useEffect(() => {
@@ -146,12 +151,11 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
       const email = u.email.toLowerCase();
       const dept = getDepartmentName(u.department).toLowerCase();
       const job = (u.position || u.jobTitle || "").toLowerCase();
-      const managerName =
-        u.manager
-          ? typeof u.manager === "string"
-            ? u.manager.toLowerCase()
-            : `${u.manager.firstName} ${u.manager.lastName}`.toLowerCase()
-          : "";
+      const managerName = u.manager
+        ? typeof u.manager === "object"
+          ? `${u.manager.firstName || ""} ${u.manager.lastName || ""}`.trim().toLowerCase()
+          : u.manager.toLowerCase()
+        : "";
       return (
         fullName.includes(searchLower) ||
         email.includes(searchLower) ||
@@ -177,8 +181,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
   // When filters change, reset to page 1
   useEffect(() => {
     paginationProps.setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, departmentFilter]);
+  }, [search, departmentFilter, paginationProps]);
 
   const pageSize = paginationProps.pageSize;
   const currentPage = paginationProps.page;
@@ -251,8 +254,8 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
       // Notify setup guide — ticks "invitations" step
       window.dispatchEvent(new CustomEvent("villeto:invitation-sent"));
       router.push("/people?tab=directory");
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to send invitations. Please try again.");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to send invitations. Please try again."));
     } finally {
       setIsInviting(false);
     }

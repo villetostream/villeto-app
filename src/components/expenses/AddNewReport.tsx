@@ -5,7 +5,6 @@ import { Button } from "../ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
@@ -68,7 +67,7 @@ const AddNewReport = ({
         sessionStorage.removeItem("pendingReportDate");
       }
     }
-  }, [isOpen]);
+  }, [isOpen, formHook]);
   const {
     handleSubmit,
     formState: { isSubmitting, isValid },

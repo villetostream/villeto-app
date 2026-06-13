@@ -1,7 +1,7 @@
 import React from 'react'
+import Image from 'next/image'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog'
 import { Button } from '../ui/button'
-import { X } from 'lucide-react'
 
 interface SuccessModalProps {
     isOpen: boolean
@@ -32,11 +32,13 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
             <DialogContent className="sm:max-w-md !rounded-[10px] !p-5">
                 <DialogTitle className="sr-only">{title}</DialogTitle>
                 <div className=" my-4 flex items-center justify-center">
-                    <img
-                        src={"/images/success.png"}
+                    <Image
+                        src="/images/success.png"
                         alt="success"
+                        width={320}
+                        height={144}
                         className="w-full h-auto max-h-36 object-contain animate-pulse"
-                        loading='eager'
+                        priority
                     />
                 </div>
                 <div className="flex flex-col items-center text-center">

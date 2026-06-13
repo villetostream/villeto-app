@@ -1,12 +1,12 @@
 "use client"
 
 import { useForm } from "react-hook-form";
-import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import AuthCard from "@/components/auth/AuthCard";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { LockKeyIcon } from "@hugeicons/core-free-icons";
@@ -41,7 +41,7 @@ const ForgotPassword = () => {
     return (
         <div className="min-h-screen bg-[#E6F8F6] flex flex-col">
             <div>
-                <img src="/images/logo.png" className='h-14 w-32 object-cover' alt="Logo" />
+                <Image src="/images/logo.png" width={128} height={56} className='h-14 w-32 object-cover' alt="Logo" />
             </div>
 
             <div className="flex-1 flex items-center justify-center p-6">

@@ -1,14 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { X, Edit2, ShieldCheck, CreditCard, Activity, Copy, Eye, EyeOff } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { X, Edit2, ShieldCheck, Copy, Eye, EyeOff } from "lucide-react"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AppUser } from "@/actions/departments/get-all-departments"
-import { useGetAUsersApi } from "@/actions/users/get-a-user"
-import { cn } from "@/lib/utils"
+import { AppUser } from "@/queries/departments/get-all-departments"
+import { useGetAUsersApi } from "@/queries/users/get-a-user"
 
 interface UserProfileModalProps {
     isOpen: boolean
@@ -158,7 +157,7 @@ function OverviewTab({ user }: { user?: AppUser }) {
     )
 }
 
-function ActivityTab({ user }: { user?: AppUser }) {
+function ActivityTab({ user: _user }: { user?: AppUser }) {
     return (
         <div className="space-y-8">
             <div className="space-y-6">
@@ -205,7 +204,7 @@ function ActivityTab({ user }: { user?: AppUser }) {
     )
 }
 
-function CardTab({ user }: { user?: AppUser }) {
+function CardTab({ user: _user }: { user?: AppUser }) {
     const [showNumbers, setShowNumbers] = useState(false)
     
     return (

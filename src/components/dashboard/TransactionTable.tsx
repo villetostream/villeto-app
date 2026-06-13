@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -84,6 +84,39 @@ const transactions = [
 type SortField = 'merchant' | 'date' | 'cardholder' | 'department' | 'location' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
+function SortableHeader({
+    field,
+    children,
+    sortField,
+    sortDirection,
+    onSort,
+}: {
+    field: SortField;
+    children: React.ReactNode;
+    sortField: SortField;
+    sortDirection: SortDirection;
+    onSort: (field: SortField) => void;
+}) {
+    return (
+        <TableHead
+            className={`cursor-pointer hover:bg-dashboard-hover select-none ${field === 'amount' ? 'text-right' : ''}`}
+            onClick={() => onSort(field)}
+        >
+            <div className="flex items-center gap-1">
+                {children}
+                <div className="flex flex-col">
+                    <ChevronUp
+                        className={`w-3 h-3 ${sortField === field && sortDirection === 'asc' ? 'text-dashboard-accent' : 'text-dashboard-text-secondary opacity-50'}`}
+                    />
+                    <ChevronDown
+                        className={`w-3 h-3 -mt-1 ${sortField === field && sortDirection === 'desc' ? 'text-dashboard-accent' : 'text-dashboard-text-secondary opacity-50'}`}
+                    />
+                </div>
+            </div>
+        </TableHead>
+    );
+}
+
 export function TransactionTable() {
     const [sortField, setSortField] = useState<SortField>('date');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -139,25 +172,6 @@ export function TransactionTable() {
         }
     });
 
-    const SortableHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
-        <TableHead
-            className={`cursor-pointer hover:bg-dashboard-hover select-none ${field === 'amount' ? 'text-right' : ''}`}
-            onClick={() => handleSort(field)}
-        >
-            <div className="flex items-center gap-1">
-                {children}
-                <div className="flex flex-col">
-                    <ChevronUp
-                        className={`w-3 h-3 ${sortField === field && sortDirection === 'asc' ? 'text-dashboard-accent' : 'text-dashboard-text-secondary opacity-50'}`}
-                    />
-                    <ChevronDown
-                        className={`w-3 h-3 -mt-1 ${sortField === field && sortDirection === 'desc' ? 'text-dashboard-accent' : 'text-dashboard-text-secondary opacity-50'}`}
-                    />
-                </div>
-            </div>
-        </TableHead>
-    );
-
     return (
         <div className="space-y-4">
             {/* Filters and Search */}
@@ -209,12 +223,12 @@ export function TransactionTable() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <SortableHeader field="merchant">Merchant</SortableHeader>
-                            <SortableHeader field="date">Date</SortableHeader>
-                            <SortableHeader field="cardholder">Cardholder</SortableHeader>
-                            <SortableHeader field="department">Department</SortableHeader>
-                            <SortableHeader field="location">Location</SortableHeader>
-                            <SortableHeader field="amount">Amount</SortableHeader>
+                            <SortableHeader field="merchant" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Merchant</SortableHeader>
+                            <SortableHeader field="date" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Date</SortableHeader>
+                            <SortableHeader field="cardholder" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Cardholder</SortableHeader>
+                            <SortableHeader field="department" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Department</SortableHeader>
+                            <SortableHeader field="location" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Location</SortableHeader>
+                            <SortableHeader field="amount" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Amount</SortableHeader>
                         </TableRow>
                     </TableHeader>
                     <TableBody>

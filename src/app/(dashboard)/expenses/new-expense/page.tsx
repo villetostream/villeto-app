@@ -18,7 +18,7 @@ function ExpenseFormContent() {
   return <ManualExpenseForm />
 }
 
-const page = () => {
+const Page = () => {
     return (
         <Suspense 
           fallback={
@@ -33,4 +33,4 @@ const page = () => {
     )
 }
 
-export default page
+export default Page

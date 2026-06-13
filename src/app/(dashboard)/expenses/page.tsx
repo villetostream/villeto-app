@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import NewExpenseHeaderAction from "@/components/expenses/NewExpenseHeaderAction";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
@@ -15,6 +16,16 @@ import { usePersonalExpenses, useCompanyExpenses, CompanyExpenseReport } from "@
 import { PersonalExpensesSkeleton } from "@/components/expenses/PersonalExpensesSkeleton";
 import { getCompanyColumns } from "@/components/expenses/table/companyColumns";
 import { useAuthStore } from "@/stores/auth-stores";
+import type { ColumnDef } from "@tanstack/react-table";
+
+type ExpenseTableRow = Record<string, unknown> & {
+  status?: string;
+  reportId?: string;
+  reportName?: string;
+  date?: string;
+  category?: string;
+  amount?: number | string;
+};
 
 export default function Reimbursements() {
   const searchParams = useSearchParams();
@@ -33,42 +44,44 @@ export default function Reimbursements() {
     { key: "personal-expenses", label: "My Expenses" },
   ], [hasCompanyScope, hasTeamScope]);
 
-  const defaultOuterTab = outerTabs[0].key;
+  const _defaultOuterTab = outerTabs[0]?.key ?? "personal-expenses";
 
-  // Initialise from URL only — never from a pre-auth snapshot
-  const [outerTab, setOuterTab] = useState<string>(() => {
-    const tabFromUrl = searchParams.get("tab");
-    return tabFromUrl ?? "personal-expenses"; // placeholder; corrected below
-  });
+  const tabFromUrl = searchParams.get("tab");
+  const outerTab = useMemo(() => {
+    if (!authReady) {
+      return tabFromUrl ?? "personal-expenses";
+    }
+    if (tabFromUrl && outerTabs.some(t => t.key === tabFromUrl)) {
+      return tabFromUrl;
+    }
+    return outerTabs[0]?.key ?? "personal-expenses";
+  }, [authReady, tabFromUrl, outerTabs]);
 
-  // Once auth is ready, correct the active tab if it no longer exists for
-  // this user (fixes the race where tab was set before permissions loaded).
   useEffect(() => {
     if (!authReady) return;
-    const valid = outerTabs.some(t => t.key === outerTab);
-    if (!valid) setOuterTab(outerTabs[0].key);
-  }, [authReady, outerTabs]);
-
-  // Keep URL in sync when searchParams.tab changes externally (e.g. back/forward)
-  useEffect(() => {
-    const tabFromUrl = searchParams.get("tab");
-    if (tabFromUrl && outerTabs.some(t => t.key === tabFromUrl)) {
-      setOuterTab(tabFromUrl);
+    const valid = !tabFromUrl || outerTabs.some(t => t.key === tabFromUrl);
+    if (!valid && outerTabs[0]) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", outerTabs[0].key);
+      router.replace(`/expenses?${params.toString()}`, { scroll: false });
     }
-  }, [searchParams, outerTabs]);
+  }, [authReady, tabFromUrl, outerTabs, searchParams, router]);
 
   // ── Separate status-filter state per scope tab ───────────────────────────
   const [companyActiveTab, setCompanyActiveTab] = useState("all");
   const [teamActiveTab,    setTeamActiveTab]    = useState("all");
   const [personalActiveTab, setPersonalActiveTab] = useState("all");
+  
+  const noopFilterChange = useCallback((_d: unknown) => {}, []);
 
   // ── Pagination ────────────────────────────────────────────────────────────
   const pageParam = searchParams.get("page");
-  const initialPage =
-    pageParam && /^\d+$/.test(pageParam)
-      ? Math.max(1, parseInt(pageParam, 10))
-      : 1;
-  const [page, setPage] = useState(initialPage);
+  const page = useMemo(() => {
+    if (pageParam && /^\d+$/.test(pageParam)) {
+      return Math.max(1, parseInt(pageParam, 10));
+    }
+    return 1;
+  }, [pageParam]);
   const [limit] = useState(100);
 
   // Persist current tab + page for back-navigation
@@ -78,17 +91,7 @@ export default function Reimbursements() {
     sessionStorage.setItem("expensesReturnPage", String(page));
   }, [outerTab, page]);
 
-  // Sync page from URL
-  useEffect(() => {
-    const p = searchParams.get("page");
-    if (p && /^\d+$/.test(p)) {
-      const num = parseInt(p, 10);
-      if (num >= 1 && num !== page) setPage(num);
-    }
-  }, [searchParams]);
-
   const handleTabChange = (value: string) => {
-    setOuterTab(value);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", value);
     if (value === "personal-expenses" && page > 1) {
@@ -100,9 +103,15 @@ export default function Reimbursements() {
   };
 
   // ── Data ──────────────────────────────────────────────────────────────────
-  const [personalExpenses, setPersonalExpenses] = useState<PersonalExpenseRow[]>([]);
-  const [companyExpenses,  setCompanyExpenses]  = useState<CompanyExpenseReport[]>([]);
-  const [teamExpenses,     setTeamExpenses]     = useState<CompanyExpenseReport[]>([]);
+  const formatDate = (dateString: string): string => {
+    try {
+      return new Date(dateString).toLocaleDateString("en-US", {
+        year: "numeric", month: "short", day: "numeric",
+      });
+    } catch {
+      return dateString;
+    }
+  };
 
   const { data: personalExpensesData, isLoading: isLoadingPersonalExpenses } =
     usePersonalExpenses(page, limit);
@@ -116,50 +125,34 @@ export default function Reimbursements() {
   const isLoadingCompany = isLoadingCompanyExpenses && hasCompanyScope;
   const isLoadingTeam    = isLoadingTeamExpenses    && hasTeamScope;
 
-  const formatDate = (dateString: string): string => {
-    try {
-      return new Date(dateString).toLocaleDateString("en-US", {
-        year: "numeric", month: "short", day: "numeric",
-      });
-    } catch {
-      return dateString;
-    }
-  };
-
-  useEffect(() => {
-    if (!personalExpensesData?.reports) return;
+  const personalExpenses = useMemo<PersonalExpenseRow[]>(() => {
+    if (!personalExpensesData?.reports) return [];
     const sorted = [...personalExpensesData.reports].sort((a, b) =>
       Math.max(new Date(b.createdAt).getTime(), new Date(b.updatedAt).getTime()) -
       Math.max(new Date(a.createdAt).getTime(), new Date(a.updatedAt).getTime()),
     );
-    setPersonalExpenses(
-      sorted.map(r => ({
-        date: formatDate(r.createdAt),
-        reportName: r.reportTitle,
-        category: r.costCenter?.trim() || "Uncategorized",
-        amount: r.totalAmount,
-        status: r.status,
-        reportId: r.reportId,
-      })),
-    );
+    return sorted.map(r => ({
+      date: formatDate(r.createdAt),
+      reportName: r.reportTitle,
+      category: r.costCenter?.trim() || "Uncategorized",
+      amount: r.totalAmount,
+      status: r.status,
+      reportId: r.reportId,
+    }));
   }, [personalExpensesData]);
 
-  useEffect(() => {
-    if (!companyExpensesData?.reports) return;
-    setCompanyExpenses(
-      [...companyExpensesData.reports].sort((a, b) =>
-        Math.max(new Date(b.createdAt).getTime(), new Date(b.updatedAt).getTime()) -
-        Math.max(new Date(a.createdAt).getTime(), new Date(a.updatedAt).getTime()),
-      ),
+  const companyExpenses = useMemo<CompanyExpenseReport[]>(() => {
+    if (!companyExpensesData?.reports) return [];
+    return [...companyExpensesData.reports].sort((a, b) =>
+      Math.max(new Date(b.createdAt).getTime(), new Date(b.updatedAt).getTime()) -
+      Math.max(new Date(a.createdAt).getTime(), new Date(a.updatedAt).getTime()),
     );
   }, [companyExpensesData]);
 
-  useEffect(() => {
-    if (!teamExpensesData?.reports) return;
-    setTeamExpenses(
-      [...teamExpensesData.reports].sort((a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      ),
+  const teamExpenses = useMemo<CompanyExpenseReport[]>(() => {
+    if (!teamExpensesData?.reports) return [];
+    return [...teamExpensesData.reports].sort((a, b) =>
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );
   }, [teamExpensesData]);
 
@@ -206,7 +199,7 @@ export default function Reimbursements() {
     data: CompanyExpenseReport[];
     isLoading: boolean;
     isLoadingExpenses: boolean;
-    onFilterChange: (d: any) => void;
+    onFilterChange: (d: unknown) => void;
     scope: "team" | "company";
     activeTab: string;
     setActiveTab: (v: string) => void;
@@ -216,16 +209,16 @@ export default function Reimbursements() {
       <div className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
           <StatsCard isLoading={isLoadingExpenses} title="Total Expenses" value={localStats.totalExpenses.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full"><img src="/images/svgs/draft.svg" alt="draft icon" /></div>}
+            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full"><Image src="/images/svgs/draft.svg" alt="draft icon" width={20} height={20} /></div>}
             subtitle={<span className="text-xs leading-[125%]">All expenses submitted</span>} />
           <StatsCard isLoading={isLoadingExpenses} title="Pending Approvals" value={localStats.pendingApprovals.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#F45B69] rounded-full text-white"><img src="/images/receipt-pending.png" alt="pending icon" /></div>}
+            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#F45B69] rounded-full text-white"><Image src="/images/receipt-pending.png" alt="pending icon" width={20} height={20} /></div>}
             subtitle={<span className="text-xs leading-[125%]">Awaiting review.</span>} />
           <StatsCard isLoading={isLoadingExpenses} title="Approved Expenses" value={localStats.approvedExpenses.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#5A67D8] rounded-full"><img src="/images/svgs/submitted.svg" alt="submitted icon" /></div>}
+            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#5A67D8] rounded-full"><Image src="/images/svgs/submitted.svg" alt="submitted icon" width={20} height={20} /></div>}
             subtitle={<span className="text-xs leading-[125%]">Ready for payment</span>} />
           <StatsCard isLoading={isLoadingExpenses} title="Paid" value={localStats.paidExpenses.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white"><img src="/images/svgs/money.svg" alt="money icon" /></div>}
+            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white"><Image src="/images/svgs/money.svg" alt="money icon" width={20} height={20} /></div>}
             subtitle={<span className="text-xs leading-[125%]">Completed transactions</span>} />
         </div>
         {!authReady || isLoading ? (
@@ -250,8 +243,8 @@ export default function Reimbursements() {
                 <ExpenseTable
                   actionButton={<></>}
                   statusFilter={t.filter}
-                  data={data as any}
-                  columnsOverride={getCompanyColumns(scope) as any}
+                  data={data as unknown as ExpenseTableRow[]}
+                  columnsOverride={getCompanyColumns(scope) as ColumnDef<ExpenseTableRow>[]}
                   onFilteredDataChange={onFilterChange}
                   scope={scope}
                 />
@@ -267,16 +260,16 @@ export default function Reimbursements() {
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Draft" value={personalStats.draft.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full"><img src="/images/svgs/draft.svg" alt="draft icon" /></div>}
+          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full"><Image src="/images/svgs/draft.svg" alt="draft icon" width={20} height={20} /></div>}
           subtitle={<span className="text-xs leading-[125%]">Manage your saved items</span>} />
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Approved" value={personalStats.approved.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#418341] rounded-full text-white"><img src="/images/svgs/check.svg" alt="check icon" /></div>}
+          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#418341] rounded-full text-white"><Image src="/images/svgs/check.svg" alt="check icon" width={20} height={20} /></div>}
           subtitle={<span className="text-xs leading-[125%]">View all items reviewed.</span>} />
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Rejected" value={personalStats.rejected.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#F45B69] rounded-full text-white"><img src="/images/receipt-pending.png" alt="pending icon" /></div>}
+          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#F45B69] rounded-full text-white"><Image src="/images/receipt-pending.png" alt="pending icon" width={20} height={20} /></div>}
           subtitle={<span className="text-xs leading-[125%]">View all items Rejected.</span>} />
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Paid" value={personalStats.paid.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white"><img src="/images/svgs/money.svg" alt="money icon" /></div>}
+          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white"><Image src="/images/svgs/money.svg" alt="money icon" width={20} height={20} /></div>}
           subtitle={<span className="text-xs leading-[125%]">Access completed payments.</span>} />
       </div>
       {!authReady || isLoadingPersonalExpenses ? (
@@ -300,8 +293,8 @@ export default function Reimbursements() {
             <TabsContent key={t.key} value={t.key}>
               <ExpenseTable
                 statusFilter={t.filter}
-                data={personalExpenses as any}
-                columnsOverride={personalExpenseColumns as any}
+                data={personalExpenses as ExpenseTableRow[]}
+                columnsOverride={personalExpenseColumns as ColumnDef<ExpenseTableRow>[]}
                 page={page}
               />
             </TabsContent>
@@ -342,7 +335,7 @@ export default function Reimbursements() {
                 data: companyExpenses,
                 isLoading: isLoadingCompany,
                 isLoadingExpenses: isLoadingCompanyExpenses,
-                onFilterChange: () => {},
+                onFilterChange: noopFilterChange,
                 scope: "company",
                 activeTab: companyActiveTab,
                 setActiveTab: setCompanyActiveTab,
@@ -356,7 +349,7 @@ export default function Reimbursements() {
                 data: teamExpenses,
                 isLoading: isLoadingTeam,
                 isLoadingExpenses: isLoadingTeamExpenses,
-                onFilterChange: () => {},
+                onFilterChange: noopFilterChange,
                 scope: "team",
                 activeTab: teamActiveTab,
                 setActiveTab: setTeamActiveTab,

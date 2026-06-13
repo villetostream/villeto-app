@@ -1,5 +1,5 @@
 
-import { Department } from "@/actions/departments/get-all-departments";
+import { Department } from "@/queries/departments/get-all-departments";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -11,11 +11,10 @@ import { MoreHorizontal, Eye, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import { logger } from "@/lib/logger";
-import Link from 'next/link';
 
 const columnHelper = createColumnHelper<Department>();
 
-export const columns: ColumnDef<Department, any>[] = [
+export const columns = [
     columnHelper.display({
         id: "idNo",
         header: "S/N",
@@ -44,7 +43,8 @@ export const columns: ColumnDef<Department, any>[] = [
     columnHelper.accessor("createdAt", {
         header: "ADDED",
         cell: (info) => {
-            const date = info.getValue() ? new Date(info.getValue()) : null;
+            const raw = info.getValue();
+            const date = raw ? new Date(raw) : null;
             const formattedDate = date ? date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "-";
             return <p className="">{formattedDate}</p>;
         },
@@ -63,7 +63,7 @@ export const columns: ColumnDef<Department, any>[] = [
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl border-none shadow-lg">
-                            <PermissionGuard requiredPermissions={["read:departments"]}>
+                            <PermissionGuard resource="department" action="read">
                                 <DropdownMenuItem 
                                     className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#F0FDF4] text-[#475467]"
                                     onClick={() => logger.log("View department:", data.row.original.departmentId)}
@@ -75,7 +75,7 @@ export const columns: ColumnDef<Department, any>[] = [
                             
                             <div className="h-[1px] bg-[#F2F4F7] my-1 mx-2" />
                             
-                            <PermissionGuard requiredPermissions={["update:departments"]}>
+                            <PermissionGuard resource="department" action="manage">
                                 <DropdownMenuItem 
                                     className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
                                     onClick={() => logger.log("Deactivate department:", data.row.original.departmentId)}
@@ -90,4 +90,4 @@ export const columns: ColumnDef<Department, any>[] = [
             );
         },
     }),
-];
+] as ColumnDef<Department>[];

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import { Bell, CheckCheck, Loader2, X, ExternalLink, ArrowRight } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useRouter } from "next/navigation";
@@ -33,16 +34,30 @@ function apiUrl(path: string) {
   return `${BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
-function normalise(raw: Record<string, any>): NotificationItem {
+import { isRecord } from "@/lib/types/api-error";
+
+function getString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function getOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function getBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function normalise(raw: Record<string, unknown>): NotificationItem {
   return {
-    id: raw.notificationId ?? raw.id ?? String(Math.random()),
-    title: raw.title ?? raw.message ?? "New notification",
-    message: raw.message ?? raw.title,
-    type: raw.type,
-    actionText: raw.actionText ?? raw.action_text,
-    actionUrl: raw.actionUrl ?? raw.action_url,
-    isRead: raw.isRead ?? raw.is_read ?? raw.read ?? false,
-    createdAt: raw.createdAt ?? raw.created_at ?? new Date().toISOString(),
+    id: getString(raw.notificationId) || getString(raw.id) || String(Math.random()),
+    title: getString(raw.title) || getString(raw.message) || "New notification",
+    message: getString(raw.message) || getString(raw.title),
+    type: getOptionalString(raw.type),
+    actionText: getOptionalString(raw.actionText) || getOptionalString(raw.action_text),
+    actionUrl: getOptionalString(raw.actionUrl) || getOptionalString(raw.action_url),
+    isRead: getBoolean(raw.isRead) || getBoolean(raw.is_read) || getBoolean(raw.read),
+    createdAt: getString(raw.createdAt) || getString(raw.created_at) || new Date().toISOString(),
   };
 }
 
@@ -160,7 +175,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
 
   // ── Only show the 3 most recent ─────────────────────────────────────────────
   const preview = notifications.slice(0, 3);
-  const hasMore = notifications.length > 3;
+  const _hasMore = notifications.length > 3;
   // ── Computed ────────────────────────────────────────────────────────────────
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -187,7 +202,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      const list: Record<string, any>[] = Array.isArray(json)
+      const list: Record<string, unknown>[] = Array.isArray(json)
         ? json
         : Array.isArray(json?.data)
         ? json.data
@@ -222,7 +237,10 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
   }, [authHeaders, accessToken]);
 
   useEffect(() => {
-    fetchAll();
+    const timeoutId = window.setTimeout(() => {
+      fetchAll();
+    }, 0);
+    return () => clearTimeout(timeoutId);
   }, [fetchAll]);
 
   // ── SSE for real-time push ─────────────────────────────────────────────────
@@ -294,8 +312,8 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
             }
           }
         }
-      } catch (err: any) {
-        if (err?.name !== "AbortError") console.error("[Notification] SSE error:", err);
+      } catch (err: unknown) {
+        if (isRecord(err) && err.name !== "AbortError") console.error("[Notification] SSE error:", err);
       }
     })();
 
@@ -405,7 +423,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
               <Bell className="w-7 h-7 text-gray-300" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium text-gray-600">You're all caught up!</p>
+              <p className="text-sm font-medium text-gray-600">You&apos;re all caught up!</p>
               <p className="text-xs text-gray-400 mt-0.5">No notifications yet.</p>
             </div>
           </div>
@@ -430,9 +448,11 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
                     "w-9 h-9 rounded-xl flex items-center justify-center border shadow-sm",
                     n.isRead ? "bg-white border-gray-100" : "bg-white border-teal-100",
                   ].join(" ")}>
-                    <img
+                    <Image
                       src="/images/villeto-logo-v.png"
                       alt="Villeto"
+                      width={20}
+                      height={20}
                       className="w-5 h-5 object-contain"
                     />
                   </div>

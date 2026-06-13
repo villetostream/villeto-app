@@ -100,7 +100,6 @@ export function ExpenseDetailCard({
       </div>
 
       {/* Action Buttons - Show only when status is pending AND user is authorized */}
-      {/** @ts-ignore */}
       {(expense.status === "pending" || expense.status === "draft") && (
         <div className="flex gap-3 pt-4">
           {canApprove && (

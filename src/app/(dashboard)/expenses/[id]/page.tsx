@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ExpenseDetailCard } from "@/components/expenses/ExpenseDetailCard";
 import { ReceiptPreview } from "@/components/expenses/ReceiptPreview";
 import { NoReceiptUploaded } from "@/components/expenses/NoReceiptUploaded";
@@ -12,25 +12,29 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { logger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/auth-stores";
+import { reimbursements } from "@/lib/mock-data";
 
 const Page = () => {
   const { can } = useAuthStore();
   const params = useParams();
   const expenseId = Number(params.id);
   const [currentStatus, setCurrentStatus] = useState<
-    "approved" | "rejected" | "pending"
-  >();
+    "approved" | "rejected" | "pending" | undefined
+  >(() => {
+    if (typeof window === "undefined") return undefined;
+    const savedStatus = localStorage.getItem(`expense-status-${expenseId}`);
+    if (
+      savedStatus === "approved" ||
+      savedStatus === "rejected" ||
+      savedStatus === "pending"
+    ) {
+      return savedStatus;
+    }
+    return undefined;
+  });
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [rejectionOpen, setRejectionOpen] = useState(false);
   const [flagOpen, setFlagOpen] = useState(false);
-
-  // Load status from localStorage on mount
-  useEffect(() => {
-    const savedStatus = localStorage.getItem(`expense-status-${expenseId}`);
-    if (savedStatus) {
-      setCurrentStatus(savedStatus as "approved" | "rejected" | "pending");
-    }
-  }, [expenseId]);
 
   // Find the expense by ID
   const expenseData = reimbursements.find((r) => r.id === expenseId);
@@ -99,8 +103,8 @@ const Page = () => {
   // Authorization: does this user have approval rights?
   // Workflow state: is the expense in a reviewable status?
   const isAuthorizedToApprove = can('expense.report', 'approve_department');
-  const canApprove = isAuthorizedToApprove && statusToDisplay === 'pending';
-  const canReject = can('expense.report', 'reject_department') && statusToDisplay === 'pending';
+  const _canApprove = isAuthorizedToApprove && statusToDisplay === 'pending';
+  const _canReject = can('expense.report', 'reject_department') && statusToDisplay === 'pending';
 
   const handleApprove = (note: string) => {
     setCurrentStatus("approved");

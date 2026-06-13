@@ -1,8 +1,9 @@
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AppUser } from "@/actions/departments/get-all-departments";
+import { AppUser } from "@/queries/departments/get-all-departments";
 import { logger } from "@/lib/logger";
+import { isRecord } from "@/lib/types/api-error";
 
 import {
     DropdownMenu,
@@ -14,11 +15,12 @@ import { Eye, Lock, MoreHorizontal, UserCheck } from "lucide-react";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 
 
-function getDepartmentName(dept: any): string {
+function getDepartmentName(dept: unknown): string {
   if (!dept) return "—";
   if (typeof dept === "string") return dept || "—";
-  if (typeof dept === "object" && Object.keys(dept).length > 0) {
-    return (dept.departmentName || dept.name) ?? "—";
+  if (isRecord(dept)) {
+    const name = dept.departmentName ?? dept.name;
+    if (typeof name === "string" && name) return name;
   }
   return "—";
 }
@@ -34,7 +36,7 @@ function formatName(value: string | null | undefined): string {
 
 const columnHelper = createColumnHelper<AppUser>();
 
-export const columns = (onViewProfile: (userId: string) => void): ColumnDef<AppUser, any>[] => [
+export const columns = (onViewProfile: (userId: string) => void) => [
     columnHelper.display({
         id: "idNo",
         header: "S/N",
@@ -79,7 +81,7 @@ export const columns = (onViewProfile: (userId: string) => void): ColumnDef<AppU
     columnHelper.accessor("department", {
         header: "DEPARTMENT",
         cell: (info) => {
-            const dept = info.getValue() as any;
+            const dept = info.getValue() as unknown;
             const deptName = getDepartmentName(dept);
             return <p className="capitalize">{deptName}</p>;
         },
@@ -88,11 +90,11 @@ export const columns = (onViewProfile: (userId: string) => void): ColumnDef<AppU
         id: "manager",
         header: "MANAGER",
         cell: (info) => {
-            const manager = (info.row.original as any).manager;
+            const manager = info.row.original.manager;
             let managerName = "—";
-            if (manager && typeof manager === "object") {
-                const first = formatName(manager.firstName);
-                const last = formatName(manager.lastName);
+            if (manager && isRecord(manager)) {
+                const first = formatName(typeof manager.firstName === "string" ? manager.firstName : null);
+                const last = formatName(typeof manager.lastName === "string" ? manager.lastName : null);
                 managerName = `${first} ${last}`.trim() || "—";
             } else if (typeof manager === "string" && manager) {
                 managerName = formatName(manager);
@@ -119,7 +121,7 @@ export const columns = (onViewProfile: (userId: string) => void): ColumnDef<AppU
         header: "ACTION",
         enableHiding: false,
         cell: (data) => {
-            const status = (data.row.original as any).status as string;
+            const status = data.row.original.status;
             const isActive = status?.toLowerCase() === "active";
             
             return (
@@ -131,7 +133,7 @@ export const columns = (onViewProfile: (userId: string) => void): ColumnDef<AppU
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl border-none shadow-lg">
-                            <PermissionGuard requiredPermissions={["read:users"]}>
+                            <PermissionGuard resource="user" action="read">
                                 <DropdownMenuItem 
                                     className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#F0FDF4] text-[#475467]"
                                     onClick={() => onViewProfile(data.row.original.userId)}
@@ -144,7 +146,7 @@ export const columns = (onViewProfile: (userId: string) => void): ColumnDef<AppU
                             <div className="h-[1px] bg-[#F2F4F7] my-1 mx-2" />
                             
                             {isActive ? (
-                                <PermissionGuard requiredPermissions={["update:users"]}>
+                                <PermissionGuard resource="user" action="manage">
                                     <DropdownMenuItem 
                                         className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
                                         onClick={() => logger.log("Deactivate user:", data.row.original.userId)}
@@ -154,7 +156,7 @@ export const columns = (onViewProfile: (userId: string) => void): ColumnDef<AppU
                                     </DropdownMenuItem>
                                 </PermissionGuard>
                             ) : (
-                                <PermissionGuard requiredPermissions={["update:users"]}>
+                                <PermissionGuard resource="user" action="manage">
                                     <DropdownMenuItem 
                                         className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#F0FDF4] text-[#0FA68E]"
                                         onClick={() => logger.log("Activate user:", data.row.original.userId)}
@@ -170,4 +172,4 @@ export const columns = (onViewProfile: (userId: string) => void): ColumnDef<AppU
             );
         },
     }),
-];
+] as ColumnDef<AppUser>[];

@@ -1,7 +1,4 @@
-import { useAxios } from "@/hooks/useAxios";
-import { API_KEYS } from "@/lib/constants/apis";
-import { useOnboardingStore, UserProfile } from "@/stores/useVilletoStore";
-import { toast } from "sonner";
+import { UserProfile } from "@/stores/useVilletoStore";
 
 /**
  * Shared hook that sends admin invitations to beneficial owners at Step 6.
@@ -14,10 +11,8 @@ import { toast } from "sonner";
  * the user can retry from the People section.
  */
 export function useInviteBeneficialOwners() {
-  const axios = useAxios();
-
   const inviteBeneficialOwners = async (
-    beneficialOwners: UserProfile[]
+    _beneficialOwners: UserProfile[]
   ): Promise<void> => {
     // TODO: Re-enable once the /roles?type=villeto endpoint is authorised
     // for the onboarding context.  The call currently returns 401 because
@@ -27,10 +22,10 @@ export function useInviteBeneficialOwners() {
     //
     // try {
     //   const rolesRes = await axios.get(API_KEYS.ROLE.ROLES_VILLETO);
-    //   const roles: any[] = rolesRes?.data?.data ?? [];
+    //   const roles: unknown[] = rolesRes?.data?.data ?? [];
     //
     //   const ownerRole = roles.find(
-    //     (r: any) =>
+    //     (r: unknown) =>
     //       r.name?.toUpperCase().includes("ORGANIZATION_OWNER") ||
     //       r.name?.toUpperCase().includes("OWNER")
     //   );
@@ -54,7 +49,7 @@ export function useInviteBeneficialOwners() {
     //   }));
     //
     //   await axios.post(API_KEYS.COMPANY.ADMIN_INVITES, { admins });
-    // } catch (error: any) {
+    // } catch (error: unknown) {
     //   toast.error(
     //     error?.response?.data?.message ??
     //       "Failed to send beneficial owner invitations. " +
