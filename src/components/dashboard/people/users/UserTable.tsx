@@ -2,17 +2,22 @@ import React from 'react'
 import { DataTable } from '@/components/datatable';
 import { columns } from './column';
 import { useDataTable } from '@/components/datatable/useDataTable';
-import { useGetAllRolesApi } from '@/actions/role/get-all-roles';
-import { useGetAllUsersApi } from '@/actions/users/get-all-users';
-import { useGetAllDepartmentsApi, AppUser } from '@/actions/departments/get-all-departments';
+import { useGetAllRolesApi } from '@/queries/role/get-all-roles';
+import { useGetAllUsersApi } from '@/queries/users/get-all-users';
+import { useGetAllDepartmentsApi, AppUser } from '@/queries/departments/get-all-departments';
 import { logger } from '@/lib/logger';
+import {
+    formatDepartmentOptionLabel,
+    formatRoleOptionLabel,
+    getDepartmentOptionValue,
+} from '../user-table-utils';
 
 const UsersTable = () => {
     const usersApi = useGetAllUsersApi();
     const depts = useGetAllDepartmentsApi();
     const roles = useGetAllRolesApi();
 
-    const tableprops = tableData(usersApi?.data?.data ?? []);
+    const tableprops = useTableData(usersApi?.data?.data ?? []);
 
     return (
         <DataTable
@@ -48,18 +53,18 @@ const UsersTable = () => {
                             name: "departmentId",
                             label: "Department",
                             type: "select",
-                            options: depts?.data?.data?.map((d: any) => ({
-                                label: d.name,
-                                value: d.id,
+                            options: depts?.data?.data?.map((d) => ({
+                                label: formatDepartmentOptionLabel(d),
+                                value: getDepartmentOptionValue(d),
                             })) || [],
                         },
                         {
                             name: "roleId",
                             label: "Role",
                             type: "select",
-                            options: roles?.data?.data?.map((r: any) => ({
-                                label: r.name ? r.name.split('_').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ') : 'Unknown',
-                                value: r.id,
+                            options: roles?.data?.data?.map((r) => ({
+                                label: formatRoleOptionLabel(r),
+                                value: r.roleId,
                             })) || [],
                         },
                     ],
@@ -75,7 +80,7 @@ const UsersTable = () => {
 
 export default UsersTable
 
-export const tableData = (data: AppUser[]) => {
+export const useTableData = (data: AppUser[]) => {
     return useDataTable({
         initialPage: 1,
         initialPageSize: 10,

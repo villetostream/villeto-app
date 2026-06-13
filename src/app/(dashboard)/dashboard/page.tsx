@@ -20,7 +20,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ maxHeight: "100%" }}>
-      <PermissionGuard requiredPermissions={[]}>
+      <PermissionGuard>
         <div className="space-y-5">
           {/* Apply Banner */}
           <Card className="bg-gradient-to-r from-primary/20 to-primary/10 border-primary/50 !p-0">

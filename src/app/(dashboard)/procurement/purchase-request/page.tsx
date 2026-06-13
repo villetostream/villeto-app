@@ -7,9 +7,9 @@ import {
   Search, Eye, Download, ChevronDown, Loader2, RefreshCw,
   Plus, Check, ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { useGetPurchaseRequests } from "@/actions/procurement/purchase-requests";
-import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
-import type { PRStatus, PRPriority, PurchaseRequest } from "@/actions/procurement/purchase-requests";
+import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
+import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
+import type { PurchaseRequest } from "@/queries/procurement/purchase-requests";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pagination } from "@/components/ui/custom-pagination";
@@ -72,18 +72,13 @@ function formatDate(dateStr?: string) {
   } catch { return dateStr; }
 }
 
-function getRequesterName(pr: any): string {
-  // API returns a flat requesterName field — use it directly first
-  if (pr.requesterName && typeof pr.requesterName === "string") return pr.requesterName;
-  // Fallback: look for nested user objects under common keys
-  const keys = ["createdBy", "user", "requester", "creator", "owner"];
-  for (const key of keys) {
-    if (pr[key] && typeof pr[key] === "object") {
-      const first = pr[key].firstName || "";
-      const last  = pr[key].lastName  || "";
-      if (first || last) return `${first} ${last}`.trim();
+function getRequesterName(pr: PurchaseRequest): string {
+  if (pr.requesterName) return pr.requesterName;
+  for (const person of [pr.creator, pr.employee]) {
+    if (person) {
+      const name = `${person.firstName || ""} ${person.lastName || ""}`.trim();
+      if (name) return name;
     }
-    if (pr[key] && typeof pr[key] === "string") return pr[key];
   }
   return "";
 }
@@ -104,15 +99,19 @@ function PRTable({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [priority, setPriority]               = useState("");
   const [priorityOpen, setPriorityOpen]       = useState(false);
-  const [page, setPage]                       = useState(1);
+  const [pageByKey, setPageByKey] = useState<Record<string, number>>({});
   const [perPage, setPerPage]                 = useState(10);
 
   useEffect(() => {
-    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
+    const t = setTimeout(() => { setDebouncedSearch(search); }, 400);
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [activeTab, priority]);
+  const paginationKey = `${activeTab}-${debouncedSearch}-${priority}`;
+  const page = pageByKey[paginationKey] ?? 1;
+  const setPage = (nextPage: number) => {
+    setPageByKey(prev => ({ ...prev, [paginationKey]: nextPage }));
+  };
 
   const scrollRef        = useRef<HTMLDivElement>(null);
   const [canScrollLeft,  setCanScrollLeft]  = useState(false);
@@ -153,7 +152,7 @@ function PRTable({
     search:   debouncedSearch || undefined,
   });
 
-  const requests: PurchaseRequest[] = data?.data || [];
+  const requests = useMemo<PurchaseRequest[]>(() => data?.data || [], [data?.data]);
   const meta        = data?.meta;
   const totalCount  = meta?.totalCount  || requests.length;
   const totalPages  = meta?.totalPages  || Math.ceil(totalCount / perPage);
@@ -167,14 +166,11 @@ function PRTable({
 
   const getDeptName = (pr: PurchaseRequest) => {
     if (!pr.departmentId) return "—";
-    const anyPr = pr as any;
-    const inline = anyPr.department?.departmentName || anyPr.department?.name || anyPr.departmentName
-      || (typeof anyPr.department === "string" && anyPr.department !== pr.departmentId ? anyPr.department : null);
-    if (inline) return inline;
+    if (pr.departmentName) return pr.departmentName;
     const found = departments.find(d => d.departmentId === pr.departmentId);
     if (found?.departmentName) return found.departmentName;
-    if (pr.departmentId === user?.department?.departmentId || pr.departmentId === (user as any)?.departmentId) {
-      return user?.department?.departmentName || (user?.department as any)?.name || pr.departmentId;
+    if (pr.departmentId === user?.department?.departmentId) {
+      return user?.department?.departmentName || pr.departmentId;
     }
     return pr.departmentId;
   };
@@ -348,7 +344,7 @@ function PRTable({
                 <td className="px-5 py-4 text-muted-foreground text-sm">{getDeptName(pr)}</td>
                 <td className="px-5 py-4"><PRPriorityBadge priority={pr.priority} /></td>
                 <td className="px-5 py-4 text-muted-foreground text-sm whitespace-nowrap">{formatDate(pr.neededByDate)}</td>
-                <td className="px-5 py-4"><PRStatusBadge status={pr.status} approvalStatus={(pr as any).approvalStatus} /></td>
+                <td className="px-5 py-4"><PRStatusBadge status={pr.status} approvalStatus={pr.approvalStatus} /></td>
                 <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
                     <button

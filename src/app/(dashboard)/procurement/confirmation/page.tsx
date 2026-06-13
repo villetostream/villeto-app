@@ -55,7 +55,7 @@ export default function ConfirmationPage() {
   const { setAction, clearAction } = useHeaderActionStore();
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch]       = useState("");
-  const [page, setPage]           = useState(1);
+  const [pagesByKey, setPagesByKey] = useState<Record<string, number>>({});
   const [perPage, setPerPage]     = useState(11);
 
   useEffect(() => {
@@ -74,8 +74,13 @@ export default function ConfirmationPage() {
     return list;
   }, [activeTab, search]);
 
+  const paginationKey = `${activeTab}-${search}`;
+  const page = pagesByKey[paginationKey] ?? 1;
+  const setPage = (nextPage: number) => {
+    setPagesByKey(prev => ({ ...prev, [paginationKey]: nextPage }));
+  };
+
   const paginated = filtered.slice((page - 1) * perPage, page * perPage);
-  useEffect(() => { setPage(1); }, [activeTab, search]);
 
   return (
     <div className="bg-white rounded-2xl border border-border overflow-hidden">

@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, XCircle, CheckCircle, Loader2 } from "lucide-react";
-import type { ExpenseItem, PolicyViolation } from "./ExpensePreviewList";
+import type { PolicyViolation } from "./ExpensePreviewList";
 
 export interface PolicyCheckResult {
   expenseId: string;

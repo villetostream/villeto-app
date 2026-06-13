@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
 import { cn } from "@/lib/utils";
 import { getCurrencyConfig } from "@/lib/utils/currency";
@@ -13,20 +13,19 @@ export const SpendingSlider = () => {
     // without waiting for the slider to be moved.
     const displayLabel = spendingRanges[monthlySpend]?.label ?? spendingRanges[0].label;
 
-    // Sync the store's spendRange whenever country or position changes so
-    // downstream consumers (financial page, review page) always have the
-    // correct currency label.
-    useEffect(() => {
+    const country = businessSnapshot.countryOfRegistration;
+    const [syncedCountry, setSyncedCountry] = useState(country);
+    if (country !== syncedCountry) {
+        setSyncedCountry(country);
         setMonthlySpend(monthlySpend, spendingRanges[monthlySpend]?.label);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [businessSnapshot.countryOfRegistration]);
+    }
 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
                     <h3 className="text-lg font-normal leading-[100%] tracking-[0%] text-black">
-                        What's your team's expected monthly spend?
+                        What&apos;s your team&apos;s expected monthly spend?
                         <span className="text-red-500">*</span>
                     </h3>
                 </div>
@@ -81,4 +80,4 @@ export const SpendingSlider = () => {
             </div>
         </div>
     );
-};
+};

@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function Welcome() {
     const router = useRouter();
@@ -14,9 +15,11 @@ export default function Welcome() {
     return (
         <div className="flex flex-col items-start justify-center h-full text-left">
             <div className="mb-8">
-                <img
-                    src={"/images/welcome.png"}
+                <Image
+                    src="/images/welcome.png"
                     alt="Welcome celebration"
+                    width={128}
+                    height={128}
                     className="w-32 h-32 mb-6"
                 />
             </div>
@@ -38,7 +41,7 @@ export default function Welcome() {
                     variant={"hero"}
                     className="px-8 py-6 text-lg font-medium min-w-[250px]"
                 >
-                    Let's Begin
+                    Let&apos;s Begin
                     <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
             </div>

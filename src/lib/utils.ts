@@ -1,4 +1,4 @@
-import { Permission } from "@/actions/auth/auth-permissions";
+import { Permission } from "@/queries/auth/auth-permissions";
 import { clsx, type ClassValue } from "clsx"
 import { format } from "date-fns";
 import { twMerge } from "tailwind-merge"

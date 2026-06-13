@@ -1,18 +1,15 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
+import { logger } from "@/lib/logger";
 import { ImagePlus, Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Label } from "@/components/ui/label";
 import {
-  ImageUpload01FreeIcons,
   ImageUpload01Icon,
-  ImageUploadIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { fi } from "date-fns/locale";
 import { toast } from "sonner";
 
 // Simulated OCR data - in real app this would come from an OCR service
@@ -39,49 +36,40 @@ interface OCRData {
   description: string;
 }
 
+function restoreFilesFromSession(): File[] {
+  if (typeof window === "undefined") return [];
+  const storedReceipts = sessionStorage.getItem("uploadedReceipts");
+  const storedFileMetadata = sessionStorage.getItem("uploadedFileMetadata");
+
+  if (storedReceipts && storedFileMetadata) {
+    try {
+      const fileMetadata = JSON.parse(storedFileMetadata);
+      return fileMetadata.map(
+        (meta: { name: string; size: number; type: string }) =>
+          new File([], meta.name, { type: meta.type }),
+      );
+    } catch (error) {
+      logger.error("Error restoring file metadata:", error);
+      sessionStorage.removeItem("uploadedReceipts");
+      sessionStorage.removeItem("uploadedFileMetadata");
+      return [];
+    }
+  }
+
+  sessionStorage.removeItem("uploadedReceipts");
+  sessionStorage.removeItem("uploadedFileMetadata");
+  return [];
+}
+
 export default function UploadReceipt() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isDragging, setIsDragging] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<File[]>(restoreFilesFromSession);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const reportName = searchParams.get("name") || "";
   const reportDate = searchParams.get("date") || "";
-
-  // Check if we're navigating back (sessionStorage has uploaded receipts)
-  // If so, preserve them; otherwise clear for a new upload attempt
-  useEffect(() => {
-    const storedReceipts = sessionStorage.getItem("uploadedReceipts");
-    const storedFileMetadata = sessionStorage.getItem("uploadedFileMetadata");
-
-    if (storedReceipts && storedFileMetadata) {
-      // We're navigating back - restore file metadata for display
-      try {
-        const fileMetadata = JSON.parse(storedFileMetadata);
-        // Create File-like objects from metadata (for display purposes)
-        // Note: These won't be real File objects, but we can show them in the UI
-        const restoredFiles: File[] = fileMetadata.map(
-          (meta: { name: string; size: number; type: string }) => {
-            // Create a File object using Blob
-            return new File([], meta.name, { type: meta.type });
-          },
-        );
-        setFiles(restoredFiles);
-      } catch (error) {
-        logger.error("Error restoring file metadata:", error);
-        // If restoration fails, clear and start fresh
-        sessionStorage.removeItem("uploadedReceipts");
-        sessionStorage.removeItem("uploadedFileMetadata");
-        setFiles([]);
-      }
-    } else {
-      // New upload attempt - clear everything
-      sessionStorage.removeItem("uploadedReceipts");
-      sessionStorage.removeItem("uploadedFileMetadata");
-      setFiles([]);
-    }
-  }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();

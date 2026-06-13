@@ -1,10 +1,6 @@
-import { Search, Filter, RefreshCw, Edit2, Trash2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import DepartmentTable from "./DeptartmentTable";
 
-const departments = [
+const _departments = [
     { name: "Finance", code: "FIN", description: "Manages budgets, invoices, and reimbursements.", head: "Finance Manager", reportsTo: "CO", dateCreated: "15 Sept 2025" },
     { name: "Marketing", code: "MKT", description: "Oversees campaigns, branding, and promotions.", head: "Marketing Lead", reportsTo: "Dept. Manager", dateCreated: "15 Sept 2025" },
     { name: "Engineering", code: "ENG", description: "Develops and maintains technical systems.", head: "Tech Lead", reportsTo: "CO", dateCreated: "12 Oct 2025" },

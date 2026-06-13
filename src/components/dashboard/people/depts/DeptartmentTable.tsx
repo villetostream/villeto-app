@@ -1,13 +1,13 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { DataTable } from '@/components/datatable';
 import { columns } from './column';
-import { Department, useGetAllDepartmentsApi } from '@/actions/departments/get-all-departments';
+import { Department, useGetAllDepartmentsApi } from '@/queries/departments/get-all-departments';
 import { useDataTable } from '@/components/datatable/useDataTable';
 
 const DepartmentTable = () => {
 
     const depts = useGetAllDepartmentsApi()
-    const tableprops = tableData(depts?.data?.data ?? []);
+    const tableprops = useTableData(depts?.data?.data ?? []);
     return (
         <DataTable
             data={depts?.data?.data ?? []}
@@ -39,7 +39,7 @@ const DepartmentTable = () => {
                             ],
                         },
                     ],
-                    onFilter: (filters) => {
+                    onFilter: (_filters) => {
 
                     },
                 },
@@ -54,7 +54,7 @@ const DepartmentTable = () => {
 
 export default DepartmentTable
 
-export const tableData = (data: Department[]) => {
+export const useTableData = (data: Department[]) => {
 
     return useDataTable({
         initialPage: 1,

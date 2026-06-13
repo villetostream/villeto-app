@@ -20,6 +20,7 @@ import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { logger } from "@/lib/logger";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
+import { getApiErrorMessage, getPolicyViolationCauses, isPolicyViolationError } from "@/lib/types/api-error";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -378,7 +379,7 @@ export default function NewReportPage() {
           title: expense.name,
           merchantName: expense.merchantName || "",
           description: expense.description || "",
-          expenseCategoryId: category.categoryId || (category as any).id,
+          expenseCategoryId: category.categoryId,
           amount: expense.amount,
           transactionDate: expense.transactionDate
             ? new Date(expense.transactionDate).toISOString()
@@ -407,29 +408,26 @@ export default function NewReportPage() {
         const page = sessionStorage.getItem("expensesReturnPage") || "1";
         router.push(`/expenses?tab=${tab}&page=${page}`);
       }, 500);
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error("Error submitting report:", error);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const err = error as any;
-      const backendData = err?.response?.data;
 
-      if (backendData?.message === "Policy Violation Exception" || backendData?.data?.error === "Policy Violation") {
-        const causes = backendData?.data?.cause || [];
+      if (isPolicyViolationError(error)) {
+        const causes = getPolicyViolationCauses(error);
         if (causes.length > 0) {
           setExpenses((prev) =>
             prev.map((exp) => {
               const matchedCause = causes.find(
-                (c: any) =>
+                (c) =>
                   c.categoryName === exp.category &&
                   Number(c.expenseAmount) === exp.amount
               );
 
-              if (matchedCause && matchedCause.violations && matchedCause.violations.length > 0) {
+              if (matchedCause?.violations && matchedCause.violations.length > 0) {
                 return {
                   ...exp,
-                  policyViolations: matchedCause.violations.map((v: any) => ({
+                  policyViolations: matchedCause.violations.map((v) => ({
                     type: v.type || "POLICY_RULE",
-                    message: v.message,
+                    message: v.message ?? "",
                   })),
                 };
               }
@@ -441,7 +439,7 @@ export default function NewReportPage() {
         }
       }
 
-      toast.error(err?.response?.data?.message || err?.message || "Failed to submit report");
+      toast.error(getApiErrorMessage(error, "Failed to submit report"));
     } finally {
       setIsSubmitting(false);
     }

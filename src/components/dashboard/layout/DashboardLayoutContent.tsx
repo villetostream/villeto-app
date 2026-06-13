@@ -14,15 +14,27 @@
 import { DashboardSidebar } from "@/components/dashboard/sidebar/DashboardSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { UserSection } from "@/components/user/user-section";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore, useEffect, useCallback, useRef } from "react";
 import { useAuthStore, User } from "@/stores/auth-stores";
 import { useAxios } from "@/hooks/useAxios";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import DashboardModals from "@/components/dashboard/layout/DashboardModals";
 import VilletoTourGuide from "@/components/tour/VilletoTourGuide";
 import VilletoSetupGuide from "@/components/tour/VilletoSetupGuide";
 import { useTourStore } from "@/stores/useTourStore";
 import { ChatPortal } from "@/components/chat";
+
+function subscribe() {
+  return () => {};
+}
+
+function getClientSnapshot() {
+  return true;
+}
+
+function getServerSnapshot() {
+  return false;
+}
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -33,16 +45,14 @@ export default function DashboardLayoutContent({
   children,
   defaultOpen = false,
 }: DashboardLayoutProps) {
-  const [isMounted, setIsMounted] = useState(false);
+  const isMounted = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
   const axios = useAxios();
-  const { setCompanyPermissions, login, user, isLoading } = useAuthStore();
+  const { setCompanyPermissions, login, logout, user, isLoading } = useAuthStore();
   const router = useRouter();
-  const pathname = usePathname();
   const isTourActive = useTourStore((s) => s.isTourActive);
+  const setupGuideReady = useTourStore((s) => s.setupGuideReady);
 
   useEffect(() => {
-    setIsMounted(true);
-
     // Lock body scroll to prevent double scrollbars in dashboard
     document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
@@ -53,24 +63,21 @@ export default function DashboardLayoutContent({
     };
   }, []);
 
-  // Refreshes the current user's profile and permissions from the server.
-  // Called on initial mount, periodically, and on window focus, so that
-  // permission changes made by an admin mid-session (e.g. a role downgrade)
-  // take effect without requiring the user to log out and back in.
-  const refreshUserAndPermissions = async () => {
+  // Refreshes the user profile and permissions so admin role changes propagate
+  // without requiring re-login. Recreated only when the axios instance changes.
+  const refreshUserAndPermissions = useCallback(async () => {
     try {
       const me = await axios.get("/users/me");
       const responseData = me?.data?.data || me?.data;
-      const { role, company, companyId, ...userData } = responseData || {};
+      const { role, _company, companyId, ...userData } = responseData || {};
 
       if (userData) {
         const currentUser = useAuthStore.getState().user;
-        const userWithCompany = {
+        login({
           ...currentUser,
           ...userData,
           companyId: companyId || userData.companyId || currentUser?.companyId,
-        };
-        login(userWithCompany as User);
+        } as User);
       }
 
       if (role || responseData?.companyRole) {
@@ -80,33 +87,40 @@ export default function DashboardLayoutContent({
     } catch {
       // Silently handle — user session may still be valid
     }
-  };
+  }, [axios, login, setCompanyPermissions]);
+
+  // Always hold the latest version of the function so setInterval/addEventListener
+  // call the current closure without needing to be listed as effect deps.
+  const refreshRef = useRef(refreshUserAndPermissions);
+  useEffect(() => { refreshRef.current = refreshUserAndPermissions; });
 
   useEffect(() => {
     if (isLoading) return;
 
     if (!user) {
-      router.push("/login");
+      logout();
+      router.replace("/login");
       return;
     }
 
-    refreshUserAndPermissions();
+    // Initial fetch on mount
+    refreshRef.current();
 
-    // Periodically re-check permissions every 5 minutes so role/permission
-    // changes made by an admin propagate without requiring re-login.
-    const interval = setInterval(refreshUserAndPermissions, 5 * 60 * 1000);
-
-    // Also refresh when the tab regains focus — covers the common case of
-    // an admin changing a user's role in another tab/session while this
-    // tab was inactive.
-    const onFocus = () => refreshUserAndPermissions();
-    window.addEventListener("focus", onFocus);
+    // Re-check permissions every 5 min so admin role changes propagate without re-login.
+    // Using refreshRef so this never causes the effect to re-run when the function identity changes.
+    const interval = setInterval(() => refreshRef.current(), 5 * 60 * 1000);
+    const handleFocus = () => refreshRef.current();
+    window.addEventListener("focus", handleFocus);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("focus", handleFocus);
     };
-  }, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Intentionally only isLoading: runs once after hydration.
+  // Adding user/router here would create an infinite loop because refreshUserAndPermissions
+  // updates user, which would re-trigger this effect endlessly.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   if (!isMounted) {
     return (
@@ -116,18 +130,24 @@ export default function DashboardLayoutContent({
     );
   }
 
+  if (!isLoading && !user) {
+    return (
+      <div className="flex h-screen bg-dashboard-background" suppressHydrationWarning />
+    );
+  }
+
   return (
     <div className="flex bg-dashboard-background h-screen overflow-hidden" suppressHydrationWarning>
       <SidebarProvider defaultOpen={defaultOpen}>
         <DashboardSidebar />
         <div className="flex flex-col flex-1 h-full overflow-hidden">
-          <header className="flex items-center gap-4 px-6 h-16 border-b border-dashboard-border-shade w-full flex-shrink-0">
+          <header className="flex items-center gap-4 px-6 h-16 border-b border-dashboard-border-shade w-full shrink-0">
             {/* Hide mobile collapse trigger during tour so sidebar stays open */}
             {!isTourActive && <SidebarTrigger className="md:hidden" />}
             <UserSection />
           </header>
 
-          <main className="flex-1 overflow-y-auto p-5" key={pathname}>
+          <main className="flex-1 overflow-y-auto p-5">
             {children}
           </main>
         </div>
@@ -141,14 +161,14 @@ export default function DashboardLayoutContent({
        * those who qualify for the interactive Setup Guide.
        * (Exclusion is handled inside VilletoTourGuide itself.)
        */}
-      <VilletoTourGuide />
+      {setupGuideReady && <VilletoTourGuide />}
 
       {/*
        * VilletoSetupGuide — interactive workspace-setup flow for
        * CONTROLLING_OFFICER / ORGANIZATION_OWNER users on first login.
        * Activates AFTER SetPasswordModal closes (via setupGuideReady flag).
        */}
-      <VilletoSetupGuide />
+      {setupGuideReady && <VilletoSetupGuide />}
       <ChatPortal />
     </div>
   );

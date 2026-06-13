@@ -71,12 +71,19 @@ export function DashboardSidebar() {
     }
   }, [isTourActive, state, setOpen]);
 
-  // Auto-expand the correct sidebar section when navigating
-  useEffect(() => {
-    if (location.startsWith("/expenses"))    setExpandedMenus(prev => prev.includes("Expenses")    ? prev : [...prev, "Expenses"]);
-    if (location.startsWith("/procurement")) setExpandedMenus(prev => prev.includes("Procurement") ? prev : [...prev, "Procurement"]);
-    if (location.startsWith("/settings"))    setExpandedMenus(prev => prev.includes("Settings")    ? prev : [...prev, "Settings"]);
-  }, [location]);
+  const [syncedLocation, setSyncedLocation] = useState(location);
+  if (location !== syncedLocation) {
+    setSyncedLocation(location);
+    if (location.startsWith("/expenses")) {
+      setExpandedMenus(prev => prev.includes("Expenses") ? prev : [...prev, "Expenses"]);
+    }
+    if (location.startsWith("/procurement")) {
+      setExpandedMenus(prev => prev.includes("Procurement") ? prev : [...prev, "Procurement"]);
+    }
+    if (location.startsWith("/settings")) {
+      setExpandedMenus(prev => prev.includes("Settings") ? prev : [...prev, "Settings"]);
+    }
+  }
 
   const { data: companyData, isLoading: isQueryLoading } = useQuery({
     queryKey: ["company", user?.companyId, user?.userId],
@@ -159,7 +166,7 @@ export function DashboardSidebar() {
   const filterItems = (items: NavItem[]): NavItem[] => {
     return items
       .map((item) => {
-        let currentItem = { ...item };
+        const currentItem = { ...item };
 
         // Append default tab query param for Expenses based on user capability
         if (currentItem.href === "/expenses") {
@@ -169,9 +176,21 @@ export function DashboardSidebar() {
         }
 
         if (currentItem.subItems) {
-          const filteredSubs = currentItem.subItems.filter((sub) =>
-            hasNavPermission(sub.permissions)
-          );
+          const filteredSubs = currentItem.subItems
+            .map((sub) => {
+              const currentSub = { ...sub };
+              if (currentSub.label === "All Expenses") {
+                if (!canViewCompanyExpenses) {
+                  currentSub.label = "My Expenses";
+                }
+                currentSub.href = canViewCompanyExpenses
+                  ? "/expenses?tab=company-expenses"
+                  : "/expenses?tab=personal-expenses";
+              }
+              return currentSub;
+            })
+            .filter((sub) => hasNavPermission(sub.permissions));
+
           // Show the parent if it has its own permission OR at least one visible sub
           if (!hasNavPermission(currentItem.permissions) && filteredSubs.length === 0)
             return null;
@@ -294,8 +313,8 @@ export function DashboardSidebar() {
                           </span>
                       )}
                       {sub.imageUrl === "user-avatar" && (
-                          (user as any)?.profilePicture ? (
-                              <img src={(user as any).profilePicture} alt="Avatar" className="ml-auto w-5 h-5 rounded-full object-cover" />
+                          (user as unknown as { profilePicture?: string })?.profilePicture ? (
+                              <Image src={(user as unknown as { profilePicture: string }).profilePicture} alt="Avatar" width={20} height={20} className="ml-auto w-5 h-5 rounded-full object-cover" />
                           ) : (
                               <div className="ml-auto w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-medium text-gray-600 capitalize">
                                   {user?.firstName?.[0] || user?.email?.[0] || "U"}

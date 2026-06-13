@@ -41,22 +41,25 @@ export function ReceiptUploadSection({
     });
   };
 
-  const processFiles = async (files: File[]) => {
-    setIsUploading(true);
-    try {
-      const processedFiles = await Promise.all(
-        files.map(async (file) => ({
-          base64: await fileToBase64(file),
-          name: file.name,
-        }))
-      );
-      onReceiptsUpload(processedFiles);
-    } catch (error) {
-      logger.error("Error processing files:", error);
-    } finally {
-      setIsUploading(false);
-    }
-  };
+  const processFiles = useCallback(
+    async (files: File[]) => {
+      setIsUploading(true);
+      try {
+        const processedFiles = await Promise.all(
+          files.map(async (file) => ({
+            base64: await fileToBase64(file),
+            name: file.name,
+          }))
+        );
+        onReceiptsUpload(processedFiles);
+      } catch (error) {
+        logger.error("Error processing files:", error);
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [onReceiptsUpload]
+  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -69,7 +72,7 @@ export function ReceiptUploadSection({
         processFiles(files);
       }
     },
-    [onReceiptsUpload]
+    [processFiles]
   );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,7 +161,7 @@ export function ReceiptUploadSection({
           
           <div className="text-center mt-6">
               <p className="text-sm text-muted-foreground">
-                  Can't scan a receipt?{" "}
+                  Can&apos;t scan a receipt?{" "}
                   <button
                       type="button"
                       onClick={() => setShowManualForm(true)}

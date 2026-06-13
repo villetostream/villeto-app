@@ -7,7 +7,7 @@ interface PageLoaderProps {
     fallback?: React.ReactNode;
 }
 
-export async function PageLoader({ children, fallback }: PageLoaderProps) {
+export function PageLoader({ children, fallback }: PageLoaderProps) {
     return (
         <Suspense
             fallback={

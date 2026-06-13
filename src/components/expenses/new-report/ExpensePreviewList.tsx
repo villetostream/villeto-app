@@ -41,7 +41,7 @@ export function ExpensePreviewList({
   total,
   onEditName,
   onViewDetails,
-  onViewReceipt,
+  onViewReceipt: _onViewReceipt,
   onDelete,
 }: ExpensePreviewListProps) {
   const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);

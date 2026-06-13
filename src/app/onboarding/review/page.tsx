@@ -22,27 +22,26 @@ import { OwnerCard } from "../leadership/page";
 import { useRouter } from "next/navigation";
 import { useHydrateOnboardingData } from "@/hooks/useHydrateOnboardingData";
 import { useState } from "react";
-import { useUpdateOnboardinApi } from "@/actions/pre-onboarding/update-onboarding";
 import { toast } from "sonner";
 import { useInviteBeneficialOwners } from "@/hooks/useInviteBeneficialOwners";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
+import { getApiErrorMessage, isRecord } from "@/lib/types/api-error";
+import type { IconSvgElement } from "@hugeicons/react";
 
 export default function ReviewConfirmation() {
   const {
     businessSnapshot,
     userProfiles,
-    financialPulse,
     villetoProducts,
     spendRange,
     bankConnected,
     connectedAccounts,
-    contactEmail,
     onboardingId,
   } = useOnboardingStore();
   useHydrateOnboardingData();
 
-  const ICON_MAP: Record<string, any> = {
+  const ICON_MAP: Record<string, IconSvgElement> = {
     '1': CreditCardIcon,
     '2': Invoice04Icon,
     '3': Store01Icon,
@@ -74,20 +73,20 @@ export default function ReviewConfirmation() {
       try {
         // Patch to complete
         await axios.patch(API_KEYS.ONBOARDING.ONBOARDING_COMPLETE(onboardingId));
-      } catch (err: any) {
+      } catch (err: unknown) {
         // If the backend intentionally revokes the token and returns 401 upon completion,
         // we treat it as a success and continue to show the modal.
-        if (err?.response?.status !== 401) {
+        const status = isRecord(err) && isRecord((err as { response?: unknown }).response)
+          ? (err as { response: { status?: number } }).response.status
+          : undefined;
+        if (status !== 401) {
           throw err;
         }
       }
 
       setShowCongratulations(true);
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message ??
-          "Submission failed. Please try again."
-      );
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Submission failed. Please try again."));
     } finally {
       setIsSubmitting(false);
     }

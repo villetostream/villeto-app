@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Receipt, TrendingUp, Wallet } from "lucide-react";
 
 const activities: Array<{
   icon: React.ElementType;

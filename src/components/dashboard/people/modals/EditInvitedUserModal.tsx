@@ -13,10 +13,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useState } from "react";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { AlertCircle } from "lucide-react";
-import { useGetAllRolesApi } from "@/actions/role/get-all-roles";
+import { Role, useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import { useRouter } from "next/navigation";
 
 interface StagedUser {
@@ -55,30 +55,30 @@ export function EditInvitedUserModal({
     const router = useRouter();
     const rolesApi = useGetAllRolesApi();
 
-    const { handleSubmit, reset, control, watch } = useForm<EditFormValues>({
+    const { handleSubmit, reset, control } = useForm<EditFormValues>({
         defaultValues: { role: "", issueCard: false, ownershipPercentage: 0 },
     });
 
-    const selectedRole = watch("role");
-    const ownershipValue = watch("ownershipPercentage", 0);
+    const selectedRole = useWatch({ control, name: "role", defaultValue: "" });
+    const ownershipValue = useWatch({ control, name: "ownershipPercentage", defaultValue: 0 });
     const isOwnerRole = selectedRole.toLowerCase().includes("owner");
 
-    useEffect(() => {
-        if (user && isOpen) {
-            reset({
-                role: user.role ?? "",
-                issueCard: user.issueCard ?? false,
-                ownershipPercentage: user.ownershipPercentage ?? 0,
-            });
-        }
-    }, [user, isOpen, reset]);
+    const [syncedUserId, setSyncedUserId] = useState<string | null>(null);
+    if (user && isOpen && user.id !== syncedUserId) {
+        setSyncedUserId(user.id);
+        reset({
+            role: user.role ?? "",
+            issueCard: user.issueCard ?? false,
+            ownershipPercentage: user.ownershipPercentage ?? 0,
+        });
+    }
 
     const onSubmit = (data: EditFormValues) => {
         if (!user) return;
 
         // Resolve updated roleId from roles API
-        const roles: any[] = rolesApi.data?.data ?? [];
-        const matchedRole = roles.find((r: any) => r.name === data.role);
+        const roles: Role[] = rolesApi.data?.data ?? [];
+        const matchedRole = roles.find((r) => r.name === data.role);
         const roleId = matchedRole?.roleId ?? user.roleId;
 
         onSave({
@@ -147,9 +147,9 @@ export function EditInvitedUserModal({
                                         ) : (rolesApi.data?.data ?? []).length === 0 ? (
                                             <SelectItem value="__empty" disabled>No roles available</SelectItem>
                                         ) : (
-                                            (rolesApi.data?.data ?? []).map((role: any) => (
+                                            (rolesApi.data?.data ?? []).map((role) => (
                                                 <SelectItem
-                                                    key={role.roleId ?? role.id ?? role.name}
+                                                    key={role.roleId ?? role.name}
                                                     value={role.name}
                                                 >
                                                     {role.name

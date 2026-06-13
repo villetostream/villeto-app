@@ -2,10 +2,10 @@
 import { ManualExpenseForm } from '@/components/expenses/ManualExpenseForm'
 import React from 'react'
 
-const page = () => {
+const Page = () => {
     return (
         <ManualExpenseForm />
     )
 }
 
-export default page;
+export default Page;

@@ -1,25 +1,10 @@
+"use client";
+
 import { useState } from "react";
-import {
-    useReactTable,
-    getCoreRowModel,
-    getSortedRowModel,
-    getFilteredRowModel,
-    getPaginationRowModel,
-    flexRender,
-    SortingState,
-    ColumnDef,
-} from "@tanstack/react-table";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { AlertTriangle, MoreHorizontal, RefreshCw } from "lucide-react";
-import {
-    DropdownMenu,
-    DropdownMenuCheckboxItem,
-    DropdownMenuContent,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
     Table,
     TableBody,
@@ -45,92 +30,20 @@ const data: PolicyAlert[] = [
     { id: "0005", name: "Mike Chen", department: "Engineering", alert: "High", date: "24-09-2025" },
 ];
 
+const alertClass = (alert: PolicyAlert["alert"]) =>
+    alert === "High" ? "text-destructive" : alert === "Medium" ? "text-warning" : "text-muted-foreground";
+
 export const PolicyAlertsTable = () => {
-    const [sorting, setSorting] = useState<SortingState>([]);
-    const [globalFilter, setGlobalFilter] = useState("");
-    const [rowSelection, setRowSelection] = useState({});
-    const [columnFilters, setColumnFilters] = useState<any>([]);
+    const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
 
-    const columns: ColumnDef<PolicyAlert>[] = [
-        {
-            id: "select",
-            header: () => null,
-            cell: ({ row }) => (
-                <Checkbox
-                    checked={row.getIsSelected()}
-                    onCheckedChange={(value) => row.toggleSelected(!!value)}
-                />
-            ),
-            enableSorting: false,
-        },
-        {
-            accessorKey: "id",
-            header: () => "ID NO",
-        },
-        {
-            accessorKey: "name",
-            header: () => "NAME OF EMPLOYEE",
-        },
-        {
-            accessorKey: "department",
-            header: () => "DEPARTMENT",
-        },
-        {
-            accessorKey: "alert",
-            header: () => "POLICY ALERT",
-            cell: ({ row }) => {
-                const alert = row.getValue("alert") as string;
-                return (
-                    <div className="flex items-center gap-2">
-                        <AlertTriangle
-                            className={`w-4 h-4 ${alert === "High" ? "text-destructive" :
-                                alert === "Medium" ? "text-warning" :
-                                    "text-muted-foreground"
-                                }`}
-                        />
-                        <span className={`text-sm ${alert === "High" ? "text-destructive" :
-                            alert === "Medium" ? "text-warning" :
-                                "text-muted-foreground"
-                            }`}>
-                            {alert}
-                        </span>
-                    </div>
-                );
-            },
-        },
-        {
-            accessorKey: "date",
-            header: () => "DATE",
-        },
-        {
-            id: "actions",
-            header: "ACTION",
-            cell: () => (
-                <Button variant="ghost" size="sm">
-                    <MoreHorizontal className="w-4 h-4" />
-                </Button>
-            ),
-        },
-    ];
-
-    const table = useReactTable({
-        data,
-        columns,
-        state: {
-            sorting,
-            globalFilter,
-            rowSelection,
-            columnFilters,
-        },
-        onSortingChange: setSorting,
-        onGlobalFilterChange: setGlobalFilter,
-        onRowSelectionChange: setRowSelection,
-        onColumnFiltersChange: setColumnFilters,
-        getCoreRowModel: getCoreRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-    });
+    const toggleRow = (id: string, checked: boolean) => {
+        setRowSelection((prev) => {
+            const next = { ...prev };
+            if (checked) next[id] = true;
+            else delete next[id];
+            return next;
+        });
+    };
 
     return (
         <Card className="p-6 rounded-[14px] border">
@@ -147,35 +60,46 @@ export const PolicyAlertsTable = () => {
             <div className="rounded-md border">
                 <Table>
                     <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id} className="bg-muted/50">
-                                {headerGroup.headers.map((header) => (
-                                    <TableHead key={header.id}>
-                                        {header.isPlaceholder
-                                            ? null
-                                            : flexRender(
-                                                header.column.columnDef.header,
-                                                header.getContext()
-                                            )}
-                                    </TableHead>
-                                ))}
-                            </TableRow>
-                        ))}
+                        <TableRow className="bg-muted/50">
+                            <TableHead />
+                            <TableHead>ID NO</TableHead>
+                            <TableHead>NAME OF EMPLOYEE</TableHead>
+                            <TableHead>DEPARTMENT</TableHead>
+                            <TableHead>POLICY ALERT</TableHead>
+                            <TableHead>DATE</TableHead>
+                            <TableHead>ACTION</TableHead>
+                        </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {table.getRowModel().rows?.length ? (
-                            table.getRowModel().rows.map((row) => (
-                                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-                                    {row.getVisibleCells().map((cell) => (
-                                        <TableCell key={cell.id}>
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                        </TableCell>
-                                    ))}
+                        {data.length ? (
+                            data.map((row) => (
+                                <TableRow key={row.id} data-state={rowSelection[row.id] ? "selected" : undefined}>
+                                    <TableCell>
+                                        <Checkbox
+                                            checked={!!rowSelection[row.id]}
+                                            onCheckedChange={(value) => toggleRow(row.id, !!value)}
+                                        />
+                                    </TableCell>
+                                    <TableCell>{row.id}</TableCell>
+                                    <TableCell>{row.name}</TableCell>
+                                    <TableCell>{row.department}</TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-2">
+                                            <AlertTriangle className={`w-4 h-4 ${alertClass(row.alert)}`} />
+                                            <span className={`text-sm ${alertClass(row.alert)}`}>{row.alert}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>{row.date}</TableCell>
+                                    <TableCell>
+                                        <Button variant="ghost" size="sm">
+                                            <MoreHorizontal className="w-4 h-4" />
+                                        </Button>
+                                    </TableCell>
                                 </TableRow>
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center">
+                                <TableCell colSpan={7} className="h-24 text-center">
                                     No results.
                                 </TableCell>
                             </TableRow>

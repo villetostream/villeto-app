@@ -1,5 +1,5 @@
 // components/forms/HotelBookingForm.tsx
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
@@ -24,10 +24,11 @@ const HotelBookingForm = ({ onSubmit, isSubmitting = false }: HotelBookingFormPr
         mode: "onChange"
     });
 
-    const { control, handleSubmit, watch, formState: { isValid } } = form;
+    const { control, handleSubmit } = form;
+    const values = useWatch({ control });
 
-    const isFormValid = watch("destinationCity") && watch("hotelName") &&
-        watch("checkInDate") && watch("checkOutDate") && watch("roomType");
+    const isFormValid = values?.destinationCity && values?.hotelName &&
+        values?.checkInDate && values?.checkOutDate && values?.roomType;
 
     return (
         <Form {...form}>

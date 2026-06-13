@@ -10,8 +10,7 @@ import {
     Calendar,
     CheckCircle,
     Clock,
-    AlertTriangle,
-    DollarSign
+    AlertTriangle
 } from "lucide-react";
 
 const bills: Array<{

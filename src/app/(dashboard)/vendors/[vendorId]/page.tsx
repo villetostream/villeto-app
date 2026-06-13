@@ -9,6 +9,7 @@ import { CheckCircle2, XCircle, X, FileText } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
+import { asArray, asRecord, getString, isRecord, pickString } from "@/lib/types/api-error";
 
 export default withPermissions(VendorDetailsPage, [
   { resource: "vendor", action: "read_company" },
@@ -21,7 +22,7 @@ function VendorDetailsPage() {
   const axiosInstance = useAxios();
   const can = useAuthStore(s => s.can);
 
-  const [vendor, setVendor] = useState<any>(null);
+  const [vendor, setVendor] = useState<Record<string, unknown> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestInfoModalOpen, setRequestInfoModalOpen] = useState(false);
@@ -42,7 +43,10 @@ function VendorDetailsPage() {
   };
 
   useEffect(() => {
-    if (vendorId) fetchVendor();
+    if (!vendorId) return;
+    queueMicrotask(() => {
+      void fetchVendor();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId]);
 
@@ -113,22 +117,41 @@ function VendorDetailsPage() {
     return <div><p className="text-muted-foreground">Vendor not found.</p></div>;
   }
 
-  const rawStatus        = (vendor.status        || "").toLowerCase();
-  const onboardingStatus = vendor.onboardingStatus || "";
-  const approvalStatus   = vendor.approvalStatus  || "";
+  const status = getString(vendor.status);
+  const onboardingStatus = getString(vendor.onboardingStatus);
+  const approvalStatus = getString(vendor.approvalStatus);
+  const deactivatedAt = vendor.deactivatedAt;
+  const bankName = getString(vendor.bankName);
+  const bankAccountNumber = getString(vendor.bankAccountNumber);
+  const legalName = getString(vendor.legalName);
+  const displayName = getString(vendor.displayName);
+  const email = getString(vendor.email);
+  const taxId = getString(vendor.taxId);
+  const country = getString(vendor.country);
+  const address = getString(vendor.address);
+  const contactFirstName = getString(vendor.contactFirstName);
+  const contactLastName = getString(vendor.contactLastName);
+  const decisionNote = getString(vendor.decisionNote);
+  const createdBy = asRecord(vendor.createdBy);
+  const approvedBy = asRecord(vendor.approvedBy);
+  const documents = asArray(vendor.documents).filter(isRecord);
+  const createdByName = `${pickString(createdBy, "firstName")} ${pickString(createdBy, "lastName")}`.trim();
+  const approvedByName = `${pickString(approvedBy, "firstName")} ${pickString(approvedBy, "lastName")}`.trim();
+
+  const rawStatus = status.toLowerCase();
 
   const isInvited     = approvalStatus === "pending" && (!onboardingStatus || onboardingStatus === "invited");
   const isOnboarding  = approvalStatus === "pending" && !["invited", "submitted", ""].includes(onboardingStatus);
   const isUnderReview = approvalStatus === "pending" && onboardingStatus === "submitted";
   const isRejected    = approvalStatus === "rejected";
-  const isApprovedPhase4 = approvalStatus === "approved" && rawStatus !== "active" && !vendor.deactivatedAt;
-  const isDeactivated    = approvalStatus === "approved" && rawStatus !== "active" && !!vendor.deactivatedAt;
+  const isApprovedPhase4 = approvalStatus === "approved" && rawStatus !== "active" && !deactivatedAt;
+  const isDeactivated    = approvalStatus === "approved" && rawStatus !== "active" && !!deactivatedAt;
   const isActive         = approvalStatus === "approved" && rawStatus === "active";
 
   // Risk flag only makes sense once the vendor has completed onboarding and submitted for review.
   // Invited vendors are expected to lack bank details — flagging them is misleading.
   const isEligibleForRiskCheck = isUnderReview || isApprovedPhase4 || isActive;
-  const hasBankMismatch = isEligibleForRiskCheck && (!vendor.bankName || !vendor.bankAccountNumber);
+  const hasBankMismatch = isEligibleForRiskCheck && (!bankName || !bankAccountNumber);
   const riskLevel = hasBankMismatch ? "High" : "Low";
 
   return (
@@ -138,7 +161,7 @@ function VendorDetailsPage() {
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-foreground">{vendor.legalName || vendor.displayName}</h1>
+            <h1 className="text-2xl font-semibold text-foreground">{legalName || displayName}</h1>
             {isOnboarding  && <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-500 text-xs font-semibold border border-blue-100">Onboarding</span>}
             {isUnderReview && <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-500 text-xs font-semibold border border-amber-100">Under Review</span>}
             {isActive      && <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-100">Active</span>}
@@ -147,7 +170,7 @@ function VendorDetailsPage() {
             {isRejected    && <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-500 text-xs font-semibold border border-red-100">Rejected</span>}
             {isInvited     && <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold border border-gray-200">Invited</span>}
           </div>
-          <p className="text-sm font-medium text-muted-foreground mt-1">{vendor.email}</p>
+          <p className="text-sm font-medium text-muted-foreground mt-1">{email}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -214,11 +237,11 @@ function VendorDetailsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-1">Business Name</p>
-                    <p className="text-sm font-semibold text-foreground">{vendor.legalName || "N/A"}</p>
+                    <p className="text-sm font-semibold text-foreground">{legalName || "N/A"}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-1">Registration Number</p>
-                    <p className="text-sm font-semibold text-foreground">{vendor.taxId || "N/A"}</p>
+                    <p className="text-sm font-semibold text-foreground">{taxId || "N/A"}</p>
                   </div>
                 </div>
               </div>
@@ -228,11 +251,11 @@ function VendorDetailsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-1">Bank</p>
-                    <p className="text-sm font-semibold text-foreground">{vendor.bankName || "N/A"}</p>
+                    <p className="text-sm font-semibold text-foreground">{bankName || "N/A"}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-1">Account</p>
-                    <p className="text-sm font-semibold text-foreground">{vendor.bankAccountNumber || "N/A"}</p>
+                    <p className="text-sm font-semibold text-foreground">{bankAccountNumber || "N/A"}</p>
                   </div>
                 </div>
               </div>
@@ -242,31 +265,31 @@ function VendorDetailsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-1">Country</p>
-                    <p className="text-sm font-semibold text-foreground">{vendor.country || "N/A"}</p>
+                    <p className="text-sm font-semibold text-foreground">{country || "N/A"}</p>
                   </div>
                   <div className="overflow-hidden">
                     <p className="text-sm font-medium text-muted-foreground mb-1">Address</p>
-                    <p className="text-sm font-semibold text-foreground truncate" title={vendor.address}>
-                      {vendor.address || "N/A"}
+                    <p className="text-sm font-semibold text-foreground truncate" title={address}>
+                      {address || "N/A"}
                     </p>
                   </div>
                 </div>
               </div>
 
               {/* Row 4: Created & Approved */}
-              {(vendor.createdBy || vendor.approvedBy) && (
+              {(createdByName || approvedByName) && (
                 <div className="border border-border/50 rounded-xl p-4">
                   <div className="grid grid-cols-2 gap-4">
-                    {vendor.createdBy && (
+                    {createdByName && (
                       <div>
                         <p className="text-sm font-medium text-muted-foreground mb-1">Invited By</p>
-                        <p className="text-sm font-semibold text-foreground">{vendor.createdBy.firstName} {vendor.createdBy.lastName}</p>
+                        <p className="text-sm font-semibold text-foreground">{createdByName}</p>
                       </div>
                     )}
-                    {vendor.approvedBy && (
+                    {approvedByName && (
                       <div>
                         <p className="text-sm font-medium text-muted-foreground mb-1">Approved By</p>
-                        <p className="text-sm font-semibold text-foreground">{vendor.approvedBy.firstName} {vendor.approvedBy.lastName}</p>
+                        <p className="text-sm font-semibold text-foreground">{approvedByName}</p>
                       </div>
                     )}
                   </div>
@@ -278,26 +301,31 @@ function VendorDetailsPage() {
           {/* Verification Documents — outer padding p-8 → p-6 to stay consistent */}
           <div className="bg-white rounded-3xl border border-border p-6 shadow-sm">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-5">VERIFICATION DOCUMENTS</h2>
-            {vendor.documents && vendor.documents.length > 0 ? (
+            {documents.length > 0 ? (
               <div className="space-y-3">
-                {vendor.documents.map((doc: any) => (
-                  <div key={doc.vendorDocumentId}
+                {documents.map((doc) => {
+                  const docId = getString(doc.vendorDocumentId);
+                  const originalName = pickString(doc, "originalName") || "Document.pdf";
+                  const documentType = getString(doc.documentType).replace(/_/g, " ");
+                  const fileUrl = getString(doc.fileUrl);
+                  return (
+                  <div key={docId || originalName}
                     className="flex items-center justify-between p-4 rounded-xl border border-border bg-white">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <CheckCircle2 className="w-5 h-5 text-primary" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-foreground">{doc.originalName || "Document.pdf"}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{doc.documentType.replace(/_/g, " ")}</p>
+                        <p className="text-sm font-semibold text-foreground">{originalName}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{documentType}</p>
                       </div>
                     </div>
-                    <a href={doc.fileUrl} target="_blank" rel="noreferrer"
+                    <a href={fileUrl} target="_blank" rel="noreferrer"
                       className="px-5 py-1.5 rounded-xl border border-primary text-primary text-xs font-bold hover:bg-primary/5 transition-colors">
                       View
                     </a>
                   </div>
-                ))}
+                );})}
               </div>
             ) : (
               <p className="text-sm font-medium text-muted-foreground">No documents uploaded.</p>
@@ -346,7 +374,7 @@ function VendorDetailsPage() {
                 </span>
                 {riskLevel === "High" && (
                   <span className="px-2 py-0.5 rounded-md bg-gray-100 border border-gray-200 text-[10px] font-semibold text-gray-600">
-                    Holder: {vendor.contactFirstName} {vendor.contactLastName}
+                    Holder: {contactFirstName} {contactLastName}
                   </span>
                 )}
               </div>
@@ -358,10 +386,10 @@ function VendorDetailsPage() {
           </div>
 
           {/* Vendor Note */}
-          {((isUnderReview || isRejected || isApprovedPhase4 || isActive || isDeactivated) && vendor.decisionNote) && (
+          {((isUnderReview || isRejected || isApprovedPhase4 || isActive || isDeactivated) && decisionNote) && (
             <div className="bg-primary/5 rounded-3xl border border-primary/20 p-6 shadow-sm">
               <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">VENDOR NOTE</h2>
-              <p className="text-sm text-foreground leading-relaxed font-semibold">{vendor.decisionNote}</p>
+              <p className="text-sm text-foreground leading-relaxed font-semibold">{decisionNote}</p>
             </div>
           )}
 

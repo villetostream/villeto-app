@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import Cookies from 'js-cookie';
-import { Role } from '@/actions/role/get-all-roles';
-import { Department } from '@/actions/departments/get-all-departments';
+import { Role } from '@/queries/role/get-all-roles';
+import { Department } from '@/queries/departments/get-all-departments';
 import { getCurrencyConfig } from "@/lib/utils/currency";
 
 // ─── Permission Types ─────────────────────────────────────────────────────────
@@ -39,7 +38,7 @@ export interface User {
     managerId?: string | null;
     company?: {
         countryOfRegistration?: string;
-        [key: string]: any;
+        [key: string]: unknown;
     };
     department?: Department;
     departmentId?: string | null;
@@ -74,6 +73,15 @@ interface AuthState {
     /** The flat list of company-level permissions for this user. */
     companyPermissions: CompanyPermission[];
 
+    /**
+     * O(1) lookup structures built whenever companyPermissions changes.
+     * - _permissionSet: Set of "resource.action" strings for exact matches.
+     * - _managedResources: Set of resource strings where action === "manage".
+     * Not persisted — rebuilt on rehydration.
+     */
+    _permissionSet: Set<string>;
+    _managedResources: Set<string>;
+
     // ─ Setters ─
     setAccessToken: (token: string) => void;
     login: (data: User) => void;
@@ -99,19 +107,24 @@ interface AuthState {
      */
     can: (resource: string, action: string) => boolean;
 
-    /**
-     * @deprecated Use can(resource, action) instead.
-     * Kept temporarily to avoid breaking un-migrated call sites.
-     * Internally delegates to can() where possible.
-     */
-    hasPermission: (permission: string | string[]) => boolean;
-    setUserPermissions: (permissions: any[]) => void;
-
     // ─ Utilities ─
     getCurrencySymbol: () => string;
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
+
+function buildPermissionSets(permissions: CompanyPermission[]) {
+    const permissionSet = new Set<string>();
+    const managedResources = new Set<string>();
+    for (const p of permissions) {
+        if (p.action === "manage") {
+            managedResources.add(p.resource);
+        } else {
+            permissionSet.add(`${p.resource}.${p.action}`);
+        }
+    }
+    return { _permissionSet: permissionSet, _managedResources: managedResources };
+}
 
 export const useAuthStore = create<AuthState>()(
     persist(
@@ -119,6 +132,8 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             isLoading: true,
             companyPermissions: [],
+            _permissionSet: new Set<string>(),
+            _managedResources: new Set<string>(),
             accessToken: null,
 
             getCurrencySymbol: () => {
@@ -131,14 +146,8 @@ export const useAuthStore = create<AuthState>()(
             },
 
             setCompanyPermissions: (permissions: CompanyPermission[]) => {
-                set({ companyPermissions: Array.isArray(permissions) ? permissions : [] });
-            },
-
-            /** @deprecated — delegates to setCompanyPermissions for backward compat */
-            setUserPermissions: (permissions: any[]) => {
-                // During migration some call-sites pass villetoRole.permissions (old shape).
-                // We accept them here but the can() helper will only operate on companyPermissions.
-                set({ companyPermissions: Array.isArray(permissions) ? permissions : [] });
+                const list = Array.isArray(permissions) ? permissions : [];
+                set({ companyPermissions: list, ...buildPermissionSets(list) });
             },
 
             login: (data: User) => {
@@ -146,69 +155,50 @@ export const useAuthStore = create<AuthState>()(
             },
 
             logout: () => {
-                set({ user: null, companyPermissions: [], accessToken: null });
-                Cookies.remove('auth-storage');
+                set({
+                    user: null,
+                    companyPermissions: [],
+                    _permissionSet: new Set(),
+                    _managedResources: new Set(),
+                    accessToken: null,
+                });
+                sessionStorage.removeItem("auth-storage");
             },
 
             /**
              * ─── PRIMARY GATE ──────────────────────────────────────────────
-             * Checks whether the current user holds the given resource+action
-             * pair in their companyRole.permissions list.
-             *
-             * This is PURELY data-driven — no role names, no bypass logic.
-             * If a permission is not in the list, the answer is false.
+             * O(1) lookup via pre-built Sets. Falls back to linear scan only
+             * when Sets are empty (e.g. immediately after hydration before
+             * setCompanyPermissions is called).
              */
             can: (resource: string, action: string): boolean => {
-                const { companyPermissions } = get();
+                const { _permissionSet, _managedResources, companyPermissions } = get();
+                // Fast path — O(1)
+                if (_permissionSet.size > 0 || _managedResources.size > 0) {
+                    return _managedResources.has(resource) || _permissionSet.has(`${resource}.${action}`);
+                }
+                // Fallback for the brief window before Sets are built (e.g. fresh hydration)
                 if (!companyPermissions || companyPermissions.length === 0) return false;
                 return companyPermissions.some(
                     p => p.resource === resource && (p.action === action || p.action === "manage")
                 );
             },
 
-            /**
-             * @deprecated
-             * Legacy helper kept so un-migrated components don't break.
-             * Maps old "action:resource" strings (e.g. "read:roles") to can()
-             * where the format matches; otherwise falls back to name inclusion check
-             * against companyPermissions.
-             */
-            hasPermission: (permission: string | string[]): boolean => {
-                const { can, companyPermissions } = get();
-                const perms = Array.isArray(permission) ? permission : [permission];
-                return perms.every(perm => {
-                    if (!perm || perm.trim() === "") return true;
-
-                    // Try to parse legacy "action:resource" format (e.g., "create:roles")
-                    if (perm.includes(":")) {
-                        const [legacyAction, legacyResource] = perm.split(":");
-                        // Strip trailing 's' if plural (e.g. 'roles' -> 'role', 'users' -> 'user')
-                        const singularResource = legacyResource.endsWith('s') ? legacyResource.slice(0, -1) : legacyResource;
-                        
-                        return can(singularResource, legacyAction);
-                    }
-                    // Try "resource.action" format
-                    if (perm.includes(".")) {
-                        const lastDot = perm.lastIndexOf(".");
-                        const resource = perm.substring(0, lastDot);
-                        let action = perm.substring(lastDot + 1);
-
-                        // Often "resource.action" means action="approve_company" or something. 
-                        // The 'can' method covers it, and handles "manage" implicitly now.
-                        return can(resource, action);
-                    }
-                    // Fallback: check name includes (least reliable but functional)
-                    return companyPermissions.some(p => p.name.includes(perm));
-                });
-            },
-
             hydrate: () => {
-                set({ isLoading: false });
+                // Rebuild Sets from persisted companyPermissions after rehydration
+                const { companyPermissions } = get();
+                set({ isLoading: false, ...buildPermissionSets(companyPermissions ?? []) });
             },
         }),
         {
             name: 'auth-storage',
             storage: createJSONStorage(() => sessionStorage),
+            // Only persist serialisable fields — Sets are not JSON-serialisable
+            partialize: (state) => ({
+                user: state.user,
+                accessToken: state.accessToken,
+                companyPermissions: state.companyPermissions,
+            }),
             onRehydrateStorage: () => (state) => {
                 if (state) {
                     state.hydrate();

@@ -2,7 +2,7 @@ import React from 'react'
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { TransactionTable } from "@/components/dashboard/TransactionTable";
 
-const page = () => {
+const Page = () => {
     return (
 
         <div className="flex flex-col h-full">
@@ -14,4 +14,4 @@ const page = () => {
     )
 }
 
-export default page
+export default Page

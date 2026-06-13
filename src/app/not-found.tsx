@@ -3,9 +3,23 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { logger } from "@/lib/logger";
 import { Card, CardContent } from "@/components/ui/card";
-import { Home, ArrowLeft, Search, Coffee, Zap, Star } from "lucide-react";
+import { Home, ArrowLeft, Search, Coffee, Zap, Star, type LucideIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+
+function FloatingIcon({ icon: Icon, delay }: { icon: LucideIcon; delay: string }) {
+    return (
+        <div
+            className="absolute animate-bounce opacity-90 text-primary/30"
+            style={{
+                animationDelay: delay,
+                animationDuration: "3s",
+            }}
+        >
+            <Icon className="h-8 w-8" />
+        </div>
+    );
+}
 
 const NotFound = () => {
     const location = usePathname();
@@ -13,8 +27,8 @@ const NotFound = () => {
     const [isHovering, setIsHovering] = useState(false);
 
     useEffect(() => {
-        logger.error(
-            "404 Error: User attempted to access non-existent route:",
+        logger.warn(
+            "404: route not found:",
             location
         );
     }, [location]);
@@ -27,18 +41,6 @@ const NotFound = () => {
         window.addEventListener('mousemove', handleMouseMove);
         return () => window.removeEventListener('mousemove', handleMouseMove);
     }, []);
-
-    const FloatingIcon = ({ icon: Icon, delay }: { icon: any, delay: string }) => (
-        <div
-            className={`absolute animate-bounce opacity-90 text-primary/30`}
-            style={{
-                animationDelay: delay,
-                animationDuration: '3s'
-            }}
-        >
-            <Icon className="h-8 w-8" />
-        </div>
-    );
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background flex items-center justify-center p-4 overflow-hidden relative">

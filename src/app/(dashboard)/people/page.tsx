@@ -6,18 +6,17 @@ import { Users, CreditCard, Building2, UserCog, DollarSign } from "lucide-react"
 import { AllUsersTab } from "@/components/dashboard/people/users/AllUsersTab";
 import { RolesTab } from "@/components/dashboard/people/role/RoleTab";
 import { DirectoryTab } from "@/components/dashboard/people/directory/DirectoryTab";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Upload04Icon } from "@hugeicons/core-free-icons";
 import { useRouter, useSearchParams } from "next/navigation";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import withPermissions from "@/components/permissions/permission-protected-routes";
-import { useGetAllUsersApi, useGetDirectoryUsersApi } from "@/actions/users/get-all-users";
-import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
-import { useGetAllRolesApi } from "@/actions/role/get-all-roles";
+import { useGetAllUsersApi, useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
+import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
+import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import { InviteEmployeesWarningModal } from "@/components/dashboard/people/modals/InviteEmployeesWarningModal";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useAuthStore } from "@/stores/auth-stores";
+import { asRecord, isRecord, pickString } from "@/lib/types/api-error";
 
 function People() {
     const can = useAuthStore(s => s.can);
@@ -27,7 +26,7 @@ function People() {
     const canReadDirectory  = can('user', 'read') || can('user', 'manage');
 
     const usersApi     = useGetAllUsersApi({ enabled: canReadUsers });
-    const deptsApi     = useGetAllDepartmentsApi({ enabled: canReadDepts });
+    const _deptsApi     = useGetAllDepartmentsApi({ enabled: canReadDepts });
     const rolesApi     = useGetAllRolesApi({ enabled: canReadRoles });
     const directoryApi = useGetDirectoryUsersApi({ enabled: canReadDirectory });
 
@@ -35,15 +34,17 @@ function People() {
     const hasDirectoryData    = directoryTotalCount > 0;
 
     const uniqueDeptCount = useMemo(() => {
-        const users: any[] = usersApi?.data?.data ?? [];
+        const users: unknown[] = usersApi?.data?.data ?? [];
         const depts = new Set<string>();
-        users.forEach((u) => {
+        users.forEach((rawUser) => {
+            const u = asRecord(rawUser);
             let deptName = "";
-            if (!u.department) return;
-            if (typeof u.department === "string") {
-                deptName = u.department;
-            } else if (typeof u.department === "object") {
-                deptName = u.department.departmentName || u.department.name || "";
+            const department = u.department;
+            if (!department) return;
+            if (typeof department === "string") {
+                deptName = department;
+            } else if (isRecord(department)) {
+                deptName = pickString(department, "departmentName", "name");
             }
             if (deptName) depts.add(deptName);
         });
@@ -73,7 +74,7 @@ function People() {
     // Register dynamic header CTA button
     const { setAction, clearAction } = useHeaderActionStore();
     const canManageUsers = useAuthStore(s => s.can)('user', 'manage');
-    const canManageRoles = useAuthStore(s => s.can)('role', 'manage');
+    const _canManageRoles = useAuthStore(s => s.can)('role', 'manage');
 
     // Register the correct header button per tab
     useEffect(() => {
@@ -134,7 +135,7 @@ function People() {
         }
 
         return () => clearAction();
-    }, [activeTab, setAction, clearAction, router]);
+    }, [activeTab, setAction, clearAction, router, canManageUsers]);
 
     return (
         <div className="bg-dashboard-bg min-h-screen">

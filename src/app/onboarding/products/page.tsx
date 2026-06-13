@@ -8,7 +8,7 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { ProductLoadingIcon, CreditCardIcon, Invoice04Icon, Store01Icon, ShoppingCart01Icon, Invoice03Icon } from '@hugeicons/core-free-icons';
 import OnboardingTitle from '@/components/onboarding/_shared/OnboardingTitle';
 import { useRouter } from 'next/navigation';
-import { useUpdateOnboardingProductsApi } from '@/actions/onboarding/update-onboarding-product';
+import { useUpdateOnboardingProductsApi } from '@/queries/onboarding/update-onboarding-product';
 import { Loader2 } from 'lucide-react';
 import { useHydrateOnboardingData } from '@/hooks/useHydrateOnboardingData';
 
@@ -67,7 +67,7 @@ export default function ChooseProducts() {
             const payload = villetoProducts.filter((product) => product.selected).map((product) => product.value);
             await updateOnboarding.mutateAsync(payload);
             router.push("/onboarding/review");
-        } catch (error) {
+        } catch (_error) {
 
         }
     };

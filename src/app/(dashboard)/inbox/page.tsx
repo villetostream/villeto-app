@@ -1,15 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import {
   Bell, Mail, AlertTriangle, FileText, CheckCheck,
-  Loader2, Search, RefreshCw, Filter, X, Clock,
+  Loader2, Search, RefreshCw, X, Clock,
   ExternalLink, CheckCircle2, Calendar,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
+  Sheet, SheetContent, SheetTitle,
 } from "@/components/ui/sheet";
+import { asRecord, getBoolean, isRecord, asArray, pickOptionalString, pickString } from "@/lib/types/api-error";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,16 +45,16 @@ function apiUrl(path: string) {
   return `${BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
-function normalise(raw: Record<string, any>): NotificationItem {
+function normalise(raw: Record<string, unknown>): NotificationItem {
   return {
-    id: raw.notificationId ?? raw.id ?? String(Math.random()),
-    title: raw.title ?? raw.message ?? "New notification",
-    message: raw.message ?? raw.title,
-    type: raw.type,
-    actionText: raw.actionText ?? raw.action_text,
-    actionUrl: raw.actionUrl ?? raw.action_url,
-    isRead: raw.isRead ?? raw.is_read ?? raw.read ?? false,
-    createdAt: raw.createdAt ?? raw.created_at ?? new Date().toISOString(),
+    id: pickString(raw, "notificationId", "id") || String(Math.random()),
+    title: pickString(raw, "title", "message") || "New notification",
+    message: pickOptionalString(raw, "message", "title"),
+    type: pickOptionalString(raw, "type"),
+    actionText: pickOptionalString(raw, "actionText", "action_text"),
+    actionUrl: pickOptionalString(raw, "actionUrl", "action_url"),
+    isRead: getBoolean(raw.isRead) || getBoolean(raw.is_read) || getBoolean(raw.read),
+    createdAt: pickString(raw, "createdAt", "created_at") || new Date().toISOString(),
   };
 }
 
@@ -109,9 +111,14 @@ async function resolveMessageIds(message: string, accessToken: string | null): P
         });
         if (!res.ok) continue;
         const data = await res.json();
-        const e = data?.data ?? data;
-        name = e?.name ?? e?.title ?? e?.reportName ?? e?.expenseName ?? e?.policyName ??
-          (e?.firstName && e?.lastName ? `${e.firstName} ${e.lastName}` : null) ?? null;
+        const e = asRecord(isRecord(data) ? (data.data ?? data) : data);
+        const fullName =
+          pickString(e, "firstName") && pickString(e, "lastName")
+            ? `${pickString(e, "firstName")} ${pickString(e, "lastName")}`
+            : "";
+        name =
+          pickOptionalString(e, "name", "title", "reportName", "expenseName", "policyName") ??
+          (fullName || null);
         if (name) break;
       } catch { /* try next */ }
     }
@@ -183,8 +190,12 @@ export default function InboxPage() {
     try {
       const res = await fetch(apiUrl("events/notifications/all"), { headers: authHeaders(), credentials: "include" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const list: Record<string, any>[] = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
+      const json: unknown = await res.json();
+      const jsonRecord = asRecord(json);
+      const rawList = Array.isArray(json)
+        ? json
+        : asArray(jsonRecord.data);
+      const list = rawList.filter(isRecord).map(asRecord);
       const raw = list.map(normalise).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setNotifications(raw);
 
@@ -203,7 +214,11 @@ export default function InboxPage() {
     }
   }, [authHeaders, accessToken]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    queueMicrotask(() => {
+      void fetchAll();
+    });
+  }, [fetchAll]);
 
   // ── SSE ──────────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -243,7 +258,7 @@ export default function InboxPage() {
             try {
               const parsed = JSON.parse(eventData);
               console.log("[SSE Raw Payload (Inbox Page)]:", parsed);
-              const incoming = normalise(parsed);
+              const incoming = normalise(asRecord(parsed));
               const msg = incoming.message ?? "";
               const resolvedMessage = msg.match(UUID_RE)
                 ? await resolveMessageIds(msg, accessToken).catch(() => msg)
@@ -257,8 +272,8 @@ export default function InboxPage() {
             } catch { /* heartbeat */ }
           }
         }
-      } catch (err: any) {
-        if (err?.name !== "AbortError") console.error("[Inbox] SSE error:", err);
+      } catch (err: unknown) {
+        if (!(isRecord(err) && err.name === "AbortError")) console.error("[Inbox] SSE error:", err);
       }
     })();
     return () => controller.abort();
@@ -438,7 +453,7 @@ export default function InboxPage() {
                     "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border shadow-sm",
                     n.isRead ? "bg-white border-gray-100" : "bg-white border-teal-100",
                   ].join(" ")}>
-                    <img src="/images/villeto-logo-v.png" alt="Villeto" className="w-6 h-6 object-contain" />
+                    <Image src="/images/villeto-logo-v.png" alt="Villeto" width={24} height={24} className="w-6 h-6 object-contain" />
                   </div>
 
                   {/* Content */}
@@ -488,7 +503,7 @@ export default function InboxPage() {
               <div className="flex items-start justify-between px-6 pt-6 pb-5 border-b border-gray-100">
                 <div className="flex items-start gap-3 flex-1 min-w-0 pr-4">
                   <div className="w-10 h-10 rounded-xl bg-white border border-gray-100 shadow-sm flex items-center justify-center shrink-0">
-                    <img src="/images/villeto-logo-v.png" alt="Villeto" className="w-6 h-6 object-contain" />
+                    <Image src="/images/villeto-logo-v.png" alt="Villeto" width={24} height={24} className="w-6 h-6 object-contain" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">

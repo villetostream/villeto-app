@@ -2,7 +2,6 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, VariantProps } from "class-variance-authority";
-import { PanelLeftIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -22,14 +21,22 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { SidebarRight } from "iconsax-reactjs";
 import {
-  SidebarRight01FreeIcons,
-  SidebarRight01Icon,
   SidebarRightIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { motion, AnimatePresence } from "framer-motion"; // Add this import
+import { motion, AnimatePresence } from "framer-motion";
+
+function toMotionProps(props: React.HTMLAttributes<HTMLElement>) {
+  const rest = { ...props };
+  delete rest.onAnimationStart;
+  delete rest.onAnimationEnd;
+  delete rest.onAnimationIteration;
+  delete rest.onDragStart;
+  delete rest.onDrag;
+  delete rest.onDragEnd;
+  return rest;
+}
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = "16rem";
@@ -250,7 +257,7 @@ function Sidebar({
                 : "var(--sidebar-width)",
         }}
         transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }} // Smooth bezier
-        {...props}
+        {...(toMotionProps(props) as Record<string, unknown>)}
       >
         <div
           data-sidebar="sidebar"
@@ -357,7 +364,7 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
             : "var(--sidebar-width-icon)",
       }}
       transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-      {...props}
+      {...(toMotionProps(props) as Record<string, unknown>)}
     />
   );
 }
@@ -628,9 +635,7 @@ function SidebarMenuSkeleton({
   showIcon?: boolean;
 }) {
   // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
-  }, []);
+  const width = "70%";
   return (
     <div
       data-slot="sidebar-menu-skeleton"

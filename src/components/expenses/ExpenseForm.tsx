@@ -4,19 +4,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   useForm,
   useFieldArray,
-  UseFormReturn,
   SubmitHandler,
-  FieldValue,
   FieldValues,
+  useWatch,
+  type Control,
 } from "react-hook-form";
 import { z } from "zod";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+
+
 import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +22,6 @@ import {
 } from "@/components/ui/accordion";
 import { toast } from "sonner";
 import { Label } from "../ui/label";
-import Link from "next/link";
 import { logger } from "@/lib/logger";
 import FormFieldInput from "../form fields/formFieldInput";
 import FormFieldSelect from "../form fields/formFieldSelect";
@@ -36,9 +30,10 @@ import { Trash } from "iconsax-reactjs";
 import FormFieldCalendar from "../form fields/FormFieldCalendar";
 import useModal from "@/hooks/useModal";
 import SuccessModal from "../modals/SuccessModal";
-import { SplitExpense } from "./split/SplitExpenseform";
+import { SplitExpense, type SplitExpenseFormValues } from "./split/SplitExpenseform";
 import { splitExpenseSchema } from "./split/splitSchema";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 
 interface OCRData {
   vendor: string;
@@ -101,7 +96,7 @@ const categories = [
   "Other",
 ];
 
-const merchants = ["Uber", "Netflix", "Air Peace", "Eko Hotel", "Starbucks"];
+const _merchants = ["Uber", "Netflix", "Air Peace", "Eko Hotel", "Starbucks"];
 
 type PersonalExpenseStatus = "draft" | "pending";
 type PersonalExpenseRow = {
@@ -153,39 +148,42 @@ function writePersonalExpenses(rows: PersonalExpenseRow[]) {
   window.dispatchEvent(new Event("personal-expenses-updated"));
 }
 
+function createExpenseGroupId() {
+  return `group-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
 export function ExpenseForm() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [files, setFiles] = useState<string[]>([]);
+  const [files, setFiles] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    const storedImages = sessionStorage.getItem("uploadedReceipts");
+    return storedImages ? JSON.parse(storedImages) : [];
+  });
   const searchParams = useSearchParams();
   const reportName = decodeURIComponent(
     (searchParams.get("name") ?? "") as string,
   );
   const reportDate = decodeURIComponent(
-    searchParams.get("date") ?? Date.now().toString(),
+    searchParams.get("date") ?? "",
   );
   const { isOpen: IsSuccess, toggle: successToggle } = useModal();
   const router = useRouter();
   const ocrDataParam = searchParams.get("ocr");
-  // Load receipt images from sessionStorage
-  useEffect(() => {
-    const storedImages = sessionStorage.getItem("uploadedReceipts");
-    if (storedImages) {
-      logger.log({ storedImages });
-      setFiles(JSON.parse(storedImages));
-    }
-  }, []);
   // Parse OCR data if available
-  const ocrData: OCRData[] = ocrDataParam ? JSON.parse(ocrDataParam) : [];
+  const _ocrData: OCRData[] = ocrDataParam ? JSON.parse(ocrDataParam) : [];
 
-  const defaultExpense = {
-    title: "",
-    vendor: "",
-    amount: 0,
-    transactionDate: new Date(),
-    category: "",
-    description: "",
-    receipt: "",
-  };
+  const defaultExpense = useMemo(
+    () => ({
+      title: "",
+      vendor: "",
+      amount: 0,
+      transactionDate: new Date(),
+      category: "",
+      description: "",
+      receipt: "",
+    }),
+    [],
+  );
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseFormSchema),
@@ -196,27 +194,29 @@ export function ExpenseForm() {
 
   // Load receipt images and initialize form fields
   useEffect(() => {
-    const storedImages = sessionStorage.getItem("uploadedReceipts");
-    if (storedImages) {
-      const parsedImages = JSON.parse(storedImages);
-      setFiles(parsedImages);
+    const timeoutId = window.setTimeout(() => {
+      const storedImages = sessionStorage.getItem("uploadedReceipts");
+      if (storedImages) {
+        const parsedImages = JSON.parse(storedImages);
+        setFiles(parsedImages);
 
-      const initialExpenses = parsedImages.map(
-        (receipt: string, index: number) => {
-          return {
-            ...defaultExpense,
-            title: "",
-            receipt,
-          };
-        },
-      );
+        const initialExpenses = parsedImages.map(
+          (receipt: string, _index: number) => {
+            return {
+              ...defaultExpense,
+              title: "",
+              receipt,
+            };
+          },
+        );
 
-      if (initialExpenses.length > 0) {
-        form.reset({ expenses: initialExpenses });
+        if (initialExpenses.length > 0) {
+          form.reset({ expenses: initialExpenses });
+        }
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ocrDataParam]);
+    }, 0);
+    return () => clearTimeout(timeoutId);
+  }, [ocrDataParam, form, defaultExpense]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -234,14 +234,14 @@ export function ExpenseForm() {
       (_, index) => `expenses.${index}.amount`,
     ) as Array<`expenses.${number}.amount`>;
 
-  const amounts = form.watch(amountFieldsNames);
+  const amounts = useWatch({ control: form.control, name: amountFieldsNames });
 
   const receiptFieldsNames = Array(fields.length)
     .fill(null)
     .map(
       (_, index) => `expenses.${index}.receipt`,
     ) as Array<`expenses.${number}.receipt`>;
-  const receipts = form.watch(receiptFieldsNames);
+  const receipts = useWatch({ control: form.control, name: receiptFieldsNames });
 
   const hasAllReceipts = fields.every((_, idx) =>
     Boolean(files[idx] || receipts?.[idx]),
@@ -319,7 +319,7 @@ export function ExpenseForm() {
 
     // If multiple expenses submitted in a single session, group them
     if (data.expenses.length > 1) {
-      const groupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const groupId = createExpenseGroupId();
       const totalAmount = data.expenses.reduce(
         (sum, exp) => sum + Number(exp.amount),
         0,
@@ -594,7 +594,7 @@ export function ExpenseForm() {
                             <div className="p-0 gap-8 relative flex items-start px-6 justify-between w-full">
                               <div className="space-y-5 max-w-lg flex flex-col pr-16">
                                 <SplitExpense
-                                  control={form.control}
+                                  control={form.control as unknown as Control<SplitExpenseFormValues>}
                                   expenseIndex={index}
                                   totalAmount={amount}
                                 />
@@ -665,9 +665,12 @@ export function ExpenseForm() {
                                 </Label>
                                 <div className="rounded-lg border border-border bg-white p-3 h-[420px] flex items-center justify-center">
                                   {files[index] ? (
-                                    <img
+                                    <Image
                                       src={files[index]}
                                       alt="Uploaded receipt"
+                                      width={400}
+                                      height={420}
+                                      unoptimized
                                       className="w-full h-full object-contain"
                                     />
                                   ) : (
@@ -676,7 +679,7 @@ export function ExpenseForm() {
                                         No receipt found for this item.
                                       </div>
                                       <div className="text-muted-foreground">
-                                        You can't submit without a receipt.
+                                        You can&apos;t submit without a receipt.
                                         Upload one to continue.
                                       </div>
                                       <input
@@ -745,7 +748,7 @@ export function ExpenseForm() {
                           )}
 
                           <SplitExpense
-                            control={form.control}
+                            control={form.control as unknown as Control<SplitExpenseFormValues>}
                             expenseIndex={index}
                             totalAmount={amount}
                           />
@@ -816,9 +819,12 @@ export function ExpenseForm() {
                           </Label>
                           <div className="rounded-lg border border-border bg-white p-3 h-[420px] flex items-center justify-center">
                             {files[index] ? (
-                              <img
+                              <Image
                                 src={files[index]}
                                 alt="Uploaded receipt"
+                                width={400}
+                                height={420}
+                                unoptimized
                                 className="w-full h-full object-contain"
                               />
                             ) : (
@@ -827,7 +833,7 @@ export function ExpenseForm() {
                                   No receipt found for this item.
                                 </div>
                                 <div className="text-muted-foreground">
-                                  You can't submit without a receipt. Upload one
+                                  You can&apos;t submit without a receipt. Upload one
                                   to continue.
                                 </div>
                                 <input
@@ -878,7 +884,7 @@ export function ExpenseForm() {
                   type="button"
                   variant="outlinePrimary"
                   onClick={() => {
-                    const values = form.getValues();
+                    const _values = form.getValues();
                     // Trigger validation so required fields are respected.
                     form.handleSubmit((validData) => {
                       persistToPersonalExpenses(

@@ -6,13 +6,14 @@ import { useAxios } from "@/hooks/useAxios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
 import { Search, Download, ChevronDown } from "lucide-react";
+import { asRecord, getString, pickString } from "@/lib/types/api-error";
 
 export default function VendorTransactionsPage() {
   const { vendorId } = useParams() as { vendorId: string };
-  const router = useRouter();
+  const _router = useRouter();
   const axiosInstance = useAxios();
 
-  const [vendor, setVendor] = useState<any>(null);
+  const [vendor, setVendor] = useState<Record<string, unknown> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -21,7 +22,7 @@ export default function VendorTransactionsPage() {
     setIsLoading(true);
     try {
       const res = await axiosInstance.get(`/vendors/${vendorId}`);
-      setVendor(res.data.data);
+      setVendor(asRecord(res.data.data));
     } catch (err) {
       logger.error("Error fetching vendor details:", err);
     } finally {
@@ -30,9 +31,10 @@ export default function VendorTransactionsPage() {
   };
 
   useEffect(() => {
-    if (vendorId) {
-      fetchVendor();
-    }
+    if (!vendorId) return;
+    queueMicrotask(() => {
+      void fetchVendor();
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId]);
 
@@ -72,8 +74,8 @@ export default function VendorTransactionsPage() {
 
       {/* ── Header ── */}
       <div>
-        <h1 className="text-2xl font-bold text-[#1a202c]">{vendor.legalName || vendor.displayName}</h1>
-        <p className="text-sm text-gray-500 mt-1">{vendor.email}</p>
+        <h1 className="text-2xl font-bold text-[#1a202c]">{pickString(vendor, "legalName", "displayName")}</h1>
+        <p className="text-sm text-gray-500 mt-1">{getString(vendor.email)}</p>
       </div>
 
       {/* ── Transactions Card ── */}

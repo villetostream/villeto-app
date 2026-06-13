@@ -1,13 +1,8 @@
 import React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { Input } from "../ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
+
+
 import FormFieldSelect from "../form fields/formFieldSelect";
 import { Button } from "../ui/button";
 import { format } from "date-fns";
@@ -89,7 +84,7 @@ export function Filter({ filterProps }: { filterProps: FilterProps }) {
           onSubmit={handleSubmit(onSubmit)}
           className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 gap-8 px-4"
         >
-          {filterData?.map((filter, index) => (
+          {filterData?.map((filter, _index) => (
             <div key={filter.label}>
               {filter.type === "input" && (
                 <Controller

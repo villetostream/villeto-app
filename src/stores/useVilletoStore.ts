@@ -124,7 +124,7 @@ const initialState: OnboardingState = {
 
 export const useOnboardingStore = create<VilletoState & OnboardingState>()(
     persist(
-        (set, get) => ({
+        (set, _get) => ({
             currentStep: 5, // Starting at Choose Products for demo
             ...initialState,
             showCongratulations: false,

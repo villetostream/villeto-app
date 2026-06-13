@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,9 +35,12 @@ export function ReceiptViewModal({
           {/* Receipt Image */}
           <div className="border border-border rounded-lg overflow-hidden bg-muted/30">
             {receiptUrl ? (
-              <img
+              <Image
                 src={receiptUrl}
                 alt="Receipt"
+                width={600}
+                height={500}
+                unoptimized
                 className="w-full h-auto max-h-[500px] object-contain"
               />
             ) : (

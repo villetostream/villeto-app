@@ -1,4 +1,4 @@
-import { useReducer, useMemo, useEffect } from "react";
+import { useReducer, useMemo, useEffect, useCallback } from "react";
 
 export interface SortState {
   id: string;
@@ -128,22 +128,27 @@ export function useDataTable(options?: UseDataTableOptions) {
     [state.page, state.pageSize, state.totalItems]
   );
 
+  // Stable dispatcher wrappers — dispatch from useReducer is guaranteed stable
+  const setPage = useCallback((page: number) => dispatch({ type: "SET_PAGE", page }), []);
+  const setPageSize = useCallback((size: number) => dispatch({ type: "SET_PAGE_SIZE", pageSize: size }), []);
+  const setTotalItems = useCallback((total: number) => dispatch({ type: "SET_TOTAL_ITEMS", totalItems: total }), []);
+  const setSortBy = useCallback((sort: SortState[]) => dispatch({ type: "SET_SORT_BY", sort }), []);
+  const setGlobalSearch = useCallback((search: string) => dispatch({ type: "SET_GLOBAL_SEARCH", search }), []);
+  const setFilterBy = useCallback((filter: Record<string, string>) => dispatch({ type: "SET_FILTER_BY", filter }), []);
+  const setSelectedDataIds = useCallback((selectedIds: Set<string>) => dispatch({ type: "SET_SELECTED_DATA_IDS", selectedIds }), []);
+  const resetTable = useCallback(() => dispatch({ type: "RESET_TABLE", options: options || {} }), [options]);
+
   // Expose all state and actions
   return {
     ...state,
-    setPage: (page: number) => dispatch({ type: "SET_PAGE", page }),
-    setPageSize: (size: number) =>
-      dispatch({ type: "SET_PAGE_SIZE", pageSize: size }),
-    setTotalItems: (total: number) =>
-      dispatch({ type: "SET_TOTAL_ITEMS", totalItems: total }),
-    setSortBy: (sort: SortState[]) => dispatch({ type: "SET_SORT_BY", sort }),
-    setGlobalSearch: (search: string) =>
-      dispatch({ type: "SET_GLOBAL_SEARCH", search }),
-    setFilterBy: (filter: Record<string, string>) =>
-      dispatch({ type: "SET_FILTER_BY", filter }),
-    setSelectedDataIds: (selectedIds: Set<string>) =>
-      dispatch({ type: "SET_SELECTED_DATA_IDS", selectedIds }),
-    resetTable: () => dispatch({ type: "RESET_TABLE", options: options || {} }),
+    setPage,
+    setPageSize,
+    setTotalItems,
+    setSortBy,
+    setGlobalSearch,
+    setFilterBy,
+    setSelectedDataIds,
+    resetTable,
     paginationProps,
     manualSorting,
     manualFiltering,

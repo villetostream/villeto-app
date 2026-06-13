@@ -1,13 +1,15 @@
 "use client";
 
-import { logger } from "@/lib/logger";
-import { useState, useEffect, type ChangeEvent } from "react";
+import Image from "next/image";
+import { useState, useEffect, useMemo, type ChangeEvent } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   useForm,
   useFieldArray,
   SubmitHandler,
   FieldValues,
+  useWatch,
+  type Control,
 } from "react-hook-form";
 import { z } from "zod";
 import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
@@ -25,9 +27,10 @@ import FormFieldSelect from "../form fields/formFieldSelect";
 import FormFieldTextArea from "../form fields/formFieldTextArea";
 import { Trash } from "iconsax-reactjs";
 import FormFieldCalendar from "../form fields/FormFieldCalendar";
+import { logger } from "@/lib/logger";
 import useModal from "@/hooks/useModal";
 import SuccessModal from "../modals/SuccessModal";
-import { SplitExpense } from "./split/SplitExpenseform";
+import { SplitExpense, type SplitExpenseFormValues } from "./split/SplitExpenseform";
 import { splitExpenseSchema } from "./split/splitSchema";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAxios } from "@/hooks/useAxios";
@@ -157,7 +160,6 @@ export function ManualExpenseForm({
   onDeleteExpense,
   onUpdateSuccess,
 }: ManualExpenseFormProps = {}) {
-  const [files, setFiles] = useState<string[]>([]);
   const [originalFiles, setOriginalFiles] = useState<string[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -168,7 +170,7 @@ export function ManualExpenseForm({
     : decodeURIComponent((searchParams.get("name") ?? "") as string);
   const reportDate = isEditMode
     ? new Date().toDateString()
-    : decodeURIComponent(searchParams.get("date") ?? Date.now().toString());
+    : decodeURIComponent(searchParams.get("date") ?? "");
   const { isOpen: IsSuccess, toggle: successToggle } = useModal();
   const router = useRouter();
   const axios = useAxios();
@@ -176,7 +178,8 @@ export function ManualExpenseForm({
 
   // Fetch expense categories from API
   useEffect(() => {
-    const fetchCategories = async () => {
+    const timeoutId = window.setTimeout(() => {
+      const fetchCategories = async () => {
       try {
         setIsLoadingCategories(true);
         const response = await axios.get<CategoryApiResponse>(
@@ -201,26 +204,28 @@ export function ManualExpenseForm({
     };
 
     fetchCategories();
+    }, 0);
+    return () => clearTimeout(timeoutId);
   }, [axios]);
 
-  // Load receipt images from sessionStorage
-  useEffect(() => {
+  const [files, setFiles] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
     const storedImages = sessionStorage.getItem("uploadedReceipts");
-    if (storedImages) {
-      logger.log({ storedImages });
-      setFiles(JSON.parse(storedImages));
-    }
-  }, []);
+    return storedImages ? JSON.parse(storedImages) : [];
+  });
 
-  const defaultExpense = {
-    title: "",
-    vendor: "",
-    amount: 0,
-    transactionDate: new Date(),
-    category: "",
-    description: "",
-    receipt: "",
-  };
+  const defaultExpense = useMemo(
+    () => ({
+      title: "",
+      vendor: "",
+      amount: 0,
+      transactionDate: new Date(),
+      category: "",
+      description: "",
+      receipt: "",
+    }),
+    [],
+  );
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseFormSchema),
@@ -231,6 +236,7 @@ export function ManualExpenseForm({
 
   // Load receipt images and initialize form fields
   useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
     if (isEditMode && reportDetail && reportDetail.expenses) {
       // Load existing expenses for edit mode
       const existingExpenses = reportDetail.expenses.map((expense) => ({
@@ -271,8 +277,9 @@ export function ManualExpenseForm({
         }
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, reportDetail]);
+    }, 0);
+    return () => clearTimeout(timeoutId);
+  }, [isEditMode, reportDetail, form, defaultExpense]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -285,14 +292,14 @@ export function ManualExpenseForm({
       (_, index) => `expenses.${index}.amount`,
     ) as Array<`expenses.${number}.amount`>;
 
-  const amounts = form.watch(amountFieldsNames);
+  const amounts = useWatch({ control: form.control, name: amountFieldsNames });
 
   const receiptFieldsNames = Array(fields.length)
     .fill(null)
     .map(
       (_, index) => `expenses.${index}.receipt`,
     ) as Array<`expenses.${number}.receipt`>;
-  const receipts = form.watch(receiptFieldsNames);
+  const receipts = useWatch({ control: form.control, name: receiptFieldsNames });
 
   const hasAllReceipts = fields.every((_, idx) =>
     Boolean(files[idx] || receipts?.[idx]),
@@ -339,7 +346,7 @@ export function ManualExpenseForm({
   };
 
   // Watch form values to trigger re-renders when form changes
-  const watchedValues = form.watch();
+  const watchedValues = useWatch({ control: form.control });
   const formDirty = form.formState.isDirty;
 
   // Check if form has been modified from original state (for edit mode)
@@ -450,7 +457,7 @@ export function ManualExpenseForm({
         title: expense.title,
         merchantName: expense.vendor,
         description: expense.description || "",
-        expenseCategoryId: category.categoryId || (category as any).id,
+        expenseCategoryId: category.categoryId || (category as { id?: string }).id || "",
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
@@ -513,7 +520,7 @@ export function ManualExpenseForm({
         title: expense.title,
         merchantName: expense.vendor,
         description: expense.description || "",
-        expenseCategoryId: category.categoryId || (category as any).id,
+        expenseCategoryId: category.categoryId || (category as { id?: string }).id || "",
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
@@ -928,7 +935,7 @@ export function ManualExpenseForm({
                               <div className="p-0 gap-8 relative flex items-start px-6 justify-between w-full">
                                 <div className="space-y-5 max-w-lg flex flex-col pr-16">
                                   <SplitExpense
-                                    control={form.control}
+                                    control={form.control as unknown as Control<SplitExpenseFormValues>}
                                     expenseIndex={index}
                                     totalAmount={amount}
                                   />
@@ -1005,9 +1012,12 @@ export function ManualExpenseForm({
                                     />
                                     {files[index] ? (
                                       <div className="w-full h-full flex flex-col items-center justify-center relative">
-                                        <img
+                                        <Image
                                           src={files[index]}
                                           alt="Uploaded receipt"
+                                          width={400}
+                                          height={420}
+                                          unoptimized
                                           className="w-full h-full object-contain"
                                         />
                                         <Button
@@ -1092,7 +1102,7 @@ export function ManualExpenseForm({
                             )}
 
                             <SplitExpense
-                              control={form.control}
+                              control={form.control as unknown as Control<SplitExpenseFormValues>}
                               expenseIndex={index}
                               totalAmount={amount}
                             />
@@ -1169,9 +1179,12 @@ export function ManualExpenseForm({
                               />
                               {files[index] ? (
                                 <div className="w-full h-full flex flex-col items-center justify-center relative">
-                                  <img
+                                  <Image
                                     src={files[index]}
                                     alt="Uploaded receipt"
+                                    width={400}
+                                    height={420}
+                                    unoptimized
                                     className="w-full h-full object-contain"
                                   />
                                   <Button

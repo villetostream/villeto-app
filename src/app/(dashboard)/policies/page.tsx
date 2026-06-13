@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   PlusCircle, ShieldCheck, MoreHorizontal, Pencil, Shield, Trash2,
   Search, SlidersHorizontal, RefreshCcw, ChevronDown,
-  Eye, Archive, X, UserCircle, FileText, Clock, Tag, Loader2,
-  Users, CheckCircle2, Globe
+  Eye, Archive, X, UserCircle, FileText, Clock, Tag, Loader2
 } from "lucide-react";
 import PolicyCreationModal, { type CreatedPolicyData } from "@/components/policies/PolicyCreationModal";
 import AddCategoryModal from "@/components/auth/AddCategoryModal";
@@ -32,12 +31,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
-import { useGetExpenseCategoriesApi } from "@/actions/companies/get-expense-categories";
-import { useDeleteCategoryApi } from "@/actions/companies/delete-category";
-import { useGetPoliciesApi } from "@/actions/companies/get-policies";
-import { useGetPolicyDetailsApi } from "@/actions/companies/get-policy-details";
-import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
-import { useGetCompanyRolesApi } from "@/actions/role/get-all-roles";
+import { useGetExpenseCategoriesApi } from "@/queries/companies/get-expense-categories";
+import { useDeleteCategoryApi } from "@/queries/companies/delete-category";
+import { useGetPoliciesApi } from "@/queries/companies/get-policies";
+import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
+import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
+import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/constants/api-query-key";
 import { useAxios } from "@/hooks/useAxios";
@@ -46,6 +45,15 @@ import { toast } from "sonner";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
 import { useAuthStore } from "@/stores/auth-stores";
+import {
+  asArray,
+  asRecord,
+  getApiErrorMessage,
+  getOptionalString,
+  getString,
+  isRecord,
+  pickString,
+} from "@/lib/types/api-error";
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -62,7 +70,7 @@ interface Policy {
   date: string;
   status: PolicyStatus;
   approvers: string[];
-  approversRaw: any[];
+  approversRaw: unknown[];
   dailyLimit: string;
   receiptRequired: boolean;
   archivedOn?: string;
@@ -93,7 +101,7 @@ type ExpenseCategoryDetails = {
 
 // Live data logic below
 
-function todayStr() {
+function _todayStr() {
   const d = new Date();
   return [String(d.getDate()).padStart(2,"0"), String(d.getMonth()+1).padStart(2,"0"), d.getFullYear()].join("-");
 }
@@ -116,10 +124,12 @@ function StatusBadge({ status }: { status: string }) {
 
 /* ─── Helpers ───────────────────────────────────────────────────────────────── */
 
-function formatUser(userObj: any, fallbackStr?: string) {
+function formatUser(userObj: unknown, fallbackStr?: string) {
   if (!userObj) return fallbackStr || "—";
   if (typeof userObj === "string") return userObj || fallbackStr || "—";
-  return `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.email || fallbackStr || "Unknown User";
+  const user = asRecord(userObj);
+  const fullName = `${pickString(user, "firstName")} ${pickString(user, "lastName")}`.trim();
+  return fullName || pickString(user, "email") || fallbackStr || "Unknown User";
 }
 
 /* ─── Expense Category Action Menu ───────────────────────────────────────────── */
@@ -230,11 +240,13 @@ function ExpenseCategoryDetailsModal({
                   <div>
                     <p className="text-xs font-bold text-primary uppercase tracking-widest mb-2">Attached Policies</p>
                     <div className="flex flex-wrap gap-2">
-                      {category.policies.map((pol: any, i: number) => (
+                      {category.policies.map((pol, i: number) => {
+                        const policy = asRecord(pol);
+                        return (
                         <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full border border-primary/10 text-sm font-medium text-foreground">
-                          <Shield className="w-4 h-4 text-primary opacity-60" />{pol.name ?? `Policy ${i + 1}`}
+                          <Shield className="w-4 h-4 text-primary opacity-60" />{pickString(policy, "name") || `Policy ${i + 1}`}
                         </div>
-                      ))}
+                      );})}
                     </div>
                   </div>
                 </>
@@ -254,6 +266,8 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
   policy: Policy | null; onClose: () => void;
   onEdit: (p: Policy) => void; onArchive: (p: Policy) => void;
 }) {
+  const canDeactivate = useAuthStore(s => s.can)('policy', 'deactivate');
+  const canUpdate = useAuthStore(s => s.can)('policy', 'update');
   const { data: detailData, isLoading } = useGetPolicyDetailsApi(policy?.id || null);
   const fullPolicy = detailData?.data;
 
@@ -264,10 +278,16 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
 
   const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
 
-  const formatUserRole = (userObj: any) => {
+  const formatUserRole = (userObj: unknown) => {
     if (!userObj || typeof userObj === "string") return "";
-    const role = userObj.villetoRole?.name || userObj.role?.name || userObj.jobTitle || userObj.position || "";
-    return role.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+    const user = asRecord(userObj);
+    const villetoRole = asRecord(user.villetoRole);
+    const role = asRecord(user.role);
+    const roleName =
+      pickString(villetoRole, "name") ||
+      pickString(role, "name") ||
+      pickString(user, "jobTitle", "position");
+    return roleName.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
   };
 
   const mapTimeframe = (tf?: string) => {
@@ -283,10 +303,18 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
   const getScopeText = () => {
     if (!fullPolicy?.scope) return policy.appliedTo;
     if (fullPolicy.scope.type === "all" || fullPolicy.scope.type === "all_employees") return "All Employees";
-    const deptIds = fullPolicy.scope.departments || [];
-    const roleIds = fullPolicy.scope.userRoles || fullPolicy.applicableRoles || [];
-    const depts = deptIds.map((d: string) => departmentsApi.data?.data?.find((o: any) => String(o.departmentId) === String(d))?.departmentName || d);
-    const roles = roleIds.map((r: string) => rolesApi.data?.data?.find((o: any) => String(o.roleId) === String(r))?.name?.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) || r);
+    const scope = fullPolicy.scope;
+    const deptIds = scope.type === "specific" ? scope.departments || [] : [];
+    const roleIds = scope.type === "specific" ? scope.userRoles || fullPolicy.applicableRoles || [] : [];
+    const depts = deptIds.map((d: string) => {
+      const dept = asArray(departmentsApi.data?.data).filter(isRecord).find((o) => String(o.departmentId) === String(d));
+      return dept ? pickString(dept, "departmentName") || d : d;
+    });
+    const roles = roleIds.map((r: string) => {
+      const role = asArray(rolesApi.data?.data).filter(isRecord).find((o) => String(o.roleId) === String(r));
+      const roleName = role ? pickString(role, "name") : r;
+      return roleName.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+    });
     const listFmt = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
     if (depts.length === 0 && roles.length === 0) return "Specific Employees";
     const rolePart = roles.length > 0 ? listFmt.format(roles) : "";
@@ -365,14 +393,20 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {(fullPolicy?.expenseCategories || []).length > 0 ? (
-                    (fullPolicy?.expenseCategories || []).map((cat: any, i: number) => (
+                    (fullPolicy?.expenseCategories || []).map((cat, i: number) => {
+                      const category = isRecord(cat) ? cat : asRecord({ value: cat });
+                      const label =
+                        typeof cat === "string"
+                          ? cat
+                          : pickString(category, "name", "category") || String(cat);
+                      return (
                       <span
                         key={i}
                         className="px-3 py-1 rounded-full border border-border/60 bg-muted/30 text-foreground/70 text-xs font-medium"
                       >
-                        {cat.name || cat.category || cat}
+                        {label}
                       </span>
-                    ))
+                    );})
                   ) : (
                     <p className="text-sm text-muted-foreground italic">No specific categories attached.</p>
                   )}
@@ -385,15 +419,16 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
                   Enforcement Rules
                 </p>
                 <div className="space-y-2">
-                  {(fullPolicy?.rules || []).length > 0 ? (
-                    fullPolicy.rules.map((r: any, i: number) => {
-                      const isLimit = r.type === "spend_limit";
-                      const isBlock = r.enforcementAction === "block";
+                  {(fullPolicy?.rules ?? []).length > 0 ? (
+                    (fullPolicy?.rules ?? []).map((rawRule, i: number) => {
+                      const r = asRecord(rawRule);
+                      const isLimit = getString(r.type) === "spend_limit";
+                      const isBlock = getString(r.enforcementAction) === "block";
                       const enforcement = isBlock ? "Hard Block" : "Soft Warning";
                       const description = isLimit
-                        ? `Must not exceed ${r.currency || "NGN"} ${Number(r.amount || 0).toLocaleString()}/${mapTimeframe(r.timeUnit || r.time_unit || r.timeframe || fullPolicy.spendLimitPeriod)}`
+                        ? `Must not exceed ${pickString(r, "currency") || "NGN"} ${Number(r.amount || 0).toLocaleString()}/${mapTimeframe(getOptionalString(r.timeUnit) || getOptionalString(r.time_unit) || getOptionalString(r.timeframe) || fullPolicy?.spendLimitPeriod)}`
                         : (r.receiptAmountThreshold || r.threshold)
-                          ? `For transactions above ${r.currency || "NGN"} ${Number(r.receiptAmountThreshold || r.threshold).toLocaleString()}`
+                          ? `For transactions above ${pickString(r, "currency") || "NGN"} ${Number(r.receiptAmountThreshold || r.threshold).toLocaleString()}`
                           : "Required for all transactions";
                       return (
                         <div key={i} className="rounded-xl border border-border/60 p-3.5">
@@ -443,7 +478,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
                 <div className="text-right">
                   <p className="text-[11px] text-muted-foreground mb-1.5">Approved by</p>
                   <div className="space-y-2">
-                    {approvers.map((a: any, i: number) => {
+                    {approvers.map((a: unknown, i: number) => {
                       const roleLabel = formatUserRole(a);
                       return (
                         <div key={i}>
@@ -466,7 +501,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
 
         {/* ── Footer buttons ── */}
         <div className="px-6 pb-6 pt-1 shrink-0 flex gap-3">
-          {useAuthStore(s => s.can)('policy', 'deactivate') && (
+          {canDeactivate && (
             <button
               onClick={() => { onArchive(policy); onClose(); }}
               className="flex-1 h-11 rounded-full border border-primary text-primary text-sm font-semibold hover:bg-primary/5 transition-colors"
@@ -474,7 +509,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
               Move to Archive
             </button>
           )}
-          {useAuthStore(s => s.can)('policy', 'update') && (
+          {canUpdate && (
             <button
               onClick={() => { onEdit(policy); onClose(); }}
               className="flex-1 h-11 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
@@ -531,9 +566,9 @@ function ReviewPolicyModal({ policy, onClose, onApprove, onReject }: {
               <p className="text-xs font-bold text-primary uppercase tracking-widest mb-2">Approver(s)</p>
               <div className="flex flex-wrap gap-2">
                 {policy.approvers.length > 0 ? policy.approvers.map((a, i) => {
-                  const name = typeof a === 'string' ? a : (a?.firstName ? `${a.firstName} ${a.lastName || ''}` : a.email || 'User');
+                  const name = typeof a === "string" ? a : String(a);
                   return (
-                    <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full border border-primary/10 text-sm font-medium text-foreground">
+                    <div key={`${name}-${i}`} className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full border border-primary/10 text-sm font-medium text-foreground">
                       <UserCircle className="w-4 h-4 text-primary opacity-60" />{name}
                     </div>
                   );
@@ -562,15 +597,19 @@ function ReviewPolicyModal({ policy, onClose, onApprove, onReject }: {
 function PoliciesPage() {
   const axios = useAxios();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab]           = useState<"policies" | "expense" | "archived">("policies");
-  
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab === "expense" || tab === "policies" || tab === "archived") {
-      setActiveTab(tab);
-    }
-  }, [searchParams]);
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab: "policies" | "expense" | "archived" =
+    tabFromUrl === "expense" || tabFromUrl === "policies" || tabFromUrl === "archived"
+      ? tabFromUrl
+      : "policies";
+
+  const switchTab = useCallback((tab: "policies" | "expense" | "archived") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`/policies?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
 
   const [isCreatePolicyOpen, setIsCreatePolicyOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen]   = useState(false);
@@ -590,12 +629,12 @@ function PoliciesPage() {
   const canCreatePolicy = can('policy', 'create');
 
   const liveExpenseCategories = useMemo<ExpenseCategory[]>(() => {
-    return (expCatApi.data?.data || []).map((c: any) => ({
-      id: c.categoryId ?? c.id,
-      category: c.name,
-      description: c.description || "",
+    return asArray(expCatApi.data?.data).filter(isRecord).map((c) => ({
+      id: pickString(c, "categoryId", "id"),
+      category: getString(c.name),
+      description: getString(c.description),
       createdBy: formatUser(c.createdBy),
-      date: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—",
+      date: c.createdAt ? new Date(getString(c.createdAt)).toLocaleDateString() : "—",
       isPolicyAttached: Boolean(c.isPolicyAttached),
     }));
   }, [expCatApi.data?.data]);
@@ -635,41 +674,50 @@ function PoliciesPage() {
 
   const policies = useMemo<Policy[]>(() => {
     const rawPolicies = policiesApi.data?.data || [];
-    const sortedPolicies = [...rawPolicies].sort((a: any, b: any) => 
-       new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    const sortedPolicies = [...asArray(rawPolicies).filter(isRecord)].sort((a, b) =>
+       new Date(getString(b.createdAt) || 0).getTime() - new Date(getString(a.createdAt) || 0).getTime()
     );
 
-    return sortedPolicies.map((p: any) => {
-      const getCatNames = (cats: any[]) => {
+    return sortedPolicies.map((p) => {
+      const getCatNames = (cats: unknown[]) => {
         if (!cats || !cats.length) return "General";
-        const names = cats.map(c => {
-          if (typeof c === 'string') {
-            return liveExpenseCategories.find(lc => lc.id === c)?.category || c;
+        const names = cats.map((rawCat) => {
+          if (typeof rawCat === 'string') {
+            return liveExpenseCategories.find(lc => lc.id === rawCat)?.category || rawCat;
           }
-          return c.name || c.category || 'Category';
+          const c = asRecord(rawCat);
+          return pickString(c, "name", "category") || 'Category';
         });
         return names.join(", ");
       };
 
       const createdByObj = p.createdBy;
-      const createdByName = createdByObj && typeof createdByObj === 'object'
-        ? `${createdByObj.firstName || ''} ${createdByObj.lastName || ''}`.trim() || createdByObj.email || "Admin"
+      const createdByName = isRecord(createdByObj)
+        ? `${pickString(createdByObj, "firstName")} ${pickString(createdByObj, "lastName")}`.trim() || pickString(createdByObj, "email") || "Admin"
         : typeof createdByObj === 'string' ? createdByObj : "Admin";
+      const scope = asRecord(p.scope);
+      const rules = asArray(p.rules).filter(isRecord);
 
       return {
-        id: p.policyId || p.id || Math.random().toString(),
-        name: p.name || "",
-        version: p.version || 1,
-        category: getCatNames(p.expenseCategories),
-        appliedTo: p.scope?.type === "all" || p.scope?.type === "all_employees" ? "All Employees" : "Specific Employees",
+        id: pickString(p, "policyId", "id") || Math.random().toString(),
+        name: getString(p.name),
+        version: Number(p.version) || 1,
+        category: getCatNames(asArray(p.expenseCategories)),
+        appliedTo: getString(scope.type) === "all" || getString(scope.type) === "all_employees" ? "All Employees" : "Specific Employees",
         createdBy: createdByName,
-        date: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—",
-        status: (p.status?.toLowerCase() as PolicyStatus) || "inactive",
-        approvers: (p.approvers || []).map((a: any) => typeof a === 'string' ? a : (a?.firstName ? `${a.firstName} ${a.lastName || ''}` : a.email || 'User')),
-        approversRaw: p.approvers || [],
-        dailyLimit: p.rules?.find((r: any) => r.type === "spend_limit")?.amount?.toString() || "0",
-        receiptRequired: !!p.rules?.find((r: any) => r.type === "receipt_requirement")?.amount,
-        archivedOn: p.deletedAt ? new Date(p.deletedAt).toLocaleDateString() : undefined,
+        date: p.createdAt ? new Date(getString(p.createdAt)).toLocaleDateString() : "—",
+        status: (getString(p.status).toLowerCase() as PolicyStatus) || "inactive",
+        approvers: asArray(p.approvers).map((rawApprover) => {
+          if (typeof rawApprover === 'string') return rawApprover;
+          const a = asRecord(rawApprover);
+          return pickString(a, "firstName")
+            ? `${pickString(a, "firstName")} ${pickString(a, "lastName")}`.trim()
+            : pickString(a, "email") || 'User';
+        }),
+        approversRaw: asArray(p.approvers),
+        dailyLimit: getString(rules.find((r) => getString(r.type) === "spend_limit")?.amount) || "0",
+        receiptRequired: !!rules.find((r) => getString(r.type) === "receipt_requirement")?.amount,
+        archivedOn: p.deletedAt ? new Date(getString(p.deletedAt)).toLocaleDateString() : undefined,
       };
     });
   }, [policiesApi.data?.data, liveExpenseCategories]);
@@ -723,7 +771,7 @@ function PoliciesPage() {
     );
   }, [search, liveExpenseCategories]);
 
-  const handleViewCategory = async (categoryId: string) => {
+  const handleViewCategory = useCallback(async (categoryId: string) => {
     setIsCategoryDetailsLoading(true);
     setSelectedCategoryDetails(null);
     try {
@@ -735,7 +783,7 @@ function PoliciesPage() {
     } finally {
       setIsCategoryDetailsLoading(false);
     }
-  };
+  }, [axios]);
 
   const deleteCategoryMutation = useDeleteCategoryApi();
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
@@ -745,25 +793,25 @@ function PoliciesPage() {
     try {
       await deleteCategoryMutation.mutateAsync({ categoryId: categoryToDelete });
       toast.success("Expense category deleted successfully");
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to delete expense category");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to delete expense category"));
     } finally {
       setCategoryToDelete(null);
     }
   };
 
   /* handlers */
-  const handleCreated = (data: CreatedPolicyData) => {
+  const handleCreated = (_data: CreatedPolicyData) => {
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
     notifySetupGuide("policy");
-    setActiveTab("policies");
+    switchTab("policies");
   };
 
-  const handleEdit    = (policy: Policy) => {
+  const handleEdit = useCallback((policy: Policy) => {
     setEditingPolicyId(policy.id);
     setIsCreatePolicyOpen(true);
-  };
-  const handleArchive = (policy: Policy) => toast.info("Archive policy API not integrated yet.");
+  }, []);
+  const handleArchive = useCallback((_policy: Policy) => toast.info("Archive policy API not integrated yet."), []);
 
   const handleReviewAction = async (policy: Policy, action: "activate" | "deactivate") => {
     try {
@@ -771,8 +819,8 @@ function PoliciesPage() {
       toast.success(`Policy ${action === "activate" ? "approved" : "rejected"} successfully`);
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
       setReviewPolicy(null);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || `Failed to ${action === "activate" ? "approve" : "reject"} policy`);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, `Failed to ${action === "activate" ? "approve" : "reject"} policy`));
     }
   };
 
@@ -786,14 +834,15 @@ function PoliciesPage() {
    * then, the button should not have appeared, but as a defense-in-depth
    * check we re-fetch and confirm before allowing the action to surface.
    */
-  const handleOpenReview = async (policy: Policy) => {
+  const handleOpenReview = useCallback(async (policy: Policy) => {
     try {
       const res = await axios.get(API_KEYS.EXPENSE.POLICY_BY_ID(policy.id));
-      const freshPolicy = res.data?.data;
-      const freshApprovers: any[] = freshPolicy?.approversRaw ?? freshPolicy?.approvers ?? [];
-      const stillApprover = Array.isArray(freshApprovers)
-        ? freshApprovers.some((a: any) => (a.userId ?? a.id) === user?.userId)
-        : false;
+      const freshPolicy = asRecord(res.data?.data);
+      const freshApprovers = asArray(freshPolicy.approversRaw ?? freshPolicy.approvers);
+      const stillApprover = freshApprovers.some((rawApprover) => {
+        const a = asRecord(rawApprover);
+        return pickString(a, "userId", "id") === user?.userId;
+      });
 
       if (!stillApprover) {
         toast.error("You are no longer an approver for this policy.");
@@ -801,10 +850,10 @@ function PoliciesPage() {
         return;
       }
       setReviewPolicy(policy);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to load policy details. Please try again.");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to load policy details. Please try again."));
     }
-  };
+  }, [axios, queryClient, user?.userId]);
 
   const lastUpdated = `Last updated: ${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}`;
   const statCards = [
@@ -847,7 +896,10 @@ function PoliciesPage() {
       header: () => <div className="text-right w-full">Action</div>,
       cell: ({ row }) => {
         const policy = row.original;
-        const isApprover = policy.approversRaw.some((a: any) => a.userId === user?.userId);
+        const isApprover = policy.approversRaw.some((rawApprover) => {
+          const a = asRecord(rawApprover);
+          return pickString(a, "userId") === user?.userId;
+        });
         const { can } = useAuthStore.getState();
         const canUpdate = can('policy', 'update');
         const canDeactivate = can('policy', 'deactivate');
@@ -888,7 +940,7 @@ function PoliciesPage() {
         );
       },
     },
-  ], []);
+  ], [handleOpenReview, user?.userId, handleEdit, handleArchive]);
 
   /* DataTable columns for Archived tab */
   const archivedColumns = useMemo<ColumnDef<Policy>[]>(() => [
@@ -1025,7 +1077,7 @@ function PoliciesPage() {
           <div className="flex bg-muted rounded-xl p-1">
             <button
               data-tour="policies-tab"
-              onClick={() => { setActiveTab("policies"); setSearch(""); }}
+              onClick={() => { switchTab("policies"); setSearch(""); }}
               className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
                 activeTab === "policies" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -1035,7 +1087,7 @@ function PoliciesPage() {
             {canManageCategories && (
               <button
                 data-tour="expense-category-tab"
-                onClick={() => { setActiveTab("expense"); setSearch(""); }}
+                onClick={() => { switchTab("expense"); setSearch(""); }}
                 className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
                   activeTab === "expense" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
@@ -1044,7 +1096,7 @@ function PoliciesPage() {
               </button>
             )}
             <button
-              onClick={() => { setActiveTab("archived"); setSearch(""); }}
+              onClick={() => { switchTab("archived"); setSearch(""); }}
               className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
                 activeTab === "archived" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}

@@ -1,11 +1,10 @@
-import { AlertCircle, Upload } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertCircle } from "lucide-react";
 
 interface NoReceiptUploadedProps {
   onUploadClick?: () => void;
 }
 
-export function NoReceiptUploaded({ onUploadClick }: NoReceiptUploadedProps) {
+export function NoReceiptUploaded({ onUploadClick: _onUploadClick }: NoReceiptUploadedProps) {
   return (
     <div className="flex items-center justify-center h-full min-h-[400px] bg-amber-50 rounded-lg border border-amber-200 p-8">
       <div className="text-center max-w-sm">

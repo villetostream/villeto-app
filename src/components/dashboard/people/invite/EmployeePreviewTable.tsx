@@ -72,7 +72,7 @@ const PAGE_SIZE_OPTIONS = [
 
 export default function EmployeePreviewTable({
     data,
-    onDataChange,
+    onDataChange: _onDataChange,
     onDelete,
     onUploadDifferent,
     onSaveToDirectory,

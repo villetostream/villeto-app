@@ -3,7 +3,6 @@ import { ArrowLeft, Plane, Briefcase } from "lucide-react";
 import { format } from "date-fns";
 import {
     Sheet, SheetContent,
-    SheetDescription,
     SheetHeader,
     SheetTitle,
 } from "@/components/ui/sheet";
@@ -30,11 +29,11 @@ const FlightResults = ({
     fromCity,
     toCity,
     departureDate,
-    returnDate,
+    returnDate: _returnDate,
     flightClass,
-    tripType,
+    tripType: _tripType,
     onBack,
-    toggle, isOpen, open
+    toggle, isOpen, open: _open
 }: FlightResultsProps) => {
     const getCityCode = (city: string) => {
         const codes: Record<string, string> = {

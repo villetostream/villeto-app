@@ -12,10 +12,12 @@ import { useRouter } from 'next/navigation'
 import { AxiosError } from 'axios'
 import FormFieldInput from '@/components/form fields/formFieldInput'
 import CircleProgress from '@/components/HalfProgressCircle'
-import { useConfirmationOnboardingApi } from '@/actions/pre-onboarding/confirm-onbarding-status'
+import { useConfirmationOnboardingApi } from '@/queries/pre-onboarding/confirm-onbarding-status'
 import { useOnboardingStore } from '@/stores/useVilletoStore'
 import { emailSchema } from '@/lib/schemas/schemas'
 import Link from 'next/link'
+import Image from 'next/image'
+import { toast } from 'sonner'
 
 
 
@@ -43,13 +45,14 @@ const Page = () => {
 
       // Existing user — store info and go to OTP with "continue from where you left"
       const onboardingData = confirmResponse.data;
+
       onboarding.setOnboardingId(onboardingData.onboardingId);
       onboarding.setIsExistingUser(true);
       onboarding.setStoppedAtStep(onboardingData.step);
       router.push('/pre-onboarding/verify-otp')
 
-    } catch (e: any) {
-      let error = e as AxiosError
+    } catch (e: unknown) {
+      const error = e as AxiosError
       if (error.status === 404) {
         // New user — reset and go to registration
         onboarding.reset()
@@ -65,16 +68,18 @@ const Page = () => {
     <div className="flex-col flex justify-center h-full">
       <div className='  p-10 flex w-full items-center justify-between'>
         <Link href={"/"}>
-          <img src="/images/logo.png" className='h-14 w-32 object-cover' />
+          <Image src="/images/logo.png" width={128} height={56} className='h-14 w-32 object-cover' alt="Villeto logo" />
         </Link>
         <CircleProgress currentStep={1} />
       </div>
       <div className='p-8 pt-10 px-[4.43777%] my-auto -translate-y-[20%] max-w-[600px]'>
 
         <div className="mb-8">
-          <img
-            src={"/images/svgs/chart-rose.svg"}
+          <Image
+            src="/images/svgs/chart-rose.svg"
             alt="Welcome celebration"
+            width={64}
+            height={64}
             className="size-16 mb-6"
           />
         </div>

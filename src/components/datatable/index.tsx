@@ -5,17 +5,16 @@ import React, {
   useCallback,
   useState,
   useEffect,
+  useRef,
   type JSX,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
-import { FaSortDown, FaSortUp } from "react-icons/fa";
 import {
-  useReactTable,
   flexRender,
+  useReactTable,
   getCoreRowModel,
-  getFilteredRowModel,
   getSortedRowModel,
+  getFilteredRowModel,
   getPaginationRowModel,
   type ColumnDef,
   type TableOptions,
@@ -24,7 +23,11 @@ import {
   type RowSelectionState,
   type ColumnFiltersState,
   type VisibilityState,
+  type HeaderContext,
+  type CellContext,
+  type Table as TanStackTable,
 } from "@tanstack/react-table";
+import { isRecord } from "@/lib/types/api-error";
 // import MyLoader from "../loader-components";
 import exportCSV from "@/lib/exportCSV";
 import { ITableHeader, TableHeader } from "./tableHeader";
@@ -99,11 +102,13 @@ export type DataTableProps<Data extends object, Value = unknown> = {
 function DataTable<Data extends object, Value = unknown>(
   props: DataTableProps<Data, Value> & {
     onSearch?: (query: string) => void;
-    onFilter?: (filters: Record<string, any>) => void;
+    onFilter?: (filters: Record<string, unknown>) => void;
     showCreateBulkButton?: boolean;
     onCreateBulk?: () => void;
   }
 ): JSX.Element {
+  "use no memo";
+
   const {
     data,
     columns,
@@ -113,7 +118,6 @@ function DataTable<Data extends object, Value = unknown>(
     manualPagination = false,
     manualSorting = false,
     manualFiltering = false,
-    height = "400px",
     initialSorting = [],
     initialColumnFilters = [],
     initialColumnVisibility = {},
@@ -122,16 +126,17 @@ function DataTable<Data extends object, Value = unknown>(
     setSelectedDataIds,
     enableRowSelection = false,
     enableColumnVisibility = false,
-    getRowId = (row: any) => row.id || row._id,
-    onSortingChange,
-    onColumnFiltersChange,
+    getRowId = (row: Data) => {
+      const record = row as Record<string, unknown>;
+      return String(record.id ?? record._id ?? "");
+    },
     onRowSelectionChange,
     onColumnVisibilityChange,
     onRowClick,
   } = props;
 
   const [sorting, setSorting] = useState<SortingState>(initialSorting);
-  const [columnFilters, setColumnFilters] =
+  const [columnFilters, _setColumnFilters] =
     useState<ColumnFiltersState>(initialColumnFilters);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialColumnVisibility);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -151,56 +156,58 @@ function DataTable<Data extends object, Value = unknown>(
   // Derive scope for company expense row-click navigation
   const expensesScope = currentTab === "team-expenses" ? "team" : "company";
 
-  const memoizedColumns = useMemo(() => columns, [columns]);
-  const memoizedData = useMemo(() => data, [data]);
+  // selectColumn is stable — only depends on enableRowSelection which never changes at runtime
+  const selectColumn = useMemo(
+    () =>
+      enableRowSelection
+        ? {
+            id: "select",
+            header: ({ table }: HeaderContext<Data, unknown>) => (
+              <Checkbox
+                checked={
+                  table.getIsAllPageRowsSelected() ||
+                  (table.getIsSomePageRowsSelected() && "indeterminate")
+                }
+                onCheckedChange={(value) =>
+                  table.toggleAllPageRowsSelected(!!value)
+                }
+                aria-label="Select all"
+              />
+            ),
+            cell: ({ row }: CellContext<Data, unknown>) => (
+              <Checkbox
+                checked={row.getIsSelected()}
+                onCheckedChange={(value) => row.toggleSelected(!!value)}
+                aria-label="Select row"
+              />
+            ),
+            enableSorting: false,
+            enableHiding: false,
+          }
+        : null,
+    [enableRowSelection]
+  );
 
-  // Create select column for multi-select
-  const selectColumn = enableRowSelection
-    ? {
-        id: "select",
-        header: ({ table }: any) => (
-          <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() && "indeterminate")
-            }
-            onCheckedChange={(value) =>
-              table.toggleAllPageRowsSelected(!!value)
-            }
-            aria-label="Select all"
-          />
-        ),
-        cell: ({ row }: any) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Select row"
-          />
-        ),
-        enableSorting: false,
-        enableHiding: false,
-      }
-    : null;
-
-  const allColumns = useMemo(() => {
-    return selectColumn ? [selectColumn, ...memoizedColumns] : memoizedColumns;
-  }, [selectColumn, memoizedColumns]);
+  const allColumns = useMemo(
+    () => (selectColumn ? [selectColumn, ...columns] : columns),
+    [selectColumn, columns]
+  );
 
   const pagination = useMemo<PaginationState>(
     () => ({
       pageIndex: paginationProps ? paginationProps.page - 1 : 0,
       pageSize: paginationProps?.pageSize || 10,
     }),
-    [paginationProps?.page, paginationProps?.pageSize]
+    [paginationProps]
   );
 
   const table = useReactTable({
-    columns: allColumns,
-    data: memoizedData,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    columns: allColumns,
+    data,
     state: {
       sorting,
       pagination,
@@ -232,16 +239,17 @@ function DataTable<Data extends object, Value = unknown>(
     ...tableProps,
   });
 
-  const rowModel = table.getRowModel();
+  const _rowModel = table.getRowModel();
 
   // Get selected data for bulk actions
   const selectedData = useMemo(() => {
     return data.filter((row) => selectedDataIds.has(getRowId(row)));
   }, [data, selectedDataIds, getRowId]);
 
-  // Replace your useEffect hooks with this optimized version:
+  // Track previous row-selection state to avoid unnecessary Set comparisons
+  const prevRowSelectionRef = useRef<RowSelectionState>({});
 
-  // Sync row selection with selectedDataIds (one-way sync from props to state)
+  // Sync row selection with selectedDataIds (one-way: props → state)
   useEffect(() => {
     if (!enableRowSelection || !setSelectedDataIds) return;
 
@@ -252,13 +260,20 @@ function DataTable<Data extends object, Value = unknown>(
       }
     });
 
-    // Only update if there's an actual change to prevent loops
-    if (JSON.stringify(newSelection) !== JSON.stringify(rowSelection)) {
+    // Cheap key-count + per-key check instead of JSON.stringify
+    const prevKeys = Object.keys(prevRowSelectionRef.current);
+    const newKeys = Object.keys(newSelection);
+    const changed =
+      prevKeys.length !== newKeys.length ||
+      newKeys.some((k) => prevRowSelectionRef.current[k as unknown as number] !== newSelection[k as unknown as number]);
+
+    if (changed) {
+      prevRowSelectionRef.current = newSelection;
       setRowSelection(newSelection);
     }
-  }, [data, selectedDataIds, getRowId]); // Remove rowSelection from dependencies
+  }, [data, selectedDataIds, getRowId, enableRowSelection, setSelectedDataIds]);
 
-  // Update selectedDataIds when row selection changes (one-way sync from state to props)
+  // Update selectedDataIds when row selection changes (one-way: state → props)
   useEffect(() => {
     if (!enableRowSelection || !setSelectedDataIds) return;
 
@@ -266,20 +281,18 @@ function DataTable<Data extends object, Value = unknown>(
     Object.keys(rowSelection).forEach((index) => {
       if (rowSelection[parseInt(index)]) {
         const row = data[parseInt(index)];
-        if (row) {
-          newSelectedIds.add(getRowId(row));
-        }
+        if (row) newSelectedIds.add(getRowId(row));
       }
     });
 
-    // Only update if there's an actual change to prevent loops
-    const currentIds = Array.from(selectedDataIds).sort().join(",");
-    const newIds = Array.from(newSelectedIds).sort().join(",");
-
-    if (currentIds !== newIds) {
+    // Only call setter when the Set content actually changed
+    if (
+      newSelectedIds.size !== selectedDataIds.size ||
+      Array.from(newSelectedIds).some((id) => !selectedDataIds.has(id))
+    ) {
       setSelectedDataIds(newSelectedIds);
     }
-  }, [rowSelection, data, getRowId]); // Remove selectedDataIds and setSelectedDataIds from dependencies
+  }, [rowSelection, data, getRowId, enableRowSelection, setSelectedDataIds, selectedDataIds]);
 
   const handleRowChange = useCallback(
     (e: { value: string[] }) => {
@@ -326,7 +339,7 @@ function DataTable<Data extends object, Value = unknown>(
         selectedCount={selectedDataIds.size}
         selectedData={selectedData}
         enableColumnVisibility={enableColumnVisibility}
-        table={table}
+        table={table as unknown as TanStackTable<object>}
       />
       <div className="overflow-x-auto rounded-md border bg-white h-full ">
         <Table className="min-w-full divide-y divide-gray-200">
@@ -377,15 +390,16 @@ function DataTable<Data extends object, Value = unknown>(
                         return;
                       }
                       if (!expensesClickMode) return;
-                      const original: any = row.original as any;
-                      // For personal expenses, use reportId (UUID); for company expenses, use id (numeric)
-                      const id = expensesClickMode === "personal" ? original?.reportId : original?.reportId;
+                      const original = row.original;
+                      const reportId = isRecord(original) ? original.reportId : undefined;
+                      const status = isRecord(original) ? original.status : undefined;
+                      const id = reportId != null ? String(reportId) : undefined;
                       if (id) {
                       // For personal expenses:
                       // - Draft -> Edit page (/expenses/personal/[id]/edit)
                       // - Pending/Others -> Detail page (/expenses/personal/[id])
                       if (expensesClickMode === "personal") {
-                        if (original?.status === "draft") {
+                        if (status === "draft") {
                             router.push(`/expenses/personal/${id}/edit`);
                         } else {
                             router.push(`/expenses/personal/${id}`);
@@ -437,7 +451,7 @@ function DataTable<Data extends object, Value = unknown>(
       </div>
       {paginationProps?.total ? (
         <>
-          <div className="flex  md:flex-row items-center justify-between bg-gray-50 py-2 px-4 rounded-b-md w-full mt-[-6px]">
+          <div className="flex md:flex-row items-center justify-between bg-gray-50 py-2 px-4 rounded-b-md w-full -mt-1.5">
             <div className="flex items-center gap-2 w-full sm:w-auto mb-2 md:mb-0">
               <span className="text-sm text-gray-700 whitespace-nowrap">
                 {total > 0 ? (
@@ -456,7 +470,7 @@ function DataTable<Data extends object, Value = unknown>(
                   paginationProps.setPage(1);
                 }}
               >
-                <SelectTrigger className="w-fit min-w-[80px]">
+                <SelectTrigger className="w-fit min-w-20">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

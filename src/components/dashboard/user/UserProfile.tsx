@@ -28,8 +28,22 @@ import {
     Settings
 } from "lucide-react";
 
+interface EmployeeProfile {
+    name: string;
+    email?: string;
+    phone?: string;
+    location?: string;
+    role?: string;
+    department?: string;
+    status: string;
+    cardLimit: number;
+    monthlySpend: number;
+    cardNumber?: string;
+    fullCardNumber?: string;
+}
+
 interface UserProfileProps {
-    employee: any;
+    employee: EmployeeProfile;
     children: ReactNode;
     open: boolean;
     onOpenChange: (open: boolean) => void;

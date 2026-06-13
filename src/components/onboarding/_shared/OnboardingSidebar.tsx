@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { usePathname, useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
@@ -49,7 +50,7 @@ export const OnboardingSidebar = () => {
     return (
         <div className="flex-1 max-w-[660px] h-full bg-contain bg-no-repeat rounded-[30px] relative overflow-hidden" style={{ backgroundImage: "url('/onboarding-layout.webp')" }}>
 
-            <img src="/onboarding-layout.webp" className="h-full w-full rounded-[30px]" />
+            <Image src="/onboarding-layout.webp" alt="" aria-hidden width={660} height={800} className="h-full w-full rounded-[30px] object-cover" />
             {/* Overlay */}
             <div className="bg-navy/80 absolute p-8 top-0 bottom-0 left-0 right-0 w-full h-full flex flex-col rounded-[30px]">
 
@@ -57,7 +58,7 @@ export const OnboardingSidebar = () => {
                 {isStep3OrLater ? (
                     <div className="mb-8 flex items-center gap-3">
                         {businessSnapshot.logo ? (
-                            <img src={businessSnapshot.logo} alt="Company Logo" className="h-10 w-10 object-contain rounded-full bg-white border border-white/20" />
+                            <Image src={businessSnapshot.logo} alt="Company Logo" width={40} height={40} className="h-10 w-10 object-contain rounded-full bg-white border border-white/20" />
                         ) : (
                             <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary text-white font-semibold text-sm border border-white/20">
                                 {getInitials(displayBusinessName)}
@@ -69,7 +70,7 @@ export const OnboardingSidebar = () => {
                     </div>
                 ) : (
                     <div className="mb-8">
-                        <img src="/images/logo.png" className="h-16 w-40 object-cover" alt="Villeto Logo" />
+                        <Image src="/images/logo.png" width={160} height={64} className="h-16 w-40 object-cover" alt="Villeto Logo" />
                     </div>
                 )}
 

@@ -3,7 +3,7 @@
 import { CompanyExpenseReport } from "@/lib/react-query/expenses";
 import { ExpenseStatusBadge } from "@/components/expenses/ExpenseStatusBadge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, Row } from "@tanstack/react-table";
 import { Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -34,8 +34,8 @@ const formatDate = (dateString: string) => {
   }
 };
 
-function ActionsCell({ row, scope }: { row: any; scope: string }) {
-  const expense = row.original as CompanyExpenseReport;
+function ActionsCell({ row, scope }: { row: Row<CompanyExpenseReport>; scope: string }) {
+  const expense = row.original;
   const router = useRouter();
 
   return (

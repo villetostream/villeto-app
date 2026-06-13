@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { ArrowLeft, UserPlus, Pencil, Trash2, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { useForm, Controller, useWatch } from "react-hook-form";
+import { UserPlus, Pencil, Trash2, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,13 +17,14 @@ import {
 } from "@/components/ui/select";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useGetVilletoRolesApi } from "@/actions/role/get-all-roles";
+import { useGetVilletoRolesApi } from "@/queries/role/get-all-roles";
 import { EditInvitedUserModal } from "@/components/dashboard/people/modals/EditInvitedUserModal";
-import { useGetDirectoryUsersApi } from "@/actions/users/get-all-users";
-import { AppUser } from "@/actions/departments/get-all-departments";
+import { useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
+import { AppUser } from "@/queries/departments/get-all-departments";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
+import { asArray, asRecord, getApiErrorMessage, getString, isRecord, pickString } from "@/lib/types/api-error";
 
 interface StagedUser {
     id: string;           // local keying
@@ -58,11 +59,11 @@ export default function InviteLeadershipPage() {
 
     // --- Email autocomplete state ---
     const [emailQuery, setEmailQuery] = useState("");
-    const [suggestions, setSuggestions] = useState<AppUser[]>([]);
     const [selectedDirUser, setSelectedDirUser] = useState<AppUser | null>(null);
     const [isEmailNotFound, setIsEmailNotFound] = useState(false);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const suggestionsRef = useRef<HTMLDivElement>(null);
+    const [stagedUserSeq, setStagedUserSeq] = useState(0);
 
     // --- Staged users list ---
     const [stagedUsers, setStagedUsers] = useState<StagedUser[]>([]);
@@ -70,36 +71,28 @@ export default function InviteLeadershipPage() {
 
     // --- Edit modal ---
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingUser, setEditingUser] = useState<any | null>(null);
+    const [editingUser, setEditingUser] = useState<StagedUser | null>(null);
 
-    const { handleSubmit, reset, control, watch, setValue } = useForm<FormValues>({
+    const { handleSubmit, reset, control } = useForm<FormValues>({
         defaultValues: { role: "", issueCard: false, ownershipPercentage: 0 },
     });
 
-    const selectedRole = watch("role", "");
-    const ownershipValue = watch("ownershipPercentage", 0);
+    const selectedRole = useWatch({ control, name: "role", defaultValue: "" });
+    const ownershipValue = useWatch({ control, name: "ownershipPercentage", defaultValue: 0 });
 
     const isOrganizationOwner = selectedRole.toLowerCase().includes("owner");
 
-    // Filter suggestions as user types
-    useEffect(() => {
-        if (!emailQuery) {
-            setSuggestions([]);
-            setShowSuggestions(false);
-            return;
-        }
+    const suggestions = useMemo(() => {
+        if (!emailQuery) return [];
         const q = emailQuery.toLowerCase();
-        const matches = directoryUsers
+        return directoryUsers
             .filter((u) => u.email?.toLowerCase().includes(q))
             .filter((u) => {
-                const isInvited = u.status === "Active" || u.loginCount > 0;
+                const isInvited = u.status === "Active" || (u.loginCount ?? 0) > 0;
                 const isExactMatch = u.email?.toLowerCase() === q;
-                // Only show uninvited users, OR if they typed the full email of an invited user
                 return !isInvited || isExactMatch;
             })
             .slice(0, 8);
-        setSuggestions(matches);
-        setShowSuggestions(matches.length > 0);
     }, [emailQuery, directoryUsers]);
 
     // Close dropdown on outside click
@@ -117,9 +110,8 @@ export default function InviteLeadershipPage() {
         setEmailQuery(user.email);
         setSelectedDirUser(user);
         setIsEmailNotFound(false);
-        setIsUserAlreadyInvited(user.status === "Active" || user.loginCount > 0);
+        setIsUserAlreadyInvited(user.status === "Active" || (user.loginCount ?? 0) > 0);
         setShowSuggestions(false);
-        setSuggestions([]);
     };
 
     const handleEmailBlur = () => {
@@ -133,7 +125,7 @@ export default function InviteLeadershipPage() {
             if (exact) {
                 setSelectedDirUser(exact);
                 setIsEmailNotFound(false);
-                setIsUserAlreadyInvited(exact.status === "Active" || exact.loginCount > 0);
+                setIsUserAlreadyInvited(exact.status === "Active" || (exact.loginCount ?? 0) > 0);
             } else if (!selectedDirUser || selectedDirUser.email.toLowerCase() !== emailQuery.toLowerCase()) {
                 setSelectedDirUser(null);
                 setIsEmailNotFound(true);
@@ -147,7 +139,6 @@ export default function InviteLeadershipPage() {
         setSelectedDirUser(null);
         setIsEmailNotFound(false);
         setIsUserAlreadyInvited(false);
-        setSuggestions([]);
         reset({ role: "", issueCard: false, ownershipPercentage: 0 });
     };
 
@@ -155,19 +146,19 @@ export default function InviteLeadershipPage() {
         if (!user.department) return "";
         if (typeof user.department === "string") return user.department;
         // department may be an object
-        const dept = user.department as any;
-        return dept?.departmentName || dept?.name || "";
+        const dept = asRecord(user.department);
+        return pickString(dept, "departmentName", "name");
     };
 
     const onSubmit = (data: FormValues) => {
         if (!selectedDirUser) return;
 
-        const roles: any[] = rolesApi.data?.data ?? [];
-        const matchedRole = roles.find((r: any) => r.name === selectedRole);
-        const roleId = matchedRole?.roleId ?? "";
+        const roles = asArray(rolesApi.data?.data).filter(isRecord);
+        const matchedRole = roles.find((r) => getString(r.name) === selectedRole);
+        const roleId = getString(matchedRole?.roleId);
 
         const newUser: StagedUser = {
-            id: `${selectedDirUser.userId}-${Date.now()}`,
+            id: `${selectedDirUser.userId}-${stagedUserSeq}`,
             directoryUserId: selectedDirUser.userId,
             email: selectedDirUser.email,
             name: `${selectedDirUser.firstName} ${selectedDirUser.lastName}`.trim(),
@@ -179,6 +170,7 @@ export default function InviteLeadershipPage() {
         };
 
         setStagedUsers((prev) => [...prev, newUser]);
+        setStagedUserSeq((seq) => seq + 1);
         resetForm();
     };
 
@@ -191,7 +183,7 @@ export default function InviteLeadershipPage() {
         setIsEditModalOpen(true);
     };
 
-    const handleUpdateUser = (updated: any) => {
+    const handleUpdateUser = (updated: StagedUser) => {
         setStagedUsers((prev) => prev.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)));
         setIsEditModalOpen(false);
         setEditingUser(null);
@@ -202,7 +194,7 @@ export default function InviteLeadershipPage() {
         setIsInviting(true);
         try {
             const admins = stagedUsers.map((u) => {
-                const entry: Record<string, any> = {
+                const entry: Record<string, unknown> = {
                     email: u.email,
                     roleId: u.roleId,
                 };
@@ -218,10 +210,8 @@ export default function InviteLeadershipPage() {
             // Notify setup guide — ticks "invitations" step
             window.dispatchEvent(new CustomEvent("villeto:invitation-sent"));
             router.push("/people?tab=directory");
-        } catch (error: any) {
-            toast.error(
-                error?.response?.data?.message || "Failed to send invitations. Please try again."
-            );
+        } catch (error: unknown) {
+            toast.error(getApiErrorMessage(error, "Failed to send invitations. Please try again."));
         } finally {
             setIsInviting(false);
         }
@@ -282,6 +272,7 @@ export default function InviteLeadershipPage() {
                                         setSelectedDirUser(null);
                                         setIsEmailNotFound(false);
                                         setIsUserAlreadyInvited(false);
+                                        setShowSuggestions(e.target.value.length > 0);
                                     }}
                                     onBlur={handleEmailBlur}
                                     onFocus={() => {
@@ -301,7 +292,7 @@ export default function InviteLeadershipPage() {
                                 {showSuggestions && suggestions.length > 0 && (
                                     <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                                         {suggestions.map((suggestion) => {
-                                            const isInvited = suggestion.status === "Active" || suggestion.loginCount > 0;
+                                            const isInvited = suggestion.status === "Active" || (suggestion.loginCount ?? 0) > 0;
                                             return (
                                                 <button
                                                     key={suggestion.userId}
@@ -424,14 +415,15 @@ export default function InviteLeadershipPage() {
                                                 </SelectItem>
                                             ) : (
                                                 (rolesApi.data?.data ?? [])
-                                                    .filter((role: any) => !role.name?.toLowerCase().includes("employee"))
-                                                    .map((role: any) => (
+                                                    .filter(isRecord)
+                                                    .filter((role) => !getString(role.name).toLowerCase().includes("employee"))
+                                                    .map((role) => (
                                                     <SelectItem
-                                                        key={role.roleId ?? role.id ?? role.name}
-                                                        value={role.name}
+                                                        key={getString(role.roleId) || getString(role.name)}
+                                                        value={getString(role.name)}
                                                     >
-                                                        {role.name
-                                                            ?.replace(/_/g, " ")
+                                                        {getString(role.name)
+                                                            .replace(/_/g, " ")
                                                             .toLowerCase()
                                                             .replace(/^\w/, (c: string) => c.toUpperCase())}
                                                     </SelectItem>

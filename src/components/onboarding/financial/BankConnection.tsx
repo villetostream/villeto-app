@@ -1,7 +1,6 @@
-import { Building2, ExternalLink, Trash2, AlertCircle } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
-import { cn } from "@/lib/utils";
 import { HugeiconsIcon } from '@hugeicons/react';
 import { LinkSquare01FreeIcons, BankIcon, Delete01Icon, PencilEdit02Icon, Link01Icon } from '@hugeicons/core-free-icons';
 export const BankConnection = () => {
@@ -59,8 +58,7 @@ export const BankConnection = () => {
                                 <div>
                                     <div className="font-medium text-amber-800">Bank Authorization</div>
                                     <div className="text-sm text-amber-700 mt-1">
-                                        Your bank is processing the request to connect your bank account. You'll
-                                        be notified when we have a response.
+                                        Your bank is processing the request to connect your bank account.                                         You&apos;ll be notified when we have a response.
                                     </div>
                                 </div>
                             </div>

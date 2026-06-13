@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useAuthStore } from "@/stores/auth-stores";
 import withPermissions from "@/components/permissions/permission-protected-routes";
-import { Search, Eye, Download, ChevronDown } from "lucide-react";
+import { Search, Eye, Download } from "lucide-react";
 import { Pagination } from "@/components/ui/custom-pagination";
 
 type POStatus = "pending_approval" | "acknowledged" | "ready_for_delivery" | "delivered" | "partial_delivery" | "confirmed";
@@ -66,7 +66,7 @@ function PurchaseOrderPage() {
   const canCreatePO = useAuthStore(s => s.can)('procurement.purchase_order', 'create');
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch]       = useState("");
-  const [page, setPage]           = useState(1);
+  const [pagesByKey, setPagesByKey] = useState<Record<string, number>>({});
   const [perPage, setPerPage]     = useState(11);
 
   useEffect(() => {
@@ -89,8 +89,13 @@ function PurchaseOrderPage() {
     return list;
   }, [activeTab, search]);
 
+  const paginationKey = `${activeTab}-${search}`;
+  const page = pagesByKey[paginationKey] ?? 1;
+  const setPage = (nextPage: number) => {
+    setPagesByKey(prev => ({ ...prev, [paginationKey]: nextPage }));
+  };
+
   const paginated = filtered.slice((page - 1) * perPage, page * perPage);
-  useEffect(() => { setPage(1); }, [activeTab, search]);
 
   return (
     <div className="bg-white rounded-2xl border border-border overflow-hidden">

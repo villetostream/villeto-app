@@ -17,8 +17,9 @@ interface ConfirmationModalProps {
   onClose: () => void;
   onConfirm: () => void;
   title: string;
-  // allow JSX so parts can be styled
   description: React.ReactNode;
+  confirmLabel?: string;
+  destructive?: boolean;
 }
 
 export default function ConfirmationModal({
@@ -27,6 +28,8 @@ export default function ConfirmationModal({
   onConfirm,
   title,
   description,
+  confirmLabel = "Yes",
+  destructive = false,
 }: ConfirmationModalProps) {
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
@@ -36,8 +39,13 @@ export default function ConfirmationModal({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onClose}>No</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>Yes</AlertDialogAction>
+          <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className={destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined}
+          >
+            {confirmLabel}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

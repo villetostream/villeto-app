@@ -1,5 +1,5 @@
-// components/form fields/formFieldInput.tsx
 import React, { useState } from "react";
+import { Control, FieldValues, Path } from "react-hook-form";
 import {
   FormItem,
   FormLabel,
@@ -11,12 +11,12 @@ import {
 import { Input } from "../ui/input";
 import { Eye, EyeOff } from "lucide-react";
 
-interface FormFieldInputProps {
+interface FormFieldInputProps<T extends FieldValues = FieldValues> {
   type?: React.HTMLInputTypeAttribute;
-  name: string;
+  name: Path<T>;
   label: string;
   placeholder: string;
-  control: any;
+  control: Control<T>;
   description?: string;
   inputMode?:
     | "search"
@@ -34,7 +34,7 @@ interface FormFieldInputProps {
   disabled?: boolean;
 }
 
-const FormFieldInput = ({
+const FormFieldInput = <T extends FieldValues = FieldValues>({
   name,
   label,
   placeholder,
@@ -46,7 +46,7 @@ const FormFieldInput = ({
   showPasswordToggle = false,
   prefixIcon = null,
   disabled = false,
-}: FormFieldInputProps) => {
+}: FormFieldInputProps<T>) => {
   const [showPassword, setShowPassword] = useState(false);
 
   const togglePasswordVisibility = () => {

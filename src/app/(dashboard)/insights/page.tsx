@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     BarChart,
@@ -29,9 +27,7 @@ import {
     CreditCard,
     Users,
     AlertTriangle,
-    Target,
-    Download,
-    RefreshCw
+    Target
 } from "lucide-react";
 
 const monthlySpendData: Array<{ month: string; amount: number; transactions: number; budget: number }> = [];
@@ -42,8 +38,8 @@ const complianceData: Array<{ metric: string; value: number; change: number; sta
 const budgetUtilization: Array<{ department: string; budget: number; spent: number; remaining: number; utilization: number }> = [];
 
 export default function Insights() {
-    const [selectedPeriod, setSelectedPeriod] = useState("6months");
-    const [selectedDepartment, setSelectedDepartment] = useState("all");
+    const [_selectedPeriod, _setSelectedPeriod] = useState("6months");
+    const [_selectedDepartment, _setSelectedDepartment] = useState("all");
     const [selectedTab, setSelectedTab] = useState("overview");
     const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
     const currencySymbol = getCurrencySymbol();
@@ -167,7 +163,9 @@ export default function Insights() {
                                                     outerRadius={80}
                                                     fill="#8884d8"
                                                     dataKey="amount"
-                                                    label={({ name, percentage }: any) => `${name} ${percentage}%`}
+                                                    label={({ name, percentage }: { name?: string; percentage?: number }) =>
+                                                      `${name ?? ""} ${percentage ?? 0}%`
+                                                    }
                                                 >
                                                     {departmentSpendData.map((entry, index) => (
                                                         <Cell key={`cell-${index}`} fill={entry.color} />

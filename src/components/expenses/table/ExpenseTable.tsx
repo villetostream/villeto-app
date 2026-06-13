@@ -1,13 +1,24 @@
 "use client";
 
 import { logger } from "@/lib/logger";
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { DataTable } from "@/components/datatable";
 import { useDateFilterStore } from "@/stores/useDateFilterStore";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { useRouter } from "next/navigation";
+
+interface ExpenseRow extends Record<string, unknown> {
+  status?: string;
+  description?: string;
+  employee?: string;
+  category?: string;
+  amount?: number | string;
+  reportId?: string;
+  id?: string;
+  date?: string;
+}
 
 const ExpenseTable = ({
   actionButton = <></>,
@@ -20,17 +31,19 @@ const ExpenseTable = ({
 }: {
   actionButton?: React.ReactElement;
   statusFilter?: string | null;
-  data?: any[];
-  onFilteredDataChange?: (filteredData: any[]) => void;
-  columnsOverride?: ColumnDef<any, any>[];
+  data?: ExpenseRow[];
+  onFilteredDataChange?: (filteredData: ExpenseRow[]) => void;
+  columnsOverride?: ColumnDef<ExpenseRow>[];
   page?: number;
   scope?: string;
 }) => {
   const router = useRouter();
-  const [filteredData, setFilteredData] = useState(data);
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>(
     {}
   );
+  
+  const onFilteredDataChangeRef = useRef(onFilteredDataChange);
+useEffect(() => { onFilteredDataChangeRef.current = onFilteredDataChange; });
   const { fromDate, toDate } = useDateFilterStore();
 
   const tableprops = useDataTable({
@@ -58,7 +71,7 @@ const ExpenseTable = ({
   };
 
   // Combine search and filter logic
-  useEffect(() => {
+  const filteredData = useMemo(() => {
     let filtered = [...data];
 
     // Apply status filter from tab
@@ -101,7 +114,7 @@ const ExpenseTable = ({
     // Apply date range filter from date picker
     if (fromDate && toDate) {
       filtered = filtered.filter((item) => {
-        const itemDate = parseDate(item.date);
+        const itemDate = item.date ? parseDate(item.date) : null;
         if (!itemDate) return true; // Include items with invalid dates
 
         // Create date range (inclusive on both ends)
@@ -115,27 +128,27 @@ const ExpenseTable = ({
       });
     }
 
-    setFilteredData(filtered);
-    setTotalItems(filtered.length);
-
-    // Notify parent component of filtered data changes
-    if (onFilteredDataChange) {
-      onFilteredDataChange(filtered);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return filtered;
   }, [data, globalSearch, appliedFilters, statusFilter, fromDate, toDate]);
 
+  useEffect(() => {
+  setTotalItems(filteredData.length);
+  onFilteredDataChangeRef.current?.(filteredData);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [filteredData, setTotalItems]);
+// onFilteredDataChange intentionally excluded — use ref to always call latest version
+// without making it a dependency that can retrigger the effect
   return (
     <DataTable
       initialColumnVisibility={{ actions: false }}
       data={filteredData}
-      columns={(columnsOverride ?? []) as any}
+      columns={columnsOverride ?? []}
       paginationProps={tableprops.paginationProps}
       enableRowSelection={true}
       enableColumnVisibility={true}
       selectedDataIds={tableprops.selectedDataIds}
       setSelectedDataIds={tableprops.setSelectedDataIds}
-      onRowClick={(row: any) => {
+      onRowClick={(row: ExpenseRow) => {
         // If scope is undefined, it's Personal Expenses.
         if (!scope) {
           const isDraft = row.status === "draft";
@@ -186,7 +199,13 @@ const ExpenseTable = ({
             },
           ],
           onFilter: (filters: Record<string, unknown>) => {
-            setAppliedFilters(filters as Record<string, string>);
+            const stringFilters: Record<string, string> = {};
+            for (const [key, value] of Object.entries(filters)) {
+              if (value !== undefined && value !== null) {
+                stringFilters[key] = String(value);
+              }
+            }
+            setAppliedFilters(stringFilters);
           },
         },
         bulkActions: [

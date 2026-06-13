@@ -60,40 +60,37 @@ export default function DashboardModals() {
   // ── Restore session guard ──────────────────────────────────
   useEffect(() => {
     if (!flowGuardKey) return;
-    const done = sessionStorage.getItem(flowGuardKey) === "1";
-    if (done) {
-      setHasCompletedFlow(true);
-      // Even if sessionStorage says they are done, double check mustChangePassword
-      // to ensure we don't accidentally unblock if the backend state changed.
-      if (!mustChangePassword) {
-        setSetupGuideReady(true);
+    const timeoutId = window.setTimeout(() => {
+      const done = sessionStorage.getItem(flowGuardKey) === "1";
+      if (done) {
+        setHasCompletedFlow(true);
+        if (!mustChangePassword) {
+          setSetupGuideReady(true);
+        }
       }
-    }
+    }, 0);
+    return () => clearTimeout(timeoutId);
   }, [flowGuardKey, setSetupGuideReady, mustChangePassword]);
 
   // ── Show password modal when needed ───────────────────────
   useEffect(() => {
-    if (hasCompletedFlow || !user) return;
+    const timeoutId = window.setTimeout(() => {
+      if (hasCompletedFlow || !user) return;
 
-    const isBlockingModalNeeded = isFirstLogin && (isCompanyFounder || mustChangePassword);
+      const isBlockingModalNeeded = isFirstLogin && (isCompanyFounder || mustChangePassword);
 
-    if (isBlockingModalNeeded) {
-      // Latch immediately — even if loginCount gets updated by a background
-      // /users/me call in the same session, the else-branch below will be
-      // skipped and the guide will stay blocked until handlePasswordSuccess fires.
-      passwordFlowStartedRef.current = true;
-      setShowPasswordModal(true);
-    } else {
-      // Only unblock the guide if we never started a password-change flow.
-      // Without this guard, a background /users/me re-fetch that returns an
-      // incremented loginCount (isFirstLogin → false) would hit this branch
-      // and call setSetupGuideReady(true) while the modal is still open.
-      if (passwordFlowStartedRef.current) return;
-      
-      setHasCompletedFlow(true);
-      setSetupGuideReady(true);
-      if (flowGuardKey) sessionStorage.setItem(flowGuardKey, "1");
-    }
+      if (isBlockingModalNeeded) {
+        passwordFlowStartedRef.current = true;
+        setShowPasswordModal(true);
+      } else {
+        if (passwordFlowStartedRef.current) return;
+
+        setHasCompletedFlow(true);
+        setSetupGuideReady(true);
+        if (flowGuardKey) sessionStorage.setItem(flowGuardKey, "1");
+      }
+    }, 0);
+    return () => clearTimeout(timeoutId);
   }, [
     user,
     isFirstLogin,

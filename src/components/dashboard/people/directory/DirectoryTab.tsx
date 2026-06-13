@@ -1,19 +1,29 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FolderX } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Upload04Icon } from "@hugeicons/core-free-icons";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGetDirectoryUsersApi } from "@/actions/users/get-all-users";
-import { AppUser } from "@/actions/departments/get-all-departments";
+import { useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
+import { AppUser } from "@/queries/departments/get-all-departments";
 import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { directoryColumns } from "./directory-columns";
-import { useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
-import { useGetAllRolesApi } from "@/actions/role/get-all-roles";
+import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
+import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
+import {
+    getUserDepartmentId,
+    getUserManagerName,
+    getUserRoleId,
+    formatDepartmentOptionLabel,
+    formatRoleOptionLabel,
+    getDepartmentOptionValue,
+    toStringFilterRecord,
+    unwrapFilterKeys,
+} from "../user-table-utils";
 
 // Define getRowId outside the component to ensure referential stability and prevent infinite loops in DataTable
 const getRowId = (row: AppUser) => row.userId;
@@ -24,7 +34,10 @@ export function DirectoryTab() {
     const roles = useGetAllRolesApi();
     const router = useRouter();
 
-    const users: AppUser[] = usersApi?.data?.data ?? [];
+    const users = useMemo(
+        () => usersApi?.data?.data ?? [],
+        [usersApi.data?.data],
+    );
     const isLoading = usersApi.isLoading || depts.isLoading || roles.isLoading;
 
     const tableProps = useDataTable({
@@ -60,35 +73,23 @@ export function DirectoryTab() {
             });
         }
         if (filters.roleId && filters.roleId !== "all") {
-            result = result.filter(u => {
-                const uRoleId = (u as any).roleId || u.villetoRole?.roleId || (u.villetoRole as any)?.id;
-                return uRoleId === filters.roleId;
-            });
+            result = result.filter(u => getUserRoleId(u) === filters.roleId);
         }
         if (filters.departmentId && filters.departmentId !== "all") {
-            result = result.filter(u => {
-                const uDeptId = typeof u.department === "object" ? ((u.department as any)?.departmentId || (u.department as any)?.id) : (u.departmentId || u.department);
-                return uDeptId === filters.departmentId;
-            });
+            result = result.filter(u => getUserDepartmentId(u) === filters.departmentId);
         }
         if (filters.manager && filters.manager !== "all") {
-            result = result.filter(u => {
-                const managerName = (u as any).manager 
-                    ? typeof (u as any).manager === "string" 
-                        ? (u as any).manager.toLowerCase() 
-                        : `${(u as any).manager.firstName || ""} ${(u as any).manager.lastName || ""}`.toLowerCase()
-                    : "";
-                return managerName.includes(filters.manager.toLowerCase());
-            });
+            result = result.filter(u =>
+                getUserManagerName(u).includes(filters.manager.toLowerCase())
+            );
         }
 
         return result;
     }, [users, tableProps.globalSearch, tableProps.filterBy]);
 
-    // Ensure totalItems is tracked correctly for pagination
-    useMemo(() => {
+    useEffect(() => {
         tableProps.setTotalItems(filteredUsers.length);
-    }, [filteredUsers.length]);
+    }, [filteredUsers.length, tableProps.setTotalItems]);
 
     if (isLoading) {
         return (
@@ -165,8 +166,8 @@ export function DirectoryTab() {
                                 name: "roleId",
                                 label: "Role",
                                 type: "select",
-                                options: roles?.data?.data?.map((r: any) => ({
-                                    label: r.name ? r.name.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c: string) => c.toUpperCase()) : 'Unknown',
+                                options: roles?.data?.data?.map((r) => ({
+                                    label: formatRoleOptionLabel(r),
                                     value: r.roleId,
                                 })) || [],
                             },
@@ -174,20 +175,14 @@ export function DirectoryTab() {
                                 name: "departmentId",
                                 label: "Department",
                                 type: "select",
-                                options: depts?.data?.data?.map((d: any) => ({
-                                    label: d.departmentName || d.name,
-                                    value: d.departmentId || d.id,
+                                options: depts?.data?.data?.map((d) => ({
+                                    label: formatDepartmentOptionLabel(d),
+                                    value: getDepartmentOptionValue(d),
                                 })) || [],
                             }
                         ],
-                        onFilter: (filters: Record<string, any>) => {
-                            const unwrapped: Record<string, any> = {};
-                            Object.entries(filters).forEach(([key, value]) => {
-                                const match = key.match(/filters\[(.*?)\]/);
-                                if (match) unwrapped[match[1]] = value;
-                                else unwrapped[key] = value;
-                            });
-                            tableProps.setFilterBy(unwrapped);
+                        onFilter: (filters: Record<string, unknown>) => {
+                            tableProps.setFilterBy(toStringFilterRecord(unwrapFilterKeys(filters)));
                             tableProps.setPage(1);
                         },
                     },

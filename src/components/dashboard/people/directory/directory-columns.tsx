@@ -1,8 +1,8 @@
 
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { AppUser } from "@/actions/departments/get-all-departments";
-import { Switch } from "@/components/ui/switch";
+import { AppUser } from "@/queries/departments/get-all-departments";
+import { isRecord } from "@/lib/types/api-error";
 
 /** Formats a string like "CONTROLLING_OFFICER" or "senior-manager" to "Controlling Officer" or "Senior Manager" */
 function formatName(value: string | null | undefined): string {
@@ -14,18 +14,19 @@ function formatName(value: string | null | undefined): string {
         .join(" ");
 }
 
-function getDepartmentName(dept: any): string {
+function getDepartmentName(dept: unknown): string {
     if (!dept) return "—";
     if (typeof dept === "string") return dept || "—";
-    if (typeof dept === "object" && Object.keys(dept).length > 0) {
-        return dept.departmentName || dept.name || "—";
+    if (isRecord(dept)) {
+        const name = dept.departmentName ?? dept.name;
+        if (typeof name === "string" && name) return name;
     }
     return "—";
 }
 
 const columnHelper = createColumnHelper<AppUser>();
 
-export const directoryColumns: ColumnDef<AppUser, any>[] = [
+export const directoryColumns = [
     columnHelper.display({
         id: "idNo",
         header: "S/N",
@@ -53,7 +54,7 @@ export const directoryColumns: ColumnDef<AppUser, any>[] = [
     columnHelper.accessor("department", {
         header: "DEPARTMENT",
         cell: (info) => {
-            const dept = info.getValue() as any;
+            const dept = info.getValue() as unknown;
             return <p className="capitalize">{getDepartmentName(dept)}</p>;
         },
     }),
@@ -61,7 +62,7 @@ export const directoryColumns: ColumnDef<AppUser, any>[] = [
         header: "JOB TITLE",
         cell: (info) => {
             const position = info.getValue();
-            const jobTitle = (info.row.original as any).jobTitle;
+            const jobTitle = info.row.original.jobTitle;
             const value = jobTitle || position;
             return <p className="text-sm">{formatName(value)}</p>;
         },
@@ -70,11 +71,11 @@ export const directoryColumns: ColumnDef<AppUser, any>[] = [
         id: "manager",
         header: "REPORTS TO",
         cell: (info) => {
-            const manager = (info.row.original as any).manager;
+            const manager = info.row.original.manager;
             let managerName = "—";
-            if (manager && typeof manager === "object") {
-                const first = formatName(manager.firstName);
-                const last = formatName(manager.lastName);
+            if (manager && isRecord(manager)) {
+                const first = formatName(typeof manager.firstName === "string" ? manager.firstName : null);
+                const last = formatName(typeof manager.lastName === "string" ? manager.lastName : null);
                 managerName = `${first} ${last}`.trim() || "—";
             } else if (typeof manager === "string" && manager) {
                 managerName = formatName(manager);
@@ -82,11 +83,13 @@ export const directoryColumns: ColumnDef<AppUser, any>[] = [
             return <p className="font-medium">{managerName}</p>;
         },
     }),
-    columnHelper.accessor("updatedAt" as any, {
+    columnHelper.display({
+        id: "updatedAt",
         header: "LAST UPDATED",
         cell: (info) => {
-            const date = info.getValue() as string;
-            if (!date) return <p className="text-sm text-gray-500">—</p>;
+            const record = info.row.original as unknown as Record<string, unknown>;
+            const date = record.updatedAt;
+            if (typeof date !== "string" || !date) return <p className="text-sm text-gray-500">—</p>;
             const formatted = new Date(date).toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",
@@ -108,4 +111,4 @@ export const directoryColumns: ColumnDef<AppUser, any>[] = [
             );
         },
     }),
-];
+] as ColumnDef<AppUser>[];

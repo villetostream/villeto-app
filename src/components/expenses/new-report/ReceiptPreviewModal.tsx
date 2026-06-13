@@ -2,6 +2,7 @@
 
 import { logger } from "@/lib/logger";
 
+import Image from "next/image";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -61,9 +62,12 @@ export function ReceiptPreviewModal({
           {/* Receipt Image */}
           <div className="border border-border rounded-lg overflow-hidden bg-muted/30">
             {receiptImage ? (
-              <img
+              <Image
                 src={receiptImage}
                 alt="Receipt"
+                width={600}
+                height={500}
+                unoptimized
                 className="w-full h-auto max-h-[500px] object-contain"
               />
             ) : (

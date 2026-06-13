@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
@@ -14,11 +15,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import z from 'zod';
 import FormFieldInput from '@/components/form fields/formFieldInput';
-import CircleProgress from '@/components/HalfProgressCircle';
 import Link from 'next/link';
-import { useLogin } from '@/actions/auth/auth-login';
-import { AxiosError } from 'axios';
+import { useLogin } from '@/queries/auth/auth-login';
 import { loginSchema } from '@/lib/schemas/schemas';
+import { getApiErrorMessage } from '@/lib/types/api-error';
 
 type FormData = z.infer<typeof loginSchema>;
 
@@ -47,8 +47,8 @@ export default function LoginPage() {
             setUser(response.data.user as User);
             setCompanyPermissions(response.data.user?.companyRole?.permissions ?? []);
             router.push('/dashboard');
-        } catch (err: any) {
-            setError(((err as AxiosError).response?.data as any)?.message as string ?? "Invalid email or password");
+        } catch (err: unknown) {
+            setError(getApiErrorMessage(err, "Invalid email or password"));
         }
     };
 
@@ -56,7 +56,7 @@ export default function LoginPage() {
         <div className="h-full flex-col flex items-center justify-center">
             <div className='absolute top-0 left-0 mb-auto p-10 flex w-full items-center justify-between'>
                 <div>
-                    <img src="/images/logo.png" className='h-14 w-32 object-cover' alt="Villeto" />
+                    <Image src="/images/logo.png" width={128} height={56} className='h-14 w-32 object-cover' alt="Villeto" />
                 </div>
                 {/* Optional: Remove CircleProgress or set to full if it's a single step now */}
                 {/* <CircleProgress currentStep={1} /> */}

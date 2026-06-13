@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { X } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -11,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Permission } from "@/actions/auth/auth-permissions";
+import { Permission } from "@/queries/auth/auth-permissions";
 
 interface UserPermissionsDialogProps {
     open: boolean;
@@ -24,7 +23,7 @@ interface UserPermissionsDialogProps {
 export function UserPermissionsDialog({
     open,
     onOpenChange,
-    userId,
+    userId: _userId,
 }: UserPermissionsDialogProps) {
     const [permissions, setPermissions] = useState<Permission[]>([
 

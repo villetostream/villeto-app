@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   Cards,
   Profile2User,
@@ -26,7 +27,7 @@ export interface NavPermission {
 }
 
 export interface NavItem {
-  icon: any;
+  icon: ReactNode;
   label: string;
   href: string;
   /** Empty = always visible. One or more = user needs at least one of these. */

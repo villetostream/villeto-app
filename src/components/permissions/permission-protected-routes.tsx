@@ -4,45 +4,23 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-stores";
 
-// ─── withPermissions HOC ──────────────────────────────────────────────────────
-// Wraps a page component and redirects to /dashboard if the user lacks the
-// required permission. Uses the new can(resource, action) shape.
-//
-// Usage:
-//   export default withPermissions(MyPage, [
-//     { resource: "vendor", action: "read_company" }
-//   ]);
-//
-// Legacy usage (deprecated — string[] still supported via hasPermission shim):
-//   export default withPermissions(MyPage, ["vendor.read_company"]);
-
 interface PermissionGate {
   resource: string;
   action: string;
 }
 
-const withPermissions = (
-  WrappedComponent: React.ComponentType,
-  requiredPermissions: PermissionGate[] | string[]
+const withPermissions = <P extends object>(
+  WrappedComponent: React.ComponentType<P>,
+  requiredPermissions: PermissionGate[]
 ) => {
-  return function PermissionWrapper(props: any) {
+  return function PermissionWrapper(props: P) {
     const router = useRouter();
     const pathName = usePathname();
     const can = useAuthStore(state => state.can);
-    const hasPermission = useAuthStore(state => state.hasPermission);
 
     const hasAccess = (): boolean => {
       if (!requiredPermissions || requiredPermissions.length === 0) return true;
-
-      // New structured shape: { resource, action }[]
-      if (typeof requiredPermissions[0] === "object") {
-        return (requiredPermissions as PermissionGate[]).some(
-          p => can(p.resource, p.action)
-        );
-      }
-
-      // Legacy string[] shape — delegate to hasPermission shim
-      return hasPermission(requiredPermissions as string[]);
+      return requiredPermissions.some(p => can(p.resource, p.action));
     };
 
     useEffect(() => {

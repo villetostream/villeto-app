@@ -57,7 +57,7 @@ interface NotificationState {
 
 export const useNotificationStore = create<NotificationState>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       notifications: initialNotifications,
       unreadCount: initialNotifications.filter(n => n.unread).length,
 

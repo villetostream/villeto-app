@@ -1,18 +1,18 @@
 "use client";
 
-import { useDeleteDepartmentApi } from "@/actions/departments/delete-department";
-import { Department, useGetAllDepartmentsApi } from "@/actions/departments/get-all-departments";
+import { useDeleteDepartmentApi } from "@/queries/departments/delete-department";
+import { Department, useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { STATE_KEYS } from "@/lib/constants/state_key";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
 
 
-export const useDepartmentHook = (id?: string) => {
+export const useDepartmentHook = (_id?: string) => {
 
 
     const [selected, setSelected] = useState<Department | null>(null);
-    const [state, setState] = useState<String | null>(null);
+    const [state, setState] = useState<string | null>(null);
     const deleteDept = useDeleteDepartmentApi();
     const allDepts = useGetAllDepartmentsApi()
 
@@ -112,7 +112,7 @@ export const useDepartmentHook = (id?: string) => {
     //     setChannelCentralState(null)
     //     // roleUsers.refetch()
     //     close();
-    //   } catch (error: any) {
+    //   } catch (error: unknown) {
     //     const errorMessage =
     //       error?.response?.data?.message ||
     //       error.message ||
@@ -128,7 +128,7 @@ export const useDepartmentHook = (id?: string) => {
 
             const payload = selected?.departmentId ?? 0;
 
-            const response = await deleteDept.mutateAsync(payload.toString());
+            await deleteDept.mutateAsync(payload.toString());
 
 
 
@@ -139,7 +139,7 @@ export const useDepartmentHook = (id?: string) => {
             setSelected(null)
             setState(STATE_KEYS.SUCCESS)
 
-        } catch (error: any) {
+        } catch (_error: unknown) {
 
         }
     };

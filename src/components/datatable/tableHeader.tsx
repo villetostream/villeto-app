@@ -1,4 +1,4 @@
-import React, { JSX, useEffect, useState } from "react";
+import React, { JSX } from "react";
 import { Table } from "@tanstack/react-table";
 import { createPortal } from "react-dom";
 
@@ -9,7 +9,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { Button } from "../ui/button";
@@ -24,7 +23,7 @@ export interface ITableHeader {
   isFilter?: boolean;
   actionButton?: JSX.Element;
   downloadExportDataFunc?: () => Promise<Record<string, unknown>[]>;
-  searchQuery?: (e: any) => void;
+  searchQuery?: (query: string) => void;
   search?: string;
   filterProps?: {
     title: string;
@@ -39,25 +38,20 @@ export function TableHeader({
   tableHeader,
   handleExport,
   selectedCount = 0,
-  selectedData = [],
   enableColumnVisibility = false,
   table,
 }: {
   tableHeader?: ITableHeader;
   handleExport: () => void;
   selectedCount?: number;
-  selectedData?: any[];
+  selectedData?: unknown[];
   enableColumnVisibility?: boolean;
-  table?: Table<any>;
+  table?: Table<object>;
 }) {
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    // Only attempt to mount if on client
-    if (typeof window !== "undefined") {
-      setPortalTarget(document.getElementById("tab-actions"));
-    }
-  }, []);
+  const portalTarget =
+    typeof window !== "undefined"
+      ? document.getElementById("tab-actions")
+      : null;
 
   const actionsContent = (
     <div className="flex sm:flex-row flex-col items-center gap-2">

@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Trash2, CloudUpload, CheckCircle2, Loader2 } from "lucide-react";
-import { X } from "lucide-react";
+import { Download, Trash2, Loader2 } from "lucide-react";
 import {
     Table,
     TableBody,
@@ -108,7 +107,7 @@ export default function VendorBulkInvitePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<"upload" | "preview">("upload");
-  const [file, setFile] = useState<File | null>(null);
+  const [_file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<VendorRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);

@@ -1,8 +1,8 @@
-import React from 'react'
+import { Control, FieldValues, Path } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '../ui/form'
 import { Textarea } from "@/components/ui/textarea";
 
-const FormFieldTextArea = ({ name, label, placeholder, control, description }: { name: string, label: string, placeholder: string, control: any, description?: string }) => {
+const FormFieldTextArea = <T extends FieldValues = FieldValues>({ name, label, placeholder, control, description }: { name: Path<T>, label: string, placeholder: string, control: Control<T>, description?: string }) => {
     return (
         <FormField
             control={control}

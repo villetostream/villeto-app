@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ReceiptUploadSection } from "@/components/expenses/new-report/ReceiptUploadSection";
@@ -15,6 +15,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import { logger } from "@/lib/logger";
+import { getApiErrorMessage, getPolicyViolationCauses, isPolicyViolationError } from "@/lib/types/api-error";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -39,7 +40,7 @@ interface ReportDetail {
 }
 
 // Simulated OCR function
-const simulateOCR = async (receiptBase64: string): Promise<{
+const simulateOCR = async (_receiptBase64: string): Promise<{
   merchantName: string;
   amount: number;
   category: string;
@@ -82,8 +83,8 @@ export default function EditReportPage() {
   const [deletedExpenseIds, setDeletedExpenseIds] = useState<string[]>([]);
 
   // Dirty state tracking
-  const [isDirty, setIsDirty] = useState(false);
   const [initialData, setInitialData] = useState<string>("");
+  const isDirty = !isLoading && JSON.stringify(expenses) !== initialData;
 
   // Confirmation state for Report Deletion
   const [isDeleteReportModalOpen, setIsDeleteReportModalOpen] = useState(false);
@@ -137,17 +138,11 @@ export default function EditReportPage() {
     };
 
     if (reportId) {
-      fetchData();
+      queueMicrotask(() => {
+        void fetchData();
+      });
     }
   }, [reportId, axios, router]);
-
-  // Check for changes
-  useEffect(() => {
-    if (!isLoading) {
-      const currentData = JSON.stringify(expenses);
-      setIsDirty(currentData !== initialData);
-    }
-  }, [expenses, initialData, isLoading]);
 
   // Handle receipt upload (New expenses)
   const handleReceiptsUpload = async (receipts: { base64: string; name: string }[]) => {
@@ -169,7 +164,6 @@ export default function EditReportPage() {
       }));
 
       setExpenses((prev) => [...prev, ...newExpenses]);
-      setIsDirty(true); // Explicitly mark dirty on addition
       toast.success(`${receipts.length} receipt(s) scanned successfully`);
     } catch (error) {
       logger.error("Error processing receipts:", error);
@@ -192,7 +186,6 @@ export default function EditReportPage() {
       transactionDate: new Date(),
     };
     setExpenses((prev) => [...prev, newExpense]);
-    setIsDirty(true);
     toast.success("Expense added");
   };
 
@@ -246,7 +239,7 @@ export default function EditReportPage() {
 
     // Remove from UI immediately
     setExpenses((prev) => prev.filter((e) => e.id !== expenseToDeleteId));
-    setIsDirty(true); // Mark as dirty
+ // Mark as dirty
     toast.success("Expense removed (will be deleted on save)");
     setIsDeleteModalOpen(false);
     setExpenseToDeleteId(null);
@@ -325,11 +318,11 @@ export default function EditReportPage() {
         const category = categories.find((cat) => cat.name === expense.category);
         if (!category) throw new Error(`Category not found: ${expense.category}`);
 
-        const payload: any = {
+        const payload: Record<string, unknown> = {
           title: expense.name,
           merchantName: expense.merchantName || "",
           description: expense.description || "",
-          expenseCategoryId: category.categoryId || (category as any).id,
+          expenseCategoryId: category.categoryId,
           amount: expense.amount,
           transactionDate: expense.transactionDate
             ? new Date(expense.transactionDate).toISOString()
@@ -373,29 +366,26 @@ export default function EditReportPage() {
         router.push("/expenses?tab=personal-expenses");
       }, 500);
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error("Error updating report:", error);
-      
-      const err = error as any;
-      const backendData = err?.response?.data;
 
-      if (backendData?.message === "Policy Violation Exception" || backendData?.data?.error === "Policy Violation") {
-        const causes = backendData?.data?.cause || [];
+      if (isPolicyViolationError(error)) {
+        const causes = getPolicyViolationCauses(error);
         if (causes.length > 0) {
           setExpenses((prev) =>
             prev.map((exp) => {
               const matchedCause = causes.find(
-                (c: any) =>
+                (c) =>
                   c.categoryName === exp.category &&
                   Number(c.expenseAmount) === exp.amount
               );
 
-              if (matchedCause && matchedCause.violations && matchedCause.violations.length > 0) {
+              if (matchedCause?.violations && matchedCause.violations.length > 0) {
                 return {
                   ...exp,
-                  policyViolations: matchedCause.violations.map((v: any) => ({
+                  policyViolations: matchedCause.violations.map((v) => ({
                     type: v.type || "POLICY_RULE",
-                    message: v.message,
+                    message: v.message ?? "",
                   })),
                 };
               }
@@ -409,7 +399,7 @@ export default function EditReportPage() {
         }
       }
 
-      toast.error(err?.response?.data?.message || err?.message || "Failed to update report");
+      toast.error(getApiErrorMessage(error, "Failed to update report"));
       // Reset loading states on error
       setIsSavingDraft(false);
       setIsSubmittingReport(false);

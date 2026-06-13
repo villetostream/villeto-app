@@ -15,7 +15,6 @@ import {
     Eye,
     CheckCircle,
     XCircle,
-    Clock,
     DollarSign,
     Calendar,
     MapPin,
@@ -103,7 +102,7 @@ export default function ExpensePolicy() {
                             </CardHeader>
                             <CardContent className="space-y-6">
                                 <div className="space-y-4">
-                                    {approvalWorkflow.map((step, index) => (
+                                    {approvalWorkflow.map((step, _index) => (
                                         <div key={step.step} className="flex items-center gap-4 p-4 bg-dashboard-hover rounded-lg">
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step.status === 'completed' ? 'bg-status-success text-white' :
                                                 step.status === 'current' ? 'bg-dashboard-accent text-white' :

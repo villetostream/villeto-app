@@ -105,10 +105,10 @@ export function ChatWidget() {
     if (vendors.length === 0) setVendors(MOCK_VENDORS);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset to list when widget closes
-  useEffect(() => {
-    if (!isOpen) setPanelView({ type: "list" });
-  }, [isOpen]);
+  const handleCloseChat = () => {
+    setPanelView({ type: "list" });
+    closeChat();
+  };
 
   // ─── Filtered lists ──────────────────────────────────────────
   const filteredTeam = teamMembers.filter(
@@ -203,7 +203,7 @@ export function ChatWidget() {
               <p className="text-[11px] text-gray-500">Communication centre</p>
             </div>
             <button
-              onClick={closeChat}
+              onClick={handleCloseChat}
               className="text-gray-400 hover:text-gray-600 transition-colors"
               aria-label="Close chat"
             >

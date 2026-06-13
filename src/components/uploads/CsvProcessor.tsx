@@ -13,21 +13,24 @@ import { Badge } from '../ui/badge';
 import { ColumnDef } from '@tanstack/react-table';
 
 import { logger } from '@/lib/logger';
+import { getApiErrorMessage } from "@/lib/types/api-error";
 
 // Types
 import { ProcessingOptions as ProcessingOptionsType } from '@/lib/types/csv';
 import { DataTable } from '../datatable';
 import { useDataTable } from '../datatable/useDataTable';
-import { useCompanyBulkImportApi } from '@/actions/companies/company-bulk-import.action';
+import { useCompanyBulkImportApi } from '@/queries/companies/company-bulk-import.action';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+
+type CsvRow = Record<string, string | number> & { _rowNumber: number };
 
 const CSVProcessor = () => {
     const [files, setFiles] = useState<File[]>([]);
     const [isProcessing, setIsProcessing] = useState<boolean>(false);
-    const [csvData, setCsvData] = useState<any[]>([]);
-    const [columns, setColumns] = useState<ColumnDef<any>[]>([]);
-    const [options, setOptions] = useState<ProcessingOptionsType>({
+    const [csvData, setCsvData] = useState<CsvRow[]>([]);
+    const [columns, setColumns] = useState<ColumnDef<CsvRow>[]>([]);
+    const [options, _setOptions] = useState<ProcessingOptionsType>({
         hasHeaders: true,
         delimiter: ',',
         skipEmptyLines: true,
@@ -35,7 +38,7 @@ const CSVProcessor = () => {
     const [globalSearch, setGlobalSearch] = useState("")
 
     // Add state for tracking empty columns
-    const [emptyColumns, setEmptyColumns] = useState<string[]>([]);
+    const [_emptyColumns, setEmptyColumns] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [hasProcessed, setHasProcessed] = useState<boolean>(false);
 
@@ -62,7 +65,7 @@ const CSVProcessor = () => {
         }
     }, [error]);
 
-    const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
+    const onDrop = useCallback((acceptedFiles: File[], _rejectedFiles: unknown[]) => {
         // Clear previous error
         setError(null);
 
@@ -114,13 +117,13 @@ const CSVProcessor = () => {
         try {
             const file = files[0]; // Since we only allow one file
 
-            const result = await new Promise<Papa.ParseResult<any>>((resolve, reject) => {
-                Papa.parse(file, {
+            const result = await new Promise<Papa.ParseResult<Record<string, string>>>((resolve, reject) => {
+                Papa.parse<Record<string, string>>(file, {
                     header: options.hasHeaders,
                     delimiter: options.delimiter,
                     skipEmptyLines: options.skipEmptyLines,
                     complete: (results) => {
-                        resolve(results);
+                        resolve(results as Papa.ParseResult<Record<string, string>>);
                     },
                     error: (error) => {
                         reject(error);
@@ -145,11 +148,11 @@ const CSVProcessor = () => {
             logger.log('Parsed Result:', { result });
 
             // Use the raw data from PapaParse without filtering
-            const rawData = result.data;
+            const rawData = result.data as Record<string, string>[];
 
             // Create data rows with row number and source file
-            const processedData = rawData.map((row: any, index: number) => {
-                const dataRow: any = {
+            const processedData = rawData.map((row, index: number) => {
+                const dataRow: CsvRow = {
                     _rowNumber: index + 1,
                 };
 
@@ -178,7 +181,7 @@ const CSVProcessor = () => {
             logger.log('Processed Data:', processedData);
 
             // Generate columns - ALWAYS use meta.fields if available
-            const generatedColumns: ColumnDef<any>[] = [];
+            const generatedColumns: ColumnDef<CsvRow>[] = [];
             const detectedEmptyColumns: string[] = [];
 
             // Add row number column
@@ -207,7 +210,7 @@ const CSVProcessor = () => {
             // Add data columns for ALL fields
             fieldNames.forEach((field: string) => {
                 // Determine if this column is completely empty (all values are empty)
-                const isColumnEmpty = processedData.every((row: any) => {
+                const isColumnEmpty = processedData.every((row: CsvRow) => {
                     const value = row[field];
                     return value === '' || value === null || value === undefined || String(value).trim() === '';
                 });
@@ -308,9 +311,12 @@ const CSVProcessor = () => {
 
     useEffect(() => {
         if (files.length > 0) {
-            processCSV()
+            const timeoutId = window.setTimeout(() => {
+                processCSV();
+            }, 0);
+            return () => clearTimeout(timeoutId);
         }
-    }, [files])
+    }, [files, processCSV]);
 
     const tableProps = useDataTable({
         initialPage: 1,
@@ -356,8 +362,8 @@ const CSVProcessor = () => {
             setError(null)
             toast.success("Upload Success, We will send an update once the integration is complete!");
             router.push("/settings/data-integration")
-        } catch (error: any) {
-            setError(error.response?.data?.message || "Failed to upload file. Please try again.");
+        } catch (error: unknown) {
+            setError(getApiErrorMessage(error, "Failed to upload file. Please try again."));
         }
     }
 
@@ -456,7 +462,7 @@ const CSVProcessor = () => {
 
             {csvData.length > 0 && (
                 <div className="mt-4 space-y-4">
-                    <DataTable
+                    <DataTable<CsvRow>
                         data={csvData}
                         isLoading={isProcessing}
                         columns={columns}
@@ -476,7 +482,7 @@ const CSVProcessor = () => {
                             filterProps: {
                                 title: "Processed Data",
                                 filterData: [],
-                                onFilter: (filters) => { },
+                                onFilter: (_filters) => { },
                             },
                             bulkActions: [],
                         }}

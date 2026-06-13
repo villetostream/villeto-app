@@ -1,5 +1,5 @@
 "use client"
-import { Loader2, Receipt } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SpendingSlider } from "@/components/onboarding/financial/SpendingSlider";
 import { getCurrencyConfig } from "@/lib/utils/currency";
@@ -10,7 +10,7 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { Invoice02Icon } from '@hugeicons/core-free-icons';
 import OnboardingTitle from "@/components/onboarding/_shared/OnboardingTitle";
 import { useRouter } from "next/navigation";
-import { useUpdateOnboardingFinancialPulseApi } from "@/actions/onboarding/update-financial-pulse";
+import { useUpdateOnboardingFinancialPulseApi } from "@/queries/onboarding/update-financial-pulse";
 import { useHydrateOnboardingData } from "@/hooks/useHydrateOnboardingData";
 
 export default function FinancialPulse() {
@@ -26,7 +26,7 @@ export default function FinancialPulse() {
         try {
             const config = getCurrencyConfig(businessSnapshot?.countryOfRegistration ?? "");
             const selectedRange = config.spendingRanges.find(r => r.label === spendRange);
-            const payload = {
+            const _payload = {
                 spendLimit: {
                     lower: selectedRange?.lower ?? 0,
                     upper: selectedRange?.upper ?? 0,
@@ -36,7 +36,7 @@ export default function FinancialPulse() {
 
             // await updateFinancial.mutateAsync({ ...payload });
             router.push("/onboarding/products")
-        } catch (error) {
+        } catch (_error) {
 
         }
     }

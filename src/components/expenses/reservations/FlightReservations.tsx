@@ -1,17 +1,23 @@
-import { logger } from "@/lib/logger";
 // components/booking/FlightBooking.tsx
 import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ExpenseFormProps } from "../ExpenseForm";
 import useModal from "@/hooks/useModal";
+
+interface ExpenseFormSheetProps {
+  trigger?: React.ReactNode;
+  isOpen?: boolean;
+  open?: () => void;
+  toggle?: () => void;
+}
 import FlightResults from "./FlightResults";
 import { CITIES, FLIGHT_CLASSES } from "./constants";
 import FlightBookingForm from "./FlightBookingForm";
 import HotelBookingForm from "./HotelBookingForm";
 import BookingTabs, { BookingTab } from "./RservationTabs";
 import { FlightFormData, HotelFormData } from "./schema";
+import { logger } from "@/lib/logger";
 
-const FlightBooking = ({ trigger, isOpen, open, toggle }: ExpenseFormProps) => {
+const FlightBooking = ({ trigger: _trigger, isOpen, toggle }: ExpenseFormSheetProps) => {
     const [activeTab, setActiveTab] = useState<BookingTab>("flight");
     const [isSubmitting, setIsSubmitting] = useState(false);
 

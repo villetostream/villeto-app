@@ -111,7 +111,7 @@ export function ReceiptPreview({
               key={i}
               className="bg-foreground"
               style={{
-                width: Math.random() > 0.5 ? 2 : 1,
+                width: i % 3 === 0 ? 2 : 1,
                 height: 24,
               }}
             />

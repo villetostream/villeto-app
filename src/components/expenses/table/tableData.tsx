@@ -1,9 +1,9 @@
 "use client"
 
-import { reimbursements } from "@/app/(dashboard)/expenses/page";
+import { reimbursements } from "@/lib/mock-data";
 import { useDataTable } from "@/components/datatable/useDataTable";
 
-export const tableData = () => {
+export const useTableData = () => {
 
     return useDataTable({
         initialPage: 1,

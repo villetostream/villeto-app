@@ -1,16 +1,14 @@
 "use client"
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, Info } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
-import { useVerifyOtpApi } from "@/actions/pre-onboarding/verify-otp";
-import { useConfirmationOnboardingApi } from "@/actions/pre-onboarding/confirm-onbarding-status";
+import { useVerifyOtpApi } from "@/queries/pre-onboarding/verify-otp";
+import { useConfirmationOnboardingApi } from "@/queries/pre-onboarding/confirm-onbarding-status";
 import { toast } from "sonner";
 import { OnboardingSidebar } from "@/components/onboarding/_shared/OnboardingSidebar";
-import Link from "next/link";
-import { ONBOARDING_STEPS } from "@/lib/constants/onboarding-steps";
 
 const OTP_LENGTH = 6;
 const RESEND_TIMER_SECONDS = 5 * 60; // 5 minutes
@@ -26,7 +24,7 @@ export default function VerifyOtp() {
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
     const isExistingUser = onboarding.isExistingUser;
-    const stoppedAtStep = onboarding.stoppedAtStep;
+    const _stoppedAtStep = onboarding.stoppedAtStep;
     const email = onboarding.contactEmail;
 
     // Resend countdown timer
@@ -123,20 +121,23 @@ export default function VerifyOtp() {
                     router.push("/onboarding/products");
                 } else if (step === 4) {
                     onboarding.reset();
+                    toast.success("Your onboarding is already complete! Please log in to your account.");
                     router.push("/login");
                 }
             } else {
                 // New user — store the onboardingId and go to welcome page
-                onboarding.setOnboardingId(onboardingData.onboardingId);
+                if (onboardingData?.onboardingId) {
+                    onboarding.setOnboardingId(onboardingData.onboardingId);
+                }
                 router.push("/onboarding");
             }
-        } catch (e: any) {
+        } catch (_e: unknown) {
             toast.error("Invalid or expired OTP. Please try again");
         }
     };
 
     const confirmAccount = useConfirmationOnboardingApi();
-    const loadingResend = confirmAccount.isPending;
+    const _loadingResend = confirmAccount.isPending;
 
     const handleResend = async () => {
         if (resendTimer > 0) return;
@@ -156,7 +157,7 @@ export default function VerifyOtp() {
                 setResendTimer(RESEND_TIMER_SECONDS);
                 toast.success("OTP resent to your email");
             }
-        } catch (error) {
+        } catch (_error) {
              toast.error("Failed to resend OTP. Please try again.");
         }
     };

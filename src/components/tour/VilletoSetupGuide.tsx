@@ -37,6 +37,7 @@ import {
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useTourStore } from "@/stores/useTourStore";
+import { useLayoutSchedule } from "@/hooks/useLayoutSchedule";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -298,17 +299,7 @@ function SpotlightOverlay({
     );
   }, [sidebarHref, targetSelector, mergeSelectors]);
 
-  useEffect(() => {
-    measure();
-    const iv = setInterval(measure, 150);
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      clearInterval(iv);
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-  }, [measure]);
+  useLayoutSchedule(measure, { pollMs: 1000 });
 
   if (vp.w === 0) return null;
   const { w, h } = vp;
@@ -384,16 +375,20 @@ function PointerArrow({ targetSelector, side = "top" }: { targetSelector?: strin
       }
       default: setPos(null); return;
     }
-    setPos({ x, y, effectiveSide });
+    setPos((prev) => {
+      if (
+        prev &&
+        prev.x === x &&
+        prev.y === y &&
+        prev.effectiveSide === effectiveSide
+      ) {
+        return prev;
+      }
+      return { x, y, effectiveSide };
+    });
   }, [targetSelector, side]);
 
-  useEffect(() => {
-    compute();
-    const iv = setInterval(compute, 150);
-    window.addEventListener("resize", compute);
-    window.addEventListener("scroll", compute, true);
-    return () => { clearInterval(iv); window.removeEventListener("resize", compute); window.removeEventListener("scroll", compute, true); };
-  }, [compute]);
+  useLayoutSchedule(compute, { pollMs: 1000 });
 
   if (!pos) return null;
   const arrowPath = (s: ArrowSide) => {
@@ -433,7 +428,11 @@ type TooltipPos = {
   effectiveSide?: ArrowSide;
 };
 
-function useTooltipPosition(selector: string | undefined, arrowSide: ArrowSide = "none"): TooltipPos {
+function useTooltipPosition(
+  selector: string | undefined,
+  arrowSide: ArrowSide = "none",
+  enabled = false
+): TooltipPos {
   const [pos, setPos] = useState<TooltipPos>({ placement: "center", targetMissing: !!selector });
 
   const compute = useCallback(() => {
@@ -455,18 +454,18 @@ function useTooltipPosition(selector: string | undefined, arrowSide: ArrowSide =
     }
 
     if (side === "top") {
-      let left = Math.max(12, Math.min(rect.left + rect.width / 2 - CARD_W / 2, window.innerWidth - CARD_W - 12));
+      const left = Math.max(12, Math.min(rect.left + rect.width / 2 - CARD_W / 2, window.innerWidth - CARD_W - 12));
       next = { top: rect.bottom + GAP, left, arrowLeft: rect.left + rect.width / 2 - left, placement: "near-target", targetMissing: false, effectiveSide: "top" };
     } else if (side === "bottom") {
-      let left = Math.max(12, Math.min(rect.left + rect.width / 2 - CARD_W / 2, window.innerWidth - CARD_W - 12));
+      const left = Math.max(12, Math.min(rect.left + rect.width / 2 - CARD_W / 2, window.innerWidth - CARD_W - 12));
       // Using fixed positioning relative to bottom if we can't accurately get height, 
       // but rect.top - GAP - height is standard.
       next = { top: Math.max(12, rect.top - GAP - CARD_H_EST), left, arrowLeft: rect.left + rect.width / 2 - left, placement: "near-target", targetMissing: false, effectiveSide: "bottom" };
     } else if (side === "left") {
-      let top = Math.max(12, Math.min(rect.top + rect.height / 2 - 100, window.innerHeight - 300));
+      const top = Math.max(12, Math.min(rect.top + rect.height / 2 - 100, window.innerHeight - 300));
       next = { top, left: rect.right + GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target", targetMissing: false, effectiveSide: "left" };
     } else if (side === "right") {
-      let top = Math.max(12, Math.min(rect.top + rect.height / 2 - 100, window.innerHeight - 300));
+      const top = Math.max(12, Math.min(rect.top + rect.height / 2 - 100, window.innerHeight - 300));
       next = { top, left: rect.left - CARD_W - GAP, arrowTop: rect.top + rect.height / 2 - top, placement: "near-target", targetMissing: false, effectiveSide: "right" };
     }
     
@@ -480,20 +479,14 @@ function useTooltipPosition(selector: string | undefined, arrowSide: ArrowSide =
     });
   }, [selector, arrowSide]);
 
-  useEffect(() => {
-    compute();
-    const iv = setInterval(compute, 150);
-    window.addEventListener("resize", compute);
-    window.addEventListener("scroll", compute, true);
-    return () => { clearInterval(iv); window.removeEventListener("resize", compute); window.removeEventListener("scroll", compute, true); };
-  }, [compute]);
+  useLayoutSchedule(compute, { enabled, pollMs: enabled ? 1000 : 0 });
 
   return pos;
 }
 
 // ─── Progress sidebar widget ──────────────────────────────────
 
-function SetupProgressWidget({ steps, completedIds, current, onResume, isSkipped, isActive }: { steps: SetupStep[]; completedIds: Set<string>; current: number; onResume: () => void; isSkipped: boolean; isActive: boolean }) {
+function SetupProgressWidget({ steps, completedIds, current, onResume, isSkipped: _isSkipped, isActive }: { steps: SetupStep[]; completedIds: Set<string>; current: number; onResume: () => void; isSkipped: boolean; isActive: boolean }) {
   const done = steps.filter(s => completedIds.has(s.id)).length;
   const total = steps.length;
   const pct = Math.round((done / total) * 100);
@@ -552,7 +545,7 @@ function SetupCompleteModal({ onClose }: { onClose: () => void }) {
       <div style={{ background: "white", borderRadius: 24, padding: "48px 40px 40px", maxWidth: 440, width: "calc(100vw - 48px)", boxShadow: "0 32px 80px rgba(0,0,0,0.22)", textAlign: "center" }}>
         <div style={{ fontSize: 52, marginBottom: 20, lineHeight: 1 }}>🎉</div>
         <h2 id="setup-complete-heading" style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginBottom: 12, letterSpacing: "-0.03em" }}>Workspace Ready!</h2>
-        <p style={{ fontSize: 15, lineHeight: 1.7, color: "#4b5563", marginBottom: 36 }}>You've completed your workspace setup. Your team can now submit expenses, and approvals will flow through your policies automatically.</p>
+        <p style={{ fontSize: 15, lineHeight: 1.7, color: "#4b5563", marginBottom: 36 }}>You&apos;ve completed your workspace setup. Your team can now submit expenses, and approvals will flow through your policies automatically.</p>
         <button ref={btnRef} onClick={onClose} style={{ width: "100%", height: 50, borderRadius: 12, border: "none", background: "linear-gradient(135deg,#2dd4bf 0%,#0d9488 100%)", color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 20px rgba(13,148,136,0.4)" }}>Create a report</button>
       </div>
     </div>
@@ -607,7 +600,7 @@ function SetupCard({
         <div style={{ background: "white", borderRadius: 14, boxShadow: "0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)", border: "1.2px solid rgba(13,148,136,0.2)", display: "flex", alignItems: "center", gap: 12, padding: "8px 10px 8px 14px", overflow: "hidden" }}>
           <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#0d9488", textTransform: "uppercase", letterSpacing: "0.02em" }}>Step {stepNumber}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", truncate: "true", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as any}>{step.title}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{step.title}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
              <button onClick={onSkip} style={{ background: "none", border: "none", color: "#9ca3af", fontSize: 11, cursor: "pointer", padding: "4px 8px", textDecoration: "underline" }}>Skip</button>
@@ -632,10 +625,10 @@ function SetupCard({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#0d9488", background: "#f0fdf9", padding: "3px 10px", borderRadius: 99 }}>Step {stepNumber} of {totalSteps}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <button onClick={() => onToggleMinimize(true)} aria-label="Minimize instructions" style={{ background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: "#9ca3af", transition: "color 0.2s, background 0.2s" }} onMouseEnter={e => { (e.currentTarget as any).style.color = "#374151"; (e.currentTarget as any).style.background = "#f3f4f6"; }} onMouseLeave={e => { (e.currentTarget as any).style.color = "#9ca3af"; (e.currentTarget as any).style.background = "none"; }}>
+              <button onClick={() => onToggleMinimize(true)} aria-label="Minimize instructions" style={{ background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: "#9ca3af", transition: "color 0.2s, background 0.2s" }} onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#374151"; (e.currentTarget as HTMLButtonElement).style.background = "#f3f4f6"; }} onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.background = "none"; }}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>
               </button>
-              <button onClick={onClose} aria-label="Close setup guide" style={{ background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: "#9ca3af", transition: "color 0.2s, background 0.2s" }} onMouseEnter={e => { (e.currentTarget as any).style.color = "#374151"; (e.currentTarget as any).style.background = "#f3f4f6"; }} onMouseLeave={e => { (e.currentTarget as any).style.color = "#9ca3af"; (e.currentTarget as any).style.background = "none"; }}>
+              <button onClick={onClose} aria-label="Close setup guide" style={{ background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: "#9ca3af", transition: "color 0.2s, background 0.2s" }} onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#374151"; (e.currentTarget as HTMLButtonElement).style.background = "#f3f4f6"; }} onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.background = "none"; }}>
                 <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style={{ display: "block" }}><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></svg>
               </button>
             </div>
@@ -703,7 +696,7 @@ export default function VilletoSetupGuide() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const setTourActive = useTourStore(s => s.setTourActive);
-  const setupGuideReady = useTourStore(s => (s as any).setupGuideReady ?? false);
+  const setupGuideReady = useTourStore(s => s.setupGuideReady ?? false);
 
   const [hydrated, setHydrated] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -726,7 +719,9 @@ export default function VilletoSetupGuide() {
   const pendingRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const advanceRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stepIndexRef = useRef(0);
+  const settledRef   = useRef<{ pathname: string; tab: string | null; stepIndex: number } | null>(null);
   const allDoneRef   = useRef(false);
+  const [allDoneLocked, setAllDoneLocked] = useState(false);
 
   const isEligible =
     user?.position === "CONTROLLING_OFFICER" &&
@@ -740,42 +735,35 @@ export default function VilletoSetupGuide() {
   // [FIX-3] Keep stepIndexRef in sync
   useEffect(() => { stepIndexRef.current = stepIndex; }, [stepIndex]);
 
-  // Restore persisted progress
-  useEffect(() => {
-    if (!userId) return;
+  // Restore persisted progress when userId becomes available
+  const [syncedUserId, setSyncedUserId] = useState<string | null>(null);
+  if (userId && userId !== syncedUserId) {
+    setSyncedUserId(userId);
     const restored = new Set<string>();
-    SETUP_STEPS.forEach(s => { if (localStorage.getItem(STEP_DONE_KEY(userId, s.id)) === "1") restored.add(s.id); });
+    SETUP_STEPS.forEach(s => {
+      if (localStorage.getItem(STEP_DONE_KEY(userId, s.id)) === "1") restored.add(s.id);
+    });
     setCompletedIds(restored);
 
-    // ── Data-migration: clear bogus GUIDE_COMPLETED_KEY ──────────────────
-    // The old `loginCount > 1` guard permanently wrote GUIDE_COMPLETED_KEY
-    // without any steps actually being done. Detect that case (complete flag
-    // set, zero steps done, guide never shown on this device) and fix it:
-    //  • Remove the corrupted flag so the guide can resume.
-    //  • Stamp GUIDE_SEEN_KEY so the cross-device guard in the start-guide
-    //    effect treats this as the "primary" device and won't re-suppress it.
     if (completedKey && localStorage.getItem(completedKey) === "1") {
       const guideSeenLocally = localStorage.getItem(GUIDE_SEEN_KEY(userId)) === "1";
       if (restored.size === 0 && !guideSeenLocally) {
-        // Bogus completedKey from old bug — clear it and mark device as local.
         localStorage.removeItem(completedKey);
         localStorage.setItem(GUIDE_SEEN_KEY(userId), "1");
         setHasBeenSeen(true);
       } else {
-        allDoneRef.current = true;
+        setAllDoneLocked(true);
       }
     }
     const firstIncomplete = SETUP_STEPS.findIndex(s => !restored.has(s.id));
     if (firstIncomplete !== -1) setStepIndex(firstIncomplete);
-    
+
     if (dismissedKey && localStorage.getItem(dismissedKey) === "1") setIsSkipped(true);
-    if (userId && localStorage.getItem(POST_SETUP_DISMISSED_KEY(userId)) === "1") setIsPostSetupDismissed(true);
-    if (userId && localStorage.getItem(GUIDE_MINIMIZED_KEY(userId)) === "1") setIsMinimized(true);
-    // If the guide has been auto-started before, show pill on this login instead
-    // of auto-redirecting (user experience: don't hijack navigation every login).
+    if (localStorage.getItem(POST_SETUP_DISMISSED_KEY(userId)) === "1") setIsPostSetupDismissed(true);
+    if (localStorage.getItem(GUIDE_MINIMIZED_KEY(userId)) === "1") setIsMinimized(true);
     if (localStorage.getItem(GUIDE_SEEN_KEY(userId)) === "1") setHasBeenSeen(true);
     setHydrated(true);
-  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   // Start guide after password modal
   useEffect(() => {
@@ -797,36 +785,61 @@ export default function VilletoSetupGuide() {
     return () => clearTimeout(t);
   }, [isEligible, setupGuideReady, hasBeenSeen, user?.loginCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Broadcast to sidebar
-  useEffect(() => { setTourActive(visible && !isSkipped); return () => setTourActive(false); }, [visible, isSkipped, setTourActive]);
+  // Broadcast to sidebar (only while the setup card is visible)
+  useEffect(() => { setTourActive(visible && !isSkipped && cardVisible); return () => setTourActive(false); }, [visible, isSkipped, cardVisible, setTourActive]);
 
   const step = SETUP_STEPS[stepIndex];
+  const currTab = searchParams.get("tab");
 
   // Navigation effect
   useEffect(() => {
     // When all steps are done, do NOT redirect back to any setup step page.
     // handleDoneClose / the bonus step rendering handles navigation itself.
-    if (!visible || isSkipped || !step || allDoneRef.current) return;
+    if (!visible || isSkipped || !step || allDoneLocked || allDoneRef.current) return;
     if (pendingRef.current) clearTimeout(pendingRef.current);
     setInviteDropdownOpen(false);
 
     const targetUrl = step.navigateUrl ?? step.navigateTo;
     const tabMatch = targetUrl.match(/tab=([^&]+)/);
     const targetTab = tabMatch ? tabMatch[1] : null;
-    const currTab = searchParams.get("tab");
     const isOnAllowedSubPath = step.allowedSubPaths?.some(p => pathname.startsWith(p)) ?? false;
 
     if (!isOnAllowedSubPath && (pathname !== step.navigateTo || (targetTab && currTab !== targetTab))) {
-      setCardVisible(false);
+      settledRef.current = null;
+      const hideCardId = window.setTimeout(() => setCardVisible(false), 0);
       router.push(targetUrl);
-      return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
+      return () => {
+        clearTimeout(hideCardId);
+        if (pendingRef.current) clearTimeout(pendingRef.current);
+      };
     }
 
-    setCardVisible(false);
-    setWaitingForAction(!completedIds.has(step.id));
+    const settled = settledRef.current;
+    const alreadySettled =
+      settled &&
+      settled.pathname === pathname &&
+      settled.tab === currTab &&
+      settled.stepIndex === stepIndex;
+
+    if (alreadySettled) {
+      const showId = window.setTimeout(() => {
+        setCardVisible(true);
+        setWaitingForAction(!completedIds.has(step.id));
+      }, 0);
+      return () => clearTimeout(showId);
+    }
+
+    settledRef.current = { pathname, tab: currTab, stepIndex };
+
+    const hideCardId = window.setTimeout(() => setCardVisible(false), 0);
+    const waitingId = window.setTimeout(() => setWaitingForAction(!completedIds.has(step.id)), 0);
     pendingRef.current = setTimeout(() => setCardVisible(true), 400);
-    return () => { if (pendingRef.current) clearTimeout(pendingRef.current); };
-  }, [pathname, searchParams, stepIndex, visible, isSkipped]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      clearTimeout(hideCardId);
+      clearTimeout(waitingId);
+      if (pendingRef.current) clearTimeout(pendingRef.current);
+    };
+  }, [pathname, currTab, stepIndex, visible, isSkipped, step, completedIds, router, allDoneLocked]);
 
   // [FIX-2] Completion detection
   useEffect(() => {
@@ -836,10 +849,15 @@ export default function VilletoSetupGuide() {
     if (completedKey && localStorage.getItem(completedKey) === "1") { allDoneRef.current = true; return; }
     allDoneRef.current = true;
     if (completedKey) localStorage.setItem(completedKey, "1");
-    setIsSkipped(false);
-    setVisible(true);
+    const showGuideId = window.setTimeout(() => {
+      setIsSkipped(false);
+      setVisible(true);
+    }, 0);
     const t = setTimeout(() => setShowDoneModal(true), 400);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(showGuideId);
+      clearTimeout(t);
+    };
   }, [completedIds, completedKey]);
 
   // [FIX-1] markStepDone
@@ -897,15 +915,22 @@ export default function VilletoSetupGuide() {
   useEffect(() => {
     if (!inviteDropdownOpen) return;
     if (pathname.startsWith("/people/invite/employees") || pathname.startsWith("/people/invite/leadership")) {
-      setInviteDropdownOpen(false);
-      setCardVisible(false);
-      setWaitingForAction(true);
+      const resetId = window.setTimeout(() => {
+        setInviteDropdownOpen(false);
+        setCardVisible(false);
+        setWaitingForAction(true);
+      }, 0);
       pendingRef.current = setTimeout(() => setCardVisible(true), 400);
+      return () => {
+        clearTimeout(resetId);
+        if (pendingRef.current) clearTimeout(pendingRef.current);
+      };
     }
-  }, [pathname, inviteDropdownOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pathname, inviteDropdownOpen]);
 
   // Skip / resume
   const skipGuide = useCallback(() => {
+    settledRef.current = null;
     setCardVisible(false);
     setInviteDropdownOpen(false);
 
@@ -924,6 +949,7 @@ export default function VilletoSetupGuide() {
   }, [dismissedKey, pathname, completedIds, userId]);
 
   const resumeGuide = useCallback(() => {
+    settledRef.current = null;
     setIsSkipped(false);
     if (dismissedKey) localStorage.removeItem(dismissedKey);
     setVisible(true);
@@ -942,12 +968,10 @@ export default function VilletoSetupGuide() {
   // POST-SETUP override logic & activeStep derivation
   const allDone = hydrated ? SETUP_STEPS.every(s => completedIds.has(s.id)) : false;
   let activeStep: SetupStep | undefined = undefined;
-  let isBonusActive = false;
 
   if (allDone) {
     if (pathname === "/expenses" && !isPostSetupDismissed) {
       activeStep = BONUS_STEP;
-      isBonusActive = true;
     }
   } else if (step) {
     const activeSubState = step?.subStates?.find(ss => ss.pathMatch(pathname, new URLSearchParams(searchParams.toString())));
@@ -959,7 +983,8 @@ export default function VilletoSetupGuide() {
   // Tooltip position — suppress when dropdown phase is active
   const pos = useTooltipPosition(
     !isSkipped && !inviteDropdownOpen ? activeStep?.targetSelector : undefined,
-    !isSkipped && !inviteDropdownOpen ? (activeStep?.arrowSide ?? "none") : "none"
+    !isSkipped && !inviteDropdownOpen ? (activeStep?.arrowSide ?? "none") : "none",
+    visible && !isSkipped && !inviteDropdownOpen && !!activeStep
   );
 
   // Scroll lock — NEVER lock when allowInteraction is true or dropdown phase active
@@ -973,7 +998,7 @@ export default function VilletoSetupGuide() {
       if (mainEl) mainEl.style.overflow = "";
     }
     return () => { document.body.style.overflow = ""; if (mainEl) mainEl.style.overflow = ""; };
-  }, [visible, isSkipped, activeStep?.allowInteraction, inviteDropdownOpen]);
+  }, [visible, isSkipped, activeStep, inviteDropdownOpen]);
 
   // Completion modal close — navigate to expenses and show the bonus "Create Report" step.
   // IMPORTANT: we must close the modal BEFORE navigation so the navigation effect
@@ -1024,13 +1049,18 @@ export default function VilletoSetupGuide() {
             {/* Normal rendering */}
             {(!isInviteStep || !inviteDropdownOpen) && (
               <>
-                {!activeStep.allowInteraction && (
+                {cardVisible && !activeStep.allowInteraction && (
                   <style>{`
                     body,main,.overflow-y-auto,.overflow-auto,.overflow-x-auto{overflow:hidden!important}
                     body{pointer-events:none!important;user-select:none!important}
                     #villeto-setup-root,#villeto-setup-root *{pointer-events:auto!important}
+                    [data-slot="sidebar"],[data-slot="sidebar"] *,[data-sidebar="sidebar"],[data-sidebar="sidebar"] *{pointer-events:auto!important}
+                    header,header *{pointer-events:auto!important}
                     [data-radix-popper-content-wrapper],[data-radix-popper-content-wrapper] *,[role="dialog"],[role="dialog"] *,[aria-modal="true"],[aria-modal="true"] *{pointer-events:auto!important}
                     #villeto-setup-root svg,#villeto-setup-root svg *{pointer-events:none!important}
+                    [data-radix-popper-content-wrapper],[data-radix-popper-content-wrapper] *,[role="dialog"],[role="dialog"] *,[aria-modal="true"],[aria-modal="true"] *{pointer-events:auto!important}
+    [data-radix-collapsible-trigger],[data-radix-collapsible-trigger] *{pointer-events:auto!important}
+    #villeto-setup-root svg,#villeto-setup-root svg *{pointer-events:none!important}
                     ${activeStep.targetSelector ? `${activeStep.targetSelector},${activeStep.targetSelector} *{pointer-events:auto!important;cursor:pointer!important}` : ""}
                     ${(activeStep.mergeSelectors ?? []).map(sel => `${sel},${sel} *{pointer-events:auto!important;cursor:pointer!important}`).join("")}
                   `}</style>

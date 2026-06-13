@@ -1,27 +1,25 @@
 
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
-import { Eye, Lock, MoreHorizontal } from "lucide-react";
+import { Eye, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { dateFormatter } from "@/lib/utils";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Role } from "@/actions/role/get-all-roles";
+import { Role } from "@/queries/role/get-all-roles";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import Link from "next/link";
-import { logger } from "@/lib/logger";
 import { Edit2, Trash2 } from "lucide-react";
 import ConfirmationModal from "@/components/modals/ConfirmationModal";
-import { useDeleteRoleApi } from "@/actions/role/delete-role";
+import { useDeleteRoleApi } from "@/queries/role/delete-role";
 import toast from "react-hot-toast";
 import { useState } from "react";
 const columnHelper = createColumnHelper<Role>();
 
-export const columns: ColumnDef<Role, any>[] = [
+export const columns: ColumnDef<Role, unknown>[] = [
     columnHelper.display({
         id: "idNo",
         header: "S/N",
@@ -93,7 +91,7 @@ function ActionCell({ role }: { role: Role }) {
         try {
             await deleteRole(roleId);
             toast.success("Role deleted successfully");
-        } catch (error) {
+        } catch (_error) {
             toast.error("Failed to delete role");
         } finally {
             setDeleteModalOpen(false);

@@ -68,7 +68,7 @@ function buildSteps(status: ReportStatus, report: typeof unsortedReimbursements[
   const managerDone  = ["approved", "paid", "rejected", "declined"].includes(status);
   const paymentDone  = status === "paid";
   const paymentPending = status === "approved";
-  const paidOutDone  = status === "paid";
+  const _paidOutDone  = status === "paid";
 
   const steps: Step[] = [
     { label: "Created",          sub: report.date,                          done: createdDone },
@@ -234,7 +234,7 @@ export default function ReimbursementDetailPage() {
     setFeedbackModal({ open: true, type: "approved" });
   };
 
-  const handleReject = async (reason: string) => {
+  const handleReject = async (_reason: string) => {
     setRejectLoading(true);
     // TODO: replace with real API call → PATCH /reports/:id { status: "rejected", reason }
     await new Promise((res) => setTimeout(res, 1200));

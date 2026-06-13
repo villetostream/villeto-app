@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { create } from "zustand";
+import { deferStateUpdate } from "@/lib/defer-state-update";
 import { logger } from "@/lib/logger";
 
 // ── Global Store for Unread Count ──────────────────────────────────────────
@@ -11,7 +12,8 @@ interface NotificationCountState {
 
 export const useNotificationCountStore = create<NotificationCountState>((set) => ({
   unreadCount: 0,
-  setUnreadCount: (count) => set({ unreadCount: count }),
+  setUnreadCount: (count) =>
+    deferStateUpdate(() => set({ unreadCount: count })),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -127,8 +129,8 @@ export function useNotificationCountHook() {
             }
           }
         }
-      } catch (err: any) {
-        if (err?.name !== "AbortError") {
+      } catch (err: unknown) {
+        if (!(err instanceof Error && err.name === "AbortError")) {
           logger.error("[useNotificationCount] SSE error:", err);
         }
       }

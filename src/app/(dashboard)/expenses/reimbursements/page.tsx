@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -113,44 +114,28 @@ export default function ReimbursementsPage() {
             title="Pending Reports"
             value={pendingCount}
             icon={
-              <img
-                src="/images/receipt-pending.png"
-                alt="pending"
-                className="w-6 h-6 object-contain"
-              />
+              <Image src="/images/receipt-pending.png" alt="pending" width={24} height={24} className="w-6 h-6 object-contain" />
             }
           />
           <StatsCard
             title="Approved Reports"
             value={approvedCount}
             icon={
-              <img
-                src="/images/svgs/submitted.svg"
-                alt="approved"
-                className="w-6 h-6 object-contain"
-              />
+              <Image src="/images/svgs/submitted.svg" alt="approved" width={24} height={24} className="w-6 h-6 object-contain" />
             }
           />
           <StatsCard
             title="Rejected Reports"
             value={rejectedCount}
             icon={
-              <img
-                src="/images/svgs/draft.svg"
-                alt="rejected"
-                className="w-6 h-6 object-contain"
-              />
+              <Image src="/images/svgs/draft.svg" alt="rejected" width={24} height={24} className="w-6 h-6 object-contain" />
             }
           />
           <StatsCard
             title="Total Payout"
             value={`$${totalPayout.toLocaleString()}`}
             icon={
-              <img
-                src="/images/svgs/money.svg"
-                alt="payout"
-                className="w-6 h-6 object-contain"
-              />
+              <Image src="/images/svgs/money.svg" alt="payout" width={24} height={24} className="w-6 h-6 object-contain" />
             }
           />
         </div>
