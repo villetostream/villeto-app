@@ -144,6 +144,11 @@ export const usePersonalExpenses = (
   const authReady = useAuthStore((state) => !state.isLoading);
   const accessToken = useAuthStore((state) => state.accessToken);
 
+  // Previously the page only destructured `data` and `isLoading` from
+  // this hook's return value, so a fetch failure rendered the exact
+  // same UI as a genuinely empty list ("No expense has been added").
+  // Returning `error`/`refetch` here lets the caller show a real
+  // error state with a retry action instead of a misleading empty one.
   return useQuery({
     queryKey: [API_KEYS.EXPENSE.REPORTS_SCOPED("own"), page, limit, sortBy, sortOrder],
     enabled: authReady && !!accessToken,
@@ -168,6 +173,10 @@ export const usePersonalExpenses = (
 };
 
 // Query for fetching company/team expenses (scope-based)
+// Note: error and refetch are available on the returned object via
+// React Query's default shape — no extra plumbing needed here. The
+// gap was always at the call site (see expenses/page.tsx), which
+// previously only destructured `data` and `isLoading`.
 export const useCompanyExpenses = (
   page: number = 1,
   limit: number = 10,

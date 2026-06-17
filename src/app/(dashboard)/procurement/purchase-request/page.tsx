@@ -49,7 +49,7 @@ const ALL_STATUS_TABS = [
   { key: "submitted",          label: "Submitted",       status: "submitted" },
   { key: "approved",           label: "Approved",        status: "approved" },
   { key: "rejected",           label: "Rejected",        status: "rejected" },
-  { key: "partially_converted",label: "Partial",         status: "partially_converted" },
+  { key: "partially_converted",label: "Partially Converted to PO", status: "partially_converted" },
   { key: "converted_to_po",    label: "Converted to PO", status: "converted_to_po" },
   { key: "cancelled",          label: "Withdrawn",       status: "cancelled" },
 ];
@@ -120,8 +120,8 @@ function PRTable({
   const checkScroll = () => {
     if (scrollRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-      setCanScrollLeft(scrollLeft > 0);
-      setCanScrollRight(Math.round(scrollLeft + clientWidth) < scrollWidth);
+      setCanScrollLeft(scrollLeft > 2);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 2);
     }
   };
 
@@ -184,9 +184,9 @@ function PRTable({
   return (
     <div className="bg-white rounded-2xl border border-border overflow-hidden">
       {/* Status tabs + filters */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-0 gap-8">
+      <div className="flex items-center justify-between px-5 py-4 gap-8">
         <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
-
+ 
         <div className="relative flex flex-1 items-center max-w-[55%]">
           {canScrollLeft && (
             <button
@@ -199,26 +199,26 @@ function PRTable({
           <div
             ref={scrollRef}
             onScroll={checkScroll}
-            className="flex items-center overflow-x-auto no-scrollbar snap-x snap-mandatory w-full"
+            className="flex items-center overflow-x-auto no-scrollbar snap-x snap-mandatory w-full py-0.5"
             style={{
               scrollbarWidth: "none",
               maskImage:         canScrollRight ? "linear-gradient(to right, black 90%, transparent 100%)" : "none",
               WebkitMaskImage:   canScrollRight ? "linear-gradient(to right, black 90%, transparent 100%)" : "none",
             }}
           >
-            {statusTabs.map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 snap-start ${
-                  activeTab === tab.key
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="bg-muted/60 p-[3px] border border-border/40 flex shrink-0">
+                {statusTabs.map(tab => (
+                  <TabsTrigger
+                    key={tab.key}
+                    value={tab.key}
+                    className="px-4 py-1.5 text-xs font-semibold rounded-md whitespace-nowrap shrink-0 data-[state=active]:text-primary"
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
           </div>
           {canScrollRight && (
             <button
@@ -229,8 +229,8 @@ function PRTable({
             </button>
           )}
         </div>
-
-        <div className="flex items-center gap-3 pb-1 shrink-0">
+ 
+        <div className="flex items-center gap-3 shrink-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input

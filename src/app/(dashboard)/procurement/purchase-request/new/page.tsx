@@ -346,9 +346,14 @@ function LineItemModal({
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Unit Price</label>
-              <input type="number" min={0} value={form.unitPrice || ""}
-                onChange={e => set("unitPrice", Number(e.target.value))} placeholder="0.00"
-                className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                  {currencySymbol}
+                </span>
+                <input type="number" min={0} value={form.unitPrice || ""}
+                  onChange={e => set("unitPrice", Number(e.target.value))} placeholder="0.00"
+                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors bg-white" />
+              </div>
             </div>
           </div>
 
@@ -525,7 +530,26 @@ export default function NewPurchaseRequestPage() {
       const returnedData = res.data;
       const parsedItems = parseLineItemsFromAddResponse(returnedData);
       if (parsedItems.length > 0) {
-        setSavedLineItems((prev) => [...prev, ...parsedItems]);
+        const isFullList =
+          Array.isArray(returnedData) ||
+          (returnedData && typeof returnedData === "object" && "lineItems" in returnedData);
+
+        if (isFullList) {
+          setSavedLineItems(parsedItems);
+        } else {
+          setSavedLineItems((prev) => {
+            const combined = [...prev, ...parsedItems];
+            const unique: PurchaseRequestLineItem[] = [];
+            const seen = new Set<string>();
+            for (const item of combined) {
+              if (!seen.has(item.purchaseRequestLineItemId)) {
+                seen.add(item.purchaseRequestLineItemId);
+                unique.push(item);
+              }
+            }
+            return unique;
+          });
+        }
       }
       setShowModal(false);
       toast.success("Item added");

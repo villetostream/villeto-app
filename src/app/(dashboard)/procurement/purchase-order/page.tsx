@@ -9,6 +9,7 @@ import { Search, Eye, Download, Loader2, Filter, ChevronLeft, ChevronRight } fro
 import { Pagination } from "@/components/ui/custom-pagination";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
 import { useGetVendors } from "@/queries/procurement/purchase-requests";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -71,8 +72,8 @@ function PurchaseOrderPage() {
   const checkScroll = () => {
     if (scrollRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-      setCanScrollLeft(scrollLeft > 0);
-      setCanScrollRight(Math.round(scrollLeft + clientWidth) < scrollWidth);
+      setCanScrollLeft(scrollLeft > 2);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 2);
     }
   };
 
@@ -128,7 +129,7 @@ function PurchaseOrderPage() {
 
   return (
     <div className="bg-white rounded-2xl border border-border overflow-hidden">
-      <div className="flex items-center justify-between px-5 pt-4 pb-0 gap-8">
+      <div className="flex items-center justify-between px-5 py-4 gap-8">
         <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
         
         <div className="relative flex flex-1 items-center max-w-[55%]">
@@ -143,26 +144,26 @@ function PurchaseOrderPage() {
           <div
             ref={scrollRef}
             onScroll={checkScroll}
-            className="flex items-center overflow-x-auto no-scrollbar snap-x snap-mandatory w-full"
+            className="flex items-center overflow-x-auto no-scrollbar snap-x snap-mandatory w-full py-0.5"
             style={{
               scrollbarWidth: "none",
               maskImage:         canScrollRight ? "linear-gradient(to right, black 90%, transparent 100%)" : "none",
               WebkitMaskImage:   canScrollRight ? "linear-gradient(to right, black 90%, transparent 100%)" : "none",
             }}
           >
-            {TABS.map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => { setActiveTab(tab.key); setPage(1); }}
-                className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 snap-start ${
-                  activeTab === tab.key
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setPage(1); }}>
+              <TabsList className="bg-muted/60 p-[3px] border border-border/40 flex shrink-0">
+                {TABS.map(tab => (
+                  <TabsTrigger
+                    key={tab.key}
+                    value={tab.key}
+                    className="px-4 py-1.5 text-xs font-semibold rounded-md whitespace-nowrap shrink-0 data-[state=active]:text-primary"
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
           </div>
           {canScrollRight && (
             <button
@@ -174,7 +175,7 @@ function PurchaseOrderPage() {
           )}
         </div>
         
-        <div className="flex items-center gap-3 pb-1 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search pos or requesters..."

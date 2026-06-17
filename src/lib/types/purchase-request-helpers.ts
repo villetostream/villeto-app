@@ -77,6 +77,7 @@ export interface PurchaseOrderLineItemRecord {
 
 export interface PurchaseOrderRecord {
   purchaseOrderId?: string;
+  id?: string;
   poNumber?: string;
   vendorId?: string;
   vendor?: { vendorId?: string; displayName?: string; legalName?: string; email?: string; [key: string]: unknown };
@@ -84,8 +85,18 @@ export interface PurchaseOrderRecord {
   notes?: string;
   status?: string;
   createdAt?: string;
+  issueDate?: string;
+  issuedAt?: string | null;
+  acknowledgedAt?: string | null;
+  deliveredAt?: string | null;
+  closedAt?: string | null;
   lineItems?: PurchaseOrderLineItemRecord[];
   createdBy?: Record<string, unknown> | string;
+  requesterName?: string;
+  departmentName?: string;
+  priority?: string;
+  currency?: string;
+  totalAmount?: string | number;
   [key: string]: unknown;
 }
 
