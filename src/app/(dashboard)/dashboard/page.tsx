@@ -24,9 +24,9 @@ export default function DashboardPage() {
         <div className="space-y-5">
           {/* Apply Banner */}
           <Card className="bg-gradient-to-r from-primary/20 to-primary/10 border-primary/50 !p-0">
-            <div className="p-5 flex items-start justify-between">
+            <div className="p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
               <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center text-white">
+                <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center text-white shrink-0" aria-hidden="true">
                   i
                 </div>
                 <div>
@@ -37,14 +37,14 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              <Button size={"sm"} className="!h-10">
+              <Button size={"sm"} className="!h-10 w-full sm:w-auto">
                 Apply Now
               </Button>
             </div>
           </Card>
 
           {/* Welcome Section */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 Welcome Back, <span>{userName}!</span>
@@ -53,10 +53,11 @@ export default function DashboardPage() {
                 Here&apos;s what&apos;s happening with your expenses today.
               </p>
             </div>
-            <div className="relative w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
               <Input
                 placeholder="Search by transaction etc"
+                aria-label="Search transactions"
                 className="pl-9 h-12"
               />
             </div>
@@ -70,7 +71,7 @@ export default function DashboardPage() {
               subtitle={<span className="text-muted-foreground">This month you spent <span className="text-success">{currencySymbol}0.00</span> </span>}
               trend="up"
               icon={
-                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white bg-[#38B2AC]">
+                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white bg-[#38B2AC]" aria-hidden="true">
                   <DollarSign className="w-5 h-5" />
                 </div>
               }
@@ -86,7 +87,7 @@ export default function DashboardPage() {
               }
               trend="neutral"
               icon={
-                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white bg-[#5A67D8]">
+                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white bg-[#5A67D8]" aria-hidden="true">
                   <StatusUp className="w-5 h-5" />
                 </div>
               }
@@ -96,7 +97,7 @@ export default function DashboardPage() {
               value={`${currencySymbol}0.00`}
               subtitle={<>You have 0 accounts to pay</>}
               icon={
-                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white bg-[#F45B69]">
+                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white bg-[#F45B69]" aria-hidden="true">
                   <WalletMoney className="w-5 h-5" />
                 </div>
               }
@@ -105,13 +106,18 @@ export default function DashboardPage() {
               title="Open Approvals"
               value="0"
               subtitle={
-                <Link href="" className="text-success underline">
+                // Previously href="" — an empty href resolves to the
+                // current URL, so the link silently reloaded the
+                // dashboard instead of navigating anywhere. Pointed
+                // at the real procurement route, which is where
+                // approvals live today.
+                <Link href="/procurement" className="text-success underline">
                   Authorize Approvals
                 </Link>
               }
               trend="up"
               icon={
-                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white bg-[#418341]">
+                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white bg-[#418341]" aria-hidden="true">
                   <LampOn className="w-5 h-5" />
                 </div>
               }
@@ -120,13 +126,14 @@ export default function DashboardPage() {
               title="Critical Policy Alerts"
               value="0"
               subtitle={
-                <Link href="" className="text-error underline">
+                // Previously href="" — same no-op bug as above.
+                <Link href="/policies" className="text-error underline">
                   Authorize Policy Alerts
                 </Link>
               }
               trend="down"
               icon={
-                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white bg-[#384A57]">
+                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white bg-[#384A57]" aria-hidden="true">
                   <StatusUp className="w-5 h-5" />
                 </div>
               }
@@ -158,19 +165,19 @@ export default function DashboardPage() {
             </p>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" aria-hidden="true" />
                 Company financial performance metrics
               </li>
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" aria-hidden="true" />
                 Departmental spending breakdowns
               </li>
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" aria-hidden="true" />
                 Executive reports and analytics
               </li>
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" aria-hidden="true" />
                 Full administrative controls
               </li>
             </ul>

@@ -46,14 +46,11 @@ import {
   getRoleName,
   mergeDepartmentOption,
   resolveDepartmentLabel,
+  PurchaseRequestDetail,
   toApiLineItemPayload,
 } from "@/lib/types/purchase-request-helpers";
 
-interface PurchaseRequestDetail extends PurchaseRequest {
-  approvedBy?: { firstName?: string; lastName?: string; [key: string]: unknown };
-  approvedAt?: string;
-  purchaseOrders?: Array<DraftPurchaseOrder & { createdBy?: Record<string, unknown> | string; createdAt?: string }>;
-}
+
 
 function cleanLineItemPayload(payload: LineItemPayload): LineItemPayload {
   return toApiLineItemPayload(payload);
@@ -175,11 +172,18 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
       {steps.map((step, i) => (
         <div key={i} className="flex gap-3 items-start">
           <div className="relative flex flex-col items-center">
-            <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 mt-1 ${
+            <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${
               step.status === "done" ? "border-primary bg-primary"
-              : step.status === "pending" ? "border-amber-400 bg-amber-100"
-              : "border-gray-300 bg-white"}`} />
-            {i < steps.length - 1 && <div className="w-px flex-1 bg-gray-200 mt-1 min-h-[28px]" />}
+              : step.status === "pending" ? "border-amber-400 bg-amber-50"
+              : "border-gray-300 bg-white"}`}>
+              {step.status === "done" && (
+                <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+              )}
+              {step.status === "pending" && <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+            </div>
+            {i < steps.length - 1 && <div className="w-px flex-1 bg-gray-200 mt-0.5 min-h-[28px]" />}
           </div>
           <div className="pb-5 min-w-0">
             <p className={`text-sm font-semibold leading-tight ${step.status === "inactive" ? "text-gray-400" : "text-foreground"}`}>
@@ -466,12 +470,13 @@ const EMPTY_ITEM: ModalItem = {
   quantity: 0, unitPrice: 0, taxAmount: 0, sku: "", unitOfMeasure: "unit",
 };
 
-function LineItemModal({ onClose, onSave, initial, loading, departments: _departments }: {
+function LineItemModal({ onClose, onSave, initial, loading, departments: _departments, currency = "USD" }: {
   onClose: () => void;
   onSave: (d: LineItemPayload) => void;
   initial?: ModalItem;
   loading: boolean;
   departments: { label: string; value: string }[];
+  currency?: string;
 }) {
   const [form, setForm] = useState<ModalItem>(initial || EMPTY_ITEM);
   const set = (k: keyof ModalItem, v: string | number) => setForm(p => ({ ...p, [k]: v }));
@@ -504,9 +509,16 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
                 className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Unit Price</label>
-              <input type="number" min={0} value={form.unitPrice || ""} onChange={e => set("unitPrice", Number(e.target.value))} placeholder="0.00"
-                className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+              <label className="text-sm font-medium text-foreground">
+                Unit Price
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                  {{ USD: "$", NGN: "₦", EUR: "€", GBP: "£", CAD: "$", AUD: "$" }[currency] || currency}
+                </span>
+                <input type="number" min={0} value={form.unitPrice || ""} onChange={e => set("unitPrice", Number(e.target.value))} placeholder="0.00"
+                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+              </div>
             </div>
           </div>
           <div className="space-y-1.5">
@@ -523,7 +535,7 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
             <div className="flex items-center justify-between px-4 py-3 bg-muted/30 rounded-xl mt-2">
               <span className="text-sm text-muted-foreground">Line Subtotal</span>
               <span className="text-sm font-semibold text-foreground">
-                {subtotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatAmount(subtotal, currency)}
               </span>
             </div>
           )}
@@ -822,6 +834,8 @@ function CreatePOView({
   const accentFor = (vendorId: string) =>
     CARD_ACCENTS[vendorIdList.indexOf(vendorId) % CARD_ACCENTS.length];
 
+  const defaultDate = pr.neededByDate ? pr.neededByDate.split("T")[0] : "";
+
   const handleCreate = () => {
     if (unassignedItems.length > 0) {
       toast.error(`${unassignedItems.length} item(s) still have no vendor assigned`);
@@ -830,12 +844,13 @@ function CreatePOView({
     const draftPurchaseOrders: DraftPurchaseOrder[] = [];
     let missingDate = false;
     vendorGroups.forEach((items, vId) => {
-      const details = vendorDetails[vId] || { deliveryDate: "", notes: "" };
-      if (!details.deliveryDate) missingDate = true;
+      const details = vendorDetails[vId];
+      const deliveryDate = details?.deliveryDate || defaultDate;
+      if (!deliveryDate) missingDate = true;
       draftPurchaseOrders.push({
         vendorId: vId,
-        deliveryDate: details.deliveryDate,
-        notes: details.notes || undefined,
+        deliveryDate: deliveryDate,
+        notes: details?.notes || undefined,
         lineItems: items.map(i => ({ purchaseRequestLineItemId: i.purchaseRequestLineItemId }))
       });
     });
@@ -1015,15 +1030,15 @@ function CreatePOView({
                             <label className="text-xs font-semibold text-muted-foreground">Delivery Date <span className="text-red-500">*</span></label>
                             <Popover>
                               <PopoverTrigger asChild>
-                                <button type="button" className={`w-full h-8 px-3 rounded-md border text-xs flex items-center justify-between transition-colors focus:outline-none focus:border-primary ${!vendorDetails[vendorId]?.deliveryDate ? "text-muted-foreground border-border" : "text-foreground border-border/80"}`}>
-                                  {vendorDetails[vendorId]?.deliveryDate ? format(new Date(vendorDetails[vendorId].deliveryDate), "PPP") : "Pick a date"}
+                                <button type="button" className={`w-full h-8 px-3 rounded-md border text-xs flex items-center justify-between transition-colors focus:outline-none focus:border-primary ${!(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? "text-muted-foreground border-border" : "text-foreground border-border/80"}`}>
+                                  {(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? format(new Date(vendorDetails[vendorId]?.deliveryDate || defaultDate), "PPP") : "Pick a date"}
                                   <CalendarIcon className="w-3.5 h-3.5 ml-1.5 opacity-50 shrink-0" />
                                 </button>
                               </PopoverTrigger>
                               <PopoverContent className="w-auto p-0" align="start">
                                 <CalendarPicker
                                   mode="single"
-                                  selected={vendorDetails[vendorId]?.deliveryDate ? new Date(vendorDetails[vendorId].deliveryDate) : undefined}
+                                  selected={(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? new Date(vendorDetails[vendorId]?.deliveryDate || defaultDate) : undefined}
                                   onSelect={(d) => {
                                     if (!d) return;
                                     setVendorDetails(p => ({...p, [vendorId]: { ...(p[vendorId] || {notes:""}), deliveryDate: format(d, "yyyy-MM-dd") }}));
@@ -1417,7 +1432,7 @@ function PRDetailPage() {
 
     return [
       {
-        label: "Submitted",
+        label: pr.status === "draft" ? "Created by" : "Submitted by",
         person: pr.createdAt ? `${getRequesterName(pr)} (Employee)` : undefined,
         timestamp: formatTs(pr.createdAt),
         status: "done" as StepStatus,
@@ -1562,6 +1577,7 @@ function PRDetailPage() {
           } : undefined}
           loading={addLineItem.isPending || updateLineItemHook.isPending}
           departments={departmentOptions}
+          currency={pr.currency || "USD"}
         />
       )}
       {modal === "edit_header" && (
@@ -1651,113 +1667,223 @@ function PRDetailPage() {
               </div>
             </div>
 
-            {/* Line Items */}
-            <div className="bg-white rounded-2xl border border-border flex flex-col flex-1 min-h-0 overflow-hidden">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between shrink-0">
-              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-                Request Items
-                <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold px-1.5">
-                  {lineItems.length}
-                </span>
-              </h2>
-              {canEdit && (
-                <button onClick={() => setModal("add_item")}
-                  className="flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
-                  <Plus className="w-4 h-4" /> Add Item
-                </button>
-              )}
-            </div>
+            {/* Line Items — grouped by converted PO if available, otherwise flat table */}
+            {(() => {
+              const purchaseOrders = (pr as PurchaseRequestDetail).purchaseOrders || [];
+              const hasPOGroups = purchaseOrders.length > 0 && purchaseOrders.some(po => (po.lineItems || []).length > 0);
 
-            {lineItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <p className="text-sm text-muted-foreground">No items added yet.</p>
-                {canEdit && (
-                  <button onClick={() => setModal("add_item")}
-                    className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
-                    <Plus className="w-4 h-4" /> Add first item
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 z-10 bg-white">
-                      <tr className="border-b border-border/60 bg-muted/5 shadow-sm">
-                        {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal", ...(canEdit ? [""] : [])].map(h => (
-                          <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lineItems.map(item => (
-                        <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
-                          <td className="px-5 py-3.5 font-semibold text-foreground">{item.name}</td>
-                          <td className="px-5 py-3.5 text-muted-foreground max-w-[180px] truncate">{item.description || "—"}</td>
-                          <td className="px-5 py-3.5">
-                            {item.categoryId
-                              ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
-                              : <span className="text-muted-foreground">—</span>
-                            }
-                          </td>
-                          <td className="px-5 py-3.5 text-foreground">{item.quantity}</td>
-                          <td className="px-5 py-3.5 text-foreground">{formatAmount(item.unitPrice, currency)}</td>
-                          <td className="px-5 py-3.5 font-medium text-foreground">{formatAmount(item.subtotal, currency)}</td>
-                          {canEdit && (
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-1">
-                                <div className="relative group">
-                                  <button onClick={() => setEditingLineItem(item)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors">
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-foreground text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
-                                </div>
-                                <div className="relative group">
-                                  <button onClick={() => { setItemToDelete({ id: item.purchaseRequestLineItemId, name: item.name }); setModal("delete_item"); }}
-                                    disabled={deleteLineItem.isPending}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-40">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-foreground text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
-                                </div>
+              if (hasPOGroups) {
+                // Build a map from lineItemId → PR line item for quick lookup
+                const lineItemById = new Map(lineItems.map(li => [li.purchaseRequestLineItemId, li]));
+                const poAccents = [
+                  { border: "border-violet-300", header: "bg-violet-50 border-b border-violet-200", badge: "bg-violet-100 text-violet-700", dot: "bg-violet-500" },
+                  { border: "border-emerald-300", header: "bg-emerald-50 border-b border-emerald-200", badge: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
+                  { border: "border-sky-300", header: "bg-sky-50 border-b border-sky-200", badge: "bg-sky-100 text-sky-700", dot: "bg-sky-500" },
+                  { border: "border-amber-300", header: "bg-amber-50 border-b border-amber-200", badge: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
+                  { border: "border-pink-300", header: "bg-pink-50 border-b border-pink-200", badge: "bg-pink-100 text-pink-700", dot: "bg-pink-500" },
+                  { border: "border-teal-300", header: "bg-teal-50 border-b border-teal-200", badge: "bg-teal-100 text-teal-700", dot: "bg-teal-500" },
+                ];
+
+                return (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-semibold text-foreground">Purchase Orders</h2>
+                      <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold px-1.5">
+                        {purchaseOrders.length}
+                      </span>
+                    </div>
+                    {purchaseOrders.map((po, idx) => {
+                      const accent = poAccents[idx % poAccents.length];
+                      const vendorName = po.vendor?.displayName || po.vendor?.legalName || po.vendorId || "Unknown Vendor";
+                      const poLineItems = (po.lineItems || []).map(pli => lineItemById.get(pli.purchaseRequestLineItemId)).filter(Boolean) as typeof lineItems;
+                      const poTotal = poLineItems.reduce((s, li) => s + (li.subtotal || 0), 0);
+
+                      return (
+                        <div key={po.purchaseOrderId || idx} className={`rounded-2xl border-2 bg-white overflow-hidden ${accent.border}`}>
+                          {/* PO Card Header */}
+                          <div className={`px-5 py-3 flex items-center justify-between ${accent.header}`}>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${accent.dot}`} />
+                              <div>
+                                <p className="text-sm font-bold text-foreground">{vendorName}</p>
+                                {po.poNumber && <p className="text-xs text-muted-foreground">{po.poNumber}</p>}
                               </div>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${accent.badge}`}>
+                                {poLineItems.length} item{poLineItems.length !== 1 ? "s" : ""} · 1 PO
+                              </span>
+                              {poTotal > 0 && <span className="text-xs font-semibold text-foreground">· {formatAmount(poTotal, currency)}</span>}
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                              {po.deliveryDate && (
+                                <span>Delivery: <strong className="text-foreground">{formatDate(po.deliveryDate)}</strong></span>
+                              )}
+                              {po.status && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold capitalize">
+                                  {po.status.replace(/_/g, " ")}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {/* PO Items Table */}
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border/60 bg-white">
+                                {["Item", "Description", "Category", "Qty", "Unit Price", "Subtotal"].map(h => (
+                                  <th key={h} className="px-5 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {poLineItems.map(item => (
+                                <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
+                                  <td className="px-5 py-3 font-semibold text-foreground">{item.name}</td>
+                                  <td className="px-5 py-3 text-muted-foreground max-w-[160px] truncate">{item.description || "—"}</td>
+                                  <td className="px-5 py-3">
+                                    {item.categoryId
+                                      ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
+                                      : <span className="text-muted-foreground">—</span>}
+                                  </td>
+                                  <td className="px-5 py-3 text-foreground">{item.quantity}</td>
+                                  <td className="px-5 py-3 text-foreground">{formatAmount(item.unitPrice, currency)}</td>
+                                  <td className="px-5 py-3 font-medium text-foreground">{formatAmount(item.subtotal, currency)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })}
+                    {/* Grand Total */}
+                    <div className="flex justify-end">
+                      <div className="space-y-1.5 min-w-[220px] bg-white rounded-xl border border-border px-5 py-4">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span className="font-medium">{formatAmount(pr.subtotal, currency)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Tax</span>
+                          <span className="font-medium">{formatAmount(pr.taxAmount, currency)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm border-t border-border/60 pt-1.5">
+                          <span className="font-semibold text-foreground">Total</span>
+                          <span className="font-bold text-foreground">{formatAmount(pr.totalAmount, currency)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
 
-                {canEdit && (
-                  <div className="shrink-0 px-5 py-3 border-t border-border/40 bg-white">
+              // Fallback: flat table (draft / submitted / approved states)
+              return (
+                <div className="bg-white rounded-2xl border border-border flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="px-5 py-4 border-b border-border flex items-center justify-between shrink-0">
+                  <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                    Request Items
+                    <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold px-1.5">
+                      {lineItems.length}
+                    </span>
+                  </h2>
+                  {canEdit && (
                     <button onClick={() => setModal("add_item")}
-                      className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
+                      className="flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
                       <Plus className="w-4 h-4" /> Add Item
                     </button>
-                  </div>
-                )}
-
-                <div className="shrink-0 flex justify-end px-5 py-4 border-t border-border/60 bg-white">
-                  <div className="space-y-1.5 min-w-[220px]">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Subtotal</span>
-                      <span className="font-medium">{formatAmount(pr.subtotal, currency)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tax</span>
-                      <span className="font-medium">{formatAmount(pr.taxAmount, currency)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm border-t border-border/60 pt-1.5">
-                      <span className="font-semibold text-foreground">Total</span>
-                      <span className="font-bold text-foreground">{formatAmount(pr.totalAmount, currency)}</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
-              </>
-            )}
-          </div>
+
+                {lineItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <p className="text-sm text-muted-foreground">No items added yet.</p>
+                    {canEdit && (
+                      <button onClick={() => setModal("add_item")}
+                        className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
+                        <Plus className="w-4 h-4" /> Add first item
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 z-10 bg-white">
+                          <tr className="border-b border-border/60 bg-muted/5 shadow-sm">
+                            {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal", ...(canEdit ? [""] : [])].map(h => (
+                              <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lineItems.map(item => (
+                            <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
+                              <td className="px-5 py-3.5 font-semibold text-foreground">{item.name}</td>
+                              <td className="px-5 py-3.5 text-muted-foreground max-w-[180px] truncate">{item.description || "—"}</td>
+                              <td className="px-5 py-3.5">
+                                {item.categoryId
+                                  ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
+                                  : <span className="text-muted-foreground">—</span>
+                                }
+                              </td>
+                              <td className="px-5 py-3.5 text-foreground">{item.quantity}</td>
+                              <td className="px-5 py-3.5 text-foreground">{formatAmount(item.unitPrice, currency)}</td>
+                              <td className="px-5 py-3.5 font-medium text-foreground">{formatAmount(item.subtotal, currency)}</td>
+                              {canEdit && (
+                                <td className="px-5 py-3.5">
+                                  <div className="flex items-center gap-1">
+                                    <div className="relative group">
+                                      <button onClick={() => setEditingLineItem(item)}
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors">
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-foreground text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
+                                    </div>
+                                    <div className="relative group">
+                                      <button onClick={() => { setItemToDelete({ id: item.purchaseRequestLineItemId, name: item.name }); setModal("delete_item"); }}
+                                        disabled={deleteLineItem.isPending}
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-40">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-foreground text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
+                                    </div>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {canEdit && (
+                      <div className="shrink-0 px-5 py-3 border-t border-border/40 bg-white">
+                        <button onClick={() => setModal("add_item")}
+                          className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
+                          <Plus className="w-4 h-4" /> Add Item
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="shrink-0 flex justify-end px-5 py-4 border-t border-border/60 bg-white">
+                      <div className="space-y-1.5 min-w-[220px]">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span className="font-medium">{formatAmount(pr.subtotal, currency)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Tax</span>
+                          <span className="font-medium">{formatAmount(pr.taxAmount, currency)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm border-t border-border/60 pt-1.5">
+                          <span className="font-semibold text-foreground">Total</span>
+                          <span className="font-bold text-foreground">{formatAmount(pr.totalAmount, currency)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              );
+            })()}
         </div>
 
         {/* Right Sidebar */}
@@ -1854,7 +1980,7 @@ function PRDetailPage() {
             const steps = [
               {
                 key: "submitted",
-                label: "Submitted by",
+                label: pr.status === "draft" ? "Created by" : "Submitted by",
                 done: true,
                 personName: `${getRoleName(pr.creator || pr.employee || user)} (${getRequesterName(pr) || "Employee"})`,
                 badge: null,
@@ -1904,8 +2030,9 @@ function PRDetailPage() {
               <div className="space-y-0 pt-1 pl-1">
                 {steps.map((step, idx) => {
                   const isLast = idx === steps.length - 1;
+                  const isPending = !step.done && step.badge?.text === "Pending";
                   return (
-                    <div key={step.key} className={`flex items-start gap-3 ${!step.done ? "opacity-45" : ""}`}>
+                    <div key={step.key} className={`flex items-start gap-3 ${!step.done && !isPending ? "opacity-45" : ""}`}>
                       {/* Icon + connector */}
                       <div className="flex flex-col items-center shrink-0 pt-0.5">
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${

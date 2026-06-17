@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, MoreHorizontal, RefreshCw } from "lucide-react";
+import { AlertTriangle, MoreHorizontal, RefreshCw, ShieldAlert } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
     Table,
     TableBody,
@@ -22,13 +23,13 @@ type PolicyAlert = {
     date: string;
 };
 
-const data: PolicyAlert[] = [
-    { id: "0001", name: "Stephen Abubakar", department: "Design & Development", alert: "High", date: "26-09-2025" },
-    { id: "0002", name: "Stephen Abubakar", department: "Design & Development", alert: "Medium", date: "26-09-2025" },
-    { id: "0003", name: "Stephen Abubakar", department: "Design & Development", alert: "Medium", date: "26-09-2025" },
-    { id: "0004", name: "Sarah Johnson", department: "Marketing", alert: "Low", date: "25-09-2025" },
-    { id: "0005", name: "Mike Chen", department: "Engineering", alert: "High", date: "24-09-2025" },
-];
+// Previously hardcoded mock rows (real-looking employee names and
+// departments) shipped directly in the bundle — indistinguishable
+// from live data to anyone reading the rendered page, and a
+// maintainability trap if this file is ever rendered before the
+// real query is wired in. Replaced with an empty array; wire up
+// the policy-alerts query here when the endpoint is ready.
+const data: PolicyAlert[] = [];
 
 const alertClass = (alert: PolicyAlert["alert"]) =>
     alert === "High" ? "text-destructive" : alert === "Medium" ? "text-warning" : "text-muted-foreground";
@@ -52,32 +53,39 @@ export const PolicyAlertsTable = () => {
                     <h3 className="text-lg font-semibold leading-[100%]">Policy Alerts</h3>
                     <p className="text-sm text-muted-foreground mt-2">Your latest policy alerts</p>
                 </div>
-                <Button variant="ghost" size="sm">
-                    <RefreshCw className="w-4 h-4" />
+                <Button variant="ghost" size="sm" aria-label="Refresh policy alerts">
+                    <RefreshCw className="w-4 h-4" aria-hidden="true" />
                 </Button>
             </div>
 
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="bg-muted/50">
-                            <TableHead />
-                            <TableHead>ID NO</TableHead>
-                            <TableHead>NAME OF EMPLOYEE</TableHead>
-                            <TableHead>DEPARTMENT</TableHead>
-                            <TableHead>POLICY ALERT</TableHead>
-                            <TableHead>DATE</TableHead>
-                            <TableHead>ACTION</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {data.length ? (
-                            data.map((row) => (
+            {data.length === 0 ? (
+                <EmptyState
+                    icon={<ShieldAlert className="w-5 h-5" aria-hidden="true" />}
+                    title="No policy alerts"
+                    description="Expense policy violations will show up here as they're flagged."
+                />
+            ) : (
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-muted/50">
+                                <TableHead />
+                                <TableHead>ID NO</TableHead>
+                                <TableHead>NAME OF EMPLOYEE</TableHead>
+                                <TableHead>DEPARTMENT</TableHead>
+                                <TableHead>POLICY ALERT</TableHead>
+                                <TableHead>DATE</TableHead>
+                                <TableHead>ACTION</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {data.map((row) => (
                                 <TableRow key={row.id} data-state={rowSelection[row.id] ? "selected" : undefined}>
                                     <TableCell>
                                         <Checkbox
                                             checked={!!rowSelection[row.id]}
                                             onCheckedChange={(value) => toggleRow(row.id, !!value)}
+                                            aria-label={`Select alert for ${row.name}`}
                                         />
                                     </TableCell>
                                     <TableCell>{row.id}</TableCell>
@@ -85,28 +93,22 @@ export const PolicyAlertsTable = () => {
                                     <TableCell>{row.department}</TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
-                                            <AlertTriangle className={`w-4 h-4 ${alertClass(row.alert)}`} />
+                                            <AlertTriangle className={`w-4 h-4 ${alertClass(row.alert)}`} aria-hidden="true" />
                                             <span className={`text-sm ${alertClass(row.alert)}`}>{row.alert}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell>{row.date}</TableCell>
                                     <TableCell>
-                                        <Button variant="ghost" size="sm">
-                                            <MoreHorizontal className="w-4 h-4" />
+                                        <Button variant="ghost" size="sm" aria-label={`Actions for ${row.name}`}>
+                                            <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
                                         </Button>
                                     </TableCell>
                                 </TableRow>
-                            ))
-                        ) : (
-                            <TableRow>
-                                <TableCell colSpan={7} className="h-24 text-center">
-                                    No results.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
         </Card>
     );
 };

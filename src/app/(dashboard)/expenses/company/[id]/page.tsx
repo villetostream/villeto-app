@@ -261,10 +261,10 @@ export default function CompanyExpenseDetailPage() {
     }
   };
 
-  const handleReject = async (_reason: string) => {
+  const handleReject = async (reason: string) => {
     setIsRejecting(true);
     try {
-      await updateStatusMutation.mutateAsync({ reportId, status: "rejected" });
+      await updateStatusMutation.mutateAsync({ reportId, status: "rejected", reason });
       setRejectOpen(false);
       setFeedbackModal({ open: true, type: "rejected" });
     } catch (err) {

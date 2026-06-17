@@ -12,6 +12,7 @@ import {
 } from "@/components/expenses/table/personalColumns";
 import { useSearchParams, useRouter } from "next/navigation";
 import ExpenseEmptyState from "@/components/expenses/EmptyState";
+import { ErrorState } from "@/components/ui/error-state";
 import { usePersonalExpenses, useCompanyExpenses, CompanyExpenseReport } from "@/lib/react-query/expenses";
 import { PersonalExpensesSkeleton } from "@/components/expenses/PersonalExpensesSkeleton";
 import { getCompanyColumns } from "@/components/expenses/table/companyColumns";
@@ -113,14 +114,26 @@ export default function Reimbursements() {
     }
   };
 
-  const { data: personalExpensesData, isLoading: isLoadingPersonalExpenses } =
-    usePersonalExpenses(page, limit);
+  const {
+    data: personalExpensesData,
+    isLoading: isLoadingPersonalExpenses,
+    error: personalExpensesError,
+    refetch: refetchPersonalExpenses,
+  } = usePersonalExpenses(page, limit);
 
-  const { data: companyExpensesData, isLoading: isLoadingCompanyExpenses } =
-    useCompanyExpenses(page, limit, "company", undefined, undefined, hasCompanyScope);
+  const {
+    data: companyExpensesData,
+    isLoading: isLoadingCompanyExpenses,
+    error: companyExpensesError,
+    refetch: refetchCompanyExpenses,
+  } = useCompanyExpenses(page, limit, "company", undefined, undefined, hasCompanyScope);
 
-  const { data: teamExpensesData, isLoading: isLoadingTeamExpenses } =
-    useCompanyExpenses(page, limit, "team", undefined, undefined, hasTeamScope);
+  const {
+    data: teamExpensesData,
+    isLoading: isLoadingTeamExpenses,
+    error: teamExpensesError,
+    refetch: refetchTeamExpenses,
+  } = useCompanyExpenses(page, limit, "team", undefined, undefined, hasTeamScope);
 
   const isLoadingCompany = isLoadingCompanyExpenses && hasCompanyScope;
   const isLoadingTeam    = isLoadingTeamExpenses    && hasTeamScope;
@@ -191,6 +204,8 @@ export default function Reimbursements() {
     data,
     isLoading,
     isLoadingExpenses,
+    error,
+    refetch,
     onFilterChange,
     scope,
     activeTab,
@@ -199,6 +214,8 @@ export default function Reimbursements() {
     data: CompanyExpenseReport[];
     isLoading: boolean;
     isLoadingExpenses: boolean;
+    error: unknown;
+    refetch: () => void;
     onFilterChange: (d: unknown) => void;
     scope: "team" | "company";
     activeTab: string;
@@ -209,20 +226,26 @@ export default function Reimbursements() {
       <div className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
           <StatsCard isLoading={isLoadingExpenses} title="Total Expenses" value={localStats.totalExpenses.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full"><Image src="/images/svgs/draft.svg" alt="draft icon" width={20} height={20} /></div>}
+            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full" aria-hidden="true"><Image src="/images/svgs/draft.svg" alt="" width={20} height={20} /></div>}
             subtitle={<span className="text-xs leading-[125%]">All expenses submitted</span>} />
           <StatsCard isLoading={isLoadingExpenses} title="Pending Approvals" value={localStats.pendingApprovals.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#F45B69] rounded-full text-white"><Image src="/images/receipt-pending.png" alt="pending icon" width={20} height={20} /></div>}
+            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#F45B69] rounded-full text-white" aria-hidden="true"><Image src="/images/receipt-pending.png" alt="" width={20} height={20} /></div>}
             subtitle={<span className="text-xs leading-[125%]">Awaiting review.</span>} />
           <StatsCard isLoading={isLoadingExpenses} title="Approved Expenses" value={localStats.approvedExpenses.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#5A67D8] rounded-full"><Image src="/images/svgs/submitted.svg" alt="submitted icon" width={20} height={20} /></div>}
+            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#5A67D8] rounded-full" aria-hidden="true"><Image src="/images/svgs/submitted.svg" alt="" width={20} height={20} /></div>}
             subtitle={<span className="text-xs leading-[125%]">Ready for payment</span>} />
           <StatsCard isLoading={isLoadingExpenses} title="Paid" value={localStats.paidExpenses.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white"><Image src="/images/svgs/money.svg" alt="money icon" width={20} height={20} /></div>}
+            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white" aria-hidden="true"><Image src="/images/svgs/money.svg" alt="" width={20} height={20} /></div>}
             subtitle={<span className="text-xs leading-[125%]">Completed transactions</span>} />
         </div>
         {!authReady || isLoading ? (
           <PersonalExpensesSkeleton showStats={false} />
+        ) : error ? (
+          // Previously fell straight through to the empty-state
+          // branch below — a failed request (network drop, 500,
+          // expired session) rendered "No expense has been added",
+          // which tells the user something false about their data.
+          <ErrorState error={error} onRetry={refetch} />
         ) : data.length === 0 ? (
           <ExpenseEmptyState title="No expense has been added" subtitle="" showButton={false} />
         ) : (
@@ -260,20 +283,24 @@ export default function Reimbursements() {
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Draft" value={personalStats.draft.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full"><Image src="/images/svgs/draft.svg" alt="draft icon" width={20} height={20} /></div>}
+          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full" aria-hidden="true"><Image src="/images/svgs/draft.svg" alt="" width={20} height={20} /></div>}
           subtitle={<span className="text-xs leading-[125%]">Manage your saved items</span>} />
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Approved" value={personalStats.approved.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#418341] rounded-full text-white"><Image src="/images/svgs/check.svg" alt="check icon" width={20} height={20} /></div>}
+          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#418341] rounded-full text-white" aria-hidden="true"><Image src="/images/svgs/check.svg" alt="" width={20} height={20} /></div>}
           subtitle={<span className="text-xs leading-[125%]">View all items reviewed.</span>} />
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Rejected" value={personalStats.rejected.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#F45B69] rounded-full text-white"><Image src="/images/receipt-pending.png" alt="pending icon" width={20} height={20} /></div>}
+          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#F45B69] rounded-full text-white" aria-hidden="true"><Image src="/images/receipt-pending.png" alt="" width={20} height={20} /></div>}
           subtitle={<span className="text-xs leading-[125%]">View all items Rejected.</span>} />
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Paid" value={personalStats.paid.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white"><Image src="/images/svgs/money.svg" alt="money icon" width={20} height={20} /></div>}
+          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white" aria-hidden="true"><Image src="/images/svgs/money.svg" alt="" width={20} height={20} /></div>}
           subtitle={<span className="text-xs leading-[125%]">Access completed payments.</span>} />
       </div>
       {!authReady || isLoadingPersonalExpenses ? (
         <PersonalExpensesSkeleton showStats={false} />
+      ) : personalExpensesError ? (
+        // Same fix as the company/team tab: a fetch failure must not
+        // render the same "you have nothing" copy as a real empty list.
+        <ErrorState error={personalExpensesError} onRetry={refetchPersonalExpenses} />
       ) : personalExpenses.length === 0 ? (
         <ExpenseEmptyState />
       ) : (
@@ -335,6 +362,8 @@ export default function Reimbursements() {
                 data: companyExpenses,
                 isLoading: isLoadingCompany,
                 isLoadingExpenses: isLoadingCompanyExpenses,
+                error: companyExpensesError,
+                refetch: refetchCompanyExpenses,
                 onFilterChange: noopFilterChange,
                 scope: "company",
                 activeTab: companyActiveTab,
@@ -349,6 +378,8 @@ export default function Reimbursements() {
                 data: teamExpenses,
                 isLoading: isLoadingTeam,
                 isLoadingExpenses: isLoadingTeamExpenses,
+                error: teamExpensesError,
+                refetch: refetchTeamExpenses,
                 onFilterChange: noopFilterChange,
                 scope: "team",
                 activeTab: teamActiveTab,

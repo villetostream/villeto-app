@@ -33,8 +33,8 @@ export const PR_STATUS_CFG: Record<string, PRStatusConfig> = {
    * "submitted" is kept as a fallback in case the server ever sends it
    * without a corresponding approvalStatus.
    */
-  submitted:           { label: "Pending Approval",  className: "text-violet-600 bg-violet-50" },
-  pending_approval:    { label: "Pending Approval",  className: "text-violet-600 bg-violet-50" },
+  submitted:           { label: "Pending Approval",  className: "text-blue-600 bg-blue-50" },
+  pending_approval:    { label: "Pending Approval",  className: "text-orange-500 bg-orange-50" },
   approved:            { label: "Approved",          className: "text-emerald-600 bg-emerald-50" },
   rejected:            { label: "Rejected",          className: "text-red-500 bg-red-50" },
   partially_converted: { label: "Partially Converted", className: "text-purple-600 bg-purple-50" },

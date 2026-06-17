@@ -141,13 +141,13 @@ export default function DashboardLayoutContent({
       <SidebarProvider defaultOpen={defaultOpen}>
         <DashboardSidebar />
         <div className="flex flex-col flex-1 h-full overflow-hidden">
-          <header className="flex items-center gap-4 px-6 h-16 border-b border-dashboard-border-shade w-full shrink-0">
+          <header className="flex items-center gap-4 px-4 sm:px-6 h-16 border-b border-dashboard-border-shade w-full shrink-0">
             {/* Hide mobile collapse trigger during tour so sidebar stays open */}
             {!isTourActive && <SidebarTrigger className="md:hidden" />}
             <UserSection />
           </header>
 
-          <main className="flex-1 overflow-y-auto p-5">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-5">
             {children}
           </main>
         </div>

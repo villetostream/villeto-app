@@ -604,7 +604,7 @@ export function UserSection() {
       router.push(scope ? `/procurement/purchase-request?scope=${scope}` : "/procurement/purchase-request"); 
       return; 
     }
-    if (isPODetailPage) { router.push("/procurement/purchase-order"); return; }
+    if (isPODetailPage) { router.back(); return; }
     if (isConfirmationDetailPage) { router.push("/procurement/confirmation"); return; }
     router.push("/expenses");
   };

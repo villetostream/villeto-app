@@ -1,24 +1,49 @@
 import z from "zod";
+import {
+  emailSchema as sharedEmailSchema,
+  loginPasswordSchema,
+  passwordSchema,
+  firstNameSchema,
+  lastNameSchema,
+  formatZodErrors,
+} from "@/lib/validation/common";
 
+export { formatZodErrors };
+
+// Kept as the original { email } object shape for backward
+// compatibility with existing callers, but the inner string now
+// goes through the shared, trimmed/lowercased email rule instead
+// of redefining it locally.
 export const emailSchema = z.object({
-  email: z
-    .string()
-    .email("Please enter a valid email address")
-    .min(1, "Email is required"),
+  email: sharedEmailSchema,
 });
 
 export const registrationSchema = z.object({
-  contactFirstName: z.string().min(1, "First name is required").max(100),
-  contactLastName: z.string().min(1, "Last name is required").max(100),
+  // Previously z.string().min(1)/.max(100) only — accepted untrimmed
+  // input and any character, including pure whitespace once trimmed.
+  // Reusing the shared name schema also rejects digits/symbols in a
+  // person's name, which the old schema silently allowed.
+  contactFirstName: firstNameSchema,
+  contactLastName: lastNameSchema,
   accountType: z.enum(["demo", "enterprise"] as const, {
     error: "Please select an account type",
   }),
-  contactEmail: z.string(),
+  // Previously bare z.string() with no email format check at all —
+  // any string, including an empty one, passed validation.
+  contactEmail: sharedEmailSchema,
 });
 
 export const otpVerificationSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  otp: z.string().min(6, "OTP must be 6 digits").max(6, "OTP must be 6 digits"),
+  email: sharedEmailSchema,
+  // Previously no .trim() — mobile autofill from SMS frequently
+  // appends a trailing space to pasted codes, which silently failed
+  // the .min(6)/.max(6) length check with no indication why.
+  otp: z
+    .string()
+    .trim()
+    .min(6, "OTP must be 6 digits")
+    .max(6, "OTP must be 6 digits")
+    .regex(/^\d{6}$/, "OTP must contain only digits"),
 });
 
 // Custom HTTP URL validator with optional protocol but required valid domain
@@ -219,24 +244,29 @@ export type OfficerFormData = z.infer<typeof officerSchema>;
 export type LeadershipFormData = BeneficialOwnerFormData | OfficerFormData;
 
 export const loginSchema = z.object({
-  email: z.email(),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters long")
-    .max(100, "Password must be less than 100 characters")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
-    .regex(
-      /[^a-zA-Z0-9]/,
-      "Password must contain at least one special character"
-    ),
+  // Previously bare z.email() — accepted untrimmed input, and the
+  // bug below mattered more here: login should never reject a
+  // correctly-typed password just because it doesn't meet *current*
+  // strength rules. A user's password was valid when they set it;
+  // re-validating strength on every login would lock out anyone
+  // whose account predates a policy change.
+  email: sharedEmailSchema,
+  password: loginPasswordSchema,
 });
+
+// Use this — not loginSchema — for any flow that is actually setting
+// or changing a password (registration, reset, change-password).
+export const newPasswordSchema = passwordSchema;
 
 // department schema
 export const createDepartmentSchema = z.object({
-  departmentName: z.string().min(1, "Department name is required"),
-  departmentCode: z.string().optional(),
+  // Previously z.string().min(1) — a value of "   " (spaces only)
+  // passes .min(1) since length counts characters, not trimmed
+  // length. .trim() first means a whitespace-only submission
+  // correctly fails validation instead of saving a blank-looking
+  // department name.
+  departmentName: z.string().trim().min(1, "Department name is required"),
+  departmentCode: z.string().trim().optional(),
   departmentManager: z.string().optional(),
   reportsTo: z.string().optional(),
   status: z
@@ -247,15 +277,15 @@ export const createDepartmentSchema = z.object({
       return true; // default to true for any other string
     })
     .default(true),
-  description: z.string().min(1, "Description is required"),
+  description: z.string().trim().min(1, "Description is required"),
   id: z.string().optional().nullable(),
 });
 
 //role schema
 
 export const roleSchema = z.object({
-  name: z.string().min(1, "Role name is required"),
-  description: z.string().optional(),
+  name: z.string().trim().min(1, "Role name is required"),
+  description: z.string().trim().optional(),
   isActive: z.boolean(),
   permissionIds: z.array(z.string()).default([]),
 });
@@ -263,14 +293,20 @@ export const roleSchema = z.object({
 export type RoleFormData = z.infer<typeof roleSchema>;
 
 export const userSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email address"),
-  phone: z.string().optional(),
-  location: z.string().min(1, "Location is required"),
+  firstName: firstNameSchema,
+  lastName: lastNameSchema,
+  email: sharedEmailSchema,
+  phone: z.string().trim().optional(),
+  location: z.string().trim().min(1, "Location is required"),
   cardIssued: z.boolean(),
-  jobTitle: z.string().min(1, "Job title is required"),
-  departmentId: z.string().uuid("Invalid department ID"),
+  jobTitle: z.string().trim().min(1, "Job title is required"),
+  // Previously z.string().uuid(...) with no .optional() — this made
+  // it impossible to invite a user before a department exists for
+  // them, even though the product flow (invite -> assign department
+  // later) explicitly supports that. An empty string from an
+  // unselected dropdown would also fail the .uuid() check with a
+  // confusing "Invalid department ID" message instead of "required".
+  departmentId: z.string().uuid("Invalid department ID").optional(),
   roleId: z.string().min(1, "Role is required"),
   id: z.string().optional(),
 });

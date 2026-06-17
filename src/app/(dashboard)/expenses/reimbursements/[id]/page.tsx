@@ -17,6 +17,8 @@ import type { PersonalExpenseStatus } from "@/components/expenses/table/personal
 import { useAuthStore } from "@/stores/auth-stores";
 import { unsortedReimbursements } from "@/lib/mock-data";
 import { useState } from "react";
+import { useAxios } from "@/hooks/useAxios";
+import { toast } from "sonner";
 
 // ─── Status helpers (same as company page) ────────────────────────────────────
 
@@ -34,12 +36,12 @@ const getStatusBadgeVariant = (status: ReportStatus): "approved" | "rejected" | 
 
 const getStatusColor = (status: ReportStatus): string => {
   switch (status) {
-    case "paid": return "bg-[#38B2AC] text-white border-0";
-    case "approved": return "bg-purple-100 text-purple-700 border-0";
-    case "pending": return "bg-orange-100 text-orange-700 border-0";
-    case "draft": return "bg-gray-200 text-gray-700 border-0";
-    case "rejected": case "declined": return "bg-red-100 text-red-700 border-0";
-    default: return "bg-gray-200 text-gray-700 border-0";
+    case "paid": return "bg-teal-50 text-teal-600 border-0";
+    case "approved": return "bg-emerald-50 text-emerald-600 border-0";
+    case "pending": return "bg-orange-50 text-orange-500 border-0";
+    case "draft": return "bg-amber-50 text-amber-600 border-0";
+    case "rejected": case "declined": return "bg-red-50 text-red-500 border-0";
+    default: return "bg-slate-100 text-slate-500 border-0";
   }
 };
 
@@ -185,6 +187,7 @@ export default function ReimbursementDetailPage() {
   const router = useRouter();
   const { can } = useAuthStore();
   const currencySymbol = useAuthStore((state) => state.getCurrencySymbol());
+  const axiosInstance = useAxios();
 
   const reportId = Number(params.id);
   const report = unsortedReimbursements.find((r) => r.id === reportId);
@@ -227,21 +230,29 @@ export default function ReimbursementDetailPage() {
 
   const handleApproveAndPayout = async () => {
     setApproveLoading(true);
-    // TODO: replace with real API call → PATCH /reports/:id { status: "paid" }
-    await new Promise((res) => setTimeout(res, 1200));
-    setApproveLoading(false);
-    setLocalStatus("paid");
-    setFeedbackModal({ open: true, type: "approved" });
+    try {
+      await axiosInstance.patch(`/reports/${reportId}/approve`);
+      setLocalStatus("paid");
+      setFeedbackModal({ open: true, type: "approved" });
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to approve expense");
+    } finally {
+      setApproveLoading(false);
+    }
   };
 
-  const handleReject = async (_reason: string) => {
+  const handleReject = async (reason: string) => {
     setRejectLoading(true);
-    // TODO: replace with real API call → PATCH /reports/:id { status: "rejected", reason }
-    await new Promise((res) => setTimeout(res, 1200));
-    setRejectLoading(false);
-    setRejectOpen(false);
-    setLocalStatus("rejected");
-    setFeedbackModal({ open: true, type: "rejected" });
+    try {
+      await axiosInstance.patch(`/reports/${reportId}/reject`, { reason });
+      setRejectOpen(false);
+      setLocalStatus("rejected");
+      setFeedbackModal({ open: true, type: "rejected" });
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to reject expense");
+    } finally {
+      setRejectLoading(false);
+    }
   };
 
   const initials = getInitials(report.employee);
