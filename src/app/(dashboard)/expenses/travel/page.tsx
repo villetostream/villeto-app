@@ -52,11 +52,11 @@ export default function Travel() {
         const baseClasses = "text-xs font-medium";
         switch (status) {
             case 'approved':
-                return `${baseClasses} bg-status-success text-white`;
+                return `${baseClasses} bg-emerald-50 text-emerald-600 border-none`;
             case 'pending':
-                return `${baseClasses} bg-status-warning text-white`;
+                return `${baseClasses} bg-blue-50 text-blue-600 border-none`;
             case 'draft':
-                return `${baseClasses} bg-dashboard-text-secondary text-white`;
+                return `${baseClasses} bg-amber-50 text-amber-600 border-none`;
             default:
                 return baseClasses;
         }

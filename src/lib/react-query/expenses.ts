@@ -311,11 +311,23 @@ export const useUpdateCompanyExpenseStatus = () => {
     mutationFn: async ({
       reportId,
       status,
+      reason,
     }: {
       reportId: string;
       status: "approved" | "declined" | "rejected";
+      reason?: string;
     }) => {
-      const response = await axios.patch(`reports/${reportId}`, { status });
+      let endpoint = `reports/${reportId}`;
+      let data = {};
+      
+      if (status === "approved") {
+        endpoint = `reports/${reportId}/approve`;
+      } else if (status === "rejected" || status === "declined") {
+        endpoint = `reports/${reportId}/reject`;
+        data = { reason };
+      }
+      
+      const response = await axios.patch(endpoint, data);
       return response.data;
     },
     onSuccess: (data, variables) => {

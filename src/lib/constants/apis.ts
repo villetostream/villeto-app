@@ -82,4 +82,9 @@ export const PROCUREMENT_KEYS = {
   CATEGORIES: "companies/categories?module=procurement",
   CATEGORY: (categoryId: string) => `companies/categories/${categoryId}` as const,
   VENDORS: "procurement/vendors",
+  PURCHASE_ORDERS: "procurement/purchase-orders",
+  PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}` as const,
+  CANCEL_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/cancel` as const,
+  ISSUE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/issue` as const,
+  CLOSE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/close` as const,
 } as const;
