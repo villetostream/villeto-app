@@ -271,7 +271,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
   const { data: detailData, isLoading } = useGetPolicyDetailsApi(policy?.id || null);
   const fullPolicy = detailData?.data;
 
-  const rolesApi = useGetCompanyRolesApi({ enabled: !!policy });
+  const rolesApi = useGetCompanyRolesApi({}, { enabled: !!policy });
   const departmentsApi = useGetAllDepartmentsApi({ enabled: !!policy });
 
   if (!policy) return null;

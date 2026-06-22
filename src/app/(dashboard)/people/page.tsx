@@ -27,7 +27,7 @@ function People() {
 
     const usersApi     = useGetAllUsersApi({ enabled: canReadUsers });
     const _deptsApi     = useGetAllDepartmentsApi({ enabled: canReadDepts });
-    const rolesApi     = useGetAllRolesApi({ enabled: canReadRoles });
+    const rolesApi     = useGetAllRolesApi({}, { enabled: canReadRoles });
     const directoryApi = useGetDirectoryUsersApi({ enabled: canReadDirectory });
 
     const directoryTotalCount = directoryApi?.data?.meta?.totalCount ?? 0;
