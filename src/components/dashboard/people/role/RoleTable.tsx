@@ -11,7 +11,7 @@ const RoleTable = () => {
     const router = useRouter();
     const depts = useGetAllRolesApi();
     const roles = useMemo(
-        () => depts?.data?.data ?? [],
+        () => (depts?.data?.data ?? []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")),
         [depts.data?.data],
     );
     const tableprops = useTableData(roles);

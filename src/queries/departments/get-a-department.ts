@@ -1,8 +1,8 @@
-
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { Department } from "./get-all-departments";
 
 
@@ -24,7 +24,7 @@ export const useGetADepartmentApi = (
     payload: Payload,
     options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">
 ): UseQueryResult<Response, Error> => {
-    const axiosInstance = useAxios(); // 
+    const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
         queryKey: [QUERY_KEYS.DEPARTMENT, payload],
@@ -33,7 +33,7 @@ export const useGetADepartmentApi = (
             const response = await axiosInstance.get(apiUrl);
             return response.data;
         },
-        staleTime: 0,
+        staleTime: STALE_TIMES.SLOW,
         ...options,
     });
 };

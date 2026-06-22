@@ -2,6 +2,7 @@ import { useQuery, type UseQueryOptions, type UseQueryResult } from '@tanstack/r
 import { useAxios } from '@/shared/hooks/useAxios';
 import { API_KEYS } from '@/lib/constants/apis';
 import { QUERY_KEYS } from '@/shared/lib/query/keys';
+import { STALE_TIMES } from '@/lib/constants/stale-times';
 import { isRetryableError } from '@/shared/lib/errors/api-errors';
 import type { PaginatedResponse } from '@/shared/types/api';
 import type { Department } from '@/features/people/types';
@@ -20,7 +21,7 @@ export const useGetAllDepartmentsApi = (options?: DeptListOptions): DeptListResp
             const res = await axios.get(API_KEYS.DEPARTMENT.DEPARTMENTS);
             return res.data;
         },
-        staleTime: 0,
+        staleTime: STALE_TIMES.SLOW,
         retry: PEOPLE_RETRY,
         ...options,
     });

@@ -9,6 +9,7 @@ import {
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -154,7 +155,7 @@ export const useGetPurchaseRequests = (
       const res = await axiosInstance.get(url);
       return res.data;
     },
-    staleTime: 0,
+    staleTime: STALE_TIMES.NORMAL,
     ...options,
   });
 };
@@ -173,7 +174,7 @@ export const useGetPurchaseRequestById = (
       return res.data;
     },
     enabled: !!id,
-    staleTime: 0,
+    staleTime: STALE_TIMES.LIVE,
     ...options,
   });
 };
@@ -392,7 +393,7 @@ export const useGetProcurementCategories = (
       const res = await axiosInstance.get(PROCUREMENT_KEYS.CATEGORIES);
       return res.data;
     },
-    staleTime: 60_000,
+    staleTime: STALE_TIMES.STATIC,
     ...options,
   });
 };
@@ -511,7 +512,7 @@ export const useGetVendors = (
       const res = await axiosInstance.get(url);
       return res.data;
     },
-    staleTime: 60_000,
+    staleTime: STALE_TIMES.SLOW,
     ...options,
   });
 };

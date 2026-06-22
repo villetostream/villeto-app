@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { PurchaseOrderRecord } from "@/lib/types/purchase-request-helpers";
 
 export interface PaginatedPurchaseOrdersResponse {
@@ -40,7 +41,7 @@ export const usePurchaseOrders = (
       
       return response.data;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_TIMES.NORMAL,
   });
 };
 
@@ -62,7 +63,7 @@ export const usePurchaseOrder = (id: string) => {
       return response.data;
     },
     enabled: !!id,
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_TIMES.LIVE,
   });
 };
 

@@ -24,11 +24,17 @@ export const API_KEYS = {
     DEPARTMENTS: "departments/",
   },
   ROLE: {
-    ROLES: "roles/",
-    ROLES_COMPANY: "roles?type=company",
-    ROLES_VILLETO: "roles?type=villeto",
+    /** Base path — always use helpers below rather than concatenating manually. */
+    ROLES: "roles",
+    /** GET  /roles?page=1&limit=20  (paginated list) */
+    ROLES_LIST: (page: number, limit: number) => `roles?page=${page}&limit=${limit}` as const,
+    /** GET  /roles?page=1&limit=100 (formerly type=company, now flat) */
+    ROLES_COMPANY: (page = 1, limit = 100) => `roles?page=${page}&limit=${limit}` as const,
+    /** GET  /roles/{roleId} */
     ROLE_DETAIL: (roleId: string) => `roles/${roleId}` as const,
+    /** GET  /roles/capabilities?module={module} */
     ROLES_CAPABILITIES: (module: string) => `roles/capabilities?module=${module}` as const,
+    /** PATCH /roles/{roleId}/capabilities */
     ROLE_CAPABILITIES: (roleId: string) => `roles/${roleId}/capabilities` as const,
   },
   USER: {

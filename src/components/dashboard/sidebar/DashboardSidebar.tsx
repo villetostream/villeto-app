@@ -40,6 +40,7 @@ import { NavItem, navigationItems } from "./sidebar-constants";
 import { useAxios } from "@/hooks/useAxios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 export function DashboardSidebar() {
   const location = usePathname();
@@ -107,7 +108,7 @@ export function DashboardSidebar() {
       }
     },
     enabled: !!user?.userId,
-    staleTime: 1000 * 60 * 60, // 1 hour caching to persist efficiently
+    staleTime: STALE_TIMES.SESSION, // company branding is session-level data
   });
 
   const businessLogo = companyData?.logoUrl ?? user?.company?.logoUrl ?? null;

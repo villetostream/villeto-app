@@ -7,6 +7,7 @@ import { useAxios } from "@/hooks/useAxios";
 import { useAuthStore } from "@/stores/auth-stores";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 // Define the payload type for submitting/saving expenses
 interface ExpenseItemPayload {
@@ -168,7 +169,7 @@ export const usePersonalExpenses = (
         meta: response.data.meta,
       } as PersonalExpensesResponse;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_TIMES.NORMAL,
   });
 };
 
@@ -208,7 +209,7 @@ export const useCompanyExpenses = (
         meta: response.data.meta,
       } as CompanyExpensesResponse;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_TIMES.NORMAL,
   });
 };
 
@@ -226,7 +227,7 @@ export const usePersonalExpenseDetail = (reportId: string) => {
       return response.data.data;
     },
     enabled: !!reportId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: STALE_TIMES.LIVE,
   });
 };
 
@@ -307,7 +308,7 @@ export const useCompanyExpenseDetail = (reportId: string) => {
       return response.data.data;
     },
     enabled: !!reportId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: STALE_TIMES.LIVE,
   });
 };
 

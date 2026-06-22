@@ -2,6 +2,7 @@ import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 export interface ExpenseCategory {
     categoryId: string;
@@ -50,7 +51,7 @@ export const useGetExpenseCategoriesApi = (
             const response = await axiosInstance.get(API_KEYS.EXPENSE.CATEGORIES);
             return response.data;
         },
-        staleTime: 0,
+        staleTime: STALE_TIMES.STATIC,
         ...options,
     });
 };
@@ -65,7 +66,7 @@ export const useGetExpenseCategoriesWithPoliciesApi = (
             const response = await axiosInstance.get(API_KEYS.EXPENSE.CATEGORIES_WITH_POLICIES);
             return response.data;
         },
-        staleTime: 0,
+        staleTime: STALE_TIMES.STATIC,
         ...options,
     });
 };

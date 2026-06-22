@@ -846,7 +846,7 @@ export default function PolicyCreationModal({
 
   const can = useAuthStore(state => state.can);
 
-  const rolesApi         = useGetCompanyRolesApi({ enabled: open && can("read", "Role") });
+  const rolesApi         = useGetCompanyRolesApi({}, { enabled: open && can("read", "Role") });
   const invitedUsersApi  = useGetInvitedUsersApi({ enabled: open && can("read", "People") });
   const departmentsApi   = useGetAllDepartmentsApi({ enabled: open && can("read", "Department") });
   // Expense categories are viewed within the context of Expense / Policies.

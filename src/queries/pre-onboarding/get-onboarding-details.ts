@@ -6,6 +6,7 @@ import {
 import { useAxios } from "@/hooks/useAxios";
 import { QUERY_KEYS } from "@/lib/constants/api-query-key";
 import { API_KEYS } from "@/lib/constants/apis";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 interface Company {
     createdAt: string;
@@ -26,54 +27,53 @@ interface Company {
     description: string | null;
     logo?: string | null;
     logoUrl?: string | null;
-    owners?:
-    {
-        "createdAt": "2025-11-10T22:37:30.363Z",
-        "updatedAt": "2025-11-10T22:37:31.555Z",
-        "deletedAt": null,
-        "ownerId": "854df350-45b9-48c3-a240-16bb029e8b1d",
-        "ownershipPercentage": 24,
+    owners?: {
+        createdAt: string;
+        updatedAt: string;
+        deletedAt: string | null;
+        ownerId: string;
+        ownershipPercentage: number;
         user: {
-            createdAt: "2025-11-10T22:37:30.363Z",
-            updatedAt: "2025-11-10T22:37:30.363Z",
-            deletedAt?: Date,
-            userId: string,
-            firstName: string,
-            lastName: string,
-            email: string,
-            password?: string,
-            loginCount: number,
-            isActive: boolean,
-            phone?: string,
-            role: string
-        }
-    }[],
+            createdAt: string;
+            updatedAt: string;
+            deletedAt?: Date;
+            userId: string;
+            firstName: string;
+            lastName: string;
+            email: string;
+            password?: string;
+            loginCount: number;
+            isActive: boolean;
+            phone?: string;
+            role: string;
+        };
+    }[];
     controllingOfficers?: {
-        "createdAt": "2025-11-10T22:37:30.363Z",
-        "updatedAt": "2025-11-10T22:37:31.555Z",
-        "deletedAt": null,
-        "controllingOfficerId": "854df350-45b9-48c3-a240-16bb029e8b1d",
+        createdAt: string;
+        updatedAt: string;
+        deletedAt: string | null;
+        controllingOfficerId: string;
         user: {
-            createdAt: "2025-11-10T22:37:30.363Z",
-            updatedAt: "2025-11-10T22:37:30.363Z",
-            deletedAt?: Date,
-            userId: string,
-            firstName: string,
-            lastName: string,
-            email: string,
-            password?: string,
-            loginCount: number,
-            isActive: boolean,
-            phone?: string,
-            role: string
-        }
-    }[]
-    "productModules"?: string[],
-    "spendLimit"?: {
-        "lower": number,
-        "upper": number
-    },
-    "countryOfRegistration": string | null,
+            createdAt: string;
+            updatedAt: string;
+            deletedAt?: Date;
+            userId: string;
+            firstName: string;
+            lastName: string;
+            email: string;
+            password?: string;
+            loginCount: number;
+            isActive: boolean;
+            phone?: string;
+            role: string;
+        };
+    }[];
+    productModules?: string[];
+    spendLimit?: {
+        lower: number;
+        upper: number;
+    };
+    countryOfRegistration: string | null;
 }
 
 export interface Onboarding {
@@ -88,14 +88,13 @@ export interface Onboarding {
 
 type Response = { data: Onboarding };
 
+type Payload = string;
 
-
-type Payload = string
 export const useGetOnboardingDetailsApi = (
     payload: Payload,
     options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">
 ): UseQueryResult<Response, Error> => {
-    const axiosInstance = useAxios(); // 
+    const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
         queryKey: [QUERY_KEYS.ONBOARDINGDETAILS, payload],
@@ -104,8 +103,7 @@ export const useGetOnboardingDetailsApi = (
             const response = await axiosInstance.get(apiUrl);
             return response.data;
         },
-        staleTime: 0,
+        staleTime: STALE_TIMES.SLOW,
         ...options,
     });
 };
-
