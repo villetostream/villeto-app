@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 export interface ExpenseCategoryDetail {
     createdAt: string;
@@ -55,5 +56,6 @@ export const useGetExpenseCategoryDetailApi = (categoryId: string) => {
             return res.data;
         },
         enabled: !!categoryId,
+        staleTime: STALE_TIMES.STATIC,
     });
 };

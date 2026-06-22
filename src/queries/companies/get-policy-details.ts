@@ -1,6 +1,7 @@
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { Policy } from "./get-policies";
 
 export const useGetPolicyDetailsApi = (
@@ -16,6 +17,7 @@ export const useGetPolicyDetailsApi = (
       return response.data;
     },
     enabled: !!policyId,
+    staleTime: STALE_TIMES.SLOW,
     ...options,
   });
 };

@@ -26,7 +26,7 @@ export const useDeleteRoleApi = () => {
     return useMutation<Response, Error, Payload>({
         retry: false,
         mutationFn: async (payload: Payload) => {
-            const res = await axiosInstance.delete(`${API_KEYS.ROLE.ROLES}${payload}`);
+            const res = await axiosInstance.delete(API_KEYS.ROLE.ROLE_DETAIL(payload.toString()));
             return res.data;
         },
     });

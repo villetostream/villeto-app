@@ -2,6 +2,7 @@ import { useQuery, type UseQueryOptions, type UseQueryResult } from '@tanstack/r
 import { useAxios } from '@/shared/hooks/useAxios';
 import { API_KEYS } from '@/lib/constants/apis';
 import { QUERY_KEYS } from '@/shared/lib/query/keys';
+import { STALE_TIMES } from '@/lib/constants/stale-times';
 import { isRetryableError } from '@/shared/lib/errors/api-errors';
 import type { PaginatedResponse } from '@/shared/types/api';
 import type { AppUser } from '@/features/people/types';
@@ -22,7 +23,7 @@ export const useGetAllUsersApi = (options?: UserListOptions): UserListResponse =
             const res = await axios.get(API_KEYS.USER.USERS);
             return res.data;
         },
-        staleTime: 0,
+        staleTime: STALE_TIMES.NORMAL,
         retry: PEOPLE_RETRY,
         ...options,
     });
@@ -36,7 +37,7 @@ export const useGetInvitedUsersApi = (options?: UserListOptions): UserListRespon
             const res = await axios.get(API_KEYS.USER.INVITED_USERS);
             return res.data;
         },
-        staleTime: 0,
+        staleTime: STALE_TIMES.NORMAL,
         retry: PEOPLE_RETRY,
         ...options,
     });
@@ -50,7 +51,7 @@ export const useGetDirectoryUsersApi = (options?: UserListOptions): UserListResp
             const res = await axios.get(API_KEYS.USER.DIRECTORY_USERS);
             return res.data;
         },
-        staleTime: 0,
+        staleTime: STALE_TIMES.NORMAL,
         retry: PEOPLE_RETRY,
         ...options,
     });
@@ -64,7 +65,7 @@ export const useGetUninvitedUsersApi = (options?: UserListOptions): UserListResp
             const res = await axios.get(API_KEYS.USER.UNINVITED_USERS);
             return res.data;
         },
-        staleTime: 0,
+        staleTime: STALE_TIMES.NORMAL,
         retry: PEOPLE_RETRY,
         ...options,
     });

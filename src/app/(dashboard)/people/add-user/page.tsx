@@ -186,7 +186,10 @@ function AddSingleUser() {
                                 <FormFieldSelect
                                     name="roleId"
                                     placeholder="Select role"
-                                    values={(allRoles.data?.data ?? []).map((role) => ({
+                                    values={(allRoles.data?.data ?? [])
+                                        .slice()
+                                        .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+                                        .map((role) => ({
                                         label: role.name,
                                         value: role.roleId
                                     }))}

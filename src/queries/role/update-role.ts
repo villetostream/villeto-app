@@ -9,7 +9,7 @@ export const useUpdateRoleApi = () => {
     return useMutation<Response, Error, { id: string; data: RoleFormData }>({
         retry: false,
         mutationFn: async ({ id, data }) => {
-            const res = await axiosInstance.patch(`${API_KEYS.ROLE.ROLES}${id}`, data);
+            const res = await axiosInstance.patch(API_KEYS.ROLE.ROLE_DETAIL(id), data);
             return res.data;
         },
     });

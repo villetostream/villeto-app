@@ -2,6 +2,7 @@ import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 
 export interface Permission {
@@ -45,7 +46,7 @@ export const useGetAllPermissionsApi = (
             const response = await axiosInstance.get(apiUrl);
             return response.data;
         },
-        staleTime: 0,
+        staleTime: STALE_TIMES.STATIC,
         ...options,
     });
 };

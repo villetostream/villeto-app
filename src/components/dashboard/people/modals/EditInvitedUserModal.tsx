@@ -147,7 +147,10 @@ export function EditInvitedUserModal({
                                         ) : (rolesApi.data?.data ?? []).length === 0 ? (
                                             <SelectItem value="__empty" disabled>No roles available</SelectItem>
                                         ) : (
-                                            (rolesApi.data?.data ?? []).map((role) => (
+                                            (rolesApi.data?.data ?? [])
+                                                .slice()
+                                                .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+                                                .map((role) => (
                                                 <SelectItem
                                                     key={role.roleId ?? role.name}
                                                     value={role.name}
