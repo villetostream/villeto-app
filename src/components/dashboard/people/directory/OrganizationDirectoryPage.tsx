@@ -7,13 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Pagination,
   PaginationContent,
@@ -418,8 +413,14 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                 })}
                 {paginatedData.length === 0 && users.length > 0 && (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={7} className="text-center py-20 text-md text-gray-500 hover:bg-transparent">
-                      No users match your criteria.
+                    <TableCell colSpan={7} className="p-0 border-0">
+                      <div className="w-full flex justify-center py-10 px-4">
+                        <EmptyState 
+                          icon={<Users className="w-6 h-6" />}
+                          title="No members found"
+                          description="Try adjusting your filters or search query to find what you're looking for."
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}

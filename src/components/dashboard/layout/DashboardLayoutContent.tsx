@@ -14,7 +14,7 @@
 import { DashboardSidebar } from "@/components/dashboard/sidebar/DashboardSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { UserSection } from "@/components/user/user-section";
-import { useSyncExternalStore, useEffect, useCallback, useRef } from "react";
+import { useSyncExternalStore, useEffect, useCallback, useRef, useState } from "react";
 import { useAuthStore, User } from "@/stores/auth-stores";
 import { useAxios } from "@/hooks/useAxios";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,7 @@ import VilletoTourGuide from "@/components/tour/VilletoTourGuide";
 import VilletoSetupGuide from "@/components/tour/VilletoSetupGuide";
 import { useTourStore } from "@/stores/useTourStore";
 import { ChatPortal } from "@/components/chat";
+import { SplashScreen } from "@/components/ui/splash-screen";
 
 function subscribe() {
   return () => {};
@@ -122,18 +123,22 @@ export default function DashboardLayoutContent({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading]);
 
-  if (!isMounted) {
-    return (
-      <div className="flex h-screen bg-dashboard-background" suppressHydrationWarning>
-        <div className="flex-1 flex flex-col overflow-hidden" suppressHydrationWarning />
-      </div>
-    );
+  // Ensure the premium splash screen is visible long enough to play its animation
+  // when the user first boots the app or logs in.
+  const [minSplashTimeMet, setMinSplashTimeMet] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinSplashTimeMet(true);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!isMounted || isLoading || !minSplashTimeMet) {
+    return <SplashScreen />;
   }
 
-  if (!isLoading && !user) {
-    return (
-      <div className="flex h-screen bg-dashboard-background" suppressHydrationWarning />
-    );
+  if (!user) {
+    return <SplashScreen />;
   }
 
   return (

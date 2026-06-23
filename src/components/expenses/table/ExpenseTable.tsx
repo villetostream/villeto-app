@@ -28,6 +28,7 @@ const ExpenseTable = ({
   columnsOverride,
   page = 1,
   scope,
+  emptyState,
 }: {
   actionButton?: React.ReactElement;
   statusFilter?: string | null;
@@ -36,6 +37,7 @@ const ExpenseTable = ({
   columnsOverride?: ColumnDef<ExpenseRow>[];
   page?: number;
   scope?: string;
+  emptyState?: React.ReactNode;
 }) => {
   const router = useRouter();
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>(
@@ -144,6 +146,7 @@ useEffect(() => { onFilteredDataChangeRef.current = onFilteredDataChange; });
       data={filteredData}
       columns={columnsOverride ?? []}
       paginationProps={tableprops.paginationProps}
+      emptyState={emptyState}
       enableRowSelection={true}
       enableColumnVisibility={true}
       selectedDataIds={tableprops.selectedDataIds}

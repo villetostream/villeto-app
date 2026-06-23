@@ -3,6 +3,9 @@
 import React from "react";
 import type { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
 
+import type { TimelineEvent } from "@/lib/react-query/expenses";
+import { useAuthStore } from "@/stores/auth-stores";
+
 interface TimelineEntry {
   stage: string;
   by: string;
@@ -18,6 +21,7 @@ interface ExpenseTimelineProps {
   submitterName?: string;
   /** Name of the person who approved the report. If provided, replaces byApprover. */
   approverName?: string;
+  timeline?: TimelineEvent[];
 }
 
 const getTimelineEntries = (
@@ -167,8 +171,72 @@ export function ExpenseTimeline({
   submissionDate,
   submitterName = "...",
   approverName,
+  timeline,
 }: ExpenseTimelineProps) {
-  const entries = getTimelineEntries(status, submitterName, submissionDate, approverName);
+  const currentUser = useAuthStore((state) => state.user);
+
+  // Use backend timeline if available
+  const entries: TimelineEntry[] = timeline && timeline.length > 0 
+    ? timeline.map((event, i) => {
+        const isLast = i === timeline.length - 1;
+        let byString = "System";
+
+        if (event.performedBy) {
+          const isCurrentUser =
+            currentUser &&
+            currentUser.firstName === event.performedBy.firstName &&
+            String(currentUser.lastName) === String(event.performedBy.lastName) &&
+            (currentUser.companyRole?.name === event.performedBy.roleName ||
+              currentUser.villetoRole?.name === event.performedBy.roleName ||
+              currentUser.jobTitle === event.performedBy.roleName ||
+              currentUser.position === event.performedBy.roleName);
+
+          const roleName = event.performedBy.roleName ? `(${event.performedBy.roleName})` : "";
+
+          if (isCurrentUser) {
+            byString = `By You ${roleName}`.trim();
+          } else {
+            const performedByName = `${event.performedBy.firstName || ""} ${event.performedBy.lastName || ""}`.trim();
+            byString = performedByName ? `By ${performedByName} ${roleName}`.trim() : "System";
+          }
+        }
+        
+        let dotColor = "bg-primary";
+        let stage = event.action.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+        
+        if (event.action === "submitted") {
+          dotColor = "bg-orange-500";
+          stage = "Submitted for Approval";
+        } else if (event.action === "under_review") {
+          dotColor = "bg-yellow-500";
+          stage = "Under Review";
+        } else if (event.action === "approved") {
+          dotColor = "bg-green-600";
+          stage = "Expense Approved";
+        } else if (event.action === "rejected" || event.action === "declined") {
+          dotColor = "bg-red-500";
+          stage = "Expense Rejected";
+        } else if (event.action === "paid") {
+          dotColor = "bg-teal-500";
+          stage = "Paid";
+        }
+
+        return {
+          stage,
+          by: byString,
+          timestamp: new Date(event.timestamp).toLocaleString("en-US", {
+            month: "2-digit",
+            day: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+          }).replace(",", ""),
+          dotColor,
+          isActive: isLast,
+        };
+      })
+    : getTimelineEntries(status, submitterName, submissionDate, approverName);
 
   return (
     <div className="space-y-4">

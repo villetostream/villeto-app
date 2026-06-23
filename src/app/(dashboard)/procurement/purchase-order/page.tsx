@@ -10,6 +10,7 @@ import { Pagination } from "@/components/ui/custom-pagination";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
 import { useGetVendors } from "@/queries/procurement/purchase-requests";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -229,10 +230,13 @@ function PurchaseOrderPage() {
               </tr>
             ) : purchaseOrders.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-5 py-24 text-center text-muted-foreground">
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-lg font-medium text-foreground">No purchase orders found</span>
-                    <span>Try adjusting your search or filters.</span>
+                <td colSpan={8} className="px-5 py-10 text-center border-0 p-0">
+                  <div className="w-full flex justify-center py-10 px-4">
+                    <EmptyState 
+                      icon={<Search className="w-6 h-6" />}
+                      title="No purchase orders found"
+                      description="Try adjusting your search or filters to find what you're looking for."
+                    />
                   </div>
                 </td>
               </tr>

@@ -36,7 +36,10 @@ function formatName(value: string | null | undefined): string {
 
 const columnHelper = createColumnHelper<AppUser>();
 
-export const columns = (onViewProfile: (userId: string) => void) => [
+export const columns = (
+    onViewProfile: (userId: string) => void,
+    onToggleStatus?: (user: AppUser) => void
+) => [
     columnHelper.display({
         id: "idNo",
         header: "S/N",
@@ -149,7 +152,10 @@ export const columns = (onViewProfile: (userId: string) => void) => [
                                 <PermissionGuard resource="user" action="manage">
                                     <DropdownMenuItem 
                                         className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
-                                        onClick={() => logger.log("Deactivate user:", data.row.original.userId)}
+                                        onClick={() => {
+                                            if (onToggleStatus) onToggleStatus(data.row.original);
+                                            else logger.log("Deactivate user:", data.row.original.userId);
+                                        }}
                                     >
                                         <Lock className="w-5 h-5" />
                                         <span className="font-medium">Deactivate User</span>
@@ -159,7 +165,10 @@ export const columns = (onViewProfile: (userId: string) => void) => [
                                 <PermissionGuard resource="user" action="manage">
                                     <DropdownMenuItem 
                                         className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#F0FDF4] text-[#0FA68E]"
-                                        onClick={() => logger.log("Activate user:", data.row.original.userId)}
+                                        onClick={() => {
+                                            if (onToggleStatus) onToggleStatus(data.row.original);
+                                            else logger.log("Activate user:", data.row.original.userId);
+                                        }}
                                     >
                                         <UserCheck className="w-5 h-5" />
                                         <span className="font-medium">Activate User</span>

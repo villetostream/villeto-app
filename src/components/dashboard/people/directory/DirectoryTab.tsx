@@ -12,6 +12,8 @@ import { AppUser } from "@/queries/departments/get-all-departments";
 import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { directoryColumns } from "./directory-columns";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Users } from "lucide-react";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import {
@@ -135,6 +137,13 @@ export function DirectoryTab() {
             <DataTable
                 data={filteredUsers}
                 isLoading={isLoading}
+                emptyState={
+                    <EmptyState 
+                        icon={<Users className="w-6 h-6" />}
+                        title="No directory members found"
+                        description="Try adjusting your filters or search query to find what you're looking for."
+                    />
+                }
                 columns={directoryColumns}
                 paginationProps={{ ...tableProps.paginationProps, total: filteredUsers.length }}
                 enableRowSelection={false}

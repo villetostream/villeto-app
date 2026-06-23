@@ -248,6 +248,7 @@ export default function PersonalExpenseDetailPage() {
             status={reportStatus}
             submissionDate={formatDate(expenseDetail.createdAt)}
             submitterName={userName}
+            timeline={expenseDetail.timeline}
           />
         </div>
       </div>

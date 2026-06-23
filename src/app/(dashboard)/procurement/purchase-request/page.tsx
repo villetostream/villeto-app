@@ -8,10 +8,11 @@ import {
   Plus, Check, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
-import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import type { PurchaseRequest } from "@/queries/procurement/purchase-requests";
+import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/custom-pagination";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
@@ -304,16 +305,17 @@ function PRTable({
           <tbody>
             {paginated.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-5 py-16 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center">
-                      <Search className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">No purchase requests found.</p>
+                <td colSpan={columns.length} className="px-5 py-10 text-center border-0 p-0">
+                  <div className="w-full flex justify-center flex-col items-center">
+                    <EmptyState 
+                      icon={<Search className="w-6 h-6" />}
+                      title="No purchase requests found"
+                      description="Try adjusting your filters or search query to find what you're looking for."
+                    />
                     {scope === "own" && (
                       <button
                         onClick={() => router.push("/procurement/purchase-request/new")}
-                        className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                        className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity mt-4 mb-10"
                       >
                         <Plus className="w-4 h-4" /> Create your first request
                       </button>

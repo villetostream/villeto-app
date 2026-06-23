@@ -25,6 +25,17 @@ interface ExpenseSubmissionPayload {
   status: "pending" | "draft"; // Add status to the payload
 }
 
+export interface TimelineEvent {
+  action: string;
+  performedBy: {
+    firstName?: string;
+    lastName?: string;
+    roleName?: string | null;
+  } | null;
+  timestamp: string;
+  notes?: string | null;
+}
+
 // API Response types
 export interface PersonalExpenseReport {
   createdAt: string;
@@ -52,6 +63,7 @@ export interface CompanyExpenseReport {
   costCenter: string;
   reportedBy: string;
   totalAmount: number;
+  timeline?: TimelineEvent[];
 }
 
 export interface ExpenseItem {
@@ -82,6 +94,7 @@ export interface PersonalExpenseDetailResponse {
   status?: PersonalExpenseStatus | "rejected";
   reporter?: string;
   expenses: ExpenseItem[];
+  timeline?: TimelineEvent[];
 }
 
 export interface PersonalExpenseDetailApiResponse {

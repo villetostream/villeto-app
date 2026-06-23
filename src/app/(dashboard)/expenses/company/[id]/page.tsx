@@ -393,6 +393,7 @@ export default function CompanyExpenseDetailPage() {
               submissionDate={reportDate}
               submitterName={reporterName}
               approverName={approverName}
+              timeline={expenseDetail.timeline}
             />
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { GenericPageSkeleton } from "@/components/ui/skeletons";
 
 /**
  * Generic fallback loader for routes that don't yet have a bespoke
@@ -6,26 +6,19 @@ import { Loader2 } from "lucide-react";
  * alternatives — prefer those for any route whose final layout is
  * already known).
  *
- * Accessibility fix: the previous version had no role, so screen
- * readers announced nothing while content loaded. role="status" +
- * aria-live="polite" makes the wait state announced; the visible
- * text and the icon are both decorative duplicates of that one
- * announcement, so the icon is aria-hidden to avoid double output.
+ * Uses GenericPageSkeleton (header bar + table skeleton) instead of
+ * a spinner so the browser has a content-shaped LCP candidate and
+ * there is no jarring spinner → content pop-in transition.
  */
 export default function PageLoading() {
   return (
     <div
       role="status"
       aria-live="polite"
-      className="flex items-center justify-center h-full max-h-screen gap-3"
+      aria-label="Loading page content"
+      className="p-5"
     >
-      <Loader2
-        className="h-8 w-8 animate-spin text-primary"
-        aria-hidden="true"
-      />
-      <span className="text-primary dark:text-white md:text-lg">
-        Loading…
-      </span>
+      <GenericPageSkeleton />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "@/components/expenses/table/personalColumns";
 import { useSearchParams, useRouter } from "next/navigation";
 import ExpenseEmptyState from "@/components/expenses/EmptyState";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { usePersonalExpenses, useCompanyExpenses, CompanyExpenseReport } from "@/lib/react-query/expenses";
 import { PersonalExpensesSkeleton } from "@/components/expenses/PersonalExpensesSkeleton";
@@ -269,6 +270,13 @@ export default function Reimbursements() {
                   data={data as unknown as ExpenseTableRow[]}
                   columnsOverride={getCompanyColumns(scope) as ColumnDef<ExpenseTableRow>[]}
                   onFilteredDataChange={onFilterChange}
+                  emptyState={
+                    <EmptyState
+                      icon={<span className="text-2xl">📋</span>}
+                      title="No expenses found"
+                      description="Try switching to a different status tab or adjusting your filters."
+                    />
+                  }
                   scope={scope}
                 />
               </TabsContent>
@@ -322,6 +330,13 @@ export default function Reimbursements() {
                 statusFilter={t.filter}
                 data={personalExpenses as ExpenseTableRow[]}
                 columnsOverride={personalExpenseColumns as ColumnDef<ExpenseTableRow>[]}
+                emptyState={
+                  <EmptyState
+                    icon={<span className="text-2xl">📋</span>}
+                    title="No expenses found"
+                    description="Try switching to a different status tab or adjusting your filters."
+                  />
+                }
                 page={page}
               />
             </TabsContent>
