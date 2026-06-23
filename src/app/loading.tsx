@@ -1,3 +1,5 @@
-import PageLoading from '@/components/ui/page-loading';  
-  
-export default PageLoading; 
+import { SplashScreen } from '@/components/ui/splash-screen';
+
+export default function RootLoading() {
+  return <SplashScreen />;
+}
