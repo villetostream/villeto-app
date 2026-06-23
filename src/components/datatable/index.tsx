@@ -67,6 +67,12 @@ const PAGE_SIZE_OPTIONS = [
   { label: "100", value: "100" },
 ];
 
+// Stable module-level default so it never creates a new function reference
+// on each render — prevents spurious re-runs of the selectedData memo and
+// the two row-selection sync useEffects inside DataTable.
+const defaultGetRowId = (row: Record<string, unknown>) =>
+  String(row.id ?? row._id ?? "");
+
 export type DataTableProps<Data extends object, Value = unknown> = {
   data: Data[];
   columns: ColumnDef<Data, Value>[];
@@ -97,6 +103,7 @@ export type DataTableProps<Data extends object, Value = unknown> = {
   onRowSelectionChange?: (selection: RowSelectionState) => void;
   onColumnVisibilityChange?: (visibility: VisibilityState) => void;
   onRowClick?: (row: Data) => void;
+  emptyState?: React.ReactNode;
 };
 
 function DataTable<Data extends object, Value = unknown>(
@@ -126,13 +133,11 @@ function DataTable<Data extends object, Value = unknown>(
     setSelectedDataIds,
     enableRowSelection = false,
     enableColumnVisibility = false,
-    getRowId = (row: Data) => {
-      const record = row as Record<string, unknown>;
-      return String(record.id ?? record._id ?? "");
-    },
+    getRowId = defaultGetRowId as unknown as (row: Data) => string,
     onRowSelectionChange,
     onColumnVisibilityChange,
     onRowClick,
+    emptyState,
   } = props;
 
   const [sorting, setSorting] = useState<SortingState>(initialSorting);
@@ -428,9 +433,15 @@ function DataTable<Data extends object, Value = unknown>(
                 <TableRow className="hover:bg-transparent">
                   <TableCell
                     colSpan={table.getVisibleFlatColumns().length}
-                    className="text-center py-20 text-lg hover:bg-transparent"
+                    className="p-0 border-0"
                   >
-                    Oops, No data available!!!
+                    {emptyState ? (
+                      <div className="w-full flex justify-center py-10 px-4">{emptyState}</div>
+                    ) : (
+                      <div className="text-center py-20 text-lg hover:bg-transparent">
+                        Oops, No data available!!!
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               )

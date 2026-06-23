@@ -1422,6 +1422,75 @@ function PRDetailPage() {
   // ── Workflow steps ────────────────────────────────────────────────────────
 
   const workflowSteps: WorkflowStep[] = pr ? (() => {
+    if (pr.timeline && pr.timeline.length > 0) {
+      const eventsByAction: Record<string, any> = {};
+      pr.timeline.forEach(event => {
+        eventsByAction[event.action] = event;
+      });
+
+      const formatPerson = (event: any) => {
+        const performedByName = event.performedBy 
+          ? `${event.performedBy.firstName || ""} ${event.performedBy.lastName || ""}`.trim()
+          : "System";
+        const roleName = event.performedBy?.roleName || "";
+        
+        const loggedInName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "";
+        const loggedInRole = user ? getRoleName(user) : "";
+        
+        if (user && performedByName === loggedInName && roleName === loggedInRole) {
+          return roleName ? `You (${roleName})` : "You";
+        }
+        
+        const formattedRole = roleName ? `(${roleName})` : "";
+        return performedByName ? `${performedByName} ${formattedRole}`.trim() : "System";
+      };
+
+      const submitEvent = eventsByAction["submitted"];
+      const step1: WorkflowStep = submitEvent ? {
+        label: "Submitted",
+        person: formatPerson(submitEvent),
+        timestamp: formatTs(submitEvent.timestamp),
+        status: "done"
+      } : { label: "Submitted", status: "inactive" };
+
+      const reviewEvent = eventsByAction["under_review"];
+      const step2: WorkflowStep = reviewEvent ? {
+        label: "Under Review",
+        timestamp: formatTs(reviewEvent.timestamp),
+        status: "done"
+      } : { label: "Under Review", status: "inactive" };
+
+      const approveEvent = eventsByAction["approved"] || eventsByAction["rejected"] || eventsByAction["declined"];
+      const step3: WorkflowStep = approveEvent ? {
+        label: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "Manager Rejected" : "Manager Approved",
+        person: formatPerson(approveEvent),
+        timestamp: formatTs(approveEvent.timestamp),
+        badge: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "Rejected" : "Approved",
+        badgeColor: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "text-red-500 bg-red-50" : "text-emerald-600 bg-emerald-50",
+        status: "done"
+      } : { label: "Manager Approved", status: "inactive" };
+
+      const poEvent = eventsByAction["converted_to_po"] || eventsByAction["partially_converted"];
+      const step4: WorkflowStep = poEvent ? {
+        label: "PO Created",
+        person: formatPerson(poEvent),
+        timestamp: formatTs(poEvent.timestamp),
+        status: "done"
+      } : { label: "PO Created", status: "inactive" };
+
+      const poApproveEvent = eventsByAction["po_approved"];
+      const step5: WorkflowStep = poApproveEvent ? {
+        label: "PO Approved",
+        person: formatPerson(poApproveEvent),
+        timestamp: formatTs(poApproveEvent.timestamp),
+        badge: "Approved",
+        badgeColor: "text-emerald-600 bg-emerald-50",
+        status: "done"
+      } : { label: "PO Approved", status: "inactive" };
+
+      return [step1, step2, step3, step4, step5];
+    }
+
     const submittedStatuses = ["submitted", "approved", "rejected", "partially_converted", "converted_to_po", "cancelled"];
     const approvedStatuses = ["approved", "partially_converted", "converted_to_po"];
     const poCreatedStatuses = ["partially_converted", "converted_to_po"];
@@ -1671,10 +1740,10 @@ function PRDetailPage() {
             {(() => {
               const purchaseOrders = (pr as PurchaseRequestDetail).purchaseOrders || [];
               const hasPOGroups = purchaseOrders.length > 0 && purchaseOrders.some(po => (po.lineItems || []).length > 0);
+              const hasResolvedVendors = lineItems.some(li => li.resolvedVendorId);
+              const showGroupedView = hasPOGroups || ((pr.status === "converted_to_po" || pr.status === "partially_converted") && hasResolvedVendors);
 
-              if (hasPOGroups) {
-                // Build a map from lineItemId → PR line item for quick lookup
-                const lineItemById = new Map(lineItems.map(li => [li.purchaseRequestLineItemId, li]));
+              if (showGroupedView) {
                 const poAccents = [
                   { border: "border-violet-300", header: "bg-violet-50 border-b border-violet-200", badge: "bg-violet-100 text-violet-700", dot: "bg-violet-500" },
                   { border: "border-emerald-300", header: "bg-emerald-50 border-b border-emerald-200", badge: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
@@ -1684,42 +1753,91 @@ function PRDetailPage() {
                   { border: "border-teal-300", header: "bg-teal-50 border-b border-teal-200", badge: "bg-teal-100 text-teal-700", dot: "bg-teal-500" },
                 ];
 
+                let displayGroups: Array<{
+                  id: string;
+                  vendorName: string;
+                  poNumber?: string;
+                  deliveryDate?: string;
+                  status?: string;
+                  lineItems: typeof lineItems;
+                }> = [];
+
+                if (hasPOGroups) {
+                  const lineItemById = new Map(lineItems.map(li => [li.purchaseRequestLineItemId, li]));
+                  displayGroups = purchaseOrders.map((po, idx) => ({
+                    id: po.purchaseOrderId || String(idx),
+                    vendorName: po.vendor?.displayName || po.vendor?.legalName || po.vendorId || "Unknown Vendor",
+                    poNumber: po.poNumber,
+                    deliveryDate: po.deliveryDate,
+                    status: po.status,
+                    lineItems: (po.lineItems || []).map(pli => lineItemById.get(pli.purchaseRequestLineItemId)).filter(Boolean) as typeof lineItems,
+                  }));
+                } else {
+                  const groupsByVendor = new Map<string, typeof lineItems>();
+                  const unassignedItems: typeof lineItems = [];
+                  lineItems.forEach(li => {
+                    const vId = li.resolvedVendorId;
+                    if (vId) {
+                      if (!groupsByVendor.has(vId)) groupsByVendor.set(vId, []);
+                      groupsByVendor.get(vId)!.push(li);
+                    } else {
+                      unassignedItems.push(li);
+                    }
+                  });
+                  displayGroups = Array.from(groupsByVendor.entries()).map(([vId, items]) => {
+                    const vendor = vendors.find(v => (v as any).id === vId || v.vendorId === vId);
+                    return {
+                      id: vId,
+                      vendorName: vendor?.displayName || vendor?.legalName || "Vendor", // fallback name since we might just have ID
+                      lineItems: items,
+                    };
+                  });
+                  if (unassignedItems.length > 0) {
+                    displayGroups.push({
+                      id: "unassigned",
+                      vendorName: "Unassigned Items",
+                      lineItems: unassignedItems,
+                    });
+                  }
+                }
+
                 return (
-                  <div className="space-y-4">
+                  <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 space-y-4">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-base font-semibold text-foreground">Purchase Orders</h2>
+                      <h2 className="text-base font-semibold text-foreground">Assigned Vendors</h2>
                       <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold px-1.5">
-                        {purchaseOrders.length}
+                        {displayGroups.length}
                       </span>
                     </div>
-                    {purchaseOrders.map((po, idx) => {
-                      const accent = poAccents[idx % poAccents.length];
-                      const vendorName = po.vendor?.displayName || po.vendor?.legalName || po.vendorId || "Unknown Vendor";
-                      const poLineItems = (po.lineItems || []).map(pli => lineItemById.get(pli.purchaseRequestLineItemId)).filter(Boolean) as typeof lineItems;
-                      const poTotal = poLineItems.reduce((s, li) => s + (li.subtotal || 0), 0);
+                    {displayGroups.map((group, idx) => {
+                      const isUnassigned = group.id === "unassigned";
+                      const accent = isUnassigned 
+                        ? { border: "border-gray-300", header: "bg-gray-50 border-b border-gray-200", badge: "bg-gray-200 text-gray-700", dot: "bg-gray-400" } 
+                        : poAccents[idx % poAccents.length];
+                      const poTotal = group.lineItems.reduce((s, li) => s + (li.subtotal || 0), 0);
 
                       return (
-                        <div key={po.purchaseOrderId || idx} className={`rounded-2xl border-2 bg-white overflow-hidden ${accent.border}`}>
+                        <div key={group.id} className={`rounded-2xl border-2 bg-white overflow-hidden ${accent.border}`}>
                           {/* PO Card Header */}
                           <div className={`px-5 py-3 flex items-center justify-between ${accent.header}`}>
                             <div className="flex items-center gap-3 flex-wrap">
                               <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${accent.dot}`} />
                               <div>
-                                <p className="text-sm font-bold text-foreground">{vendorName}</p>
-                                {po.poNumber && <p className="text-xs text-muted-foreground">{po.poNumber}</p>}
+                                <p className="text-sm font-bold text-foreground">{group.vendorName}</p>
+                                {group.poNumber && <p className="text-xs text-muted-foreground">{group.poNumber}</p>}
                               </div>
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${accent.badge}`}>
-                                {poLineItems.length} item{poLineItems.length !== 1 ? "s" : ""} · 1 PO
+                                {group.lineItems.length} item{group.lineItems.length !== 1 ? "s" : ""}
                               </span>
                               {poTotal > 0 && <span className="text-xs font-semibold text-foreground">· {formatAmount(poTotal, currency)}</span>}
                             </div>
                             <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                              {po.deliveryDate && (
-                                <span>Delivery: <strong className="text-foreground">{formatDate(po.deliveryDate)}</strong></span>
+                              {group.deliveryDate && (
+                                <span>Delivery: <strong className="text-foreground">{formatDate(group.deliveryDate)}</strong></span>
                               )}
-                              {po.status && (
+                              {group.status && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold capitalize">
-                                  {po.status.replace(/_/g, " ")}
+                                  {group.status.replace(/_/g, " ")}
                                 </span>
                               )}
                             </div>
@@ -1734,7 +1852,7 @@ function PRDetailPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {poLineItems.map(item => (
+                              {group.lineItems.map(item => (
                                 <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
                                   <td className="px-5 py-3 font-semibold text-foreground">{item.name}</td>
                                   <td className="px-5 py-3 text-muted-foreground max-w-[160px] truncate">{item.description || "—"}</td>
@@ -1976,55 +2094,153 @@ function PRDetailPage() {
               ? "po_approval"
               : null;
 
-            // Steps: always show all 4, with connector lines between them
-            const steps = [
-              {
-                key: "submitted",
-                label: pr.status === "draft" ? "Created by" : "Submitted by",
-                done: true,
-                personName: `${getRoleName(pr.creator || pr.employee || user)} (${getRequesterName(pr) || "Employee"})`,
-                badge: null,
-                timestamp: formatTs(pr.createdAt),
-              },
-              {
-                key: "manager",
-                label: "Manager Approval",
-                done: !!approvedBy,
-                personName: approvedBy
-                  ? `${getRoleName(approvedBy)} (${`${approvedBy.firstName || ""} ${approvedBy.lastName || ""}`.trim()})`
-                  : `${getRoleName(user)} (${`${user?.firstName || ""} ${user?.lastName || ""}`.trim()}) (You)`,
-                badge: approvedBy
-                  ? { text: "Approved", color: "bg-emerald-50 text-emerald-600" }
-                  : nextStepKey === "manager"
-                  ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
-                  : null,
-                timestamp: approvedBy ? formatTs(pr.approvedAt || pr.updatedAt) : null,
-              },
-              {
-                key: "create_po",
-                label: "Create PO",
-                done: hasPO,
-                personName: hasPO ? (isPoCreatorSelf ? `${poCreatorName} (You)` : poCreatorName) : null,
-                badge: hasPO
-                  ? { text: "Done", color: "bg-emerald-50 text-emerald-600" }
-                  : nextStepKey === "create_po"
-                  ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
-                  : null,
-                timestamp: hasPO ? formatTs(po?.createdAt || pr.updatedAt) : null,
-              },
-              {
-                key: "po_approval",
-                label: "PO Approval",
-                done: pr.status === "converted_to_po",
-                personName: null,
-                badge: pr.status === "converted_to_po"
-                  ? { text: "Approved", color: "bg-emerald-50 text-emerald-600" }
-                  : nextStepKey === "po_approval"
-                  ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
-                  : null,
-                timestamp: null,
-              },
-            ];
+            // Steps logic
+            let steps: Array<{
+              key: string;
+              label: string;
+              done: boolean;
+              personName: string | null;
+              badge: { text: string; color: string } | null;
+              timestamp: string | null;
+            }> = [];
+
+            if (pr.timeline && pr.timeline.length > 0) {
+              const eventsByAction: Record<string, any> = {};
+              pr.timeline.forEach(event => {
+                eventsByAction[event.action] = event;
+              });
+
+              const formatPerson = (event: any) => {
+                const performedByName = event.performedBy 
+                  ? `${event.performedBy.firstName || ""} ${event.performedBy.lastName || ""}`.trim()
+                  : "System";
+                const roleName = event.performedBy?.roleName || "";
+                
+                const loggedInName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "";
+                const loggedInRole = user ? getRoleName(user) : "";
+                
+                if (user && performedByName === loggedInName && roleName === loggedInRole) {
+                  return roleName ? `You (${roleName})` : "You";
+                }
+                
+                const formattedRole = roleName ? `(${roleName})` : "";
+                return performedByName ? `${performedByName} ${formattedRole}`.trim() : "System";
+              };
+
+              const submitEvent = eventsByAction["submitted"];
+              const approveEvent = eventsByAction["approved"] || eventsByAction["rejected"] || eventsByAction["declined"];
+              const poEvent = eventsByAction["converted_to_po"] || eventsByAction["partially_converted"];
+              const poApproveEvent = eventsByAction["po_approved"];
+
+              steps = [
+                {
+                  key: "submitted",
+                  label: submitEvent ? "Submitted by" : "Created by",
+                  done: !!submitEvent,
+                  personName: submitEvent ? formatPerson(submitEvent) : null,
+                  badge: null,
+                  timestamp: submitEvent ? formatTs(submitEvent.timestamp) : null,
+                },
+                {
+                  key: "manager",
+                  label: "Manager Approval",
+                  done: !!approveEvent,
+                  personName: approveEvent ? formatPerson(approveEvent) : null,
+                  badge: approveEvent 
+                    ? { 
+                        text: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "Rejected" : "Approved", 
+                        color: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-600" 
+                      } 
+                    : nextStepKey === "manager"
+                    ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
+                    : null,
+                  timestamp: approveEvent ? formatTs(approveEvent.timestamp) : null,
+                },
+                {
+                  key: "create_po",
+                  label: "Create PO",
+                  done: !!poEvent,
+                  personName: poEvent ? formatPerson(poEvent) : null,
+                  badge: poEvent
+                    ? { text: "Done", color: "bg-emerald-50 text-emerald-600" }
+                    : nextStepKey === "create_po"
+                    ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
+                    : null,
+                  timestamp: poEvent ? formatTs(poEvent.timestamp) : null,
+                },
+                {
+                  key: "po_approval",
+                  label: "PO Approval",
+                  done: !!poApproveEvent,
+                  personName: poApproveEvent ? formatPerson(poApproveEvent) : null,
+                  badge: poApproveEvent
+                    ? { text: "Approved", color: "bg-emerald-50 text-emerald-600" }
+                    : nextStepKey === "po_approval"
+                    ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
+                    : null,
+                  timestamp: poApproveEvent ? formatTs(poApproveEvent.timestamp) : null,
+                },
+              ];
+            } else {
+              // Fallback for requests without timeline array
+              steps = [
+                {
+                  key: "submitted",
+                  label: pr.status === "draft" ? "Created by" : "Submitted by",
+                  done: true,
+                  personName: `${getRequesterName(pr) || "Employee"} (${getRoleName(pr.creator || pr.employee || user)})`.trim(),
+                  badge: null,
+                  timestamp: formatTs(pr.createdAt),
+                },
+                {
+                  key: "manager",
+                  label: "Manager Approval",
+                  done: !!approvedBy,
+                  personName: approvedBy
+                    ? (() => {
+                        const appName = `${approvedBy.firstName || ""} ${approvedBy.lastName || ""}`.trim();
+                        const appRole = getRoleName(approvedBy);
+                        const loggedInName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "";
+                        const loggedInRole = user ? getRoleName(user) : "";
+                        if (user && appName === loggedInName && appRole === loggedInRole) {
+                          return `You (${appRole})`;
+                        }
+                        return `${appName} (${appRole})`.trim();
+                      })()
+                    : `You (${getRoleName(user)})`,
+                  badge: approvedBy
+                    ? { text: "Approved", color: "bg-emerald-50 text-emerald-600" }
+                    : nextStepKey === "manager"
+                    ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
+                    : null,
+                  timestamp: approvedBy ? formatTs(pr.approvedAt || pr.updatedAt) : null,
+                },
+                {
+                  key: "create_po",
+                  label: "Create PO",
+                  done: hasPO,
+                  personName: hasPO ? (isPoCreatorSelf ? `${poCreatorName} (You)` : poCreatorName) : null,
+                  badge: hasPO
+                    ? { text: "Done", color: "bg-emerald-50 text-emerald-600" }
+                    : nextStepKey === "create_po"
+                    ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
+                    : null,
+                  timestamp: hasPO ? formatTs(po?.createdAt || pr.updatedAt) : null,
+                },
+                {
+                  key: "po_approval",
+                  label: "PO Approval",
+                  done: pr.status === "converted_to_po",
+                  personName: null,
+                  badge: pr.status === "converted_to_po"
+                    ? { text: "Approved", color: "bg-emerald-50 text-emerald-600" }
+                    : nextStepKey === "po_approval"
+                    ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
+                    : null,
+                  timestamp: null,
+                },
+              ];
+            }
 
             return (
               <div className="space-y-0 pt-1 pl-1">

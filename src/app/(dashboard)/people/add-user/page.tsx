@@ -111,9 +111,12 @@ function AddSingleUser() {
     // Handle form submission
     const onSubmit = async (data: UserFormData) => {
         try {
-            const mutation = isEdit ? updateUser : inviteUser;
-
-            await mutation.mutateAsync(data);
+            if (isEdit) {
+                if (!data.id) throw new Error("Missing user ID for update");
+                await updateUser.mutateAsync({ ...data, id: data.id } as any);
+            } else {
+                await inviteUser.mutateAsync(data as any);
+            }
 
             const promises = [allUsers.refetch()];
             if (user.isEnabled && typeof user.refetch === "function") {

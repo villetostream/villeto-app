@@ -44,6 +44,7 @@ export interface PurchaseRequestLineItem {
   accountingProjectRef?: string;
   accountingTaxCodeRef?: string;
   accountingResolutionStatus: AccountingResolutionStatus;
+  resolvedVendorId?: string;
 }
 
 export type ApprovalStatus =
@@ -51,6 +52,17 @@ export type ApprovalStatus =
   | "approved"
   | "rejected"
   | "not_required";
+
+export interface TimelineEvent {
+  action: string;
+  performedBy: {
+    firstName?: string;
+    lastName?: string;
+    roleName?: string | null;
+  } | null;
+  timestamp: string;
+  notes?: string | null;
+}
 
 export interface PurchaseRequest {
   purchaseRequestId: string;
@@ -84,6 +96,7 @@ export interface PurchaseRequest {
   /** Whether the currently logged-in user has a pending action on this request */
   currentUserActionRequired?: boolean;
   availableActions?: string[];
+  timeline?: TimelineEvent[];
 }
 
 export interface PurchaseRequestMeta {
@@ -136,6 +149,7 @@ export interface GetPurchaseRequestsParams {
   priority?: string;
   search?: string;
   scope?: "own" | "team" | "company";
+  requiresMyApproval?: boolean;
 }
 
 export const useGetPurchaseRequests = (
@@ -151,6 +165,10 @@ export const useGetPurchaseRequests = (
       if (params.status) query.set("status", params.status);
       if (params.priority) query.set("priority", params.priority);
       if (params.search) query.set("search", params.search);
+      // team scope requires the caller to see only requests pending their approval
+      if (params.requiresMyApproval || params.scope === "team") {
+        query.set("requiresMyApproval", "true");
+      }
       const url = `${PROCUREMENT_KEYS.PURCHASE_REQUESTS}${query.toString() ? `?${query.toString()}` : ""}`;
       const res = await axiosInstance.get(url);
       return res.data;

@@ -13,7 +13,7 @@ import { useCreatePolicyApi, type CreatePolicyPayload } from "@/queries/companie
 import type { UpdatePolicyPayload } from "@/queries/companies/update-policy";
 import { useUpdatePolicyApi } from "@/queries/companies/update-policy";
 import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
-import AddCategoryModal from "@/components/auth/AddCategoryModal";
+import SimpleAddExpenseCategoryDialog from "@/components/policies/SimpleAddExpenseCategoryDialog";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
 import { getCurrencyConfig } from "@/lib/utils/currency";
@@ -1030,7 +1030,7 @@ export default function PolicyCreationModal({
       description: formattedName,
       expenseCategories: categories,
       scope: scope === "all"
-        ? { type: "all_employees" as const, ...(location ? { location } : {}) }
+        ? { type: "all" as const, ...(location ? { location } : {}) }
         : {
             type: "specific" as const,
             departments: selectedDepts,
@@ -1489,9 +1489,11 @@ export default function PolicyCreationModal({
         </div>
       </div>
 
-      <AddCategoryModal open={isAddCatOpen} onOpenChange={setIsAddCatOpen}
-        onSkip={() => setIsAddCatOpen(false)} onSuccess={() => setIsAddCatOpen(false)}
-        showOnboardingIntro={false} />
+      <SimpleAddExpenseCategoryDialog
+        open={isAddCatOpen}
+        onOpenChange={setIsAddCatOpen}
+        onSuccess={() => setIsAddCatOpen(false)}
+      />
     </>
   );
 }

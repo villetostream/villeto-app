@@ -8,7 +8,7 @@ import {
   Eye, Archive, X, UserCircle, FileText, Clock, Tag, Loader2
 } from "lucide-react";
 import PolicyCreationModal, { type CreatedPolicyData } from "@/components/policies/PolicyCreationModal";
-import AddCategoryModal from "@/components/auth/AddCategoryModal";
+import SimpleAddExpenseCategoryDialog from "@/components/policies/SimpleAddExpenseCategoryDialog";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { DataTable } from "@/components/datatable";
 import { ColumnDef } from "@tanstack/react-table";
@@ -43,6 +43,7 @@ import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
 import { useDataTable } from "@/components/datatable/useDataTable";
+import { EmptyState } from "@/components/ui/empty-state";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
 import { useAuthStore } from "@/stores/auth-stores";
 import {
@@ -1162,6 +1163,13 @@ function PoliciesPage() {
                   data={filteredPolicies}
                   columns={policyColumns}
                   height="auto"
+                  emptyState={
+                    <EmptyState 
+                      icon={<Search className="w-6 h-6" />}
+                      title="No policies found"
+                      description="Try adjusting your search query to find what you're looking for."
+                    />
+                  }
                   onRowClick={(row) => setDetailPolicy(row)}
                   paginationProps={{ ...policyTableProps.paginationProps, total: filteredPolicies.length }}
                 />
@@ -1207,6 +1215,13 @@ function PoliciesPage() {
                   data={filteredCategories}
                   columns={columns}
                   height="auto"
+                  emptyState={
+                    <EmptyState 
+                      icon={<Search className="w-6 h-6" />}
+                      title="No expense categories found"
+                      description="Try adjusting your search query to find what you're looking for."
+                    />
+                  }
                   onRowClick={(row) => handleViewCategory(row.id)}
                   paginationProps={{ ...expenseTableProps.paginationProps, total: filteredCategories.length }}
                 />
@@ -1236,6 +1251,13 @@ function PoliciesPage() {
                   data={archivedPolicies}
                   columns={archivedColumns}
                   height="auto"
+                  emptyState={
+                    <EmptyState 
+                      icon={<Search className="w-6 h-6" />}
+                      title="No archived policies found"
+                      description="Try adjusting your search query to find what you're looking for."
+                    />
+                  }
                   onRowClick={(row) => setDetailPolicy(row)}
                   paginationProps={{ ...archivedTableProps.paginationProps, total: archivedPolicies.length }}
                 />
@@ -1274,12 +1296,10 @@ function PoliciesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AddCategoryModal
+      <SimpleAddExpenseCategoryDialog
         open={isAddCategoryOpen}
         onOpenChange={setIsAddCategoryOpen}
-        onSkip={() => setIsAddCategoryOpen(false)}
-        onSuccess={() => { setIsAddCategoryOpen(false); notifySetupGuide("expense-category"); }}
-        showOnboardingIntro={false}
+        onSuccess={() => { notifySetupGuide("expense-category"); }}
       />
       <ExpenseCategoryDetailsModal
         category={selectedCategoryDetails}
