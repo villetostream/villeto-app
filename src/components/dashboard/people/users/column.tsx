@@ -75,10 +75,10 @@ export const columns = (
     columnHelper.accessor("position", {
         header: "ROLE",
         cell: (info) => {
-            const position = info.getValue();
-            // Convert position to readable format (e.g., "CONTROLLING_OFFICER" -> "Controlling Officer")
-            const formattedPosition = formatName(position) || "-";
-            return <p className="capitalize text-sm">{formattedPosition}</p>;
+            const original = info.row.original;
+            const roleName = original.role?.name || (original as any).companyRole?.name || original.villetoRole?.name || info.getValue();
+            const formattedRole = formatName(roleName) || "-";
+            return <p className="capitalize text-sm">{formattedRole}</p>;
         },
     }),
     columnHelper.accessor("department", {

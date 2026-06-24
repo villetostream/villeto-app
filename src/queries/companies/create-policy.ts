@@ -1,6 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
+import { QUERY_KEYS } from "@/lib/constants/api-query-key";
 import type { PolicyRule, PolicyScope } from "./get-policies";
 
 export type { PolicyRule, PolicyScope } from "./get-policies";
@@ -31,6 +32,7 @@ interface Response {
 
 export const useCreatePolicyApi = () => {
   const axiosInstance = useAxios();
+  const queryClient = useQueryClient();
 
   return useMutation<Response, Error, CreatePolicyPayload>({
     retry: false,
@@ -38,5 +40,8 @@ export const useCreatePolicyApi = () => {
       const res = await axiosInstance.post(API_KEYS.EXPENSE.POLICIES, payload);
       return res.data;
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
+    }
   });
 };

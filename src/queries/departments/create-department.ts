@@ -1,6 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
+import { QUERY_KEYS } from "@/lib/constants/api-query-key";
 
 export interface Member {
     id: string;
@@ -38,6 +39,7 @@ interface Response {
 
 export const useCreateDepartmentApi = () => {
     const axiosInstance = useAxios();
+    const queryClient = useQueryClient();
 
     return useMutation<Response, Error, CreateDepartmentPayload>({
         retry: false,
@@ -45,5 +47,8 @@ export const useCreateDepartmentApi = () => {
             const res = await axiosInstance.post(API_KEYS.DEPARTMENT.DEPARTMENTS, payload);
             return res.data;
         },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DEPARTMENTS] });
+        }
     });
 };
