@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useGetAUsersApi } from "@/queries/users/get-a-user"
+import { useGetAllUsersApi } from "@/queries/users/get-all-users"
 import { useUpdateUserApi } from "@/queries/users/update-user"
 import { useGetAllRolesApi, Role, CapabilityGroup } from "@/queries/role/get-all-roles"
 import { useGetAllDepartmentsApi, Department } from "@/queries/departments/get-all-departments"
@@ -286,6 +287,7 @@ function OverviewTab({
     setEditState,
     roles,
     departments,
+    allUsers,
     onToggleStatus,
     isToggling,
 }: {
@@ -295,6 +297,7 @@ function OverviewTab({
     setEditState: (s: EditState) => void
     roles: Role[]
     departments: Department[]
+    allUsers: any[]
     onToggleStatus: () => void
     isToggling: boolean
 }) {
@@ -303,14 +306,24 @@ function OverviewTab({
         () => user.companyRole?.capabilityGroups ?? [],
         [user.companyRole]
     )
+    const [showAllCapabilities, setShowAllCapabilities] = useState(false);
 
     const [confirmOpen, setConfirmOpen] = useState(false)
 
     const managerName = useMemo(() => {
+        // First try to look up the manager by ID in the full users list
+        if (user.managerId && allUsers && allUsers.length > 0) {
+            const foundManager = allUsers.find(u => u.userId === user.managerId);
+            if (foundManager) {
+                return `${foundManager.firstName ?? ""} ${foundManager.lastName ?? ""}`.trim();
+            }
+        }
+        // Fallback to whatever the API returned in the manager field
         const m = user.manager
         if (!m) return "—"
+        if (typeof m === "string") return m
         return `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() || "—"
-    }, [user.manager])
+    }, [user.managerId, user.manager, allUsers])
 
     const roleOptions: DropdownOption[] = roles.map(r => ({
         id: r.roleId,
@@ -393,24 +406,15 @@ function OverviewTab({
                 </Row>
 
                 <Row>
-                    {/* Department — editable */}
+                    {/* Department — read-only */}
                     <div>
                         <FieldLabel>
                             <span className="flex items-center gap-1">
                                 <Building2 className="w-3 h-3" /> Department
-                                {isEditing && <span className="text-primary normal-case font-medium tracking-normal ml-1">• editable</span>}
                             </span>
                         </FieldLabel>
-                        {isEditing ? (
-                            <InlineDropdown
-                                value={editState.departmentId}
-                                options={deptOptions}
-                                placeholder="Select department"
-                                onChange={(id) => setEditState({ ...editState, departmentId: id })}
-                            />
-                        ) : (
-                            <ReadOnlyValue>{currentDeptName}</ReadOnlyValue>
-                        )}
+                        <ReadOnlyValue>{currentDeptName}</ReadOnlyValue>
+                        {isEditing && <p className="text-[10px] text-muted-foreground/60 mt-1 flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> Read-only</p>}
                     </div>
 
                     {/* Manager — read-only */}
@@ -426,7 +430,7 @@ function OverviewTab({
                     <div>
                         <FieldLabel>
                             <span className="flex items-center gap-1">
-                                <ShieldCheck className="w-3 h-3" /> Company Role
+                                Role
                                 {isEditing && <span className="text-primary normal-case font-medium tracking-normal ml-1">• editable</span>}
                             </span>
                         </FieldLabel>
@@ -442,54 +446,56 @@ function OverviewTab({
                         )}
                     </div>
 
-                    {/* Job Title — editable */}
+                    {/* Job Title — read-only */}
                     <div>
                         <FieldLabel>
                             <span className="flex items-center gap-1">
-                                <Briefcase className="w-3 h-3" /> Job Title
-                                {isEditing && <span className="text-primary normal-case font-medium tracking-normal ml-1">• editable</span>}
+                                Job Title
                             </span>
                         </FieldLabel>
-                        {isEditing ? (
-                            <input
-                                type="text"
-                                value={editState.jobTitle}
-                                onChange={e => setEditState({ ...editState, jobTitle: e.target.value })}
-                                placeholder="e.g. Frontend Engineer"
-                                className="w-full h-9 px-3 rounded-lg border border-border bg-white text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
-                            />
-                        ) : (
-                            <ReadOnlyValue>{editState.jobTitle || "—"}</ReadOnlyValue>
-                        )}
+                        <ReadOnlyValue>{editState.jobTitle || "—"}</ReadOnlyValue>
+                        {isEditing && <p className="text-[10px] text-muted-foreground/60 mt-1 flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> Read-only</p>}
                     </div>
                 </Row>
 
+                {/*
                 <Row>
-                    {/* Position — read-only */}
+                    {/* Position — read-only *\/}
                     <div>
                         <FieldLabel>Position</FieldLabel>
                         <ReadOnlyValue>{capitalize(user.position)}</ReadOnlyValue>
                         {isEditing && <p className="text-[10px] text-muted-foreground/60 mt-1 flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> Read-only</p>}
                     </div>
+                </Row>
+                */}
 
+                <Row>
                     {/* Member since — read-only */}
                     <div>
                         <FieldLabel>Member Since</FieldLabel>
                         <ReadOnlyValue>{formatDate(user.createdAt)}</ReadOnlyValue>
                     </div>
+
+                    {/* Last Login — placeholder */}
+                    <div>
+                        <FieldLabel>Last Login</FieldLabel>
+                        <ReadOnlyValue>2:20pm, 2023-01-10</ReadOnlyValue>
+                    </div>
                 </Row>
 
+                {/*
                 <Row>
-                    {/* Login count — read-only */}
+                    {/* Login count — read-only *\/}
                     <div>
                         <FieldLabel>Login Count</FieldLabel>
                         <ReadOnlyValue>{user.loginCount ?? 0} sessions</ReadOnlyValue>
                     </div>
                     <div></div>
                 </Row>
+                */}
             </div>
 
-            {/* ── Capability groups — full width ── */}
+            {/* ── Capabilities — full width ── */}
             {capabilityGroups.length > 0 && (
                 <div className="border border-border rounded-xl overflow-hidden">
                     <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
@@ -498,7 +504,7 @@ function OverviewTab({
                                 Capability Groups
                             </h3>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                                Via <span className="font-medium text-foreground">{user.companyRole?.name}</span>
+                                Via <span className="font-medium text-foreground">{user.companyRole?.name || "Role"}</span>
                             </p>
                         </div>
                         <Badge className="text-[10px] bg-primary/10 text-primary border-0 font-semibold">
@@ -506,7 +512,7 @@ function OverviewTab({
                         </Badge>
                     </div>
                     <div className="divide-y divide-border/50">
-                        {capabilityGroups.map(group => (
+                        {(showAllCapabilities ? capabilityGroups : capabilityGroups.slice(0, 3)).map(group => (
                             <div key={group.capabilityGroupId} className="px-4 py-3 flex items-start gap-3">
                                 <div className="w-7 h-7 rounded-lg bg-primary/8 flex items-center justify-center shrink-0 mt-0.5">
                                     <ShieldCheck className="w-3.5 h-3.5 text-primary" />
@@ -518,20 +524,24 @@ function OverviewTab({
                             </div>
                         ))}
                     </div>
+                    {capabilityGroups.length > 3 && (
+                        <div className="px-4 py-3 border-t border-border/50 bg-muted/10">
+                            <button 
+                                onClick={() => setShowAllCapabilities(!showAllCapabilities)}
+                                className="text-sm font-semibold text-[#00A294] hover:text-[#00A294]/80 transition-colors"
+                            >
+                                {showAllCapabilities ? "Hide capabilities" : "View all capabilities"}
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* ── Danger Zone ── */}
-            <div className="mt-8 border border-red-200 bg-red-50/50 rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-red-600">Danger Zone</h3>
-                <p className="text-xs text-muted-foreground mt-1 mb-4">
-                    {isActive 
-                        ? "Deactivating this user will immediately revoke their access to Villeto. They will no longer be able to log in or take any actions." 
-                        : "Activating this user will restore their access to Villeto. They will be able to log in and resume activity."}
-                </p>
+            {/* ── Deactivate User ── */}
+            <div className="flex justify-end pt-4">
                 <Button 
-                    variant={isActive ? "destructive" : "default"} 
-                    size="sm"
+                    className={`h-10 px-6 font-medium ${isActive ? "bg-[#E63946] hover:bg-[#E63946]/90 text-white" : ""}`}
+                    variant={isActive ? "default" : "default"} 
                     onClick={() => setConfirmOpen(true)}
                     disabled={isToggling}
                 >
@@ -666,10 +676,12 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
 
     const rolesQuery = useGetAllRolesApi({ limit: 50 }, { enabled: isOpen })
     const deptsQuery = useGetAllDepartmentsApi({ enabled: isOpen })
+    const allUsersQuery = useGetAllUsersApi({ enabled: isOpen })
     const updateUser = useUpdateUserApi()
 
     const roles: Role[] = rolesQuery.data?.data ?? []
     const departments: Department[] = deptsQuery.data?.data ?? []
+    const allUsers = allUsersQuery.data?.data ?? []
 
     const originalState = useMemo<EditState | null>(() => {
         if (!user) return null
@@ -697,9 +709,9 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
     const handleSave = async () => {
         if (!user || !isDirty) return
         const payload: Record<string, string> = { id: user.userId }
-        if (editState.roleId !== originalState?.roleId) payload.roleId = editState.roleId
-        if (editState.jobTitle !== originalState?.jobTitle) payload.jobTitle = editState.jobTitle
-        if (editState.departmentId !== originalState?.departmentId) payload.departmentId = editState.departmentId
+        if (editState.roleId !== originalState?.roleId) {
+            payload.companyRoleId = editState.roleId
+        }
 
         try {
             await updateUser.mutateAsync(payload as Parameters<typeof updateUser.mutateAsync>[0])
@@ -784,8 +796,15 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
                                 </span>
                             </div>
                             <div className="min-w-0">
-                                <DialogTitle className="text-sm font-semibold text-foreground leading-tight">
+                                <DialogTitle className="text-sm font-semibold text-foreground leading-tight flex items-center gap-2">
                                     {fullName}
+                                    <Badge
+                                        variant={isActive ? "active" : "inactive"}
+                                        className={`text-[10px] font-semibold px-2 py-0 h-4 rounded-full flex items-center gap-1 w-fit border-0 ${isActive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-500"}`}
+                                    >
+                                        <div className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-red-400"}`} />
+                                        {isActive ? "Active" : "Inactive"}
+                                    </Badge>
                                 </DialogTitle>
                                 <DialogDescription className="text-xs text-muted-foreground mt-0.5 truncate">
                                     {user.email}
@@ -802,7 +821,7 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
                                     onClick={() => setIsEditing(true)}
                                     className="h-8 rounded-lg text-xs font-medium gap-1.5 border-border hover:border-primary/50 hover:text-primary transition-colors focus-visible:ring-0 focus-visible:ring-offset-0"
                                 >
-                                    <Pencil className="w-3 h-3" /> Edit Details
+                                    <Pencil className="w-3 h-3" /> Update Role
                                 </Button>
                             ) : (
                                 <Button
@@ -852,6 +871,7 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
                                 setEditState={setEditState}
                                 roles={roles}
                                 departments={departments}
+                                allUsers={allUsers}
                                 onToggleStatus={handleToggleStatus}
                                 isToggling={updateUser.isPending}
                             />

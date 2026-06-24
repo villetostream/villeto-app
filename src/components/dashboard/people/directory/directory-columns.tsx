@@ -61,10 +61,8 @@ export const directoryColumns = [
     columnHelper.accessor("position", {
         header: "JOB TITLE",
         cell: (info) => {
-            const position = info.getValue();
             const jobTitle = info.row.original.jobTitle;
-            const value = jobTitle || position;
-            return <p className="text-sm">{formatName(value)}</p>;
+            return <p className="text-sm">{formatName(jobTitle)}</p>;
         },
     }),
     columnHelper.display({

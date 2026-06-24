@@ -1,6 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
+import { QUERY_KEYS } from "@/lib/constants/api-query-key";
 
 interface ExpenseCategory {
     name: string;
@@ -28,6 +29,7 @@ interface Response {
 
 export const useCreateExpenseCategoryApi = () => {
     const axiosInstance = useAxios();
+    const queryClient = useQueryClient();
 
     return useMutation<Response, Error, CreateExpenseCategoryPayload>({
         retry: false,
@@ -35,5 +37,8 @@ export const useCreateExpenseCategoryApi = () => {
             const res = await axiosInstance.post(API_KEYS.EXPENSE.CATEGORIES, payload);
             return res.data;
         },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES] });
+        }
     });
 };
