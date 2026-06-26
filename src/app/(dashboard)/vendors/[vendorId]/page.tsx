@@ -29,6 +29,8 @@ function VendorDetailsPage() {
   const [infoMessage, setInfoMessage] = useState("");
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
+  const [previewDocName, setPreviewDocName] = useState<string | null>(null);
 
   const fetchVendor = async () => {
     setIsLoading(true);
@@ -49,6 +51,16 @@ function VendorDetailsPage() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId]);
+
+  // Lock body scroll when preview modal is open
+  useEffect(() => {
+    if (previewDocUrl) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [previewDocUrl]);
 
   const handleDecision = async (decision: "approved" | "rejected", customNote?: string) => {
     if (!vendor) return;
@@ -320,10 +332,13 @@ function VendorDetailsPage() {
                         <p className="text-xs text-muted-foreground capitalize">{documentType}</p>
                       </div>
                     </div>
-                    <a href={fileUrl} target="_blank" rel="noreferrer"
+                    <button onClick={() => {
+                        setPreviewDocUrl(fileUrl);
+                        setPreviewDocName(originalName);
+                      }}
                       className="px-5 py-1.5 rounded-xl border border-primary text-primary text-xs font-bold hover:bg-primary/5 transition-colors">
                       View
-                    </a>
+                    </button>
                   </div>
                 );})}
               </div>
@@ -485,6 +500,61 @@ function VendorDetailsPage() {
                 className="flex-1 h-12 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors disabled:opacity-50">
                 {isSubmitting ? "Processing..." : "Reject Vendor"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Document Preview Modal ── */}
+      {previewDocUrl && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl h-[90vh] flex flex-col relative overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-gray-50/50">
+              <h2 className="text-lg font-bold text-gray-900 truncate pr-4">{previewDocName || "Document Preview"}</h2>
+              <div className="flex items-center gap-3">
+                <a href={previewDocUrl} target="_blank" rel="noreferrer" download
+                   className="px-4 py-1.5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+                  Download
+                </a>
+                <button onClick={() => { setPreviewDocUrl(null); setPreviewDocName(null); }}
+                  className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors">
+                  <X className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-gray-100 p-4 flex flex-col gap-4 relative overflow-hidden">
+              {/* Permanent fallback banner — guarantees the user can download the file even if the inline viewer fails (CORS, attachment headers) */}
+              <div className="w-full shrink-0 bg-blue-50 border border-blue-100 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+                <p className="text-sm text-blue-800">
+                  <span className="font-semibold">Having trouble viewing the document?</span> Your browser may not support inline viewing for this file type.
+                </p>
+                <a href={previewDocUrl} target="_blank" rel="noreferrer" download
+                   className="shrink-0 px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+                  Open / Download File
+                </a>
+              </div>
+              
+              <div className="flex-1 bg-white rounded-xl border border-gray-300 shadow-sm relative overflow-hidden">
+                {previewDocUrl.split('?')[0].match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                  <div className="w-full h-full flex items-center justify-center p-4">
+                    <img 
+                      src={previewDocUrl} 
+                      alt={previewDocName || "Document"} 
+                      className="max-w-full max-h-full object-contain" 
+                    />
+                  </div>
+                ) : (
+                  <iframe 
+                    src={
+                      previewDocUrl.split('?')[0].match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)
+                        ? `https://docs.google.com/viewer?url=${encodeURIComponent(previewDocUrl)}&embedded=true`
+                        : previewDocUrl
+                    } 
+                    className="w-full h-full border-0" 
+                    title={previewDocName || "Document"}
+                  />
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -41,8 +41,11 @@ import { useAxios } from "@/hooks/useAxios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
+import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
+import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
+import { useCompanyExpenses } from "@/lib/react-query/expenses";
 
-export function DashboardSidebar() {
+export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoading?: boolean }) {
   const location = usePathname();
   const searchParams = useSearchParams();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(() => {
@@ -58,6 +61,7 @@ export function DashboardSidebar() {
   const logout = useAuthStore((state) => state.logout);
   const can = useAuthStore((state) => state.can);
   const user = useAuthStore((state) => state.user);
+  const isAuthLoading = useAuthStore((state) => state.isLoading) || isProfileLoading;
   const router = useRouter();
   const axios = useAxios();
   const { state, setOpen } = useSidebar();
@@ -164,6 +168,41 @@ export function DashboardSidebar() {
   const canViewCompanyExpenses =
     can('expense.report', 'read_company') || can('expense.report', 'read_department');
 
+  // ── Badge Counts ──
+  const canApprovePR = can("procurement.purchase_request", "approve");
+  const canConvertPR = can("procurement.purchase_request", "convert_to_po");
+  const prScope = can("procurement.purchase_request", "read_company") ? "company" : can("procurement.purchase_request", "read_department") ? "team" : "own";
+
+  const { data: prApprovalData } = useGetPurchaseRequests(
+    { scope: prScope as any, status: "submitted", requiresMyApproval: true },
+    { enabled: canApprovePR, select: (d) => d.meta?.totalCount ?? 0 }
+  );
+  const prAwaitingCount = (prApprovalData as unknown as number) ?? 0;
+
+  const { data: prConversionData } = useGetPurchaseRequests(
+    { scope: prScope as any, status: "approved", requiresMyConversion: true },
+    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 }
+  );
+  const prReadyForPOCount = (prConversionData as unknown as number) ?? 0;
+  const totalPRActionCount = prAwaitingCount + prReadyForPOCount;
+
+  const canApprovePO = can("procurement.purchase_order", "approve");
+  const poScope = can("procurement.purchase_order", "read_company") ? "company" : can("procurement.purchase_order", "read_department") ? "team" : "own";
+
+  const { data: poApprovalData } = usePurchaseOrders(
+    1, 1, "pending_approval", undefined, undefined, poScope as any, true,
+    { enabled: canApprovePO, select: (d) => d.meta?.totalCount ?? 0 }
+  );
+  const totalPOActionCount = (poApprovalData as unknown as number) ?? 0;
+
+  const canApproveExpense = can("expense.report", "approve");
+  const expScope = can("expense.report", "read_company") ? "company" : can("expense.report", "read_department") ? "team" : null;
+  const { data: expensesData } = useCompanyExpenses(1, 100, (expScope || "company") as any, undefined, undefined, !!expScope && canApproveExpense);
+  
+  const totalExpenseActionCount = canApproveExpense && expensesData?.reports 
+    ? expensesData.reports.filter(e => e.status === "pending").length 
+    : 0;
+
   const filterItems = (items: NavItem[]): NavItem[] => {
     return items
       .map((item) => {
@@ -174,6 +213,12 @@ export function DashboardSidebar() {
           currentItem.href = canViewCompanyExpenses
             ? "/expenses?tab=company-expenses"
             : "/expenses?tab=personal-expenses";
+          if (totalExpenseActionCount > 0) currentItem.badge = totalExpenseActionCount.toString();
+        }
+
+        if (currentItem.href === "/procurement/purchase-request") {
+          const totalProcurement = totalPRActionCount + totalPOActionCount;
+          if (totalProcurement > 0) currentItem.badge = totalProcurement.toString();
         }
 
         if (currentItem.subItems) {
@@ -187,6 +232,13 @@ export function DashboardSidebar() {
                 currentSub.href = canViewCompanyExpenses
                   ? "/expenses?tab=company-expenses"
                   : "/expenses?tab=personal-expenses";
+                if (totalExpenseActionCount > 0) currentSub.badge = totalExpenseActionCount.toString();
+              }
+              if (currentSub.label === "Purchase Requests" && totalPRActionCount > 0) {
+                currentSub.badge = totalPRActionCount.toString();
+              }
+              if (currentSub.label === "Purchase Orders" && totalPOActionCount > 0) {
+                currentSub.badge = totalPOActionCount.toString();
               }
               return currentSub;
             })
@@ -268,10 +320,20 @@ export function DashboardSidebar() {
                 isActive={isGroupActive}
                 className="font-normal text-sm text-[#7F7F7F] data-[active=true]:text-primary data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium"
               >
-                <span className="shrink-0 [&>svg]:size-5 [&>svg]:shrink-0">
+                <span className="relative shrink-0 [&>svg]:size-5 [&>svg]:shrink-0">
                   {item.icon}
+                  {item.badge && (
+                    <span className="absolute -top-1.5 -right-1.5 hidden group-data-[collapsible=icon]:flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full bg-red-500 text-white text-[8px] font-bold leading-none">
+                      {Number(item.badge) > 99 ? "99+" : item.badge}
+                    </span>
+                  )}
                 </span>
                 <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+                {item.badge && (
+                  <span className="ml-auto mr-1 bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
+                    {item.badge}
+                  </span>
+                )}
                 <ChevronRight
                   className={cn(
                     "ml-auto h-4 w-4 transition-transform duration-200 group-data-[collapsible=icon]:hidden",
@@ -309,7 +371,7 @@ export function DashboardSidebar() {
                     <Link href={sub.href!} className="flex items-center justify-between w-full">
                       <span>{sub.label}</span>
                       {sub.badge && (
-                          <span className="ml-auto bg-[#F4F0FF] text-[#6941C6] px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap">
+                          <span className="ml-auto bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[18px] text-center whitespace-nowrap">
                               {sub.badge}
                           </span>
                       )}
@@ -358,8 +420,20 @@ export function DashboardSidebar() {
           className="font-normal text-sm text-[#7F7F7F] data-[active=true]:text-primary data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium"
         >
           <Link href={item.href}>
-            <span className="shrink-0 [&>svg]:size-5 [&>svg]:shrink-0">{item.icon}</span>
+            <span className="relative shrink-0 [&>svg]:size-5 [&>svg]:shrink-0">
+              {item.icon}
+              {item.badge && (
+                <span className="absolute -top-1.5 -right-1.5 hidden group-data-[collapsible=icon]:flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full bg-red-500 text-white text-[8px] font-bold leading-none">
+                  {Number(item.badge) > 99 ? "99+" : item.badge}
+                </span>
+              )}
+            </span>
             <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+            {item.badge && (
+              <span className="ml-auto bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
+                {item.badge}
+              </span>
+            )}
           </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>
@@ -430,7 +504,18 @@ export function DashboardSidebar() {
       </SidebarHeader>
       <SidebarContent className="py-4">
         <SidebarMenu className="space-y-1 px-3">
-          {filteredNavigationItems.map((item) => renderMenuItem(item))}
+          {isAuthLoading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <SidebarMenuItem key={i}>
+                <div className="flex items-center gap-3 px-2.5 py-2.5 w-full rounded-md mt-0.5">
+                  <Skeleton className="w-5 h-5 rounded-md shrink-0" />
+                  <Skeleton className="h-4 w-28 rounded-md group-data-[collapsible=icon]:hidden" />
+                </div>
+              </SidebarMenuItem>
+            ))
+          ) : (
+            filteredNavigationItems.map((item) => renderMenuItem(item))
+          )}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border px-3 py-2">

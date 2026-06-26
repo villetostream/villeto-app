@@ -88,9 +88,18 @@ export const PROCUREMENT_KEYS = {
   CATEGORIES: "companies/categories?module=procurement",
   CATEGORY: (categoryId: string) => `companies/categories/${categoryId}` as const,
   VENDORS: "procurement/vendors",
+  // ── Purchase Order endpoints ─────────────────────────────────────────────
   PURCHASE_ORDERS: "procurement/purchase-orders",
   PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}` as const,
   CANCEL_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/cancel` as const,
   ISSUE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/issue` as const,
   CLOSE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/close` as const,
+  /** PATCH — submit a standalone (non-PR) PO into the approval chain */
+  SUBMIT_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/submit-for-approval` as const,
+  /** PATCH — approve or reject a submitted PO */
+  APPROVE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/approval-decision` as const,
+  /** POST — confirm delivery receipt for an issued/delivered PO */
+  CONFIRM_RECEIPT: (id: string) => `procurement/purchase-orders/${id}/confirm-receipt` as const,
+  /** POST — add line items to a draft (non-PR) PO */
+  PO_LINE_ITEMS: (id: string) => `procurement/purchase-orders/${id}/line-items` as const,
 } as const;
