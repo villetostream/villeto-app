@@ -4,33 +4,44 @@ import type { PersonalExpenseStatus } from "@/components/expenses/table/personal
 
 export type ExpenseStatusContext = "personal" | "manager";
 
-// ─── Personal (submitter) — report lifecycle status ───────────────────────────
-// Shows the submitter where their report is in its journey.
+// ─────────────────────────────────────────────────────────────────────────────
+// Unified Color Palette (same token, used by both context maps for consistency)
+//   draft              → amber
+//   pending/in-review  → orange
+//   approved           → emerald
+//   paid               → teal
+//   rejected/declined  → red
+//   flagged            → purple
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Personal (submitter) view — lifecycle tracking language ──────────────────
+// Answer: "Where is MY expense right now?"
 const PERSONAL_STATUS_CFG: Record<string, { label: string; className: string }> = {
-  draft:                { label: "Draft",      className: "text-amber-600 bg-amber-50" },
-  submitted:            { label: "Submitted",  className: "text-blue-600 bg-blue-50" },
-  pending:              { label: "Submitted",  className: "text-blue-600 bg-blue-50" },
-  pending_policy_check: { label: "Submitted",  className: "text-blue-600 bg-blue-50" },
-  approved:             { label: "Approved",   className: "text-emerald-600 bg-emerald-50" },
-  paid:                 { label: "Paid Out",   className: "text-teal-600 bg-teal-50" },
-  declined:             { label: "Rejected",   className: "text-red-500 bg-red-50" },
-  rejected:             { label: "Rejected",   className: "text-red-500 bg-red-50" },
-  flagged:              { label: "Flagged",    className: "text-purple-600 bg-purple-50" },
+  draft:                { label: "Draft",          className: "text-amber-600 bg-amber-50" },
+  submitted:            { label: "Pending Review",  className: "text-orange-600 bg-orange-50" },
+  pending:              { label: "Pending Review",  className: "text-orange-600 bg-orange-50" },
+  pending_policy_check: { label: "Pending Review",  className: "text-orange-600 bg-orange-50" },
+  approved:             { label: "Approved",        className: "text-emerald-600 bg-emerald-50" },
+  paid:                 { label: "Paid Out",        className: "text-teal-600 bg-teal-50" },
+  declined:             { label: "Rejected",        className: "text-red-500 bg-red-50" },
+  rejected:             { label: "Rejected",        className: "text-red-500 bg-red-50" },
+  flagged:              { label: "Flagged",         className: "text-purple-600 bg-purple-50" },
 };
 
-// ─── Manager (team/company) — approval status ─────────────────────────────────
-// Shows approvers what action is needed on each report.
+// ─── Manager (team/company) view — action-oriented language ───────────────────
+// Answer: "What do I need to DO with this expense?"
 const APPROVAL_STATUS_CFG: Record<string, { label: string; className: string }> = {
-  pending_approval:     { label: "Pending Approval", className: "text-orange-500 bg-orange-50" },
-  approved:             { label: "Approved",          className: "text-emerald-600 bg-emerald-50" },
-  rejected:             { label: "Rejected",          className: "text-red-500 bg-red-50" },
-  declined:             { label: "Rejected",          className: "text-red-500 bg-red-50" },
-  paid:                 { label: "Paid Out",          className: "text-teal-600 bg-teal-50" },
-  draft:                { label: "Draft",             className: "text-amber-600 bg-amber-50" },
-  // Fallback: if approvalStatus isn't present yet, reflect the report status
-  submitted:            { label: "Pending Approval", className: "text-orange-500 bg-orange-50" },
-  pending:              { label: "Pending Approval", className: "text-orange-500 bg-orange-50" },
-  pending_policy_check: { label: "Pending Approval", className: "text-orange-500 bg-orange-50" },
+  // approvalStatus values from API
+  pending_approval:     { label: "Awaiting Approval", className: "text-orange-600 bg-orange-50" },
+  approved:             { label: "Approved",           className: "text-emerald-600 bg-emerald-50" },
+  rejected:             { label: "Rejected",           className: "text-red-500 bg-red-50" },
+  declined:             { label: "Rejected",           className: "text-red-500 bg-red-50" },
+  paid:                 { label: "Paid Out",           className: "text-teal-600 bg-teal-50" },
+  draft:                { label: "Draft",              className: "text-amber-600 bg-amber-50" },
+  // Fallback: when approvalStatus is absent, derive from report.status
+  submitted:            { label: "Awaiting Approval",  className: "text-orange-600 bg-orange-50" },
+  pending:              { label: "Awaiting Approval",  className: "text-orange-600 bg-orange-50" },
+  pending_policy_check: { label: "Awaiting Approval",  className: "text-orange-600 bg-orange-50" },
 };
 
 const FALLBACK_CFG = { label: "", className: "text-slate-500 bg-slate-100" };
@@ -55,8 +66,8 @@ export function normalizeExpenseReportStatus(rawStatus: string): PersonalExpense
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
 /**
- * context="personal"  → uses PERSONAL_STATUS_CFG  (status field)
- * context="manager"   → uses APPROVAL_STATUS_CFG  (approvalStatus field, falls back to status)
+ * context="personal"  → PERSONAL_STATUS_CFG  (submitter sees lifecycle language)
+ * context="manager"   → APPROVAL_STATUS_CFG   (approver sees action language)
  */
 export function ExpenseStatusBadge({
   status,

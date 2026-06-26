@@ -149,15 +149,20 @@ export interface GetPurchaseRequestsParams {
   priority?: string;
   search?: string;
   scope?: "own" | "team" | "company";
+  /** Only return PRs currently in THIS user's approval queue */
   requiresMyApproval?: boolean;
+  /** Only return PRs that are approved and awaiting conversion to PO by this user */
+  requiresMyConversion?: boolean;
+  page?: number;
+  limit?: number;
 }
 
-export const useGetPurchaseRequests = (
+export const useGetPurchaseRequests = <TData = ApiResponse<PurchaseRequest[]>>(
   params: GetPurchaseRequestsParams = {},
-  options?: Omit<UseQueryOptions<ApiResponse<PurchaseRequest[]>, Error>, "queryKey" | "queryFn">
-): UseQueryResult<ApiResponse<PurchaseRequest[]>, Error> => {
+  options?: Omit<UseQueryOptions<ApiResponse<PurchaseRequest[]>, Error, TData>, "queryKey" | "queryFn">
+): UseQueryResult<TData, Error> => {
   const axiosInstance = useAxios();
-  return useQuery({
+  return useQuery<ApiResponse<PurchaseRequest[]>, Error, TData>({
     queryKey: [QUERY_KEYS.PURCHASE_REQUESTS, params],
     queryFn: async () => {
       const query = new URLSearchParams();
@@ -165,10 +170,13 @@ export const useGetPurchaseRequests = (
       if (params.status) query.set("status", params.status);
       if (params.priority) query.set("priority", params.priority);
       if (params.search) query.set("search", params.search);
-      // team scope requires the caller to see only requests pending their approval
-      if (params.requiresMyApproval || params.scope === "team") {
-        query.set("requiresMyApproval", "true");
-      }
+      if (params.page) query.set("page", params.page.toString());
+      if (params.limit) query.set("limit", params.limit.toString());
+      // Caller explicitly requests filtering to their approval queue
+      if (params.requiresMyApproval) query.set("requiresMyApproval", "true");
+      // Caller explicitly requests filtering to PRs awaiting their PO conversion
+      // TODO: Uncomment when backend supports requiresMyConversion
+      // if (params.requiresMyConversion) query.set("requiresMyConversion", "true");
       const url = `${PROCUREMENT_KEYS.PURCHASE_REQUESTS}${query.toString() ? `?${query.toString()}` : ""}`;
       const res = await axiosInstance.get(url);
       return res.data;

@@ -45,7 +45,13 @@ export default function LoginPage() {
             const response = await login.mutateAsync(data);
             setAccessToken(response.data.accessToken);
             setUser(response.data.user as User);
-            setCompanyPermissions(response.data.user?.companyRole?.permissions ?? []);
+            const rootData = response.data as any;
+            const userPermissions = rootData.user?.companyRole?.permissions 
+                ?? rootData.user?.role?.permissions 
+                ?? rootData.companyRole?.permissions 
+                ?? rootData.role?.permissions 
+                ?? [];
+            setCompanyPermissions(userPermissions);
             router.push('/dashboard');
         } catch (err: unknown) {
             setError(getApiErrorMessage(err, "Invalid email or password"));

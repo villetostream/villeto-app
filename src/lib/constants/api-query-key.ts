@@ -17,4 +17,6 @@ export const QUERY_KEYS = {
   PURCHASE_REQUESTS: "purchase-requests",
   PURCHASE_REQUEST: "purchase-request",
   PROCUREMENT_CATEGORIES: "procurement-categories",
+  PURCHASE_ORDERS: "purchase-orders",
+  PURCHASE_ORDER: "purchase-order",
 } as const;

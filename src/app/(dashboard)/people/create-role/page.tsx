@@ -327,11 +327,11 @@ function CreateRolePage() {
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-8">Roles and Permissions</h1>
-
-            <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-12">
+            <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-12 items-start">
                 {/* Sidebar */}
-                <aside className="space-y-4">
+                <aside className="sticky top-6 space-y-8 h-fit">
+                    <h1 className="text-2xl font-bold">Roles and Permissions</h1>
+
                     <button
                         className="w-full flex items-center justify-between p-4 border-2 border-primary rounded-xl text-primary bg-white hover:bg-primary/5 transition-colors"
                         type="button"

@@ -99,8 +99,8 @@ function formatTs(d?: string) {
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
-function StatusBadge({ status, approvalStatus }: { status: string; approvalStatus?: string | null }) {
-  const displayKey = getPRDisplayStatus(status, approvalStatus);
+function StatusBadge({ status, approvalStatus, isOwnRequest }: { status: string; approvalStatus?: string | null; isOwnRequest?: boolean }) {
+  const displayKey = getPRDisplayStatus(status, approvalStatus, isOwnRequest);
   const cfg = PR_STATUS_CFG[displayKey] || PR_STATUS_CFG[status] || { label: status, className: "text-muted-foreground bg-muted/40" };
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${cfg.className}`}>
@@ -1665,7 +1665,7 @@ function PRDetailPage() {
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-xl font-bold text-foreground">{pr.requestNumber}</h1>
-              <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} />
+              <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} isOwnRequest={isOwnRequest} />
             </div>
             <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>
             {pr.description && <p className="text-xs text-muted-foreground mt-0.5">{pr.description}</p>}

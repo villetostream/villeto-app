@@ -38,6 +38,8 @@ export default function Reimbursements() {
   // ── Scope derivation (safe: false until auth is ready) ───────────────────
   const hasTeamScope    = authReady && can("expense.report", "read_department");
   const hasCompanyScope = authReady && can("expense.report", "read_company");
+  const canApproveExpense = authReady && can("expense.report", "approve");
+
 
   // ── Outer tab list (recalculated once auth is ready) ─────────────────────
   const outerTabs = useMemo(() => [
@@ -200,6 +202,16 @@ export default function Reimbursements() {
     { key: "paid",     filter: "paid" },
   ];
 
+  /** Pending badge counts — computed client-side from already-fetched data.
+   *  When the backend adds requiresMyApproval, swap these for a dedicated query. */
+  const companyPendingCount = canApproveExpense
+    ? companyExpenses.filter(e => e.status === "pending").length
+    : 0;
+  const teamPendingCount = canApproveExpense
+    ? teamExpenses.filter(e => e.status === "pending").length
+    : 0;
+
+
   // ── Render helpers ────────────────────────────────────────────────────────
   const renderCompanyExpenseTab = ({
     data,
@@ -211,6 +223,7 @@ export default function Reimbursements() {
     scope,
     activeTab,
     setActiveTab,
+    pendingCount,
   }: {
     data: CompanyExpenseReport[];
     isLoading: boolean;
@@ -221,7 +234,9 @@ export default function Reimbursements() {
     scope: "team" | "company";
     activeTab: string;
     setActiveTab: (v: string) => void;
+    pendingCount: number;
   }) => {
+
     const localStats = calculateStats(data);
     return (
       <div className="space-y-8">
@@ -248,16 +263,23 @@ export default function Reimbursements() {
           // which tells the user something false about their data.
           <ErrorState error={error} onRetry={refetch} />
         ) : data.length === 0 ? (
-          <ExpenseEmptyState title="No expense has been added" subtitle="" showButton={false} />
+          <ExpenseEmptyState title="No expenses found" subtitle="There are currently no expenses to display in this tab." showButton={false} />
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <TabsList>
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="draft">Draft</TabsTrigger>
+                <TabsTrigger value="pending" className="flex items-center">
+                  Awaiting Approval
+                  {pendingCount > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                      {pendingCount > 99 ? "99+" : pendingCount}
+                    </span>
+                  )}
+                </TabsTrigger>
                 <TabsTrigger value="approved">Approved</TabsTrigger>
                 <TabsTrigger value="rejected">Rejected</TabsTrigger>
-                <TabsTrigger value="pending">Pending</TabsTrigger>
                 <TabsTrigger value="paid">Paid</TabsTrigger>
               </TabsList>
               <div id="tab-actions" className="flex items-center gap-2" />
@@ -317,9 +339,9 @@ export default function Reimbursements() {
             <TabsList>
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="draft">Draft</TabsTrigger>
+              <TabsTrigger value="pending">Pending Review</TabsTrigger>
               <TabsTrigger value="approved">Approved</TabsTrigger>
               <TabsTrigger value="rejected">Rejected</TabsTrigger>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
               <TabsTrigger value="paid">Paid</TabsTrigger>
             </TabsList>
             <div id="tab-actions" className="flex items-center gap-2" />
@@ -383,6 +405,7 @@ export default function Reimbursements() {
                 scope: "company",
                 activeTab: companyActiveTab,
                 setActiveTab: setCompanyActiveTab,
+                pendingCount: companyPendingCount,
               })}
             </TabsContent>
           )}
@@ -399,6 +422,7 @@ export default function Reimbursements() {
                 scope: "team",
                 activeTab: teamActiveTab,
                 setActiveTab: setTeamActiveTab,
+                pendingCount: teamPendingCount,
               })}
             </TabsContent>
           )}

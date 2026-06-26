@@ -52,6 +52,7 @@ export default function DashboardLayoutContent({
   const router = useRouter();
   const isTourActive = useTourStore((s) => s.isTourActive);
   const setupGuideReady = useTourStore((s) => s.setupGuideReady);
+  const [profileFetched, setProfileFetched] = useState(false);
 
   useEffect(() => {
     // Lock body scroll to prevent double scrollbars in dashboard
@@ -87,6 +88,8 @@ export default function DashboardLayoutContent({
       }
     } catch {
       // Silently handle — user session may still be valid
+    } finally {
+      setProfileFetched(true);
     }
   }, [axios, login, setCompanyPermissions]);
 
@@ -144,7 +147,7 @@ export default function DashboardLayoutContent({
   return (
     <div className="flex bg-dashboard-background h-screen overflow-hidden" suppressHydrationWarning>
       <SidebarProvider defaultOpen={defaultOpen}>
-        <DashboardSidebar />
+        <DashboardSidebar isProfileLoading={!profileFetched} />
         <div className="flex flex-col flex-1 h-full overflow-hidden">
           <header className="flex items-center gap-4 px-4 sm:px-6 h-16 border-b border-dashboard-border-shade w-full shrink-0">
             {/* Hide mobile collapse trigger during tour so sidebar stays open */}

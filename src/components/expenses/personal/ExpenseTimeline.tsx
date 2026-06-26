@@ -243,23 +243,27 @@ export function ExpenseTimeline({
       <h2 className="text-lg font-semibold text-foreground">Expense Timeline</h2>
 
       <div className="relative">
-        {/* Vertical connector line */}
-        <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-border" />
-
         <div className="space-y-6">
           {entries.map((entry, index) => (
             <div key={index} className="relative flex items-start gap-4">
+              {/* Connector line to next item */}
+              {index !== entries.length - 1 && (
+                <div 
+                  className="absolute" 
+                  style={{ left: '7.5px', top: '20px', bottom: '-24px', width: '1px', backgroundColor: '#cbd5e1' }} 
+                />
+              )}
               {/* Dot */}
               <div
-                className={`relative z-10 w-8 h-8 rounded-full ${entry.dotColor} flex items-center justify-center shrink-0`}
+                className={`relative z-10 w-4 h-4 rounded-full ${entry.dotColor} flex items-center justify-center shrink-0 mt-0.5`}
               >
                 {entry.isActive && (
-                  <div className="w-3 h-3 rounded-full bg-white" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
                 )}
               </div>
 
               {/* Text */}
-              <div className="flex-1 pt-1 min-w-0">
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground leading-tight">
                   {entry.stage}
                 </p>

@@ -712,9 +712,12 @@ function VendorPage() {
 
   // Sync tab to URL
   useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", activeTab);
-    router.replace(`?${params.toString()}`, { scroll: false });
+    const currentTab = searchParams.get("tab") || "all";
+    if (currentTab !== activeTab) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", activeTab);
+      router.replace(`?${params.toString()}`, { scroll: false });
+    }
   }, [activeTab, router, searchParams]);
 
   // Header CTA — only show "Invite Vendor" to users who can actually invite.
