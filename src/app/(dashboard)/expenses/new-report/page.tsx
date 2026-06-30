@@ -20,7 +20,8 @@ import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { logger } from "@/lib/logger";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
-import { getApiErrorMessage, getPolicyViolationCauses, isPolicyViolationError } from "@/lib/types/api-error";
+import { getApiErrorMessage, isPolicyViolationError, isDuplicateReceiptError, getDuplicateReceipts, applyPolicyViolationErrorToExpenses, mapDuplicateReceiptsToExpenses } from "@/lib/types/api-error";
+import { invalidatePersonalExpenseQueries } from "@/lib/react-query/expenses";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -204,7 +205,7 @@ export default function NewReportPage() {
         merchantName: data.merchantName,
         description: data.description,
         receiptImage: receiptImage || "",
-        transactionDate: new Date(),
+        transactionDate: data.transactionDate ?? new Date(),
       },
     ]);
     toast.success("Expense added");
@@ -245,6 +246,7 @@ export default function NewReportPage() {
               merchantName: data.merchantName,
               category: data.category,
               description: data.description,
+              transactionDate: data.transactionDate ?? exp.transactionDate,
               justification: justification ?? exp.justification,
               // Clear old policy violation so it can be re-evaluated
               policyViolations: null,
@@ -395,48 +397,43 @@ export default function NewReportPage() {
         return payload;
       });
 
-      const finalPayload = { reportTitle, status: status === "pending" ? "pending_policy_check" : status, expenses: expensesPayload };
-      logger.log("[doSubmit] Final payload being sent:", finalPayload);
-      await axios.post(API_KEYS.EXPENSE.REPORTS, finalPayload);
+      let finalPayload: any;
+      if (status === "draft") {
+        finalPayload = { reportTitle, expenses: expensesPayload };
+        logger.log("[doSubmit] Final payload being sent to draft endpoint:", finalPayload);
+        await axios.post("reports/draft", finalPayload);
+      } else {
+        finalPayload = { reportTitle, expenses: expensesPayload };
+        logger.log("[doSubmit] Final payload being sent to manual reports endpoint:", finalPayload);
+        await axios.post(API_KEYS.EXPENSE.REPORTS, finalPayload);
+      }
 
       toast.success(status === "draft" ? "Report saved as draft" : "Report submitted successfully!");
       if (status === "pending") notifySetupGuide("report");
-      queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES] });
+      invalidatePersonalExpenseQueries(queryClient);
 
-      setTimeout(() => {
-        const tab = sessionStorage.getItem("expensesReturnTab") || "personal-expenses";
-        const page = sessionStorage.getItem("expensesReturnPage") || "1";
-        router.push(`/expenses?tab=${tab}&page=${page}`);
-      }, 500);
+      if (status === "pending") {
+        setTimeout(() => {
+          const tab = sessionStorage.getItem("expensesReturnTab") || "personal-expenses";
+          const page = sessionStorage.getItem("expensesReturnPage") || "1";
+          router.push(`/expenses?tab=${tab}&page=${page}`);
+        }, 500);
+      }
     } catch (error: unknown) {
       logger.error("Error submitting report:", error);
 
-      if (isPolicyViolationError(error)) {
-        const causes = getPolicyViolationCauses(error);
-        if (causes.length > 0) {
-          setExpenses((prev) =>
-            prev.map((exp) => {
-              const matchedCause = causes.find(
-                (c) =>
-                  c.categoryName === exp.category &&
-                  Number(c.expenseAmount) === exp.amount
-              );
+      if (isDuplicateReceiptError(error)) {
+        const message = getApiErrorMessage(error, "This receipt appears to have been submitted previously");
+        const duplicates = getDuplicateReceipts(error);
+        setExpenses((prev) => mapDuplicateReceiptsToExpenses(prev, duplicates, message));
+        toast.error(message);
+        return;
+      }
 
-              if (matchedCause?.violations && matchedCause.violations.length > 0) {
-                return {
-                  ...exp,
-                  policyViolations: matchedCause.violations.map((v) => ({
-                    type: v.type || "POLICY_RULE",
-                    message: v.message ?? "",
-                  })),
-                };
-              }
-              return exp;
-            })
-          );
-          toast.error("Some expenses violated policy rules. Please review them.");
-          return;
-        }
+      if (isPolicyViolationError(error)) {
+        setExpenses((prev) => applyPolicyViolationErrorToExpenses(prev, error));
+        toast.error("Some expenses violated policy rules. Please review the highlighted items.");
+        return;
       }
 
       toast.error(getApiErrorMessage(error, "Failed to submit report"));

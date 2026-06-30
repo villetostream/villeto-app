@@ -35,8 +35,17 @@ import { splitExpenseSchema } from "./split/splitSchema";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle, Check } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidatePersonalExpenseQueries } from "@/lib/react-query/expenses";
+import {
+  getApiErrorMessage,
+  isPolicyViolationError,
+  isDuplicateReceiptError,
+  getDuplicateReceipts,
+  getPolicyErrorsByExpenseIndex,
+} from "@/lib/types/api-error";
+import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -164,6 +173,8 @@ export function ManualExpenseForm({
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [policyErrorsByIndex, setPolicyErrorsByIndex] = useState<Record<number, string>>({});
+  const [pendingReceiptByIndex, setPendingReceiptByIndex] = useState<Record<number, string>>({});
   const searchParams = useSearchParams();
   const reportName = isEditMode
     ? reportDetail?.reportTitle || ""
@@ -301,8 +312,142 @@ export function ManualExpenseForm({
     ) as Array<`expenses.${number}.receipt`>;
   const receipts = useWatch({ control: form.control, name: receiptFieldsNames });
 
+  const confirmPendingReceipt = (expenseIndex: number) => {
+    const pending = pendingReceiptByIndex[expenseIndex];
+    if (!pending) return;
+    setFiles((prev) => {
+      const next = [...(prev ?? [])];
+      next[expenseIndex] = pending;
+      return next;
+    });
+    form.setValue(`expenses.${expenseIndex}.receipt`, pending, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.clearErrors(`expenses.${expenseIndex}.receipt`);
+    setPendingReceiptByIndex((prev) => {
+      const next = { ...prev };
+      delete next[expenseIndex];
+      return next;
+    });
+  };
+
+  const cancelPendingReceipt = (expenseIndex: number) => {
+    setPendingReceiptByIndex((prev) => {
+      const next = { ...prev };
+      delete next[expenseIndex];
+      return next;
+    });
+  };
+
+  const renderReceiptPanel = (index: number) => {
+    const pending = pendingReceiptByIndex[index];
+    const hasCommitted = hasReceiptSrc(files[index] || receipts?.[index]);
+    const inputId = `receipt-input-${index}`;
+
+    return (
+      <div className="max-w-sm">
+        <Label className="text-xs leading-[125%] font-normal text-foreground mb-1.5 block">
+          Receipt
+        </Label>
+        <div className="rounded-lg border border-border bg-white p-3 h-[420px] flex items-center justify-center relative">
+          <input
+            id={inputId}
+            type="file"
+            accept="image/*"
+            aria-label={`Upload receipt for item ${index + 1}`}
+            className="hidden"
+            onChange={(e) => onReceiptSelect(index, e)}
+          />
+          {pending ? (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3 px-2">
+              <p className="text-xs text-muted-foreground text-center">
+                Review your receipt before confirming.
+              </p>
+              <div className="relative w-full flex-1 min-h-0 rounded-lg overflow-hidden bg-muted/20 border border-border">
+                <Image
+                  src={normalizeReceiptSrc(pending)}
+                  alt="Receipt preview"
+                  fill
+                  unoptimized
+                  className="object-contain"
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => cancelPendingReceipt(index)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="outlinePrimary"
+                  size="sm"
+                  onClick={() => document.getElementById(inputId)?.click()}
+                >
+                  Choose different
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => confirmPendingReceipt(index)}
+                >
+                  Use this receipt
+                </Button>
+              </div>
+            </div>
+          ) : hasCommitted ? (
+            <div className="flex flex-col items-center justify-center gap-4 px-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Check className="w-6 h-6 text-primary" />
+              </div>
+              <p className="text-sm font-medium text-foreground">Receipt uploaded</p>
+              <Button
+                type="button"
+                variant="outlinePrimary"
+                size="sm"
+                onClick={() => document.getElementById(inputId)?.click()}
+              >
+                Change Receipt
+              </Button>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground text-center px-6 space-y-3">
+              <div className="text-muted-foreground font-medium">
+                No receipt uploaded for this item.
+              </div>
+              <div className="text-muted-foreground">
+                Receipt is required for final submission. You can save as draft
+                without a receipt.
+              </div>
+              <Button
+                type="button"
+                variant="outlinePrimary"
+                onClick={() => document.getElementById(inputId)?.click()}
+              >
+                Continue to upload receipt
+              </Button>
+            </div>
+          )}
+        </div>
+        <FormField
+          control={form.control}
+          name={`expenses.${index}.receipt`}
+          render={() => (
+            <FormItem className="pt-2">
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+    );
+  };
+
   const hasAllReceipts = fields.every((_, idx) =>
-    Boolean(files[idx] || receipts?.[idx]),
+    hasReceiptSrc(files[idx] || receipts?.[idx]),
   );
 
   const fileToBase64 = (file: File): Promise<string> => {
@@ -328,16 +473,7 @@ export function ManualExpenseForm({
 
     try {
       const base64 = await fileToBase64(file);
-      setFiles((prev) => {
-        const next = [...(prev ?? [])];
-        next[expenseIndex] = base64;
-        return next;
-      });
-      form.setValue(`expenses.${expenseIndex}.receipt`, base64, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-      form.clearErrors(`expenses.${expenseIndex}.receipt`);
+      setPendingReceiptByIndex((prev) => ({ ...prev, [expenseIndex]: base64 }));
     } catch {
       toast.error("Failed to upload receipt. Please try again.");
     } finally {
@@ -364,6 +500,15 @@ export function ManualExpenseForm({
 
     return formDirty || filesChanged || expenseCountChanged;
   })();
+
+  const applyPolicyErrorState = (error: unknown, values: ExpenseFormValues) => {
+    const meta = values.expenses.map((e) => ({
+      title: e.title,
+      category: e.category,
+      amount: e.amount,
+    }));
+    setPolicyErrorsByIndex(getPolicyErrorsByExpenseIndex(meta, error));
+  };
 
   const addExpense = () => {
     append({
@@ -741,14 +886,13 @@ export function ManualExpenseForm({
         };
         await axios.patch(`reports/${reportId}`, reportPayload);
 
+        setPolicyErrorsByIndex({});
         toast.success(
           `Your ${data.expenses.length} expense(s) have been updated and submitted successfully.`,
         );
         
         // Invalidate React Query cache to refetch personal expenses and report details
-        queryClient.invalidateQueries({
-          queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES],
-        });
+        invalidatePersonalExpenseQueries(queryClient);
         queryClient.invalidateQueries({
           queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES, reportId],
         });
@@ -772,14 +916,13 @@ export function ManualExpenseForm({
         // Use POST for creating new expenses
         const payload = buildExpensePayload(data, true, "pending");
         await axios.post(API_KEYS.EXPENSE.REPORTS, payload);
+        setPolicyErrorsByIndex({});
         toast.success(
           `Your ${data.expenses.length} expense(s) have been submitted successfully.`,
         );
 
         // Invalidate React Query cache to refetch personal expenses
-        queryClient.invalidateQueries({
-          queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES],
-        });
+        invalidatePersonalExpenseQueries(queryClient);
 
         form.reset({
           expenses: [
@@ -807,6 +950,17 @@ export function ManualExpenseForm({
       }
     } catch (error: unknown) {
       logger.error("Error submitting expenses:", error);
+
+      if (isDuplicateReceiptError(error)) {
+        toast.error(getApiErrorMessage(error, "This receipt appears to have been submitted previously"));
+        return;
+      }
+      if (isPolicyViolationError(error)) {
+        applyPolicyErrorState(error, data);
+        toast.error(getApiErrorMessage(error, "Policy violation — please review your expenses."));
+        return;
+      }
+
       const err = error as {
         response?: { data?: { message?: string; error?: string }; status?: number };
         message?: string;
@@ -892,7 +1046,13 @@ export function ManualExpenseForm({
                           >
                             <AccordionTrigger className="px-4 py-3 bg-gray-50 rounded-md text-left">
                               <div className="flex w-full justify-between items-center">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  {policyErrorsByIndex[index] && (
+                                    <AlertCircle
+                                      className="w-4 h-4 text-red-500 shrink-0"
+                                      aria-label="Policy violation"
+                                    />
+                                  )}
                                   <span className="font-medium">
                                     {form.getValues(
                                       `expenses.${index}.title`,
@@ -933,7 +1093,13 @@ export function ManualExpenseForm({
                             </AccordionTrigger>
                             <AccordionContent>
                               <div className="p-0 gap-8 relative flex items-start px-6 justify-between w-full">
-                                <div className="space-y-5 max-w-lg flex flex-col pr-16">
+                                {policyErrorsByIndex[index] && (
+                                  <div className="absolute top-2 left-6 right-6 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 z-10">
+                                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-red-600">{policyErrorsByIndex[index]}</p>
+                                  </div>
+                                )}
+                                <div className={`space-y-5 max-w-lg flex flex-col pr-16 ${policyErrorsByIndex[index] ? "pt-14" : ""}`}>
                                   <SplitExpense
                                     control={form.control as unknown as Control<SplitExpenseFormValues>}
                                     expenseIndex={index}
@@ -997,81 +1163,7 @@ export function ManualExpenseForm({
                                     </Button>
                                   )}
                                 </div>
-                                <div className="max-w-sm">
-                                  <Label className="text-xs leading-[125%] font-normal text-foreground mb-1.5 block">
-                                    Receipt
-                                  </Label>
-                                  <div className="rounded-lg border border-border bg-white p-3 h-[420px] flex items-center justify-center relative">
-                                    <input
-                                      id={`receipt-input-${index}`}
-                                      type="file"
-                                      accept="image/*"
-                                      aria-label={`Upload receipt for item ${index + 1}`}
-                                      className="hidden"
-                                      onChange={(e) => onReceiptSelect(index, e)}
-                                    />
-                                    {files[index] ? (
-                                      <div className="w-full h-full flex flex-col items-center justify-center relative">
-                                        <Image
-                                          src={files[index]}
-                                          alt="Uploaded receipt"
-                                          width={400}
-                                          height={420}
-                                          unoptimized
-                                          className="w-full h-full object-contain"
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="outlinePrimary"
-                                          size="sm"
-                                          className="mt-3"
-                                          onClick={() => {
-                                            document
-                                              .getElementById(
-                                                `receipt-input-${index}`,
-                                              )
-                                              ?.click();
-                                          }}
-                                        >
-                                          Change Receipt
-                                        </Button>
-                                      </div>
-                                    ) : (
-                                      <div className="text-sm text-muted-foreground text-center px-6 space-y-3">
-                                        <div className="text-muted-foreground font-medium">
-                                          No receipt uploaded for this item.
-                                        </div>
-                                        <div className="text-muted-foreground">
-                                          Receipt is required for final
-                                          submission. You can save as draft
-                                          without a receipt.
-                                        </div>
-                                        <Button
-                                          type="button"
-                                          variant="outlinePrimary"
-                                          onClick={() => {
-                                            document
-                                              .getElementById(
-                                                `receipt-input-${index}`,
-                                              )
-                                              ?.click();
-                                          }}
-                                        >
-                                          Continue to upload receipt
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <FormField
-                                    control={form.control}
-                                    name={`expenses.${index}.receipt`}
-                                    render={() => (
-                                      <FormItem className="pt-2">
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
+                                {renderReceiptPanel(index)}
                               </div>
                             </AccordionContent>
                           </AccordionItem>
@@ -1087,6 +1179,12 @@ export function ManualExpenseForm({
                           className="p-0 gap-8 relative flex items-start px-6 justify-between w-full"
                         >
                           <div className="space-y-5 max-w-lg flex flex-col pr-16">
+                            {policyErrorsByIndex[index] && (
+                              <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                <p className="text-xs text-red-600">{policyErrorsByIndex[index]}</p>
+                              </div>
+                            )}
                             {fields.length > 1 && index != 0 && (
                               <div className="ml-auto w-fit flex">
                                 <Button
@@ -1164,80 +1262,7 @@ export function ManualExpenseForm({
                               </Button>
                             )}
                           </div>
-                          <div className="max-w-sm">
-                            <Label className="text-xs leading-[125%] font-normal text-foreground mb-1.5 block">
-                              Receipt
-                            </Label>
-                            <div className="rounded-lg border border-border bg-white p-3 h-[420px] flex items-center justify-center relative">
-                              <input
-                                id={`receipt-input-${index}`}
-                                type="file"
-                                accept="image/*"
-                                aria-label={`Upload receipt for item ${index + 1}`}
-                                className="hidden"
-                                onChange={(e) => onReceiptSelect(index, e)}
-                              />
-                              {files[index] ? (
-                                <div className="w-full h-full flex flex-col items-center justify-center relative">
-                                  <Image
-                                    src={files[index]}
-                                    alt="Uploaded receipt"
-                                    width={400}
-                                    height={420}
-                                    unoptimized
-                                    className="w-full h-full object-contain"
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="outlinePrimary"
-                                    size="sm"
-                                    className="mt-3"
-                                    onClick={() => {
-                                      document
-                                        .getElementById(
-                                          `receipt-input-${index}`,
-                                        )
-                                        ?.click();
-                                    }}
-                                  >
-                                    Change Receipt
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="text-sm text-muted-foreground text-center px-6 space-y-3">
-                                  <div className="text-muted-foreground font-medium">
-                                    No receipt uploaded for this item.
-                                  </div>
-                                  <div className="text-muted-foreground">
-                                    Receipt is required for final submission.
-                                    You can save as draft without a receipt.
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="outlinePrimary"
-                                    onClick={() => {
-                                      document
-                                        .getElementById(
-                                          `receipt-input-${index}`,
-                                        )
-                                        ?.click();
-                                    }}
-                                  >
-                                    Continue to upload receipt
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                            <FormField
-                              control={form.control}
-                              name={`expenses.${index}.receipt`}
-                              render={() => (
-                                <FormItem className="pt-2">
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
+                          {renderReceiptPanel(index)}
                         </div>
                       );
                     })
@@ -1297,9 +1322,7 @@ export function ManualExpenseForm({
                           await axios.patch(`reports/${reportId}`, reportPayload);
                           
                           // Invalidate React Query cache to refetch report details
-                          queryClient.invalidateQueries({
-                            queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES],
-                          });
+                          invalidatePersonalExpenseQueries(queryClient);
                           queryClient.invalidateQueries({
                             queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES, reportId],
                           });
@@ -1330,23 +1353,23 @@ export function ManualExpenseForm({
                             logger.warn("Failed to persist to localStorage:", storageError);
                           }
 
-                          queryClient.invalidateQueries({
-                            queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES],
-                          });
+                          invalidatePersonalExpenseQueries(queryClient);
 
                           toast.success("Saved as draft.");
                           sessionStorage.removeItem("uploadedReceipts");
-                          const returnTab =
-                            sessionStorage.getItem("expensesReturnTab") ||
-                            "personal-expenses";
-                          const returnPage =
-                            sessionStorage.getItem("expensesReturnPage") || "1";
-                          router.push(
-                            `/expenses?tab=${returnTab}&page=${returnPage}`,
-                          );
+                          // Stay on the page after saving a new draft (unlike submit)
                         }
                       } catch (error: unknown) {
                         logger.error("Error saving draft:", error);
+                        if (isDuplicateReceiptError(error)) {
+                          toast.error(getApiErrorMessage(error, "This receipt appears to have been submitted previously"));
+                          return;
+                        }
+                        if (isPolicyViolationError(error)) {
+                          applyPolicyErrorState(error, values as ExpenseFormValues);
+                          toast.error(getApiErrorMessage(error, "Policy violation — please review your expenses."));
+                          return;
+                        }
                         const err = error as {
                           response?: { data?: { message?: string; error?: string } };
                           message?: string;

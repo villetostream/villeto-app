@@ -158,7 +158,11 @@ export const navigationItems: NavItem[] = [
       {
         label: "Purchase Orders",
         href: "/procurement/purchase-order",
-        permissions: [{ resource: "procurement.purchase_order", action: "read_company" }],
+        permissions: [
+          { resource: "procurement.purchase_order", action: "read_own" },
+          { resource: "procurement.purchase_order", action: "read_department" },
+          { resource: "procurement.purchase_order", action: "read_company" },
+        ],
       },
       {
         label: "Confirmation",

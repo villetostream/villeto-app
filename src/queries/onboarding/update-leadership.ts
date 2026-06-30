@@ -21,25 +21,16 @@ interface Response {
 
 
 export type LeaderShipPayload = {
-    "businessOwners":
-    {
-        "firstName": string,
-        "lastName": string,
-        "email": string,
-        phone?: string | null,
-        "ownershipPercentage": number
-    }[]
-    ,
-    "officers"?:
-    {
-        "firstName": string,
-        "lastName": string,
-        "email": string,
-        phone?: string | null,
-
-    }[]
-
-}
+    isUserAnOwner: boolean;
+    selfOwnershipPercentage?: number;
+    businessOwners: {
+        firstName: string;
+        lastName: string;
+        email: string;
+        phone?: string | null;
+        ownershipPercentage: number;
+    }[];
+};
 
 
 export const useUpdateOnboardingLeadersApi = (): UseMutationResult<Response, Error, LeaderShipPayload> => {
@@ -49,7 +40,7 @@ export const useUpdateOnboardingLeadersApi = (): UseMutationResult<Response, Err
         retry: false,
         mutationFn: async (payload: LeaderShipPayload) => {
             const { onboardingId } = useOnboardingStore.getState();
-            const res = await axiosInstance.patch(API_KEYS.ONBOARDING.ONBOARDING_LEADERS(onboardingId), payload,);
+            const res = await axiosInstance.patch(API_KEYS.ONBOARDING.ONBOARDING_LEADERS(onboardingId), payload);
             return res.data;
         },
     });

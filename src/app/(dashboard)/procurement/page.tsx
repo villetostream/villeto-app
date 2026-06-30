@@ -10,6 +10,12 @@ import {
 import { useAuthStore } from "@/stores/auth-stores";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
+import {
+  canPOApprove,
+  canPOCreate,
+  canPOReadCompany,
+  canPOReadDepartment,
+} from "@/lib/permissions/purchase-order-permissions";
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 
@@ -90,9 +96,10 @@ export default function Procurement() {
   const hasTeamScope  = can("procurement.purchase_request", "read_department");
   const canApprove    = can("procurement.purchase_request", "approve");
   const canConvert    = can("procurement.purchase_request", "convert_to_po");
-  const canApprovePO  = can("procurement.purchase_order", "approve");
+  const canApprovePO  = canPOApprove(can);
   const canCreatePR   = can("procurement.purchase_request", "create");
-  const canCreatePO   = can("procurement.purchase_order", "create");
+  const canCreatePO   = canPOCreate(can);
+  const poScope = canPOReadCompany(can) ? "company" : canPOReadDepartment(can) ? "team" : "own";
   const canViewVendors = can("vendor", "read") || can("vendor", "manage");
 
   // ── Live count queries (meta.totalCount only) ─────────────────────────────
@@ -112,8 +119,8 @@ export default function Procurement() {
   const readyForPO = (prConvertCount as unknown as number) ?? 0;
 
   const { data: poApprovalCount, isLoading: loadingPOApproval } = usePurchaseOrders(
-    1, 1, "pending_approval", undefined, undefined, scope, true,
-    { enabled: canApprovePO, select: (d) => d.meta?.totalCount ?? 0 }
+    1, 1, "pending_approval", undefined, undefined, poScope,
+    { enabled: canApprovePO && (canPOReadCompany(can) || canPOReadDepartment(can)), select: (d) => d.meta?.totalCount ?? 0 }
   );
   const needsMyApprovalPO = (poApprovalCount as unknown as number) ?? 0;
 

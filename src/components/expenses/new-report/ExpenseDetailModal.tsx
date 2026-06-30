@@ -1,8 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ExpenseForm, type ExpenseDetailFormData } from "./ExpenseForm";
+import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
+import { logger } from "@/lib/logger";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -20,17 +24,12 @@ interface ExpenseDetailModalProps {
     category: string;
     description?: string;
     receiptImage?: string;
-    // Policy fields
+    transactionDate?: Date;
     policyViolations?: { type: string; message: string; ruleType?: string }[] | null;
     justification?: string;
   } | null;
   categories: ExpenseCategory[];
   onSave: (expenseId: string, data: ExpenseDetailFormData, newReceipt?: string, justification?: string) => void;
-  /**
-   * When true (eye icon): shows the expense in an EDITABLE form (with bordered inputs, pre-filled)
-   * so the user can view and optionally modify values — matching the manual entry look.
-   * When false/undefined (edit from policy flow): same editable form.
-   */
   readOnly?: boolean;
 }
 
@@ -42,9 +41,19 @@ export function ExpenseDetailModal({
   onSave,
   readOnly: _readOnly = true,
 }: ExpenseDetailModalProps) {
+  const [receiptImage, setReceiptImage] = useState("");
+  const [pendingReceipt, setPendingReceipt] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!expense) return;
+    setReceiptImage(expense.receiptImage || "");
+    setPendingReceipt(null);
+  }, [expense]);
+
   if (!expense) return null;
 
-  const hasReceipt = !!expense.receiptImage;
+  const displayReceipt = pendingReceipt ?? receiptImage;
+  const hasReceipt = hasReceiptSrc(displayReceipt);
 
   const fieldErrors: { amount?: string[]; receiptImage?: string[]; general?: string[] } = {};
   let hasHardBlock = false;
@@ -66,37 +75,62 @@ export function ExpenseDetailModal({
     });
   }
 
-  const getReceiptFileName = (url?: string) => {
-    if (!url) return "No receipt uploaded";
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleSideReceiptChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file?.type.startsWith("image/")) return;
+
     try {
-      if (url.startsWith("data:")) return "Receipt.jpeg";
-      const parts = url.split("/");
-      return decodeURIComponent(parts[parts.length - 1]) || "Receipt.jpeg";
-    } catch {
-      return "Receipt.jpeg";
+      const base64 = await fileToBase64(file);
+      setPendingReceipt(base64);
+    } catch (error) {
+      logger.error("Error converting receipt:", error);
+    } finally {
+      e.target.value = "";
     }
+  };
+
+  const confirmSideReceipt = () => {
+    if (!pendingReceipt) return;
+    setReceiptImage(pendingReceipt);
+    setPendingReceipt(null);
+  };
+
+  const cancelSideReceipt = () => {
+    setPendingReceipt(null);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className="rounded-2xl p-0 overflow-hidden"
-        style={{ maxWidth: hasReceipt ? "800px" : "480px" }}
+        className="rounded-2xl p-0 overflow-hidden gap-0"
+        style={{ maxWidth: hasReceipt ? "760px" : "480px" }}
         showCloseButton={false}
       >
-        <div className="flex h-full">
-          {/* Left: editable form with pre-filled bordered inputs */}
-          <div className={`flex flex-col p-6 ${hasReceipt ? "flex-1 min-w-0" : "w-full"}`}>
-            <DialogHeader className="mb-4">
+        <div className="flex max-h-[85vh]">
+          <div className={`flex flex-col p-5 overflow-y-auto ${hasReceipt ? "flex-1 min-w-0" : "w-full"}`}>
+            <DialogHeader className="mb-3 shrink-0">
               <DialogTitle className="text-base font-semibold">
                 {expense.name}
               </DialogTitle>
             </DialogHeader>
 
-            {/* Policy violation banners (General errors only) */}
-            {fieldErrors.general && fieldErrors.general.map((msg, i) => (
-              <div key={i} className={`mb-4 px-3 py-2 rounded-lg border ${hasHardBlock ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"}`}>
-                <p className={`text-xs font-medium ${hasHardBlock ? "text-red-700" : "text-amber-700"}`}>{msg}</p>
+            {fieldErrors.general?.map((msg, i) => (
+              <div
+                key={i}
+                className={`mb-3 px-3 py-2 rounded-lg border shrink-0 ${hasHardBlock ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"}`}
+              >
+                <p className={`text-xs font-medium ${hasHardBlock ? "text-red-700" : "text-amber-700"}`}>
+                  {msg}
+                </p>
               </div>
             ))}
 
@@ -107,37 +141,65 @@ export function ExpenseDetailModal({
                 merchantName: expense.merchantName,
                 category: expense.category,
                 description: expense.description,
-                receiptImage: expense.receiptImage,
+                receiptImage,
+                transactionDate: expense.transactionDate,
               }}
               categories={categories}
-              onSave={(data, newReceipt) => {
-                onSave(expense.id, data, newReceipt);
+              onSave={(data) => {
+                onSave(expense.id, data, receiptImage);
                 onClose();
               }}
               onCancel={onClose}
               submitLabel="Save Update"
               cancelLabel="Cancel"
               fieldErrors={fieldErrors}
+              hideReceiptUpload={hasReceipt}
+              compact
             />
           </div>
 
-          {/* Right: receipt image preview panel */}
           {hasReceipt && (
-            <div className="w-80 shrink-0 border-l border-border bg-gray-50 flex flex-col items-center justify-start p-5 pt-8 overflow-hidden">
-              {expense.receiptImage && (expense.receiptImage.startsWith("data:image") || expense.receiptImage.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i)) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={expense.receiptImage}
+            <div className="w-64 shrink-0 border-l border-border bg-gray-50 flex flex-col p-4 gap-3">
+              <p className="text-xs font-medium text-muted-foreground">Receipt</p>
+              <div className="relative flex-1 min-h-[220px] max-h-[360px] rounded-lg overflow-hidden bg-white border border-border">
+                <Image
+                  src={normalizeReceiptSrc(displayReceipt)}
                   alt="Receipt"
-                  className="w-full h-auto rounded-xl object-contain max-h-[80vh] shadow-sm"
+                  fill
+                  unoptimized
+                  className="object-contain p-2"
                 />
-              ) : (
-                <div className="w-full rounded-lg border border-border bg-white flex flex-col items-center justify-center p-4 gap-2 text-center min-h-[200px]">
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                    <Check className="w-4 h-4 text-green-600" />
+              </div>
+              {pendingReceipt ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-[11px] text-muted-foreground">Confirm this receipt?</p>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={cancelSideReceipt}>
+                      Cancel
+                    </Button>
+                    <Button type="button" size="sm" className="flex-1" onClick={confirmSideReceipt}>
+                      Use receipt
+                    </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground break-all">{getReceiptFileName(expense.receiptImage)}</p>
                 </div>
+              ) : (
+                <>
+                  <input
+                    id="expense-detail-receipt-change"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleSideReceiptChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => document.getElementById("expense-detail-receipt-change")?.click()}
+                  >
+                    Change Receipt
+                  </Button>
+                </>
               )}
             </div>
           )}

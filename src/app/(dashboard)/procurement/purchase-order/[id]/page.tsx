@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { AlertCircle, X, Loader2, XCircle, CheckCircle, PackageCheck } from "lucide-react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { AlertCircle, X, Loader2, XCircle, PackageCheck, Pencil } from "lucide-react";
 import {
   usePurchaseOrder,
   useIssuePurchaseOrder,
@@ -14,6 +14,19 @@ import {
   type ConfirmReceiptPayload,
 } from "@/queries/procurement/purchase-orders";
 import { useAuthStore } from "@/stores/auth-stores";
+import { getPOStatusLabel } from "@/lib/constants/purchase-order-status";
+import {
+  canPOApprove,
+  canPOCancel,
+  canPOClose,
+  canPOIssue,
+  canPOReceive,
+  canPOSubmit,
+  canPOUpdateDraft,
+  buildPOEditUrl,
+  buildPOListUrl,
+} from "@/lib/permissions/purchase-order-permissions";
+import { EmptyState } from "@/components/ui/empty-state";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -46,31 +59,61 @@ function safeFmt(date: string | null | undefined) {
 
 // ── Workflow Step ─────────────────────────────────────────────────────────────
 
-function WorkflowStep({
-  label, person, badge, badgeColor, timestamp, done, pending,
-}: {
+type WorkflowStepType = {
   label: string; person?: string; badge?: string; badgeColor?: string;
   timestamp?: string | null; done?: boolean; pending?: boolean;
-}) {
+};
+
+function WorkflowProgress({ steps }: { steps: WorkflowStepType[] }) {
   return (
-    <div className="flex gap-3 items-start">
-      <div className="flex flex-col items-center">
-        <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 ${
-          done ? "border-primary bg-primary" : pending ? "border-amber-400 bg-amber-50" : "border-gray-200 bg-white"
-        }`} />
-      </div>
-      <div className="pb-4">
-        <p className={`text-xs font-semibold ${!done && !pending ? "text-gray-400" : "text-foreground"}`}>{label}</p>
-        {person && (
-          <p className={`text-xs mt-0.5 ${!done && !pending ? "text-gray-300" : "text-muted-foreground"}`}>
-            {person}
-            {badge && (
-              <span className={`ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${badgeColor}`}>{badge}</span>
-            )}
-          </p>
-        )}
-        {timestamp && <p className="text-[11px] text-muted-foreground/70 mt-0.5">{safeFmt(timestamp)}</p>}
-      </div>
+    <div className="space-y-0 pt-1 pl-1">
+      {steps.map((step, idx) => {
+        const isLast = idx === steps.length - 1;
+        const status = step.done ? "done" : step.pending ? "pending" : "inactive";
+        return (
+          <div key={idx} className={`flex items-start gap-3 ${status === "inactive" ? "opacity-45" : ""}`}>
+            {/* Icon + connector */}
+            <div className="flex flex-col items-center shrink-0 pt-0.5">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                status === "done"
+                  ? "bg-primary/10"
+                  : "bg-muted border border-border"
+              }`}>
+                {status === "done"
+                  ? <svg className="w-3 h-3 text-primary" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                  : <div className={`w-1.5 h-1.5 rounded-full ${status === "pending" ? "bg-amber-400" : "bg-muted-foreground/40"}`} />
+                }
+              </div>
+              {!isLast && (
+                <div className="w-px bg-border/60 flex-1 min-h-[16px] mt-0.5" />
+              )}
+            </div>
+
+            {/* Content */}
+            <div className={`pb-4 min-w-0 ${isLast ? "pb-0" : ""}`}>
+              <p className={`text-xs font-medium ${status === "done" ? "text-muted-foreground" : "text-muted-foreground/60"}`}>{step.label}</p>
+              {step.person && (
+                <p className={`text-sm font-semibold flex items-center gap-1.5 flex-wrap mt-0.5 ${status === "done" || status === "pending" ? "text-foreground" : "text-muted-foreground/60"}`}>
+                  {step.person}
+                  {step.badge && (
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badgeColor}`}>
+                      {step.badge}
+                    </span>
+                  )}
+                </p>
+              )}
+              {!step.person && step.badge && (
+                <span className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badgeColor}`}>
+                  {step.badge}
+                </span>
+              )}
+              {step.timestamp && (
+                <p className="text-xs text-muted-foreground mt-0.5">{safeFmt(step.timestamp)}</p>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -302,18 +345,26 @@ function ConfirmModal({
 
 export default function PODetailPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { id } = useParams() as { id: string };
   const can    = useAuthStore(s => s.can);
+  const user   = useAuthStore(s => s.user);
+
+  const outerTab = searchParams.get("outerTab") || "own";
+  const innerTab = searchParams.get("innerTab") || undefined;
+  const isOwnScope = outerTab === "own";
+  const listUrl = buildPOListUrl(outerTab, innerTab);
 
   // Permission flags
-  const canSubmitPO   = can("procurement.purchase_order", "submit")   || can("procurement.purchase_order", "create");
-  const canApprovePO  = can("procurement.purchase_order", "approve");
-  const canIssuePO    = can("procurement.purchase_order", "issue");
-  const canClosePO    = can("procurement.purchase_order", "close")    || can("procurement.purchase_order", "manage");
-  const canCancelPO   = can("procurement.purchase_order", "cancel")   || can("procurement.purchase_order", "manage");
-  const canReceivePO  = can("procurement.purchase_order", "receive")  || can("procurement.purchase_order", "manage");
+  const canSubmitPO   = canPOSubmit(can);
+  const canApprovePO  = canPOApprove(can);
+  const canIssuePO    = canPOIssue(can);
+  const canClosePO    = canPOClose(can);
+  const canCancelPO   = canPOCancel(can);
+  const canReceivePO  = canPOReceive(can);
+  const canUpdateDraft = canPOUpdateDraft(can);
 
-  type ModalType = "submit" | "issue" | "close" | "cancel" | "approve" | "reject" | "receipt" | null;
+  type ModalType = "submit" | "issue" | "close" | "cancel" | "withdraw" | "approve" | "reject" | "receipt" | null;
   const [modal, setModal] = useState<ModalType>(null);
 
   const { data, isLoading, isError } = usePurchaseOrder(id);
@@ -341,19 +392,20 @@ export default function PODetailPage() {
     }
   };
 
-  const handleSimpleAction = async (type: "submit" | "issue" | "close" | "cancel" | "approve") => {
+  const handleSimpleAction = async (type: "submit" | "issue" | "close" | "cancel" | "withdraw" | "approve") => {
     try {
       if (type === "submit")  { await submitMut.mutateAsync();    toast.success("Purchase order submitted for approval."); }
       if (type === "issue")   { await issueMut.mutateAsync(id);   toast.success("Purchase order issued to vendor."); }
       if (type === "close")   { await closeMut.mutateAsync(id);   toast.success("Purchase order closed."); }
       if (type === "cancel")  { await cancelMut.mutateAsync(id);  toast.success("Purchase order cancelled."); }
+      if (type === "withdraw") { await cancelMut.mutateAsync(id); toast.success("Purchase order withdrawn."); }
       if (type === "approve") {
         await approvalMut.mutateAsync({ id, payload: { decision: "approved" } });
         await issueMut.mutateAsync(id);
         toast.success("Purchase order approved and issued.");
       }
       setModal(null);
-      router.back();
+      router.push(listUrl);
     } catch (err: any) {
       displayExpertError(err, "Action failed. Please try again.");
     }
@@ -364,6 +416,7 @@ export default function PODetailPage() {
       await approvalMut.mutateAsync({ id, payload: { decision: "rejected", reason } });
       toast.success("Purchase order rejected.");
       setModal(null);
+      router.push(listUrl);
     } catch (err: any) {
       displayExpertError(err, "Failed to reject purchase order.");
     }
@@ -389,13 +442,23 @@ export default function PODetailPage() {
 
   if (isError || !po) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <p className="text-muted-foreground">Failed to load purchase order details.</p>
-        <button onClick={() => router.back()} className="mt-4 text-primary font-medium hover:underline">Go back</button>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <EmptyState
+          title="Purchase order not found"
+          description="This purchase order may have been removed or you may not have access to view it."
+        />
+        <button onClick={() => router.push(listUrl)} className="text-primary font-medium hover:underline">
+          Back to purchase orders
+        </button>
       </div>
     );
   }
 
+  const createdById = typeof po.createdBy === "object" && po.createdBy
+    ? (po.createdBy as { userId?: string }).userId
+    : undefined;
+  const isOwnPO = !!user?.userId && !!createdById && user.userId === createdById;
+  const isSubmitterView = isOwnScope || isOwnPO;
   const stage = po.status as WFStage;
   const isDelivered = stage === "partially_delivered" || stage === "delivered";
   const submitDateStr = po.createdAt ? format(new Date(po.createdAt), "MMM dd, yyyy") : "N/A";
@@ -467,13 +530,29 @@ export default function PODetailPage() {
   ];
 
   // Derive which action buttons to show
-  const showSubmit  = stage === "draft"         && canSubmitPO;
-  const showApprove = stage === "pending_approval" && canApprovePO;
-  const showReject  = stage === "pending_approval" && canApprovePO;
+  const showEditDraft = stage === "draft" && isSubmitterView && canUpdateDraft;
+  const showSubmit  = stage === "draft" && isSubmitterView && canSubmitPO;
+  const showApprove = stage === "pending_approval" && !isSubmitterView && canApprovePO;
+  const showReject  = stage === "pending_approval" && !isSubmitterView && canApprovePO;
   const showIssue   = (stage === "ready_to_issue" || stage === "approved") && canIssuePO;
-  const showClose   = stage === "delivered"     && canClosePO;
-  const showCancel  = (stage === "draft" || stage === "pending_approval" || stage === "approved" || stage === "ready_to_issue") && canCancelPO;
+  const postApprovalStages: WFStage[] = [
+    "approved",
+    "ready_to_issue",
+    "issued",
+    "acknowledge",
+    "acknowledged",
+    "ready_for_delivery",
+    "partially_delivered",
+    "delivered",
+  ];
+  /** Withdraw (cancel endpoint) — submitter only, while pending approval */
+  const showWithdraw = stage === "pending_approval" && isSubmitterView && canCancelPO;
+  /** Neutral cancel for drafts (cancel endpoint) */
+  const showCancelDraft = stage === "draft" && isSubmitterView && canCancelPO && !showSubmit;
+  /** Close (close endpoint) — after approval, any time until already closed/cancelled */
+  const showClose = postApprovalStages.includes(stage) && canClosePO;
   const showReceipt = (stage === "ready_for_delivery" || stage === "delivered") && canReceivePO;
+  const statusLabel = getPOStatusLabel(stage, isSubmitterView);
 
   return (
     <>
@@ -492,11 +571,11 @@ export default function PODetailPage() {
         open={modal === "approve"}
         onClose={() => setModal(null)}
         onConfirm={() => handleSimpleAction("approve")}
-        isPending={approvalMut.isPending}
-        title="Approve Purchase Order"
-        description={`You are approving this PO for issuance to ${po.vendor?.displayName || po.vendor?.legalName || "the vendor"}.`}
-        confirmLabel="Approve"
-        variant="success"
+        isPending={approvalMut.isPending || issueMut.isPending}
+        title="Approve and Issue Purchase Order"
+        description={`You are approving this purchase order for ${po.vendor?.displayName || po.vendor?.legalName || "the vendor"}. Once approved, the vendor will receive the order and can begin delivery and invoice against it.`}
+        confirmLabel="Approve and Issue PO"
+        variant="primary"
       />
       <ConfirmModal
         open={modal === "issue"}
@@ -523,9 +602,19 @@ export default function PODetailPage() {
         onClose={() => setModal(null)}
         onConfirm={() => handleSimpleAction("cancel")}
         isPending={cancelMut.isPending}
-        title="Cancel Purchase Order"
-        description="Are you sure you want to cancel this purchase order?"
-        confirmLabel="Cancel PO"
+        title="Withdraw Purchase Order"
+        description="Are you sure you want to withdraw this purchase order?"
+        confirmLabel="Withdraw PO"
+        variant="danger"
+      />
+      <ConfirmModal
+        open={modal === "withdraw"}
+        onClose={() => setModal(null)}
+        onConfirm={() => handleSimpleAction("withdraw")}
+        isPending={cancelMut.isPending}
+        title="Withdraw Purchase Order"
+        description="This will withdraw the purchase order before approval. This action cannot be undone."
+        confirmLabel="Withdraw PO"
         variant="danger"
       />
       <RejectModal
@@ -543,71 +632,87 @@ export default function PODetailPage() {
       />
 
       {/* Layout */}
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* Left */}
-        <div className="flex-1 space-y-4 w-full">
-          {/* Header */}
-          <div className="flex items-start justify-between flex-wrap gap-4">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-xl font-bold text-foreground">{po.poNumber || "Unnamed PO"}</h1>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                  stage === "draft"            ? "bg-gray-100 text-gray-600" :
-                  stage === "pending_approval" ? "bg-orange-50 text-orange-600" :
-                  stage === "cancelled"        ? "bg-red-50 text-red-600" :
-                  isDelivered                  ? "bg-emerald-50 text-emerald-600" :
-                                                 "bg-purple-50 text-purple-600"
-                }`}>
-                  {stage === "ready_to_issue" ? "Ready to Issue" : stage.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground mt-0.5">Created on {submitDateStr}</p>
+      <div className="flex flex-col flex-1 min-h-0 h-full">
+        {/* Header - Full width */}
+        <div className="flex items-start justify-between flex-wrap gap-4 mb-4 shrink-0">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold text-foreground">{po.poNumber || "Unnamed PO"}</h1>
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                stage === "draft"            ? "bg-gray-100 text-gray-600" :
+                stage === "pending_approval" ? "bg-orange-50 text-orange-600" :
+                stage === "cancelled"        ? "bg-red-50 text-red-600" :
+                isDelivered                  ? "bg-emerald-50 text-emerald-600" :
+                                               "bg-purple-50 text-purple-600"
+              }`}>
+                {statusLabel}
+              </span>
             </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3 flex-wrap">
-              {showCancel && !showSubmit && (
-                <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
-                  Cancel PO
-                </button>
-              )}
-              {showSubmit && (
-                <>
-                  <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors">
-                    Cancel
-                  </button>
-                  <button onClick={() => setModal("submit")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-                    Submit for Approval
-                  </button>
-                </>
-              )}
-              {showReject && (
-                <button onClick={() => setModal("reject")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
-                  Reject
-                </button>
-              )}
-              {showApprove && (
-                <button onClick={() => setModal("approve")} className="h-9 px-5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" /> Approve
-                </button>
-              )}
-              {showIssue && (
-                <button onClick={() => setModal("issue")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-                  Issue PO
-                </button>
-              )}
-              {showReceipt && (
-                <button onClick={() => setModal("receipt")} className="h-9 px-5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-2">
-                  <PackageCheck className="w-4 h-4" /> Confirm Receipt
-                </button>
-              )}
-              {showClose && (
-                <button onClick={() => setModal("close")} className="h-9 px-5 rounded-lg bg-slate-700 text-white text-sm font-semibold hover:bg-slate-800 transition-colors">
-                  Close PO
-                </button>
-              )}
-            </div>
+            <p className="text-sm text-muted-foreground mt-0.5">Created on {submitDateStr}</p>
           </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3 flex-wrap mt-2 sm:mt-8">
+            {showEditDraft && (
+              <button
+                onClick={() => router.push(buildPOEditUrl(id, outerTab, innerTab))}
+                className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors flex items-center gap-2"
+              >
+                <Pencil className="w-4 h-4" /> Edit Draft
+              </button>
+            )}
+            {showWithdraw && (
+              <button onClick={() => setModal("withdraw")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                Withdraw PO
+              </button>
+            )}
+            {showCancelDraft && (
+              <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors">
+                Withdraw
+              </button>
+            )}
+            {showSubmit && (
+              <>
+                <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors">
+                  Withdraw
+                </button>
+                <button onClick={() => setModal("submit")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+                  Submit for Approval
+                </button>
+              </>
+            )}
+            {showReject && (
+              <button onClick={() => setModal("reject")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                Reject PO
+              </button>
+            )}
+            {showApprove && (
+              <button onClick={() => setModal("approve")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
+                Approve PO
+              </button>
+            )}
+            {showIssue && (
+              <button onClick={() => setModal("issue")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+                Issue PO
+              </button>
+            )}
+            {showReceipt && (
+              <button onClick={() => setModal("receipt")} className="h-9 px-5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-2">
+                <PackageCheck className="w-4 h-4" /> Confirm Receipt
+              </button>
+            )}
+            {showClose && (
+              <button onClick={() => setModal("close")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                Close PO
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 2-Column Content */}
+        <div className="flex flex-1 gap-6 items-start min-h-0">
+          {/* Left Column */}
+          <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden space-y-4">
 
           {/* PO Details */}
           <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
@@ -693,15 +798,18 @@ export default function PODetailPage() {
           </div>
         </div>
 
-        {/* Right: Workflow */}
-        <div className="w-full lg:w-72 shrink-0 bg-white rounded-2xl border border-border p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-5">Workflow Progress</h3>
-          <div className="space-y-0">
-            {workflowSteps.map((s, i) => (
-              <WorkflowStep key={i} {...s} />
-            ))}
+        {/* Right Sidebar */}
+        <div className="w-[300px] shrink-0 h-full overflow-y-auto pr-1 space-y-4 pb-4">
+          <div className="bg-white rounded-2xl border border-border overflow-hidden">
+            <div className="bg-[#1C2B36] rounded-t-2xl px-5 py-4">
+              <h3 className="text-base font-bold text-white">Workflow Progress</h3>
+            </div>
+            <div className="px-5 py-4">
+              <WorkflowProgress steps={workflowSteps} />
+            </div>
           </div>
         </div>
+      </div>
       </div>
     </>
   );

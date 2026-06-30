@@ -5,8 +5,9 @@ import { logger } from "@/lib/logger";
 import Image from "next/image";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 import { ImagePlus } from "lucide-react";
+import { useState } from "react";
 
 interface ReceiptPreviewModalProps {
   isOpen: boolean;
@@ -61,9 +62,9 @@ export function ReceiptPreviewModal({
         <div className="space-y-4">
           {/* Receipt Image */}
           <div className="border border-border rounded-lg overflow-hidden bg-muted/30">
-            {receiptImage ? (
+            {hasReceiptSrc(receiptImage) ? (
               <Image
-                src={receiptImage}
+                src={normalizeReceiptSrc(receiptImage)}
                 alt="Receipt"
                 width={600}
                 height={500}

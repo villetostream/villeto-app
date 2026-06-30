@@ -15,6 +15,7 @@ export interface CreatePolicyPayload {
   approvers: string[];
   effectiveFrom?: string;
   effectiveTo?: string;
+  override_policy?: boolean;
 }
 
 interface Response {
@@ -42,6 +43,7 @@ export const useCreatePolicyApi = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES] });
     }
   });
 };

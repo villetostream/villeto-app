@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { Role } from '@/queries/role/get-all-roles';
 import { Department } from '@/queries/departments/get-all-departments';
 import { getCurrencyConfig } from "@/lib/utils/currency";
+import { clearTokenRefresh } from "@/lib/tokenRefreshService";
 
 // ─── Permission Types ─────────────────────────────────────────────────────────
 
@@ -155,6 +156,7 @@ export const useAuthStore = create<AuthState>()(
             },
 
             logout: () => {
+                clearTokenRefresh(); // cancel any pending proactive refresh
                 set({
                     user: null,
                     companyPermissions: [],

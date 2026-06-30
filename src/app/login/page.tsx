@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { useLogin } from '@/queries/auth/auth-login';
 import { loginSchema } from '@/lib/schemas/schemas';
 import { getApiErrorMessage } from '@/lib/types/api-error';
+import { scheduleTokenRefresh } from '@/lib/tokenRefreshService';
 
 type FormData = z.infer<typeof loginSchema>;
 
@@ -52,6 +53,9 @@ export default function LoginPage() {
                 ?? rootData.role?.permissions 
                 ?? [];
             setCompanyPermissions(userPermissions);
+            // Start proactive refresh so the token is renewed 5 min before expiry
+            const expiresInMs = (response.data as any).accessTokenExpiresInMs ?? 3600000;
+            scheduleTokenRefresh(expiresInMs);
             router.push('/dashboard');
         } catch (err: unknown) {
             setError(getApiErrorMessage(err, "Invalid email or password"));

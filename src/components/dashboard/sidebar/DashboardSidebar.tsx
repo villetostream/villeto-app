@@ -43,6 +43,11 @@ import { logger } from "@/lib/logger";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
+import {
+  canPOApprove,
+  canPOReadCompany,
+  canPOReadDepartment,
+} from "@/lib/permissions/purchase-order-permissions";
 import { useCompanyExpenses } from "@/lib/react-query/expenses";
 
 export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoading?: boolean }) {
@@ -186,12 +191,14 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   const prReadyForPOCount = (prConversionData as unknown as number) ?? 0;
   const totalPRActionCount = prAwaitingCount + prReadyForPOCount;
 
-  const canApprovePO = can("procurement.purchase_order", "approve");
-  const poScope = can("procurement.purchase_order", "read_company") ? "company" : can("procurement.purchase_order", "read_department") ? "team" : "own";
+  const canApprovePO = canPOApprove(can);
+  const hasPOCompanyScope = canPOReadCompany(can);
+  const hasPOTeamScope    = canPOReadDepartment(can);
+  const poScope = hasPOCompanyScope ? "company" : hasPOTeamScope ? "team" : "own";
 
   const { data: poApprovalData } = usePurchaseOrders(
-    1, 1, "pending_approval", undefined, undefined, poScope as any, true,
-    { enabled: canApprovePO, select: (d) => d.meta?.totalCount ?? 0 }
+    1, 1, "pending_approval", undefined, undefined, poScope as any,
+    { enabled: canApprovePO && (hasPOCompanyScope || hasPOTeamScope), select: (d) => d.meta?.totalCount ?? 0 }
   );
   const totalPOActionCount = (poApprovalData as unknown as number) ?? 0;
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { logger } from "@/lib/logger";
 import { ImagePlus, Upload, X, Loader2 } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -67,6 +68,19 @@ export default function UploadReceipt() {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<File[]>(restoreFilesFromSession);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const previewUrls = useMemo(
+    () => files.map((file) => (file.size > 0 ? URL.createObjectURL(file) : "")),
+    [files],
+  );
+
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, [previewUrls]);
 
   const reportName = searchParams.get("name") || "";
   const reportDate = searchParams.get("date") || "";
@@ -290,32 +304,43 @@ export default function UploadReceipt() {
               </p>
             </>
           ) : (
-            <div className="space-y-3">
-              {files.map((file, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between bg-card p-3 rounded-lg border"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
-                      <ImagePlus className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                    <span className="text-sm font-medium truncate max-w-[200px]">
-                      {file.name}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeFile(index)}
-                    className="h-8 w-8"
+            <div className="space-y-4">
+              <p className="text-sm font-medium text-foreground">Review your receipt(s) before continuing</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {files.map((file, index) => (
+                  <div
+                    key={`${file.name}-${index}`}
+                    className="relative rounded-lg border border-border overflow-hidden bg-muted/20 aspect-[4/5]"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-              <p className="text-sm text-muted-foreground pt-2">
+                    {previewUrls[index] ? (
+                      <Image
+                        src={previewUrls[index]}
+                        alt={file.name}
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <ImagePlus className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeFile(index)}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 border border-border flex items-center justify-center hover:bg-white"
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="absolute bottom-0 inset-x-0 bg-black/50 px-2 py-1">
+                      <p className="text-[10px] text-white truncate">{file.name}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm text-muted-foreground pt-1">
                 Click or drop to add more receipts
               </p>
             </div>
