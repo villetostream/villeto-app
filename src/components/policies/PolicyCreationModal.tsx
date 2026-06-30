@@ -894,13 +894,13 @@ export default function PolicyCreationModal({
       setRules(data.rules.map((r: {
         type: RuleType;
         amount?: string | number;
-        requiredAboveAmount?: string | number;
+        receiptAmountThreshold?: string | number;
         timeUnit?: string;
         timeframe?: string;
         enforcementAction?: string;
       }, ruleIndex: number) => {
         const isReceipt = r.type === "receipt_requirement";
-        const rawAmount = (r.amount ?? r.requiredAboveAmount ?? "").toString();
+        const rawAmount = (r.amount ?? r.receiptAmountThreshold ?? "").toString();
         const receiptMode: "all" | "threshold" =
           isReceipt && rawAmount !== "" && parseFloat(rawAmount) > 0
             ? "threshold"
@@ -911,7 +911,7 @@ export default function PolicyCreationModal({
           id: `rule-${ruleIndex}-${r.type}`,
           type: r.type,
           amount: isReceipt && receiptMode === "all" ? "" : rawAmount,
-          enforcement: r.enforcementAction === "block" ? "block" : r.enforcementAction === "warn" ? "warn" : r.enforcementAction || "",
+          enforcement: r.enforcementAction === "block" ? "block" : (r.enforcementAction === "warn" || r.enforcementAction === "warning" || r.enforcementAction === "soft" || r.enforcementAction === "soft warning" || r.enforcementAction === "soft warn" || r.enforcementAction === "soft_warn") ? "warn" : r.enforcementAction || "",
           timeframe: mappedTimeframe as PolicyRule["timeframe"],
           receiptMode: isReceipt ? receiptMode : undefined,
         };
@@ -1047,7 +1047,7 @@ export default function PolicyCreationModal({
         })
         .map(r => {
           const enforcementAction =
-            r.enforcement === "warn" ? "warning" : (r.enforcement as string);
+            r.enforcement === "warn" ? "soft_warn" : (r.enforcement as string);
           if (r.type === "spend_limit") return {
             type: "spend_limit" as const,
             timeUnit: r.timeframe || "daily",
@@ -1060,12 +1060,14 @@ export default function PolicyCreationModal({
           const isThreshold = mode === "threshold";
           return {
             type: "receipt_requirement" as const,
-            requiredAboveAmount: isThreshold ? parseFloat(r.amount) : 0,
+            receiptNeeded: true,
+            receiptAmountThreshold: isThreshold && r.amount ? parseFloat(r.amount) : 0,
             currency: currencyCode,
             enforcementAction,
           };
         }),
       approvers: approvers.filter(Boolean),
+      override_policy: false,
     };
   };
 
@@ -1092,6 +1094,7 @@ export default function PolicyCreationModal({
           scope: payload.scope,
           rules: payload.rules,
           approvers: payload.approvers,
+          override_policy: false,
         };
         await updatePolicyMutation.mutateAsync({ id: policyId, payload: updatePayload });
         toast.success("Policy updated successfully!");

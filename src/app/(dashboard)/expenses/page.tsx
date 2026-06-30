@@ -14,7 +14,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import ExpenseEmptyState from "@/components/expenses/EmptyState";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { usePersonalExpenses, useCompanyExpenses, CompanyExpenseReport } from "@/lib/react-query/expenses";
+import { usePersonalExpenses, useCompanyExpenses, useDraftExpenses, CompanyExpenseReport } from "@/lib/react-query/expenses";
 import { PersonalExpensesSkeleton } from "@/components/expenses/PersonalExpensesSkeleton";
 import { getCompanyColumns } from "@/components/expenses/table/companyColumns";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -125,6 +125,12 @@ export default function Reimbursements() {
   } = usePersonalExpenses(page, limit);
 
   const {
+    data: draftExpensesData,
+    isLoading: isLoadingDrafts,
+    refetch: refetchDraftExpenses,
+  } = useDraftExpenses(page, limit);
+
+  const {
     data: companyExpensesData,
     isLoading: isLoadingCompanyExpenses,
     error: companyExpensesError,
@@ -142,8 +148,13 @@ export default function Reimbursements() {
   const isLoadingTeam    = isLoadingTeamExpenses    && hasTeamScope;
 
   const personalExpenses = useMemo<PersonalExpenseRow[]>(() => {
-    if (!personalExpensesData?.reports) return [];
-    const sorted = [...personalExpensesData.reports].sort((a, b) =>
+    const regularReports = personalExpensesData?.reports || [];
+    const draftReports = draftExpensesData?.reports || [];
+    
+    // Merge drafts and regular expenses
+    const combined = [...regularReports, ...draftReports];
+
+    const sorted = combined.sort((a, b) =>
       Math.max(new Date(b.createdAt).getTime(), new Date(b.updatedAt).getTime()) -
       Math.max(new Date(a.createdAt).getTime(), new Date(a.updatedAt).getTime()),
     );
@@ -153,9 +164,10 @@ export default function Reimbursements() {
       category: r.costCenter?.trim() || "Uncategorized",
       amount: r.totalAmount,
       status: r.status,
-      reportId: r.reportId,
+      // For draft records, fall back to draftId if reportId is undefined
+      reportId: r.reportId || (r as any).draftId || "",
     }));
-  }, [personalExpensesData]);
+  }, [personalExpensesData, draftExpensesData]);
 
   const companyExpenses = useMemo<CompanyExpenseReport[]>(() => {
     if (!companyExpensesData?.reports) return [];
@@ -181,9 +193,8 @@ export default function Reimbursements() {
   });
 
   const personalStats = useMemo(() => {
-    const counts = { draft: 0, approved: 0, paid: 0, rejected: 0 };
+    const counts = { draft: draftExpensesData?.meta?.totalCount ?? (draftExpensesData?.reports?.length || 0), approved: 0, paid: 0, rejected: 0 };
     for (const e of personalExpenses ?? []) {
-      if (e.status === "draft")                              counts.draft    += 1;
       if (e.status === "approved")                          counts.approved += 1;
       if (e.status === "paid")                              counts.paid     += 1;
       // cover both spellings the API may return
@@ -195,12 +206,15 @@ export default function Reimbursements() {
   // ── Status filter tabs (shared definition) ────────────────────────────────
   const expenseStatusTabs = [
     { key: "all",      filter: null as string | null },
-    { key: "draft",    filter: "draft" },
     { key: "pending",  filter: "pending" },
     { key: "approved", filter: "approved" },
     { key: "rejected", filter: "declined" },
     { key: "paid",     filter: "paid" },
+    { key: "draft",    filter: "draft" },
   ];
+
+  // Status tabs for company/team views — excludes Draft (drafts are personal-only)
+  const companyExpenseStatusTabs = expenseStatusTabs.filter(t => t.key !== "draft");
 
   /** Pending badge counts — computed client-side from already-fetched data.
    *  When the backend adds requiresMyApproval, swap these for a dedicated query. */
@@ -262,14 +276,11 @@ export default function Reimbursements() {
           // expired session) rendered "No expense has been added",
           // which tells the user something false about their data.
           <ErrorState error={error} onRetry={refetch} />
-        ) : data.length === 0 ? (
-          <ExpenseEmptyState title="No expenses found" subtitle="There are currently no expenses to display in this tab." showButton={false} />
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <TabsList>
                 <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="draft">Draft</TabsTrigger>
                 <TabsTrigger value="pending" className="flex items-center">
                   Awaiting Approval
                   {pendingCount > 0 && (
@@ -284,7 +295,7 @@ export default function Reimbursements() {
               </TabsList>
               <div id="tab-actions" className="flex items-center gap-2" />
             </div>
-            {expenseStatusTabs.map(t => (
+            {companyExpenseStatusTabs.map(t => (
               <TabsContent key={t.key} value={t.key}>
                 <ExpenseTable
                   actionButton={<></>}
@@ -312,7 +323,7 @@ export default function Reimbursements() {
   const renderPersonalExpenseTab = () => (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
-        <StatsCard isLoading={isLoadingPersonalExpenses} title="Draft" value={personalStats.draft.toString()}
+        <StatsCard isLoading={isLoadingPersonalExpenses || isLoadingDrafts} title="Draft" value={personalStats.draft.toString()}
           icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full" aria-hidden="true"><Image src="/images/svgs/draft.svg" alt="" width={20} height={20} /></div>}
           subtitle={<span className="text-xs leading-[125%]">Manage your saved items</span>} />
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Approved" value={personalStats.approved.toString()}
@@ -325,24 +336,22 @@ export default function Reimbursements() {
           icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white" aria-hidden="true"><Image src="/images/svgs/money.svg" alt="" width={20} height={20} /></div>}
           subtitle={<span className="text-xs leading-[125%]">Access completed payments.</span>} />
       </div>
-      {!authReady || isLoadingPersonalExpenses ? (
+      {!authReady || isLoadingPersonalExpenses || isLoadingDrafts ? (
         <PersonalExpensesSkeleton showStats={false} />
       ) : personalExpensesError ? (
         // Same fix as the company/team tab: a fetch failure must not
         // render the same "you have nothing" copy as a real empty list.
         <ErrorState error={personalExpensesError} onRetry={refetchPersonalExpenses} />
-      ) : personalExpenses.length === 0 ? (
-        <ExpenseEmptyState />
       ) : (
         <Tabs value={personalActiveTab} onValueChange={setPersonalActiveTab}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <TabsList>
               <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="draft">Draft</TabsTrigger>
               <TabsTrigger value="pending">Pending Review</TabsTrigger>
               <TabsTrigger value="approved">Approved</TabsTrigger>
               <TabsTrigger value="rejected">Rejected</TabsTrigger>
               <TabsTrigger value="paid">Paid</TabsTrigger>
+              <TabsTrigger value="draft">Draft</TabsTrigger>
             </TabsList>
             <div id="tab-actions" className="flex items-center gap-2" />
           </div>

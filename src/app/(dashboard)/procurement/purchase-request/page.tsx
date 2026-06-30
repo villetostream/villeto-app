@@ -631,7 +631,7 @@ function PRTable({
                 return (
                   <tr
                     key={pr.purchaseRequestId}
-                    onClick={() => router.push(`/procurement/purchase-request/${pr.purchaseRequestId}?scope=${scope}`)}
+                    onClick={() => router.push(`/procurement/purchase-request/${pr.purchaseRequestId}?outerTab=${scope}&innerTab=${activeTab}`)}
                     className={`border-b border-border/40 hover:bg-muted/20 cursor-pointer transition-colors group ${
                       needsAction ? "border-l-4 border-l-primary bg-amber-50/30 hover:bg-amber-50/50" : ""
                     }`}
@@ -665,7 +665,7 @@ function PRTable({
                         pr={pr}
                         canApprove={canApprove}
                         canConvert={canConvert}
-                        onView={() => router.push(`/procurement/purchase-request/${pr.purchaseRequestId}?scope=${scope}`)}
+                        onView={() => router.push(`/procurement/purchase-request/${pr.purchaseRequestId}?outerTab=${scope}&innerTab=${activeTab}`)}
                         onApprove={() => handleApproveRow(pr.purchaseRequestId)}
                         onReject={() => setRejectTarget(pr.purchaseRequestId)}
                       />

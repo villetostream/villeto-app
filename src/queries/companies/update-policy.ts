@@ -14,6 +14,7 @@ export interface UpdatePolicyPayload {
   approvers?: string[];
   expenseCategories?: string[];
   status?: "active" | "draft";
+  override_policy?: boolean;
 }
 
 interface UpdatePolicyResponse {
@@ -40,6 +41,7 @@ export const useUpdatePolicyApi = () => {
       // Invalidate both list and the specific policy cache
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES, id] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES] });
     },
   });
 };

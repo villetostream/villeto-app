@@ -15,27 +15,34 @@ import { Loader2, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import { logger } from "@/lib/logger";
-import { getApiErrorMessage, getPolicyViolationCauses, isPolicyViolationError } from "@/lib/types/api-error";
+import { getApiErrorMessage, isPolicyViolationError, applyPolicyViolationErrorToExpenses } from "@/lib/types/api-error";
 
 interface ExpenseCategory {
   categoryId: string;
   name: string;
 }
 
-interface ReportDetail {
-  reportId: string;
+interface DraftDetail {
+  draftId: string;
   reportTitle: string;
   status: string;
-  expenses: Array<{
-    expenseId: string;
+  expensesPayload?: Array<{
     title: string;
     merchantName: string;
-    amount: string;
+    amount: number;
     transactionDate: string;
-    categoryName: string;
-    description?: string;
-    receiptUrl?: string;
     expenseCategoryId: string;
+    description?: string;
+    receiptImage?: string;
+  }>;
+  expenses?: Array<{
+    title: string;
+    merchantName: string;
+    amount: number;
+    transactionDate: string;
+    expenseCategoryId: string;
+    description?: string;
+    receiptImage?: string;
   }>;
 }
 
@@ -104,24 +111,38 @@ export default function EditReportPage() {
         }
 
         // 2. Fetch Report Details
-        const reportResponse = await axios.get<{ data: ReportDetail }>(
-          `reports/${reportId}`
+        const reportResponse = await axios.get<any>(
+          `reports/drafts/${reportId}`
         );
-        const reportData = reportResponse.data.data;
+        // Handle double-nested data if present
+        const innerData = reportResponse.data?.data || {};
+        const reportData = innerData.data ? innerData.data : innerData;
         
-        setReportTitle(reportData.reportTitle);
+        setReportTitle(reportData.reportTitle || "Draft");
 
-        // Map existing expenses to local state
-        const mappedExpenses: ExpenseItem[] = reportData.expenses.map((e) => ({
-          id: e.expenseId,
-          name: e.title,
-          category: e.categoryName,
-          amount: parseFloat(e.amount),
-          merchantName: e.merchantName,
-          description: e.description,
-          transactionDate: new Date(e.transactionDate),
-          receiptImage: e.receiptUrl || "",
-        }));
+        // Map existing expenses to local state (handle both expenses and expensesPayload)
+        const rawExpenses = reportData.expenses || reportData.expensesPayload || [];
+        const mappedExpenses: ExpenseItem[] = rawExpenses.map((e: any, index: number) => {
+          // Find the category name since backend only returns category ID
+          const categoryName = categoriesResponse.data?.data?.find((c: ExpenseCategory) => c.categoryId === e.expenseCategoryId)?.name || "Uncategorized";
+
+          // Convert raw base64 to a full data URL if the receipt is not already one
+          let receiptImage = e.receiptImage || "";
+          if (receiptImage && !receiptImage.startsWith("data:") && !receiptImage.startsWith("http")) {
+            receiptImage = `data:image/jpeg;base64,${receiptImage}`;
+          }
+
+          return {
+            id: `draft-${index}-${Date.now()}`,
+            name: e.title,
+            category: categoryName,
+            amount: Number(e.amount),
+            merchantName: e.merchantName || "",
+            description: e.description || "",
+            transactionDate: new Date(e.transactionDate),
+            receiptImage,
+          };
+        });
 
         setExpenses(mappedExpenses);
         
@@ -183,7 +204,7 @@ export default function EditReportPage() {
       merchantName: data.merchantName,
       description: data.description,
       receiptImage: receiptImage || "",
-      transactionDate: new Date(),
+      transactionDate: data.transactionDate ?? new Date(),
     };
     setExpenses((prev) => [...prev, newExpense]);
     toast.success("Expense added");
@@ -211,6 +232,7 @@ export default function EditReportPage() {
               merchantName: data.merchantName,
               category: data.category,
               description: data.description,
+              transactionDate: data.transactionDate ?? exp.transactionDate,
               policyViolations: null,
               ...(newReceipt !== undefined && { receiptImage: newReceipt }),
             }
@@ -249,7 +271,7 @@ export default function EditReportPage() {
   const handleDeleteReport = async () => {
       try {
           setIsDeletingReport(true);
-          await axios.delete(`reports/${reportId}`);
+          await axios.delete(`reports/drafts/${reportId}`);
           toast.success("Report deleted successfully");
           queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES] });
           router.push("/expenses?tab=personal-expenses");
@@ -297,14 +319,9 @@ export default function EditReportPage() {
     }
 
     try {
-      // First, delete any expenses that were marked for deletion
+      // For drafts, we don't need to individually delete expenses before patching. 
+      // The PATCH request or Submit request will overwrite with the provided expenses array.
       if (deletedExpenseIds.length > 0) {
-        await Promise.all(
-          deletedExpenseIds.map((expenseId) =>
-            axios.delete(`reports/${reportId}/expenses/${expenseId}`)
-          )
-        );
-        // Clear the deleted IDs after successful deletion
         setDeletedExpenseIds([]);
       }
 
@@ -329,10 +346,9 @@ export default function EditReportPage() {
             : new Date().toISOString(),
         };
         
-        // Add ID if it's an existing expense
-        if (!expense.id.startsWith("new-")) {
-            payload.expenseId = expense.id;
-        }
+        // NOTE: Draft expenses never have real server-side expenseIds.
+        // The submit endpoint explicitly forbids expenseId in the payload,
+        // so we never include it here.
 
         // Add receipt if it's new (base64)
         const base64 = extractBase64(expense.receiptImage);
@@ -343,60 +359,54 @@ export default function EditReportPage() {
         return payload;
       });
 
-      const requestPayload = {
-        reportTitle: reportTitle,
-        status: status === "pending" ? "pending_policy_check" : status,
-        expenses: expensesPayload,
-      };
-
-      // Use PATCH to update the report
-      await axios.patch(`reports/${reportId}`, requestPayload);
+      if (status === "draft") {
+        const requestPayload = {
+          reportTitle: reportTitle,
+          expenses: expensesPayload,
+        };
+        // Use PATCH to update the draft
+        await axios.patch(`reports/drafts/${reportId}`, requestPayload);
+      } else {
+        const requestPayload = {
+          reportTitle: reportTitle,
+          draftId: reportId,
+          expenses: expensesPayload,
+        };
+        // Use POST to submit the draft
+        await axios.post(API_KEYS.EXPENSE.REPORTS, requestPayload);
+      }
 
       toast.success(
         status === "draft"
-          ? "Report updated"
+          ? "Draft saved successfully"
           : "Report submitted successfully"
       );
 
       queryClient.invalidateQueries({
         queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES],
       });
+      queryClient.invalidateQueries({ queryKey: ["expense-drafts"] });
 
-      setTimeout(() => {
-        router.push("/expenses?tab=personal-expenses");
-      }, 500);
+      if (status === "draft") {
+        // Stay on the page — just reset dirty state so user knows it saved
+        setInitialData(JSON.stringify(expenses));
+        setIsSavingDraft(false);
+      } else {
+        // Submitting closes the edit page
+        setTimeout(() => {
+          router.push("/expenses?tab=personal-expenses");
+        }, 500);
+      }
 
     } catch (error: unknown) {
       logger.error("Error updating report:", error);
 
       if (isPolicyViolationError(error)) {
-        const causes = getPolicyViolationCauses(error);
-        if (causes.length > 0) {
-          setExpenses((prev) =>
-            prev.map((exp) => {
-              const matchedCause = causes.find(
-                (c) =>
-                  c.categoryName === exp.category &&
-                  Number(c.expenseAmount) === exp.amount
-              );
-
-              if (matchedCause?.violations && matchedCause.violations.length > 0) {
-                return {
-                  ...exp,
-                  policyViolations: matchedCause.violations.map((v) => ({
-                    type: v.type || "POLICY_RULE",
-                    message: v.message ?? "",
-                  })),
-                };
-              }
-              return exp;
-            })
-          );
-          toast.error("Some expenses violated policy rules. Please review them.");
-          setIsSavingDraft(false);
-          setIsSubmittingReport(false);
-          return;
-        }
+        setExpenses((prev) => applyPolicyViolationErrorToExpenses(prev, error));
+        toast.error("Some expenses violated policy rules. Please review them.");
+        setIsSavingDraft(false);
+        setIsSubmittingReport(false);
+        return;
       }
 
       toast.error(getApiErrorMessage(error, "Failed to update report"));

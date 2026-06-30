@@ -224,6 +224,24 @@ export const useUpdatePurchaseRequest = (
   });
 };
 
+// ── Delete Purchase Request (Draft) ───────────────────────────────────────
+
+export const useDeletePurchaseRequest = (
+  id: string
+): UseMutationResult<ApiResponse<unknown>, Error, void> => {
+  const axiosInstance = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await axiosInstance.delete(PROCUREMENT_KEYS.PURCHASE_REQUEST(id));
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
+    },
+  });
+};
+
 // ── Add Line Item ─────────────────────────────────────────────────────────
 
 export interface LineItemPayload {

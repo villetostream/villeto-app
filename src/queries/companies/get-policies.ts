@@ -31,7 +31,8 @@ export interface SpendLimitRule {
 
 export interface ReceiptRequirementRule {
   type: "receipt_requirement";
-  requiredAboveAmount: number;
+  receiptNeeded?: boolean;
+  receiptAmountThreshold?: number;
   currency: string;
   enforcementAction: string;
 }

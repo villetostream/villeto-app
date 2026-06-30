@@ -12,6 +12,7 @@ import { useMemo } from "react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
 
 const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -46,7 +47,29 @@ export function useAxios(): AxiosInstance {
         ) {
           originalRequest._retry = true;
           try {
-            await axios.post(`${BASEURL}auth/refresh`);
+            const refreshResponse = await axios.post(
+              `${BASEURL}auth/refresh`,
+              {},
+              { withCredentials: true }
+            );
+            // Store the new token if the backend returns one in the body
+            const newToken =
+              refreshResponse.data?.data?.accessToken ||
+              refreshResponse.data?.accessToken ||
+              null;
+            if (newToken) {
+              useAuthStore.getState().setAccessToken(newToken);
+              originalRequest.headers = {
+                ...originalRequest.headers,
+                Authorization: `Bearer ${newToken}`,
+              };
+              // Restart proactive refresh with the new token's lifetime
+              const newExpiresInMs =
+                refreshResponse.data?.data?.accessTokenExpiresInMs ??
+                refreshResponse.data?.accessTokenExpiresInMs ??
+                3600000;
+              scheduleTokenRefresh(newExpiresInMs);
+            }
             return instance(originalRequest);
           } catch (refreshError) {
             useAuthStore.getState().logout();

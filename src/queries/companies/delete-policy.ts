@@ -26,6 +26,7 @@ export const useDeletePolicyApi = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES] });
     },
   });
 };

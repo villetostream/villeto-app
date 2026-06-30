@@ -8,6 +8,13 @@ import { useAuthStore } from "@/stores/auth-stores";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
+import type { QueryClient } from "@tanstack/react-query";
+
+/** Invalidate all personal expense list queries (submitted + drafts). */
+export function invalidatePersonalExpenseQueries(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.REPORTS_SCOPED("own")] });
+  queryClient.invalidateQueries({ queryKey: ["expense-drafts"] });
+}
 
 // Define the payload type for submitting/saving expenses
 interface ExpenseItemPayload {
@@ -16,6 +23,8 @@ interface ExpenseItemPayload {
   description: string;
   expenseCategoryId: string;
   amount: number;
+  /** ISO 8601 string — the actual date the transaction occurred (from the receipt/user input) */
+  transactionDate: string;
   receiptImage?: string;
 }
 
@@ -186,6 +195,59 @@ export const usePersonalExpenses = (
   });
 };
 
+// Query for fetching draft expenses
+export const useDraftExpenses = (
+  page: number = 1,
+  limit: number = 10,
+  sortBy?: string,
+  sortOrder?: "asc" | "desc"
+) => {
+  const axios = useAxios();
+  const authReady = useAuthStore((state) => !state.isLoading);
+  const accessToken = useAuthStore((state) => state.accessToken);
+
+  return useQuery({
+    queryKey: ["expense-drafts", page, limit, sortBy, sortOrder],
+    enabled: authReady && !!accessToken,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append("page", page.toString());
+      params.append("limit", limit.toString());
+      if (sortBy) params.append("sortBy", sortBy);
+      if (sortOrder) params.append("sortOrder", sortOrder);
+
+      // The draft endpoint wraps the data inside an extra 'data' object
+      const response = await axios.get<any>(
+        `reports/drafts?${params.toString()}`
+      );
+      
+      const innerData = response.data?.data || {};
+      const reportsArray = Array.isArray(innerData.data) ? innerData.data : [];
+      
+      // Map draft fields to match PersonalExpenseReport structure
+      const reports = reportsArray.map((r: any) => {
+        const totalAmount = Array.isArray(r.expensesPayload)
+          ? r.expensesPayload.reduce((sum: number, exp: any) => sum + (Number(exp.amount) || 0), 0)
+          : 0;
+
+        return {
+          ...r,
+          status: "draft" as const,
+          reportId: r.draftId, // Map draftId to reportId so the Edit link works
+          totalAmount: totalAmount,
+          costCenter: "Uncategorized", // Drafts don't have a cost center yet
+        };
+      });
+      
+      return {
+        reports,
+        meta: innerData.meta,
+      } as PersonalExpensesResponse;
+    },
+    staleTime: STALE_TIMES.NORMAL,
+  });
+};
+
 // Query for fetching company/team expenses (scope-based)
 // Note: error and refetch are available on the returned object via
 // React Query's default shape — no extra plumbing needed here. The
@@ -266,6 +328,7 @@ export const useSubmitExpense = () => {
       );
       // Invalidate relevant queries to refetch data, e.g., personal expenses list
       queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES] });
+      invalidatePersonalExpenseQueries(queryClient);
       router.push("/expenses?tab=personal-expenses");
     },
     onError: (error: unknown) => {
@@ -281,7 +344,6 @@ export const useSubmitExpense = () => {
 export const useSaveExpenseAsDraft = () => {
   const axios = useAxios();
   const queryClient = useQueryClient();
-  const router = useRouter();
 
   return useMutation({
     mutationFn: async (payload: ExpenseSubmissionPayload) => {
@@ -296,9 +358,7 @@ export const useSaveExpenseAsDraft = () => {
     },
     onSuccess: (_data, _variables) => {
       toast.success("Expense saved as draft.");
-      // Invalidate relevant queries to refetch data, e.g., personal expenses list
-      queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES] });
-      router.push("/expenses?tab=personal-expenses");
+      invalidatePersonalExpenseQueries(queryClient);
     },
     onError: (error: unknown) => {
       logger.error("Error saving draft:", error);

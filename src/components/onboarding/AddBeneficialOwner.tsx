@@ -34,6 +34,7 @@ interface AddBeneficialOwnerModalProps {
         role: string;
         email: string;
         ownershipPercentage?: number;
+        isSelf: boolean;
     }) => void;
     mode?: "beneficial" | "officer";
     editingPerson?: EditingPerson | null;
@@ -132,7 +133,8 @@ export const AddBeneficialOwnerModal = ({
                 ? "ORGANIZATION_OWNER"
                 : ("role" in data && typeof data.role === "string" ? data.role : ""),
             email: data.email,
-            ownershipPercentage: data.ownershipPercentage
+            ownershipPercentage: data.ownershipPercentage,
+            isSelf,
         });
         reset();
         setIsSelf(false);

@@ -10,7 +10,13 @@ import FormFieldTextArea from "@/components/form fields/formFieldTextArea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Check, ImagePlus } from "lucide-react";
+import { Check, ImagePlus, CalendarIcon } from "lucide-react";
+import Image from "next/image";
+import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import React, { useState } from "react";
 
 // Define the raw form values (what the inputs give us, e.g. strings for numbers)
@@ -20,6 +26,7 @@ const expenseDetailSchema = z.object({
   merchantName: z.string().min(1, "Merchant is required"),
   category: z.string().min(1, "Category is required"),
   description: z.string().optional(),
+  transactionDate: z.date({ message: "Transaction date is required" }),
 });
 
 export type ExpenseDetailFormData = z.infer<typeof expenseDetailSchema>;
@@ -30,7 +37,7 @@ interface ExpenseCategory {
 }
 
 interface ExpenseFormProps {
-  initialData?: Partial<ExpenseDetailFormData> & { receiptImage?: string };
+  initialData?: Partial<ExpenseDetailFormData> & { receiptImage?: string; transactionDate?: Date };
   categories: ExpenseCategory[];
   onSave: (data: ExpenseDetailFormData, receiptImage?: string) => void;
   onCancel: () => void;
@@ -38,6 +45,8 @@ interface ExpenseFormProps {
   cancelLabel?: string;
   formId?: string;
   hideActions?: boolean;
+  hideReceiptUpload?: boolean;
+  compact?: boolean;
   fieldErrors?: {
     amount?: string[];
     receiptImage?: string[];
@@ -54,12 +63,14 @@ export function ExpenseForm({
   cancelLabel = "Cancel",
   formId,
   hideActions = false,
+  hideReceiptUpload = false,
+  compact = false,
   fieldErrors,
 }: ExpenseFormProps) {
   const [receiptImage, setReceiptImage] = useState<string>(
     initialData?.receiptImage || ""
   );
-   
+  const [pendingReceipt, setPendingReceipt] = useState<string | null>(null);
   const [hasReceiptChanged, setHasReceiptChanged] = useState(false);
 
   const form = useForm<ExpenseDetailFormData>({
@@ -71,11 +82,15 @@ export function ExpenseForm({
       merchantName: initialData?.merchantName || "",
       category: initialData?.category || "",
       description: initialData?.description || "",
+      transactionDate: initialData?.transactionDate ?? new Date(),
     },
   });
 
   const [syncedInitialData, setSyncedInitialData] = useState(initialData);
   if (initialData && initialData !== syncedInitialData) {
+    const receiptChangedFromParent =
+      Boolean(syncedInitialData) &&
+      initialData.receiptImage !== syncedInitialData?.receiptImage;
     setSyncedInitialData(initialData);
     form.reset({
       name: initialData.name || "",
@@ -83,9 +98,20 @@ export function ExpenseForm({
       merchantName: initialData.merchantName || "",
       category: initialData.category || "",
       description: initialData.description || "",
+      transactionDate: initialData.transactionDate ?? new Date(),
     });
     setReceiptImage(initialData.receiptImage || "");
+    setPendingReceipt(null);
+    if (receiptChangedFromParent) {
+      setHasReceiptChanged(true);
+    } else {
+      setHasReceiptChanged(false);
+    }
   }
+
+  const receiptPreviewSrc = normalizeReceiptSrc(pendingReceipt ?? "");
+  const hasCommittedReceipt = hasReceiptSrc(receiptImage);
+  const isPreviewingSelection = Boolean(pendingReceipt);
 
   const categoryOptions = categories.map((cat) => ({
     label: cat.name,
@@ -113,11 +139,23 @@ export function ExpenseForm({
 
     try {
       const base64 = await fileToBase64(file);
-      setReceiptImage(base64);
-      setHasReceiptChanged(true);
+      setPendingReceipt(base64);
     } catch (error) {
       logger.error("Error converting file:", error);
+    } finally {
+      e.target.value = "";
     }
+  };
+
+  const confirmPendingReceipt = () => {
+    if (!pendingReceipt) return;
+    setReceiptImage(pendingReceipt);
+    setPendingReceipt(null);
+    setHasReceiptChanged(true);
+  };
+
+  const cancelPendingReceipt = () => {
+    setPendingReceipt(null);
   };
 
   const handleSubmit = (data: ExpenseDetailFormData) => {
@@ -147,7 +185,7 @@ export function ExpenseForm({
 
   return (
     <Form {...form}>
-      <form id={formId} onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form id={formId} onSubmit={form.handleSubmit(handleSubmit)} className={compact ? "space-y-3" : "space-y-4"}>
         {/* Expense name and Amount */}
         <div className="grid grid-cols-2 gap-4">
           <FormFieldInput
@@ -188,27 +226,109 @@ export function ExpenseForm({
           />
         </div>
 
+        {/* Transaction Date */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-foreground">Transaction Date</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "w-full flex items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                  !form.watch("transactionDate") && "text-muted-foreground"
+                )}
+              >
+                <span>
+                  {form.watch("transactionDate")
+                    ? format(form.watch("transactionDate"), "PPP")
+                    : "Pick a date"}
+                </span>
+                <CalendarIcon className="h-4 w-4 opacity-50" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={form.watch("transactionDate")}
+                onSelect={(date) => form.setValue("transactionDate", date ?? new Date(), { shouldValidate: true })}
+                disabled={(date) => date > new Date()}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          {form.formState.errors.transactionDate && (
+            <p className="text-xs font-medium text-red-500">
+              {form.formState.errors.transactionDate.message}
+            </p>
+          )}
+        </div>
+
         {/* Description */}
         <FormFieldTextArea
           control={form.control}
           name="description"
           label="Description"
           placeholder="Write here..."
+          rows={compact ? 2 : undefined}
         />
 
-        {/* Upload Receipt */}
+        {/* Upload Receipt — hidden in modal when receipt is shown in side panel */}
+        {!hideReceiptUpload && (
         <div className="space-y-2">
   <label className="text-sm font-medium text-foreground">
     Upload Receipt
   </label>
   <div className="relative border-2 border-dashed border-primary border-opacity-50 rounded-lg p-4 bg-white">
-    {receiptImage ? (
+    {isPreviewingSelection ? (
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-muted-foreground">Review your receipt before confirming.</p>
+        <div className="relative w-full h-48 rounded-lg overflow-hidden bg-muted/20 border border-border">
+          <Image
+            src={receiptPreviewSrc}
+            alt="Receipt preview"
+            fill
+            unoptimized
+            className="object-contain"
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={cancelPendingReceipt}
+          >
+            Cancel
+          </Button>
+          <input
+            id="receipt-form-input-reselect"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleReceiptChange}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              document.getElementById("receipt-form-input-reselect")?.click()
+            }
+          >
+            Choose different
+          </Button>
+          <Button type="button" size="sm" onClick={confirmPendingReceipt}>
+            Use this receipt
+          </Button>
+        </div>
+      </div>
+    ) : hasCommittedReceipt ? (
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center">
             <Check className="w-5 h-5 text-primary" />
           </div>
-          <span className="text-sm font-medium text-foreground truncate max-w-[150px]">
+          <span className="text-sm font-medium text-foreground">
             Receipt Uploaded
           </span>
         </div>
@@ -249,7 +369,7 @@ export function ExpenseForm({
         />
       </div>
     )}
-    {!receiptImage && (
+    {!isPreviewingSelection && !hasCommittedReceipt && (
       <div 
         className="absolute inset-0 cursor-pointer"
         onClick={() => document.getElementById("receipt-upload-input-form")?.click()}
@@ -260,6 +380,7 @@ export function ExpenseForm({
     <p key={i} className="text-xs font-medium text-red-500 mt-1">{err}</p>
   ))}
 </div>
+        )}
 
         {/* Actions */}
         {!hideActions && (

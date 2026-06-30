@@ -35,8 +35,6 @@ export interface GetPurchaseOrdersParams {
   search?: string;
   /** Scope the query to the current user's own POs, their team's, or the whole company */
   scope?: "own" | "team" | "company";
-  /** When true, only return POs that require THIS user's approval action */
-  requiresMyApproval?: boolean;
 }
 
 export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
@@ -46,13 +44,12 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
   vendorId?: string,
   search?: string,
   scope?: "own" | "team" | "company",
-  requiresMyApproval?: boolean,
   options?: Omit<UseQueryOptions<PaginatedPurchaseOrdersResponse, Error, TData>, "queryKey" | "queryFn">
 ) => {
   const axios = useAxios();
 
   return useQuery<PaginatedPurchaseOrdersResponse, Error, TData>({
-    queryKey: [QUERY_KEYS.PURCHASE_ORDERS, page, limit, status, vendorId, search, scope, requiresMyApproval],
+    queryKey: [QUERY_KEYS.PURCHASE_ORDERS, page, limit, status, vendorId, search, scope],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("page", page.toString());
@@ -60,9 +57,9 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
       if (status) params.append("status", status);
       if (vendorId) params.append("vendorId", vendorId);
       if (search) params.append("search", search);
-      // TODO: Uncomment when backend supports scope and requiresMyApproval for POs
-      // if (scope) params.append("scope", scope);
-      // if (requiresMyApproval) params.append("requiresMyApproval", "true");
+      // Backend supports scope=my (own POs) and scope=all (company-wide)
+      if (scope === "own") params.append("scope", "my");
+      else if (scope === "team" || scope === "company") params.append("scope", "all");
 
       const response = await axios.get<PaginatedPurchaseOrdersResponse>(
         `${PROCUREMENT_KEYS.PURCHASE_ORDERS}?${params.toString()}`
@@ -74,6 +71,7 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
     ...options,
   });
 };
+
 
 // ── Single Purchase Order ───────────────────────────────────────────────────
 

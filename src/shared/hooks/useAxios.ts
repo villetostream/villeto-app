@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuthStore } from "@/features/auth/store";
 import { isConnectionPoolError, CONNECTION_POOL_MESSAGE } from "@/shared/lib/errors/api-errors";
+import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
 
 declare module "axios" {
     export interface AxiosRequestConfig {
@@ -52,7 +53,29 @@ export function useAxios(): AxiosInstance {
                 if (shouldAttemptRefresh) {
                     originalRequest._retry = true;
                     try {
-                        await axios.post(`${BASEURL}auth/refresh`);
+                        const refreshResponse = await axios.post(
+                            `${BASEURL}auth/refresh`,
+                            {},
+                            { withCredentials: true }
+                        );
+                        // Store the new token if the backend returns one in the body
+                        const newToken =
+                            refreshResponse.data?.data?.accessToken ||
+                            refreshResponse.data?.accessToken ||
+                            null;
+                        if (newToken) {
+                            useAuthStore.getState().setAccessToken(newToken);
+                            originalRequest.headers = {
+                                ...originalRequest.headers,
+                                Authorization: `Bearer ${newToken}`,
+                            };
+                            // Restart proactive refresh with the new token's lifetime
+                            const newExpiresInMs =
+                                refreshResponse.data?.data?.accessTokenExpiresInMs ??
+                                refreshResponse.data?.accessTokenExpiresInMs ??
+                                3600000;
+                            scheduleTokenRefresh(newExpiresInMs);
+                        }
                         return instance(originalRequest);
                     } catch {
                         router.replace("/login");

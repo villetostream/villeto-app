@@ -22,7 +22,7 @@ interface Person {
     email: string;
     ownershipPercentage?: number;
     avatar?: string;
-    phone?: string; // Add this
+    phone?: string;
 }
 
 interface BeneficialOwner extends Person {
@@ -82,12 +82,13 @@ interface OwnerCardProps {
     onEdit: (id: string) => void;
     onDelete: (id: string) => void;
     type: "beneficial" | "officer";
-    showIcons: boolean
+    showIcons: boolean;
+    isSelfCard?: boolean;
 }
 
-export function OwnerCard({ owner, onEdit, onDelete, type, showIcons = true }: OwnerCardProps) {
+export function OwnerCard({ owner, onEdit, onDelete, type, showIcons = true, isSelfCard = false }: OwnerCardProps) {
     return (
-        <Card className="p-4">
+        <Card className={`p-4 ${isSelfCard ? "border-primary/40 bg-primary/5" : ""}`}>
             <div className="flex items-center justify-between gap-5">
                 <div className="flex items-center gap-4 flex-1">
                     {/* Avatar */}
@@ -99,26 +100,30 @@ export function OwnerCard({ owner, onEdit, onDelete, type, showIcons = true }: O
 
                     {/* Owner Info */}
                     <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
+                        <div className="flex items-center gap-3 mb-1 flex-wrap">
                             <span className="font-semibold font-base">{owner.firstName} {owner.lastName}</span>
-                            <span className="text-sm">
-                                {type === "beneficial" ? owner.role : owner.position}
-                            </span>
+                            {isSelfCard && (
+                                <span className="text-[10px] font-semibold bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                                    You
+                                </span>
+                            )}
                             {type === "beneficial" && (
                                 <span className="text-sm flex-auto">
                                     {owner.ownershipPercentage}%
                                 </span>
                             )}
                         </div>
-
+                        <p className="text-xs text-muted-foreground">{owner.email}</p>
                     </div>
                 </div>
 
                 {/* Actions */}
                 {showIcons && (<div className="flex items-center gap-2 shrink-0">
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(owner.id)}>
-                        <HugeiconsIcon icon={PencilEdit02FreeIcons} className="h-4 w-4" />
-                    </Button>
+                    {!isSelfCard && (
+                        <Button variant="ghost" size="sm" onClick={() => onEdit(owner.id)}>
+                            <HugeiconsIcon icon={PencilEdit02FreeIcons} className="h-4 w-4" />
+                        </Button>
+                    )}
                     <Button
                         variant="ghost"
                         size="sm"
@@ -215,24 +220,56 @@ export function ActionButtons({
     );
 }
 
+// ─── Self-owner state ──────────────────────────────────────────────────────────
+interface SelfOwner {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+    ownershipPercentage: number;
+}
+
 export default function Leadership() {
     const router = useRouter();
     const { userProfiles, updateUserProfiles } = useOnboardingStore();
     useHydrateOnboardingData();
+
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [_selectedTab, _setSelectedTab] = useState<"beneficial" | "officer">("beneficial");
     const newPersonIdRef = useRef(0);
     const [editingPerson, setEditingPerson] = useState<{ id: string; type: "beneficial" | "officer" } | null>(null);
 
-    // Filter only beneficial owners (though we might clear others if they exist from before)
-    const beneficialOwners = userProfiles.filter(profile => profile.ownershipPercentage !== undefined) as BeneficialOwner[];
+    // Tracks whether the current user is a beneficial owner (set when modal submitted with isSelf=true)
+    const [selfOwner, setSelfOwner] = useState<SelfOwner | null>(null);
 
-    const updateOnboarding = useUpdateOnboardingLeadersApi()
+    // The businessOwners list only contains OTHER owners (not the current user)
+    const businessOwners = userProfiles.filter(
+        profile => profile.ownershipPercentage !== undefined
+    ) as BeneficialOwner[];
+
+    const updateOnboarding = useUpdateOnboardingLeadersApi();
     const loading = updateOnboarding.isPending;
 
-    const handleAddPerson = (person: Omit<BeneficialOwner, "id"> | Omit<Officer, "id">) => {
-        if (editingPerson) {
-            // Editing existing person
+    // Total ownership across self + all business owners
+    const totalOwnership =
+        (selfOwner?.ownershipPercentage ?? 0) +
+        businessOwners.reduce((sum, o) => sum + (o.ownershipPercentage ?? 0), 0);
+
+    const handleAddPerson = (person: Omit<BeneficialOwner, "id"> | Omit<Officer, "id"> & { isSelf: boolean }) => {
+        const personWithSelf = person as typeof person & { isSelf: boolean };
+
+        if (personWithSelf.isSelf) {
+            // This is the current user — store separately, don't put in businessOwners[]
+            setSelfOwner({
+                id: "self",
+                firstName: person.firstName,
+                lastName: person.lastName,
+                email: person.email,
+                role: person.role,
+                ownershipPercentage: (person as BeneficialOwner).ownershipPercentage ?? 0,
+            });
+        } else if (editingPerson) {
+            // Editing an existing external owner
             const updatedProfiles = userProfiles.map(p =>
                 p.id === editingPerson.id
                     ? { ...p, ...person, avatar: `${person.firstName.split(' ')[0] + person.lastName.split(' ')[0]}` }
@@ -240,14 +277,13 @@ export default function Leadership() {
             );
             updateUserProfiles(updatedProfiles);
         } else {
-            // Adding new person
+            // Adding a new external owner
             const newPerson = {
                 ...person,
                 id: `person-${++newPersonIdRef.current}`,
                 avatar: `${person.firstName.split(' ')[0] + person.lastName.split(' ')[0]}`,
             };
-            const updatedProfiles = [...userProfiles, newPerson];
-            updateUserProfiles(updatedProfiles);
+            updateUserProfiles([...userProfiles, newPerson]);
         }
 
         setIsModalOpen(false);
@@ -263,32 +299,49 @@ export default function Leadership() {
     };
 
     const handleDeletePerson = (id: string) => {
-        const updatedProfiles = userProfiles.filter(profile => profile.id !== id);
-        updateUserProfiles(updatedProfiles);
+        if (id === "self") {
+            setSelfOwner(null);
+        } else {
+            updateUserProfiles(userProfiles.filter(profile => profile.id !== id));
+        }
     };
 
-    // Transform the data to match the payload format
-    const transformDataForPayload = () => {
+    const isUserAnOwner = !!selfOwner;
+
+    const transformDataForPayload = (): LeaderShipPayload => {
         const payload: LeaderShipPayload = {
-            businessOwners: beneficialOwners.map(owner => ({
+            isUserAnOwner,
+            businessOwners: businessOwners.map(owner => ({
                 firstName: owner.firstName,
                 lastName: owner.lastName,
                 email: owner.email,
-                // Add default or make phone required in your interface
-                ownershipPercentage: owner.ownershipPercentage || 0,
-
+                ownershipPercentage: owner.ownershipPercentage ?? 0,
             })),
-            // officers: [] // Removed officers from payload as requested
         };
+
+        if (isUserAnOwner && selfOwner) {
+            payload.selfOwnershipPercentage = selfOwner.ownershipPercentage;
+        }
+
         return payload;
     };
 
     const handleContinue = async () => {
+        // Validation: if not a beneficial owner themselves, must have at least one external owner
+        if (!isUserAnOwner && businessOwners.length === 0) {
+            toast.error("Please add at least one beneficial owner, or check the 'I\u2019m also a beneficiary owner' checkbox.");
+            return;
+        }
+
+        // Validation: total ownership must not exceed 100%
+        if (totalOwnership > 100) {
+            toast.error(`Total ownership (${totalOwnership}%) exceeds 100%. Please adjust the percentages.`);
+            return;
+        }
+
         try {
             const payload = transformDataForPayload();
-
-            // Submit the data
-            const _response = await updateOnboarding.mutateAsync(payload);
+            await updateOnboarding.mutateAsync(payload);
             toast.success("Leader details updated successfully!");
             router.push("/onboarding/financial");
         } catch (error) {
@@ -296,15 +349,14 @@ export default function Leadership() {
         }
     };
 
-
-    const hasOwners = beneficialOwners.length > 0;
+    // Page has valid data to proceed if: user is an owner, OR there's at least one external owner
+    const hasOwners = isUserAnOwner || businessOwners.length > 0;
 
     return (
         <div className="h-full flex-col flex">
             <div className="text-left space-y-4">
                 <div className=" size-24 flex items-center justify-center bg-primary-light rounded-full mb-10">
                     <HugeiconsIcon icon={UserGroup03FreeIcons} className="size-16 text-primary" />
-
                 </div>
 
                 <OnboardingTitle
@@ -319,6 +371,17 @@ export default function Leadership() {
                     description="We ask for this to stay compliant with financial regulations"
                 />
 
+                {/* Ownership total indicator */}
+                {hasOwners && (
+                    <div className={`mt-4 flex items-center justify-between text-sm px-1 ${totalOwnership > 100 ? "text-destructive" : "text-muted-foreground"}`}>
+                        <span>Total ownership allocated</span>
+                        <span className={`font-semibold ${totalOwnership === 100 ? "text-emerald-600" : totalOwnership > 100 ? "text-destructive" : ""}`}>
+                            {totalOwnership}% / 100%
+                        </span>
+                    </div>
+                )}
+
+                {/* Owner cards */}
                 {!hasOwners ? (
                     <EmptyState
                         imageSrc="/images/leadership.png"
@@ -327,7 +390,21 @@ export default function Leadership() {
                     />
                 ) : (
                     <div className="space-y-4 mt-5">
-                        {beneficialOwners.map((person) => (
+                        {/* Self card (if user marked themselves as owner) */}
+                        {selfOwner && (
+                            <OwnerCard
+                                key="self"
+                                owner={selfOwner}
+                                onEdit={() => {}}
+                                onDelete={handleDeletePerson}
+                                type="beneficial"
+                                showIcons
+                                isSelfCard
+                            />
+                        )}
+
+                        {/* External beneficial owners */}
+                        {businessOwners.map((person) => (
                             <OwnerCard
                                 key={person.id}
                                 owner={person}
@@ -345,7 +422,7 @@ export default function Leadership() {
                     onContinue={handleContinue}
                     hasOwners={hasOwners}
                     addButtonText="Add Beneficial Owner"
-                    continueButtonText="Next Step" // "Next Step" even if owners exist, as requested
+                    continueButtonText="Next Step"
                     layout="default"
                     loading={loading}
                 />

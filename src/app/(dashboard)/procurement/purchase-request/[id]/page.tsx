@@ -23,6 +23,7 @@ import {
   useApprovePurchaseRequest,
   useRejectPurchaseRequest,
   useConvertToPO,
+  useDeletePurchaseRequest,
   useGetProcurementCategories,
   useGetVendors,
   type PurchaseRequest,
@@ -125,6 +126,16 @@ function SimpleSelect({
   options: { label: string; value: string }[]; disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
   const selected = options.find(o => o.value === value);
   if (disabled) {
     return (
@@ -134,7 +145,7 @@ function SimpleSelect({
     );
   }
   return (
-    <div className="relative">
+    <div className="relative" ref={ref}>
       <button type="button" onClick={() => setOpen(v => !v)}
         className="w-full h-10 px-3 rounded-lg border border-border bg-muted/30 text-sm flex items-center justify-between hover:border-primary/60 focus:outline-none transition-colors">
         <span>{selected?.label || "Select..."}</span>
@@ -168,41 +179,53 @@ interface WorkflowStep {
 
 function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
   return (
-    <div className="space-y-0">
-      {steps.map((step, i) => (
-        <div key={i} className="flex gap-3 items-start">
-          <div className="relative flex flex-col items-center">
-            <div className={`w-5 h-5 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${
-              step.status === "done" ? "border-primary bg-primary"
-              : step.status === "pending" ? "border-amber-400 bg-amber-50"
-              : "border-gray-300 bg-white"}`}>
-              {step.status === "done" && (
-                <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
+    <div className="space-y-0 pt-1 pl-1">
+      {steps.map((step, idx) => {
+        const isLast = idx === steps.length - 1;
+        return (
+          <div key={idx} className={`flex items-start gap-3 ${step.status === "inactive" ? "opacity-45" : ""}`}>
+            {/* Icon + connector */}
+            <div className="flex flex-col items-center shrink-0 pt-0.5">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                step.status === "done"
+                  ? "bg-primary/10"
+                  : "bg-muted border border-border"
+              }`}>
+                {step.status === "done"
+                  ? <svg className="w-3 h-3 text-primary" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                  : <div className={`w-1.5 h-1.5 rounded-full ${step.status === "pending" ? "bg-amber-400" : "bg-muted-foreground/40"}`} />
+                }
+              </div>
+              {!isLast && (
+                <div className="w-px bg-border/60 flex-1 min-h-[16px] mt-0.5" />
               )}
-              {step.status === "pending" && <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
             </div>
-            {i < steps.length - 1 && <div className="w-px flex-1 bg-gray-200 mt-0.5 min-h-[28px]" />}
+
+            {/* Content */}
+            <div className={`pb-4 min-w-0 ${isLast ? "pb-0" : ""}`}>
+              <p className={`text-xs font-medium ${step.status === "done" ? "text-muted-foreground" : "text-muted-foreground/60"}`}>{step.label}</p>
+              {step.person && (
+                <p className={`text-sm font-semibold flex items-center gap-1.5 flex-wrap mt-0.5 ${step.status === "done" || step.status === "pending" ? "text-foreground" : "text-muted-foreground/60"}`}>
+                  {step.person}
+                  {step.badge && (
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badgeColor}`}>
+                      {step.badge}
+                    </span>
+                  )}
+                </p>
+              )}
+              {!step.person && step.badge && (
+                <span className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badgeColor}`}>
+                  {step.badge}
+                </span>
+              )}
+              {step.timestamp && (
+                <p className="text-xs text-muted-foreground mt-0.5">{step.timestamp}</p>
+              )}
+            </div>
           </div>
-          <div className="pb-5 min-w-0">
-            <p className={`text-sm font-semibold leading-tight ${step.status === "inactive" ? "text-gray-400" : "text-foreground"}`}>
-              {step.label}
-            </p>
-            {step.person && (
-              <p className={`text-xs mt-0.5 ${step.status === "inactive" ? "text-gray-300" : "text-muted-foreground"}`}>
-                {step.person}
-                {step.badge && (
-                  <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${step.badgeColor}`}>
-                    {step.badge}
-                  </span>
-                )}
-              </p>
-            )}
-            {step.timestamp && <p className="text-[11px] text-muted-foreground/70 mt-0.5">{step.timestamp}</p>}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -600,11 +623,6 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
             <input type="text" value={title} onChange={e => setTitle(e.target.value)}
               className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Description</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
-              className="w-full px-3 py-2.5 rounded-lg border border-border text-sm resize-none focus:outline-none focus:border-primary transition-colors" />
-          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Priority</label>
@@ -639,6 +657,12 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
               <label className="text-sm font-medium text-foreground">Department</label>
               <SimpleSelect value={departmentId} onChange={setDepartmentId} options={departments} disabled={!canChangeDept} />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
+              placeholder="Provide context for this request..."
+              className="w-full px-3 py-2.5 rounded-lg border border-border text-sm resize-none focus:outline-none focus:border-primary transition-colors" />
           </div>
         </div>
         <div className="px-6 pb-6">
@@ -777,6 +801,7 @@ function CreatePOView({
   convertLoading,
   rejectLoading,
   departmentName,
+  workflowSteps,
 }: {
   pr: PurchaseRequest;
   vendors: Vendor[];
@@ -785,6 +810,7 @@ function CreatePOView({
   convertLoading: boolean;
   rejectLoading: boolean;
   departmentName?: string | null;
+  workflowSteps: WorkflowStep[];
 }) {
   const lineItems = useMemo<PurchaseRequestLineItemType[]>(() => pr.lineItems || [], [pr.lineItems]);
   const currency = pr.currency || "USD";
@@ -1185,12 +1211,19 @@ function CreatePOView({
 
           <div className="bg-white rounded-2xl border border-border p-5">
             <h3 className="text-sm font-semibold text-foreground mb-4">Workflow Progress</h3>
-            <WorkflowProgress steps={[
-              { label: "Submitted", status: "done", timestamp: formatTs(pr.createdAt) },
-              { label: "Manager Approved", status: "done" },
-              { label: "Create PO", person: `${user?.firstName || ""} ${user?.lastName || ""} (You)`, badge: "Pending", badgeColor: "text-amber-600 bg-amber-50", status: "pending" },
-              { label: "PO Approval", status: "inactive" },
-            ]} />
+            <WorkflowProgress steps={workflowSteps.map(step => {
+              if (step.label === "Converted to PO" && step.status === "inactive") {
+                return {
+                  ...step,
+                  label: "Create PO",
+                  person: user ? `${user.firstName || ""} ${user.lastName || ""} (You)` : "You",
+                  badge: "Pending",
+                  badgeColor: "text-amber-600 bg-amber-50",
+                  status: "pending"
+                };
+              }
+              return step;
+            })} />
           </div>
         </div>
       </div>
@@ -1241,6 +1274,7 @@ function PRDetailPage() {
   const approvePR = useApprovePurchaseRequest(id);
   const rejectPR = useRejectPurchaseRequest(id);
   const convertToPO = useConvertToPO(id);
+  const deletePR = useDeletePurchaseRequest(id);
   const canChangeDept = can("procurement.purchase_request", "manage") || can("department", "manage");
   const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
   const canCreatePOAccess = can("procurement.purchase_request", "convert_to_po") || can("procurement.purchase_order", "create");
@@ -1249,7 +1283,7 @@ function PRDetailPage() {
 
   const [editingLineItem, setEditingLineItem] = useState<PurchaseRequestLineItem | null>(null);
   const updateLineItemHook = useUpdateLineItem(id, editingLineItem?.purchaseRequestLineItemId || "");
-  const [modal, setModal] = useState<"submit" | "withdraw" | "reject" | "approve" | "add_item" | "edit_header" | "delete_item" | null>(null);
+  const [modal, setModal] = useState<"submit" | "withdraw" | "reject" | "approve" | "add_item" | "edit_header" | "delete_item" | "delete_pr" | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
   const pr: PurchaseRequestDetail | undefined = data?.data;
   const departments = (deptData?.data || []).map(d => ({ label: d.departmentName, value: d.departmentId }));
@@ -1369,6 +1403,17 @@ function PRDetailPage() {
     }
   };
 
+  const handleDeletePR = async () => {
+    try {
+      await deletePR.mutateAsync();
+      setModal(null);
+      toast.success("Draft request deleted");
+      router.push("/procurement/purchase-request");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to delete request"));
+    }
+  };
+
   const handleSubmit = async () => {
     try {
       await submitPR.mutateAsync();
@@ -1428,21 +1473,19 @@ function PRDetailPage() {
         eventsByAction[event.action] = event;
       });
 
-      const formatPerson = (event: any) => {
-        const performedByName = event.performedBy 
-          ? `${event.performedBy.firstName || ""} ${event.performedBy.lastName || ""}`.trim()
-          : "System";
-        const roleName = event.performedBy?.roleName || "";
+      const formatPerson = (event: any): string | undefined => {
+        if (!event || !event.performedBy) return undefined;
+        const performedByName = `${event.performedBy.firstName || ""} ${event.performedBy.lastName || ""}`.trim();
+        if (!performedByName) return undefined;
+        const roleName = event.performedBy.roleName || "";
         
         const loggedInName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "";
-        const loggedInRole = user ? getRoleName(user) : "";
         
-        if (user && performedByName === loggedInName && roleName === loggedInRole) {
+        if (user && performedByName === loggedInName) {
           return roleName ? `You (${roleName})` : "You";
         }
         
-        const formattedRole = roleName ? `(${roleName})` : "";
-        return performedByName ? `${performedByName} ${formattedRole}`.trim() : "System";
+        return roleName ? `${performedByName} (${roleName})` : performedByName;
       };
 
       const submitEvent = eventsByAction["submitted"];
@@ -1456,6 +1499,7 @@ function PRDetailPage() {
       const reviewEvent = eventsByAction["under_review"];
       const step2: WorkflowStep = reviewEvent ? {
         label: "Under Review",
+        person: formatPerson(reviewEvent),
         timestamp: formatTs(reviewEvent.timestamp),
         status: "done"
       } : { label: "Under Review", status: "inactive" };
@@ -1471,24 +1515,31 @@ function PRDetailPage() {
       } : { label: "Manager Approved", status: "inactive" };
 
       const poEvent = eventsByAction["converted_to_po"] || eventsByAction["partially_converted"];
-      const step4: WorkflowStep = poEvent ? {
-        label: "PO Created",
-        person: formatPerson(poEvent),
-        timestamp: formatTs(poEvent.timestamp),
-        status: "done"
-      } : { label: "PO Created", status: "inactive" };
+      const withdrawEvent = eventsByAction["withdrawn"] || eventsByAction["cancelled"];
+      
+      let step4: WorkflowStep;
+      if (withdrawEvent) {
+        step4 = {
+          label: "Withdrawn",
+          person: formatPerson(withdrawEvent),
+          timestamp: formatTs(withdrawEvent.timestamp),
+          badge: "Withdrawn",
+          badgeColor: "text-red-500 bg-red-50",
+          status: "done"
+        };
+      } else {
+        step4 = poEvent ? {
+          label: "Converted to PO",
+          person: formatPerson(poEvent),
+          timestamp: formatTs(poEvent.timestamp),
+          status: "done"
+        } : { 
+          label: pr.status === "cancelled" ? "Withdrawn" : "Converted to PO", 
+          status: "inactive" 
+        };
+      }
 
-      const poApproveEvent = eventsByAction["po_approved"];
-      const step5: WorkflowStep = poApproveEvent ? {
-        label: "PO Approved",
-        person: formatPerson(poApproveEvent),
-        timestamp: formatTs(poApproveEvent.timestamp),
-        badge: "Approved",
-        badgeColor: "text-emerald-600 bg-emerald-50",
-        status: "done"
-      } : { label: "PO Approved", status: "inactive" };
-
-      return [step1, step2, step3, step4, step5];
+      return [step1, step2, step3, step4];
     }
 
     const submittedStatuses = ["submitted", "approved", "rejected", "partially_converted", "converted_to_po", "cancelled"];
@@ -1502,7 +1553,7 @@ function PRDetailPage() {
     return [
       {
         label: pr.status === "draft" ? "Created by" : "Submitted by",
-        person: pr.createdAt ? `${getRequesterName(pr)} (Employee)` : undefined,
+        person: pr.createdAt ? `${getRequesterName(pr)} (${getRoleName(pr.creator || pr.employee || user)})` : undefined,
         timestamp: formatTs(pr.createdAt),
         status: "done" as StepStatus,
       },
@@ -1520,12 +1571,10 @@ function PRDetailPage() {
         timestamp: isApprovedOrBeyond ? formatTs(pr.approvedAt || pr.updatedAt) : undefined,
       },
       {
-        label: "PO Created",
-        status: (isPOCreated ? "done" : "inactive") as StepStatus,
-      },
-      {
-        label: "PO Approved",
-        status: (pr.status === "converted_to_po" ? "pending" : "inactive") as StepStatus,
+        label: pr.status === "cancelled" ? "Withdrawn" : "Converted to PO",
+        status: (pr.status === "cancelled" ? "done" : isPOCreated ? "done" : "inactive") as StepStatus,
+        badge: pr.status === "cancelled" ? "Withdrawn" : undefined,
+        badgeColor: pr.status === "cancelled" ? "text-red-500 bg-red-50" : undefined,
       },
     ];
   })() : [];
@@ -1572,6 +1621,7 @@ function PRDetailPage() {
           convertLoading={convertToPO.isPending}
           rejectLoading={rejectPR.isPending}
           departmentName={deptNameFallback}
+          workflowSteps={workflowSteps}
         />
       </>
     );
@@ -1606,6 +1656,17 @@ function PRDetailPage() {
             setModal(null);
             setItemToDelete(null);
           }}
+        />
+      )}
+      {modal === "delete_pr" && (
+        <ConfirmModal
+          title="Delete Draft Request"
+          message={<>Are you sure you want to delete <strong>{pr.title}</strong>? This action cannot be undone.</>}
+          confirmLabel="Delete Request"
+          danger
+          loading={deletePR.isPending}
+          onClose={() => setModal(null)}
+          onConfirm={handleDeletePR}
         />
       )}
       {modal === "withdraw" && (
@@ -1675,10 +1736,16 @@ function PRDetailPage() {
           {(canEdit || canSubmit || canApprove || canWithdraw) && (
             <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
               {canEdit && (
-                <button onClick={() => setModal("edit_header")}
-                  className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors flex items-center gap-2">
-                  <Pencil className="w-3.5 h-3.5" /> Edit Request
-                </button>
+                <>
+                  <button onClick={() => setModal("edit_header")}
+                    className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors flex items-center gap-2">
+                    <Pencil className="w-3.5 h-3.5" /> Edit Request
+                  </button>
+                  <button onClick={() => setModal("delete_pr")}
+                    className="h-9 px-4 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 hover:border-red-300 transition-colors flex items-center gap-2">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete Draft
+                  </button>
+                </>
               )}
               {canSubmit && (
                 <button onClick={() => setModal("submit")} disabled={(pr?.lineItems?.length || 0) === 0}
@@ -2086,12 +2153,12 @@ function PRDetailPage() {
             const isPoCreatorSelf = !isRecord(po?.createdBy) && typeof po?.createdBy !== "string";
 
             // Determine the single "next" step that should show Pending
-            const nextStepKey = !approvedBy
+            const nextStepKey = pr.status === "cancelled" 
+              ? null
+              : !approvedBy
               ? "manager"
               : !hasPO
               ? "create_po"
-              : pr.status !== "converted_to_po"
-              ? "po_approval"
               : null;
 
             // Steps logic
@@ -2111,26 +2178,24 @@ function PRDetailPage() {
               });
 
               const formatPerson = (event: any) => {
-                const performedByName = event.performedBy 
-                  ? `${event.performedBy.firstName || ""} ${event.performedBy.lastName || ""}`.trim()
-                  : "System";
-                const roleName = event.performedBy?.roleName || "";
+                if (!event || !event.performedBy) return "System";
+                const performedByName = `${event.performedBy.firstName || ""} ${event.performedBy.lastName || ""}`.trim() || "System";
+                const roleName = event.performedBy.roleName || "";
                 
                 const loggedInName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "";
-                const loggedInRole = user ? getRoleName(user) : "";
                 
-                if (user && performedByName === loggedInName && roleName === loggedInRole) {
+                if (user && performedByName === loggedInName) {
                   return roleName ? `You (${roleName})` : "You";
                 }
                 
-                const formattedRole = roleName ? `(${roleName})` : "";
-                return performedByName ? `${performedByName} ${formattedRole}`.trim() : "System";
+                return roleName ? `${performedByName} (${roleName})` : performedByName;
               };
 
               const submitEvent = eventsByAction["submitted"];
+              const reviewEvent = eventsByAction["under_review"];
               const approveEvent = eventsByAction["approved"] || eventsByAction["rejected"] || eventsByAction["declined"];
               const poEvent = eventsByAction["converted_to_po"] || eventsByAction["partially_converted"];
-              const poApproveEvent = eventsByAction["po_approved"];
+              const withdrawEvent = eventsByAction["withdrawn"] || eventsByAction["cancelled"];
 
               steps = [
                 {
@@ -2140,6 +2205,14 @@ function PRDetailPage() {
                   personName: submitEvent ? formatPerson(submitEvent) : null,
                   badge: null,
                   timestamp: submitEvent ? formatTs(submitEvent.timestamp) : null,
+                },
+                {
+                  key: "under_review",
+                  label: "Under Review",
+                  done: !!reviewEvent,
+                  personName: reviewEvent ? formatPerson(reviewEvent) : null,
+                  badge: null,
+                  timestamp: reviewEvent ? formatTs(reviewEvent.timestamp) : null,
                 },
                 {
                   key: "manager",
@@ -2157,28 +2230,18 @@ function PRDetailPage() {
                   timestamp: approveEvent ? formatTs(approveEvent.timestamp) : null,
                 },
                 {
-                  key: "create_po",
-                  label: "Create PO",
-                  done: !!poEvent,
-                  personName: poEvent ? formatPerson(poEvent) : null,
-                  badge: poEvent
+                  key: withdrawEvent ? "withdrawn" : "create_po",
+                  label: withdrawEvent ? "Withdrawn" : "Converted to PO",
+                  done: !!(poEvent || withdrawEvent),
+                  personName: withdrawEvent ? formatPerson(withdrawEvent) : poEvent ? formatPerson(poEvent) : null,
+                  badge: withdrawEvent 
+                    ? { text: "Withdrawn", color: "bg-red-50 text-red-500" }
+                    : poEvent
                     ? { text: "Done", color: "bg-emerald-50 text-emerald-600" }
                     : nextStepKey === "create_po"
                     ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
                     : null,
-                  timestamp: poEvent ? formatTs(poEvent.timestamp) : null,
-                },
-                {
-                  key: "po_approval",
-                  label: "PO Approval",
-                  done: !!poApproveEvent,
-                  personName: poApproveEvent ? formatPerson(poApproveEvent) : null,
-                  badge: poApproveEvent
-                    ? { text: "Approved", color: "bg-emerald-50 text-emerald-600" }
-                    : nextStepKey === "po_approval"
-                    ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
-                    : null,
-                  timestamp: poApproveEvent ? formatTs(poApproveEvent.timestamp) : null,
+                  timestamp: withdrawEvent ? formatTs(withdrawEvent.timestamp) : poEvent ? formatTs(poEvent.timestamp) : null,
                 },
               ];
             } else {
@@ -2216,28 +2279,18 @@ function PRDetailPage() {
                   timestamp: approvedBy ? formatTs(pr.approvedAt || pr.updatedAt) : null,
                 },
                 {
-                  key: "create_po",
-                  label: "Create PO",
-                  done: hasPO,
-                  personName: hasPO ? (isPoCreatorSelf ? `${poCreatorName} (You)` : poCreatorName) : null,
-                  badge: hasPO
+                  key: pr.status === "cancelled" ? "withdrawn" : "create_po",
+                  label: pr.status === "cancelled" ? "Withdrawn" : "Converted to PO",
+                  done: pr.status === "cancelled" ? true : hasPO,
+                  personName: pr.status === "cancelled" ? "System" : (hasPO ? (isPoCreatorSelf ? `${poCreatorName} (You)` : poCreatorName) : null),
+                  badge: pr.status === "cancelled"
+                    ? { text: "Withdrawn", color: "bg-red-50 text-red-500" }
+                    : hasPO
                     ? { text: "Done", color: "bg-emerald-50 text-emerald-600" }
                     : nextStepKey === "create_po"
                     ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
                     : null,
-                  timestamp: hasPO ? formatTs(po?.createdAt || pr.updatedAt) : null,
-                },
-                {
-                  key: "po_approval",
-                  label: "PO Approval",
-                  done: pr.status === "converted_to_po",
-                  personName: null,
-                  badge: pr.status === "converted_to_po"
-                    ? { text: "Approved", color: "bg-emerald-50 text-emerald-600" }
-                    : nextStepKey === "po_approval"
-                    ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
-                    : null,
-                  timestamp: null,
+                  timestamp: pr.status === "cancelled" ? formatTs(pr.updatedAt) : (hasPO ? formatTs(po?.createdAt || pr.updatedAt) : null),
                 },
               ];
             }

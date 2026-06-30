@@ -387,7 +387,9 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
   if (pathname === "/procurement/purchase-request/new") return "New Purchase Request";
   if (pathname.match(/^\/procurement\/purchase-request\/[^/]+$/)) return "Purchase Request Details";
   if (pathname.startsWith("/procurement/purchase-request")) return "Purchase Requests";
+  if (pathname.match(/^\/procurement\/purchase-order\/[^/]+\/edit$/)) return "Edit Purchase Order";
   if (pathname.match(/^\/procurement\/purchase-order\/[^/]+$/)) return "Purchase Order Details";
+  if (pathname === "/procurement/purchase-order/new") return "New Purchase Order";
   if (pathname.startsWith("/procurement/purchase-order")) return "Purchase Orders";
   if (pathname.match(/^\/procurement\/confirmation\/[^/]+$/)) return "Confirmation Details";
   if (pathname.startsWith("/procurement/confirmation")) return "Confirmation";
@@ -470,7 +472,9 @@ export function UserSection() {
     isViewRolePage,
     isVendorBulkInvitePage,
     isNewPurchaseRequestPage,
+    isNewPurchaseOrderPage,
     isPurchaseRequestDetailPage,
+    isPOEditPage,
     isPODetailPage,
     isConfirmationDetailPage,
     isVendorDetailPage,
@@ -496,8 +500,10 @@ export function UserSection() {
     const viewRolePage        = pathname.startsWith("/people/view-role/");
     const vendorBulkPage      = pathname === "/vendors/bulk-invite-page";
     const newPRPage           = pathname === "/procurement/purchase-request/new";
+    const newPOPage           = pathname === "/procurement/purchase-order/new";
     const prDetailMatch       = /^\/procurement\/purchase-request\/[^/]+$/.test(pathname) && !newPRPage;
-    const poDetailMatch       = /^\/procurement\/purchase-order\/[^/]+$/.test(pathname);
+    const poEditMatch         = /^\/procurement\/purchase-order\/[^/]+\/edit$/.test(pathname);
+    const poDetailMatch       = /^\/procurement\/purchase-order\/[^/]+$/.test(pathname) && !newPOPage;
     const confirmDetailMatch  = /^\/procurement\/confirmation\/[^/]+$/.test(pathname);
     const vendorDetailMatch   = /^\/vendors\/[^/]+$/.test(pathname) && !vendorBulkPage;
 
@@ -506,7 +512,7 @@ export function UserSection() {
       personalDeleteMatch || personalDetailMatch || personalEditMatch ||
       companyDetailMatch || uploadPage || newExpPage || newReportPage ||
       batchMatch || reimbDetailMatch || viewRolePage || vendorBulkPage || vendorDetailMatch ||
-      newPRPage || prDetailMatch || poDetailMatch || confirmDetailMatch ||
+      newPRPage || newPOPage || prDetailMatch || poEditMatch || poDetailMatch || confirmDetailMatch ||
       pathname === "/people/invite/leadership" ||
       pathname === "/people/invite/employees" ||
       pathname === "/people/create-role";
@@ -529,7 +535,9 @@ export function UserSection() {
       isViewRolePage:              viewRolePage,
       isVendorBulkInvitePage:      vendorBulkPage,
       isNewPurchaseRequestPage:    newPRPage,
+      isNewPurchaseOrderPage:      newPOPage,
       isPurchaseRequestDetailPage: prDetailMatch,
+      isPOEditPage:                poEditMatch,
       isPODetailPage:              poDetailMatch,
       isConfirmationDetailPage:    confirmDetailMatch,
       isVendorDetailPage:          vendorDetailMatch,
@@ -601,10 +609,44 @@ export function UserSection() {
     if (isVendorBulkInvitePage || isVendorDetailPage) { router.push("/vendors"); return; }
     if (isNewPurchaseRequestPage || isPurchaseRequestDetailPage) { 
       const scope = searchParams.get("scope");
-      router.push(scope ? `/procurement/purchase-request?scope=${scope}` : "/procurement/purchase-request"); 
+      const outerTab = searchParams.get("outerTab") || scope;
+      const innerTab = searchParams.get("innerTab");
+      
+      const params = new URLSearchParams();
+      if (outerTab) params.set("outerTab", outerTab);
+      if (innerTab) params.set("innerTab", innerTab);
+      
+      const query = params.toString();
+      router.push(query ? `/procurement/purchase-request?${query}` : "/procurement/purchase-request"); 
       return; 
     }
-    if (isPODetailPage) { router.back(); return; }
+    if (isNewPurchaseOrderPage) {
+      const outerTab = searchParams.get("outerTab");
+      const innerTab = searchParams.get("innerTab");
+      const params = new URLSearchParams();
+      if (outerTab) params.set("outerTab", outerTab);
+      if (innerTab) params.set("innerTab", innerTab);
+      const query = params.toString();
+      router.push(query ? `/procurement/purchase-order?${query}` : "/procurement/purchase-order");
+      return;
+    }
+    if (isPOEditPage || isPODetailPage) {
+      const outerTab = searchParams.get("outerTab");
+      const innerTab = searchParams.get("innerTab");
+      const params = new URLSearchParams();
+      if (outerTab) params.set("outerTab", outerTab);
+      if (innerTab) params.set("innerTab", innerTab);
+      const query = params.toString();
+
+      if (isPOEditPage) {
+        const detailPath = pathname.replace(/\/edit$/, "");
+        router.push(query ? `${detailPath}?${query}` : detailPath);
+        return;
+      }
+
+      router.push(query ? `/procurement/purchase-order?${query}` : "/procurement/purchase-order");
+      return;
+    }
     if (isConfirmationDetailPage) { router.push("/procurement/confirmation"); return; }
     router.push("/expenses");
   };

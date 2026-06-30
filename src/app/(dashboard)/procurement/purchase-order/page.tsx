@@ -7,8 +7,20 @@ import { useAuthStore } from "@/stores/auth-stores";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   Search, Eye, Download, Loader2, ChevronLeft, ChevronRight,
-  MoreHorizontal, CheckCircle, XCircle, X, AlertCircle,
+  MoreHorizontal, CheckCircle, XCircle, X, AlertCircle, Send,
 } from "lucide-react";
+import {
+  PO_STATUS_CFG,
+  getPODisplayStatus,
+} from "@/lib/constants/purchase-order-status";
+import {
+  canPOApprove,
+  canPOCreate,
+  canPOIssue,
+  canPOReadCompany,
+  canPOReadDepartment,
+  buildPODetailUrl,
+} from "@/lib/permissions/purchase-order-permissions";
 import { Pagination } from "@/components/ui/custom-pagination";
 import { usePurchaseOrders, usePurchaseOrderApprovalDecision, useIssuePurchaseOrder } from "@/queries/procurement/purchase-orders";
 import { useGetVendors } from "@/queries/procurement/purchase-requests";
@@ -24,28 +36,10 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 
-// ── Status display config ─────────────────────────────────────────────────────
-
-type POStatus = "draft" | "pending_approval" | "ready_to_issue" | "approved" | "rejected" | "issued" | "acknowledge" | "acknowledged" | "ready_for_delivery" | "partially_delivered" | "delivered" | "closed" | "cancelled" | string;
-
-const PO_STATUS_CFG: Record<string, { label: string; className: string }> = {
-  draft:               { label: "Draft",              className: "text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full" },
-  pending_approval:    { label: "Awaiting Approval",  className: "text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full" },
-  ready_to_issue:      { label: "Ready to Issue",     className: "text-violet-600 bg-violet-50 px-2.5 py-0.5 rounded-full" },
-  issued:              { label: "Issued",             className: "text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full" },
-  acknowledged:        { label: "Acknowledged",       className: "text-amber-500 bg-amber-50 px-2.5 py-0.5 rounded-full" },
-  acknowledge:         { label: "Acknowledged",       className: "text-amber-500 bg-amber-50 px-2.5 py-0.5 rounded-full" },
-  ready_for_delivery:  { label: "Ready for Delivery", className: "text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full" },
-  delivered:           { label: "Delivered",          className: "text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full" },
-  partially_delivered: { label: "Partial Delivery",   className: "text-teal-600 bg-teal-50 px-2.5 py-0.5 rounded-full" },
-  rejected:            { label: "Rejected",           className: "text-red-500 bg-red-50 px-2.5 py-0.5 rounded-full" },
-  closed:              { label: "Closed",             className: "text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full" },
-  cancelled:           { label: "Cancelled",          className: "text-red-600 bg-red-50 px-2.5 py-0.5 rounded-full" },
-};
-
-function POStatusBadge({ status }: { status: POStatus }) {
-  const cfg = PO_STATUS_CFG[status] || { label: status, className: "text-gray-600 bg-gray-100 px-2.5 py-0.5 rounded-full" };
-  return <span className={`text-xs font-medium ${cfg.className}`}>{cfg.label}</span>;
+function POStatusBadge({ status, isOwnView }: { status: string; isOwnView?: boolean }) {
+  const displayKey = getPODisplayStatus(status, isOwnView);
+  const cfg = PO_STATUS_CFG[displayKey] || PO_STATUS_CFG[status] || { label: status, className: "text-gray-600 bg-gray-100" };
+  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>{cfg.label}</span>;
 }
 
 // ── Action badge ──────────────────────────────────────────────────────────────
@@ -112,12 +106,20 @@ function RejectModal({
   );
 }
 
-// ── Inline PO action menu ─────────────────────────────────────────────────────
+// ── PO Action Menu for All POs (approver scope) ───────────────────────────────
 
-function POActionMenu({
-  po, canApprove, onApprove, onReject, onView,
+function AllPOActionMenu({
+  po, canApprove, canIssue, approvingId, issuingId, onApprove, onReject, onIssue, onView,
 }: {
-  po: any; canApprove: boolean; onApprove: () => void; onReject: () => void; onView: () => void;
+  po: any;
+  canApprove: boolean;
+  canIssue: boolean;
+  approvingId: string | null;
+  issuingId: string | null;
+  onApprove: () => void;
+  onReject: () => void;
+  onIssue: () => void;
+  onView: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -130,9 +132,15 @@ function POActionMenu({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const showApprove = canApprove && po.currentUserActionRequired && po.status === "pending_approval";
+  const poId = po.purchaseOrderId || po.id;
+  const isApproving = approvingId === poId;
+  const isIssuing = issuingId === poId;
+  const isBusy = isApproving || isIssuing;
 
-  if (!showApprove) {
+  const showApproveReject = canApprove && po.status === "pending_approval";
+  const showIssue = canIssue && (po.status === "ready_to_issue" || po.status === "approved");
+
+  if (!showApproveReject && !showIssue) {
     return (
       <button onClick={onView} className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors" title="View">
         <Eye className="w-4 h-4" />
@@ -144,61 +152,75 @@ function POActionMenu({
     <div className="relative" ref={menuRef}>
       <button
         onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
-        className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+        disabled={isBusy}
+        className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-50"
         title="Actions"
       >
-        <MoreHorizontal className="w-4 h-4" />
+        {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreHorizontal className="w-4 h-4" />}
       </button>
       {open && (
         <div className="absolute right-0 top-9 z-50 bg-white border border-border rounded-xl shadow-xl w-44 overflow-hidden py-1">
           <button onClick={e => { e.stopPropagation(); setOpen(false); onView(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted/40 transition-colors">
             <Eye className="w-3.5 h-3.5 text-muted-foreground" /> View Details
           </button>
-          <div className="border-t border-border/60 my-1" />
-          <button onClick={e => { e.stopPropagation(); setOpen(false); onApprove(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors font-medium">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Approve
-          </button>
-          <button onClick={e => { e.stopPropagation(); setOpen(false); onReject(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium">
-            <XCircle className="w-3.5 h-3.5 text-red-500" /> Reject
-          </button>
+          {showApproveReject && (
+            <>
+              <div className="border-t border-border/60 my-1" />
+              <button onClick={e => { e.stopPropagation(); setOpen(false); onApprove(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors font-medium">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Approve
+              </button>
+              <button onClick={e => { e.stopPropagation(); setOpen(false); onReject(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium">
+                <XCircle className="w-3.5 h-3.5 text-red-500" /> Reject
+              </button>
+            </>
+          )}
+          {showIssue && (
+            <>
+              <div className="border-t border-border/60 my-1" />
+              <button onClick={e => { e.stopPropagation(); setOpen(false); onIssue(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-primary hover:bg-primary/5 transition-colors font-medium">
+                <Send className="w-3.5 h-3.5 text-primary" /> Issue PO
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// ── Inner tab definitions ─────────────────────────────────────────────────────
+// ── My POs Action: view only — edit happens from the detail page ───────────────
 
-const OWN_PO_TABS = [
-  { key: "all",                label: "All",             statusFilter: "",                    actionType: null as null | "approve" },
-  { key: "draft",              label: "Draft",           statusFilter: "draft",               actionType: null },
-  { key: "pending_review",     label: "Pending Review",  statusFilter: "pending_approval",    actionType: null },
-  // { key: "ready_to_issue",     label: "Ready to Issue",   statusFilter: "ready_to_issue",      actionType: null },
-  { key: "issued",             label: "Issued",          statusFilter: "issued",              actionType: null },
-  { key: "delivered",          label: "Delivered",       statusFilter: "delivered",           actionType: null },
-  { key: "closed",             label: "Closed",          statusFilter: "closed",              actionType: null },
-  { key: "cancelled",          label: "Cancelled",       statusFilter: "cancelled",           actionType: null },
+function MyPOActionMenu({ onView }: { onView: () => void }) {
+  return (
+    <button onClick={onView} className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors" title="View">
+      <Eye className="w-4 h-4" />
+    </button>
+  );
+}
+
+// ── Tab definitions ───────────────────────────────────────────────────────────
+
+// My POs tabs — submitter's perspective (no approve/reject)
+const MY_PO_TABS = [
+  { key: "all",             label: "All",              statusFilter: "" },
+  { key: "draft",           label: "Draft",            statusFilter: "draft" },
+  { key: "pending_review",  label: "Pending Review",   statusFilter: "pending_approval" },
+  { key: "issued",          label: "Issued",           statusFilter: "issued" },
+  { key: "delivered",       label: "Delivered",        statusFilter: "delivered" },
+  { key: "closed",          label: "Closed",           statusFilter: "closed" },
+  { key: "cancelled",       label: "Withdrawn",        statusFilter: "cancelled" },
 ];
 
-// Non-own scope: no draft
-const ELEVATED_BASE_TABS = OWN_PO_TABS.filter(t => t.key !== "draft");
-
-function buildPOInnerTabs(canApprove: boolean) {
-  const tabs = [ELEVATED_BASE_TABS[0]]; // "All"
-
-  if (canApprove) {
-    tabs.push({ key: "awaiting_approval", label: "Awaiting Approval", statusFilter: "pending_approval", actionType: "approve" as const });
-  } else {
-    // Read-only: show submitted without badge
-    tabs.push({ key: "pending_approval", label: "Awaiting Approval", statusFilter: "pending_approval", actionType: null });
-  }
-
-  // Add remaining tabs (skip the "pending_approval" one — handled above)
-  for (const t of ELEVATED_BASE_TABS.slice(1)) {
-    if (t.key === "pending_approval") continue;
-    tabs.push(t);
-  }
-
+// All POs tabs — approver perspective
+function buildAllPOTabs(canApprove: boolean) {
+  const tabs = [
+    { key: "all",               label: "All",               statusFilter: "", actionType: null as null | "approve" },
+    { key: "awaiting_approval", label: "Awaiting Approval", statusFilter: "pending_approval", actionType: canApprove ? "approve" as const : null },
+    { key: "issued",            label: "Issued",            statusFilter: "issued",           actionType: null },
+    { key: "delivered",         label: "Delivered",         statusFilter: "delivered",        actionType: null },
+    { key: "closed",            label: "Closed",            statusFilter: "closed",           actionType: null },
+    { key: "cancelled",         label: "Withdrawn",         statusFilter: "cancelled",        actionType: null },
+  ];
   return tabs;
 }
 
@@ -206,17 +228,25 @@ function buildPOInnerTabs(canApprove: boolean) {
 
 function POTable({
   scope,
+  outerTabKey,
+  initialInnerTab,
 }: {
   scope: "own" | "team" | "company";
+  outerTabKey: "own" | "all";
+  initialInnerTab?: string;
 }) {
   const router     = useRouter();
   const can        = useAuthStore(s => s.can);
-  const canApprove = scope !== "own" && can("procurement.purchase_order", "approve");
-  const canIssuePO = scope !== "own" && can("procurement.purchase_order", "issue");
+  const isMyScope  = scope === "own";
+  const canApprove = !isMyScope && canPOApprove(can);
+  const canIssue   = !isMyScope && canPOIssue(can);
 
-  const statusTabs  = scope === "own" ? OWN_PO_TABS : buildPOInnerTabs(canApprove);
+  const statusTabs  = isMyScope ? MY_PO_TABS : buildAllPOTabs(canApprove);
+  const defaultTab  = statusTabs[0].key;
 
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState(
+    initialInnerTab && statusTabs.some(t => t.key === initialInnerTab) ? initialInnerTab : defaultTab
+  );
   const [search, setSearch]       = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [vendorFilter, setVendorFilter] = useState("all");
@@ -224,6 +254,7 @@ function POTable({
   const [perPage, setPerPage]     = useState(10);
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
   const [approvingId, setApprovingId]   = useState<string | null>(null);
+  const [issuingId, setIssuingId]       = useState<string | null>(null);
 
   const scrollRef        = useRef<HTMLDivElement>(null);
   const [canScrollLeft,  setCanScrollLeft]  = useState(false);
@@ -255,10 +286,9 @@ function POTable({
   const { data: vendorsResponse } = useGetVendors();
   const vendors = vendorsResponse?.data || [];
 
-  const activeTabCfg = statusTabs.find(t => t.key === activeTab);
-  const statusFilter = activeTabCfg?.statusFilter || "";
-  const isActionTab  = activeTabCfg?.actionType != null;
-  const requiresMyApproval = isActionTab && activeTabCfg?.actionType === "approve";
+  const activeTabCfg   = statusTabs.find(t => t.key === activeTab);
+  const statusFilter   = activeTabCfg?.statusFilter || "";
+  const isAwaitingTab  = !isMyScope && activeTab === "awaiting_approval";
 
   const { data, isLoading, isError } = usePurchaseOrders(
     page, perPage,
@@ -266,22 +296,14 @@ function POTable({
     vendorFilter !== "all" ? vendorFilter : undefined,
     debouncedSearch || undefined,
     scope,
-    requiresMyApproval || undefined,
   );
 
-  // Badge count for "Awaiting Approval" tab
+  // Badge count for "Awaiting Approval" tab (only for All POs / elevated scope)
   const { data: approvalCountData } = usePurchaseOrders(
-    1, 1, "pending_approval", undefined, undefined, scope, true,
+    1, 1, "pending_approval", undefined, undefined, scope,
     { enabled: canApprove, select: (d) => d.meta?.totalCount ?? 0 }
   );
   const awaitingCount = (approvalCountData as unknown as number) ?? 0;
-
-  // Badge count for "Ready to Issue" tab
-  const { data: issueCountData } = usePurchaseOrders(
-    1, 1, "ready_to_issue", undefined, undefined, scope, undefined,
-    { enabled: canIssuePO, select: (d) => d.meta?.totalCount ?? 0 }
-  );
-  const readyToIssueCount = (issueCountData as unknown as number) ?? 0;
 
   const purchaseOrders = data?.data || [];
   const meta = data?.meta || { totalCount: 0, totalPages: 1, currentPage: 1, limit: perPage };
@@ -290,6 +312,7 @@ function POTable({
   const approvalDecision = usePurchaseOrderApprovalDecision();
   const issueMut = useIssuePurchaseOrder();
 
+  // Approve = approve the decision then immediately issue the PO
   const handleApprove = useCallback(async (id: string) => {
     setApprovingId(id);
     try {
@@ -314,7 +337,24 @@ function POTable({
     }
   }, [rejectTarget, approvalDecision]);
 
-  const showRequester = scope !== "own";
+  const handleIssue = useCallback(async (id: string) => {
+    setIssuingId(id);
+    try {
+      await issueMut.mutateAsync(id);
+      toast.success("Purchase order issued.");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to issue purchase order.");
+    } finally {
+      setIssuingId(null);
+    }
+  }, [issueMut]);
+
+  const navigateToDetail = (id: string) => {
+    router.push(buildPODetailUrl(id, outerTabKey, activeTab));
+  };
+
+  const showRequester = !isMyScope;
+  const colSpan = showRequester ? 8 : 7;
 
   return (
     <>
@@ -352,8 +392,8 @@ function POTable({
                       className="px-4 py-1.5 text-xs font-semibold rounded-md whitespace-nowrap shrink-0 data-[state=active]:text-primary flex items-center"
                     >
                       {tab.label}
-                      {(tab.key === "awaiting_approval" || tab.key === "pending_approval") && canApprove && <ActionBadge count={awaitingCount} />}
-                      {tab.key === "ready_to_issue" && canIssuePO && <ActionBadge count={readyToIssueCount} />}
+                      {/* Red badge on Awaiting Approval tab in All POs view */}
+                      {tab.key === "awaiting_approval" && canApprove && <ActionBadge count={awaitingCount} />}
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -405,7 +445,7 @@ function POTable({
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={showRequester ? 8 : 7} className="px-5 py-24 text-center">
+                  <td colSpan={colSpan} className="px-5 py-24 text-center">
                     <div className="flex flex-col items-center justify-center gap-3">
                       <Loader2 className="w-8 h-8 animate-spin text-primary" />
                       <span className="text-muted-foreground font-medium">Loading orders…</span>
@@ -414,29 +454,30 @@ function POTable({
                 </tr>
               ) : isError ? (
                 <tr>
-                  <td colSpan={showRequester ? 8 : 7} className="px-5 py-16 text-center text-red-500 font-medium">
+                  <td colSpan={colSpan} className="px-5 py-16 text-center text-red-500 font-medium">
                     Failed to load purchase orders. Please try refreshing.
                   </td>
                 </tr>
               ) : purchaseOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={showRequester ? 8 : 7} className="px-5 py-10 text-center border-0 p-0">
+                  <td colSpan={colSpan} className="px-5 py-10 text-center border-0 p-0">
                     <div className="w-full flex justify-center py-10 px-4">
                       <EmptyState icon={<Search className="w-6 h-6" />} title="No purchase orders found" description="Try adjusting your search or filters." />
                     </div>
                   </td>
                 </tr>
               ) : purchaseOrders.map((po: any) => {
+                const id = po.purchaseOrderId || po.id;
                 const requester = po.createdBy ? `${po.createdBy.firstName} ${po.createdBy.lastName}`.trim() : po.requesterName;
                 const vendorLabel = po.vendor?.legalName || po.vendor?.displayName || "N/A";
-                const needsAction = isActionTab && po.currentUserActionRequired === true;
+                const needsAction = !isMyScope && isAwaitingTab && canApprove && po.status === "pending_approval";
                 let formattedDate = po.createdAt || po.issueDate;
                 try { formattedDate = format(new Date(formattedDate), "dd MMM, yyyy"); } catch { /* keep raw */ }
 
                 return (
                   <tr
-                    key={po.purchaseOrderId || po.id}
-                    onClick={() => router.push(`/procurement/purchase-order/${po.purchaseOrderId || po.id}`)}
+                    key={id}
+                    onClick={() => navigateToDetail(id)}
                     className={`border-b border-border/40 hover:bg-muted/10 transition-colors cursor-pointer ${
                       needsAction ? "border-l-4 border-l-primary bg-amber-50/30 hover:bg-amber-50/50" : ""
                     }`}
@@ -449,15 +490,23 @@ function POTable({
                     <td className="px-5 py-4 font-medium">
                       {Number(po.totalAmount).toLocaleString("en-US", { style: "currency", currency: po.currency || "USD" })}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap"><POStatusBadge status={po.status} /></td>
+                    <td className="px-5 py-4 whitespace-nowrap"><POStatusBadge status={po.status} isOwnView={isMyScope} /></td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
-                      <POActionMenu
-                        po={po}
-                        canApprove={canApprove}
-                        onView={() => router.push(`/procurement/purchase-order/${po.purchaseOrderId || po.id}`)}
-                        onApprove={() => handleApprove(po.purchaseOrderId || po.id)}
-                        onReject={() => setRejectTarget(po.purchaseOrderId || po.id)}
-                      />
+                      {isMyScope ? (
+                        <MyPOActionMenu onView={() => navigateToDetail(id)} />
+                      ) : (
+                        <AllPOActionMenu
+                          po={po}
+                          canApprove={canApprove}
+                          canIssue={canIssue}
+                          approvingId={approvingId}
+                          issuingId={issuingId}
+                          onView={() => navigateToDetail(id)}
+                          onApprove={() => handleApprove(id)}
+                          onReject={() => setRejectTarget(id)}
+                          onIssue={() => handleIssue(id)}
+                        />
+                      )}
                     </td>
                   </tr>
                 );
@@ -488,49 +537,74 @@ function PurchaseOrderPage() {
   const { setAction, clearAction } = useHeaderActionStore();
   const can                      = useAuthStore(s => s.can);
 
-  const hasCompanyPOScope = can("procurement.purchase_order", "read_company");
-  const hasTeamPOScope    = can("procurement.purchase_order", "read_department");
-  const canCreatePO       = can("procurement.purchase_order", "create");
+  const hasCompanyPOScope = canPOReadCompany(can);
+  const hasTeamPOScope    = canPOReadDepartment(can);
+  const canCreatePO       = canPOCreate(can);
+  const canApprovePO      = canPOApprove(can);
 
+  // Outer tabs: "All POs" (elevated) + "My POs" (own)
   const outerTabs = useMemo(() => [
-    ...(hasCompanyPOScope ? [{ key: "company", label: "All POs"   }] : []),
-    ...(hasTeamPOScope    ? [{ key: "team",    label: "Team POs"  }] : []),
+    ...(hasCompanyPOScope || hasTeamPOScope ? [{ key: "all", label: "All POs" }] : []),
     { key: "own", label: "My POs" },
   ], [hasCompanyPOScope, hasTeamPOScope]);
 
-  const defaultTab    = outerTabs[0].key;
-  const tabFromUrl    = searchParams.get("outerTab");
-  const validTab      = outerTabs.find(t => t.key === tabFromUrl)?.key ?? defaultTab;
+  const defaultTab = outerTabs[0].key;
+  const tabFromUrl = searchParams.get("outerTab");
+  const validTab   = outerTabs.find(t => t.key === tabFromUrl)?.key ?? defaultTab;
   const [outerTab, setOuterTab] = useState(validTab);
+  const innerTabFromUrl = searchParams.get("innerTab") ?? undefined;
+
+  // Badge count for the outer "All POs" tab label
+  const elevatedScope = hasCompanyPOScope ? "company" : hasTeamPOScope ? "team" : "own";
+  const { data: outerBadgeData } = usePurchaseOrders(
+    1, 1, "pending_approval", undefined, undefined, elevatedScope as any,
+    { enabled: canApprovePO && (hasCompanyPOScope || hasTeamPOScope), select: d => d.meta?.totalCount ?? 0 }
+  );
+  const outerAwaitingCount = (outerBadgeData as unknown as number) ?? 0;
 
   useEffect(() => {
     if (canCreatePO) {
-      setAction({ label: "Create PO", onClick: () => {} });
+      setAction({ label: "Create PO", onClick: () => router.push("/procurement/purchase-order/new") });
     } else {
       clearAction();
     }
     return () => clearAction();
-  }, [setAction, clearAction, canCreatePO]);
+  }, [setAction, clearAction, canCreatePO, router]);
 
+  // If user only has own scope, skip the outer tabs entirely
   if (outerTabs.length === 1) {
     return (
       <div className="space-y-4">
-        <POTable scope="own" />
+        <POTable scope="own" outerTabKey="own" initialInnerTab={innerTabFromUrl} />
       </div>
     );
   }
+
+  // Map outer tab key → API scope
+  const tabToScope = (key: string): "own" | "team" | "company" => {
+    if (key === "own") return "own";
+    if (hasCompanyPOScope) return "company";
+    return "team";
+  };
 
   return (
     <div className="space-y-4">
       <Tabs value={outerTab} onValueChange={setOuterTab}>
         <TabsList>
           {outerTabs.map(t => (
-            <TabsTrigger key={t.key} value={t.key}>{t.label}</TabsTrigger>
+            <TabsTrigger key={t.key} value={t.key} className="flex items-center gap-1">
+              {t.label}
+              {t.key === "all" && canApprovePO && <ActionBadge count={outerAwaitingCount} />}
+            </TabsTrigger>
           ))}
         </TabsList>
         {outerTabs.map(t => (
           <TabsContent key={t.key} value={t.key} className="mt-4">
-            <POTable scope={t.key as "own" | "team" | "company"} />
+            <POTable
+              scope={tabToScope(t.key)}
+              outerTabKey={t.key as "own" | "all"}
+              initialInnerTab={outerTab === t.key ? innerTabFromUrl : undefined}
+            />
           </TabsContent>
         ))}
       </Tabs>
@@ -540,5 +614,6 @@ function PurchaseOrderPage() {
 
 export default withPermissions(PurchaseOrderPage, [
   { resource: "procurement.purchase_order", action: "read_company" },
+  { resource: "procurement.purchase_order", action: "read_department" },
   { resource: "procurement.purchase_order", action: "read_own" },
 ]);
