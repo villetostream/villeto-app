@@ -652,7 +652,7 @@ export default function PODetailPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-3 flex-wrap mt-2 sm:mt-8">
+          <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
             {showEditDraft && (
               <button
                 onClick={() => router.push(buildPOEditUrl(id, outerTab, innerTab))}
