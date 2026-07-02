@@ -15,6 +15,7 @@ interface CompanyExpenseItemModalProps {
     categoryName: string;
     description?: string;
     receiptUrl?: string;
+    transactionDate?: string;
   } | null;
 }
 
@@ -72,18 +73,17 @@ export function CompanyExpenseItemModal({
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground mb-2 block">
-                    Amount
+                    Transaction Date
                   </label>
                   <div className="bg-muted/40 rounded-lg p-3 text-sm text-foreground font-medium">
-                    {currencySymbol}{parseFloat(expense.amount).toLocaleString("en-US", {
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 2,
-                    })}
+                    {expense.transactionDate 
+                      ? new Date(expense.transactionDate).toLocaleDateString()
+                      : "—"}
                   </div>
                 </div>
               </div>
 
-              {/* Merchant and Category */}
+              {/* Merchant and Amount */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-muted-foreground mb-2 block">
@@ -95,11 +95,24 @@ export function CompanyExpenseItemModal({
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground mb-2 block">
-                    Expense Category
+                    Amount
                   </label>
                   <div className="bg-muted/40 rounded-lg p-3 text-sm text-foreground font-medium">
-                    {expense.categoryName || "N/A"}
+                    {currencySymbol}{parseFloat(expense.amount).toLocaleString("en-US", {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 2,
+                    })}
                   </div>
+                </div>
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="text-sm text-muted-foreground mb-2 block">
+                  Expense Category
+                </label>
+                <div className="bg-muted/40 rounded-lg p-3 text-sm text-foreground font-medium">
+                  {expense.categoryName || "N/A"}
                 </div>
               </div>
 

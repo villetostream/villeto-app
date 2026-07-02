@@ -447,8 +447,8 @@ function LineItemModal({
         </div>
 
         <div className="px-6 py-4 border-t border-border bg-white z-10 shrink-0 rounded-b-2xl">
-          <button type="button" onClick={handleSave}
-            className="w-full h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+          <button type="button" onClick={handleSave} disabled={!(form.name || "").trim() || !form.categoryId || !form.departmentId || form.quantity! <= 0 || form.unitPrice! <= 0}
+            className="w-full h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {initial ? "Save Changes" : "Add Item"}
           </button>
         </div>
@@ -495,9 +495,11 @@ export default function NewPurchaseOrderPage() {
   // PO Header form
   const [vendorId, setVendorId] = useState("");
   const [priority, setPriority] = useState<PRPriority | "">("");
-  const [currency, setCurrency] = useState("USD");
   const [deliveryDate, setDeliveryDate] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [departmentId, setDepartmentId] = useState("");
   const [notes, setNotes] = useState("");
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   // Line items
   const [lineItems, setLineItems] = useState<LocalItem[]>([]);
@@ -608,8 +610,8 @@ export default function NewPurchaseOrderPage() {
                 <SelectDropdown value={currency} onChange={setCurrency} options={currencyOptions} placeholder="Select currency" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Expected Delivery <span className="text-red-500">*</span></label>
-                <Popover>
+                <label className="text-sm font-medium text-foreground">Delivery Date <span className="text-red-500">*</span></label>
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                   <PopoverTrigger asChild>
                     <button type="button" className={`w-full h-11 px-3 rounded-lg border border-border text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-primary cursor-pointer ${!deliveryDate ? "text-muted-foreground" : "text-foreground"}`}>
                       {deliveryDate ? format(new Date(deliveryDate), "PPP") : "Pick a date"}
@@ -620,7 +622,12 @@ export default function NewPurchaseOrderPage() {
                     <CalendarPicker
                       mode="single"
                       selected={deliveryDate ? new Date(deliveryDate) : undefined}
-                      onSelect={(d) => d && setDeliveryDate(format(d, "yyyy-MM-dd"))}
+                      onSelect={(d) => {
+                        if (d) {
+                          setDeliveryDate(format(d, "yyyy-MM-dd"));
+                          setCalendarOpen(false);
+                        }
+                      }}
                       disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                       initialFocus
                     />
@@ -640,7 +647,7 @@ export default function NewPurchaseOrderPage() {
             <div className="pt-1 flex justify-end">
               <button type="button" onClick={handleSaveHeader}
                 className="h-11 px-8 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
-                Save &amp; Continue
+                Continue
               </button>
             </div>
           </div>
@@ -729,8 +736,8 @@ export default function NewPurchaseOrderPage() {
                               }
                             </td>
                             <td className="px-5 py-3.5 text-foreground">{item.quantity}</td>
-                            <td className="px-5 py-3.5 text-foreground">{currencySymbol}{item.unitPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3.5 font-medium text-foreground">{currencySymbol}{sub.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                            <td className="px-5 py-3.5 text-foreground">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                            <td className="px-5 py-3.5 font-medium text-foreground">{currencySymbol}{(sub || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-1">
                                 <div className="relative group">
@@ -808,7 +815,7 @@ export default function NewPurchaseOrderPage() {
               }}
               className="h-11 px-8 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
               {createPO.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Create Purchase Order
+              Continue
             </button>
           </div>
         </div>
