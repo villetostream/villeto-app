@@ -145,8 +145,8 @@ export function ExpenseDetailModal({
                 transactionDate: expense.transactionDate,
               }}
               categories={categories}
-              onSave={(data) => {
-                onSave(expense.id, data, receiptImage);
+              onSave={(data, formReceiptImage) => {
+                onSave(expense.id, data, formReceiptImage || receiptImage);
                 onClose();
               }}
               onCancel={onClose}

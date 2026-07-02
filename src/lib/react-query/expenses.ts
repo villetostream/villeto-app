@@ -92,6 +92,7 @@ export interface ExpenseItem {
   approvalStatus?: "pending_approval" | "approved" | "rejected" | "declined" | string;
   /** Whether the report passed automated policy checks */
   policyStatus?: "passed" | "failed" | string;
+  transactionDate?: string;
 }
 
 export interface PersonalExpenseDetailResponse {

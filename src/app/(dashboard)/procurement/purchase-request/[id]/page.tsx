@@ -493,6 +493,22 @@ const EMPTY_ITEM: ModalItem = {
   quantity: 0, unitPrice: 0, taxAmount: 0, sku: "", unitOfMeasure: "unit",
 };
 
+function safeModalItem(initial?: ModalItem): ModalItem {
+  if (!initial) return EMPTY_ITEM;
+  return {
+    name: initial.name || "",
+    categoryName: initial.categoryName || "",
+    description: initial.description || "",
+    categoryId: initial.categoryId || "",
+    departmentId: initial.departmentId || "",
+    quantity: initial.quantity || 0,
+    unitPrice: initial.unitPrice || 0,
+    taxAmount: initial.taxAmount || 0,
+    sku: initial.sku || "",
+    unitOfMeasure: initial.unitOfMeasure || "unit",
+  };
+}
+
 function LineItemModal({ onClose, onSave, initial, loading, departments: _departments, currency = "USD" }: {
   onClose: () => void;
   onSave: (d: LineItemPayload) => void;
@@ -501,7 +517,7 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
   departments: { label: string; value: string }[];
   currency?: string;
 }) {
-  const [form, setForm] = useState<ModalItem>(initial || EMPTY_ITEM);
+  const [form, setForm] = useState<ModalItem>(() => safeModalItem(initial));
   const set = (k: keyof ModalItem, v: string | number) => setForm(p => ({ ...p, [k]: v }));
   const subtotal = form.quantity * form.unitPrice;
 
@@ -566,7 +582,7 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
         <div className="px-6 py-4 border-t border-border bg-white z-10 shrink-0 rounded-b-2xl">
           <button type="button" disabled={loading}
             onClick={() => {
-              if (!form.name.trim()) { toast.error("Item name required"); return; }
+              if (!(form.name || "").trim()) { toast.error("Item name required"); return; }
               if (!form.quantity || form.quantity <= 0) { toast.error("Quantity must be > 0"); return; }
               onSave({
                 name: form.name, description: form.description || undefined,
@@ -1256,7 +1272,7 @@ function PRDetailPage() {
   // on the list page before honouring it.
   const hasTeamScopePermission    = can("procurement.purchase_request", "read_department");
   const hasCompanyScopePermission = can("procurement.purchase_request", "read_company");
-  const rawScope  = searchParams.get("scope") || "own";
+  const rawScope  = searchParams.get("scope") || searchParams.get("outerTab") || "own";
   const scope = (
     rawScope === "company" && hasCompanyScopePermission ? "company" :
     rawScope === "team"    && hasTeamScopePermission    ? "team"    : "own"
@@ -1328,8 +1344,8 @@ function PRDetailPage() {
   const isOwnRequest = !!user?.userId && !!pr?.requesterId && user.userId === pr.requesterId;
 
   // Edit/manage own draft — only meaningful on own scope
-  const canEdit   = isDraft && can("procurement.purchase_request", "update_own_draft");
-  const canSubmit = isDraft && (pr?.lineItems?.length || 0) > 0 && can("procurement.purchase_request", "submit");
+  const canEdit   = isOwnRequest && isDraft && can("procurement.purchase_request", "update_own_draft");
+  const canSubmit = isOwnRequest && isDraft && (pr?.lineItems?.length || 0) > 0 && can("procurement.purchase_request", "submit");
 
   // Approve/Reject base permission
   const hasApprovePermission = can("procurement.purchase_request", "approve") ||
@@ -1337,10 +1353,10 @@ function PRDetailPage() {
     can("procurement.purchase_request", "approve_company");
 
   // Withdraw: owner can withdraw their own request; admin can withdraw via override on company scope.
-  // Uses a dedicated "withdraw" permission rather than re-using "submit" — they are distinct actions.
+  const hasWithdrawPermission = can("procurement.purchase_request", "withdraw");
   const canWithdraw = (isDraft || isSubmitted || isApproved) && (
-    (isOwnScope && (can("procurement.purchase_request", "withdraw") || can("procurement.purchase_request", "submit"))) ||
-    (isCompanyScope && overrideUnlocked && hasApprovePermission)
+    (isOwnScope && isOwnRequest && (hasWithdrawPermission || can("procurement.purchase_request", "submit"))) ||
+    (isCompanyScope && overrideUnlocked && (hasWithdrawPermission || hasApprovePermission))
   );
 
   // On own scope — never show approve/reject
@@ -1357,9 +1373,11 @@ function PRDetailPage() {
   );
 
   // Whether to show the lock/unlock override banner.
-  // Never show it on the requester's own request — there is nothing to override
-  // since self-approval is not permitted regardless of unlock state.
-  const showOverrideBanner = isCompanyScope && isSubmitted && hasApprovePermission && !isOwnRequest;
+  // Never show it on the requester's own request — there is nothing to override.
+  const showOverrideBanner = isCompanyScope && !isOwnRequest && (
+    (isSubmitted && hasApprovePermission) ||
+    ((isSubmitted || isApproved) && (hasWithdrawPermission || hasApprovePermission))
+  );
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 

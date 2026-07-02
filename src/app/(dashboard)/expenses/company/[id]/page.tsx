@@ -286,12 +286,36 @@ export default function CompanyExpenseDetailPage() {
           <p className="text-sm font-semibold text-foreground">{reporterName}</p>
         </div>
 
-        {/* Report title + status */}
-        <div className="mb-2 flex items-center gap-3">
-          <h1 className="text-2xl font-semibold text-foreground">{reportName}</h1>
-          <ExpenseStatusBadge status={rawReportStatus} context="manager" />
+        {/* Report title + status + actions */}
+        <div className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-foreground">{reportName}</h1>
+              <ExpenseStatusBadge status={rawReportStatus} context="manager" />
+            </div>
+            <p className="text-sm text-muted-foreground">{reportDate}</p>
+          </div>
+
+          {/* Approve / Reject Actions */}
+          {canTakeAction && (
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleApprove}
+                disabled={isApproving || isRejecting}
+                className="bg-teal-500 text-white hover:bg-teal-600 h-11 px-8 rounded-lg font-medium"
+              >
+                {isApproving ? "Processing..." : "Approve"}
+              </Button>
+              <Button
+                onClick={() => setRejectOpen(true)}
+                disabled={isApproving || isRejecting}
+                className="bg-red-500 text-white hover:bg-red-600 h-11 px-8 rounded-lg font-medium"
+              >
+                Reject
+              </Button>
+            </div>
+          )}
         </div>
-        <p className="text-sm text-muted-foreground mb-6">{reportDate}</p>
 
         {/* Two-column: items left, timeline right */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -357,25 +381,7 @@ export default function CompanyExpenseDetailPage() {
               </div>
             </div>
 
-            {/* Approve / Reject — only for users with approve_department on pending reports */}
-            {canTakeAction && (
-              <div className="flex justify-end gap-3">
-                <Button
-                  onClick={() => setRejectOpen(true)}
-                  disabled={isApproving || isRejecting}
-                  className="bg-red-500 text-white hover:bg-red-600 px-8 h-11 rounded-lg font-medium min-w-[100px]"
-                >
-                  Reject
-                </Button>
-                <Button
-                  onClick={handleApprove}
-                  disabled={isApproving || isRejecting}
-                  className="bg-teal-500 text-white hover:bg-teal-600 px-8 h-11 rounded-lg font-medium min-w-[100px]"
-                >
-                  {isApproving ? "Processing..." : "Approve"}
-                </Button>
-              </div>
-            )}
+            {/* Approve / Reject was here, moved to right column */}
           </div>
 
           {/* Right — Expense Timeline (visible to all roles) */}
@@ -388,6 +394,7 @@ export default function CompanyExpenseDetailPage() {
               />
             )}
             
+            {/* Actions were moved to the header to align timeline with table */}
             <ExpenseTimeline
               status={reportStatus}
               submissionDate={reportDate}
@@ -410,6 +417,7 @@ export default function CompanyExpenseDetailPage() {
           categoryName: selectedExpense.categoryName || "Uncategorized",
           description:  selectedExpense.description,
           receiptUrl:   selectedExpense.receiptUrl,
+          transactionDate: selectedExpense.transactionDate,
         } : null}
       />
 

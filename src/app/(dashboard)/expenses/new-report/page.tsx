@@ -131,6 +131,7 @@ export default function NewReportPage() {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(null);
 
   // Modal states
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
@@ -400,10 +401,16 @@ export default function NewReportPage() {
       let finalPayload: any;
       if (status === "draft") {
         finalPayload = { reportTitle, expenses: expensesPayload };
+        if (draftId) finalPayload.draftId = draftId;
         logger.log("[doSubmit] Final payload being sent to draft endpoint:", finalPayload);
-        await axios.post("reports/draft", finalPayload);
+        const res = await axios.post("reports/draft", finalPayload);
+        const returnedId = res.data?.data?.reportId || res.data?.data?.id || res.data?.data?.draftId;
+        if (returnedId) {
+          setDraftId(returnedId);
+        }
       } else {
         finalPayload = { reportTitle, expenses: expensesPayload };
+        if (draftId) finalPayload.draftId = draftId;
         logger.log("[doSubmit] Final payload being sent to manual reports endpoint:", finalPayload);
         await axios.post(API_KEYS.EXPENSE.REPORTS, finalPayload);
       }

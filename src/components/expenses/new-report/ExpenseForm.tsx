@@ -72,6 +72,7 @@ export function ExpenseForm({
   );
   const [pendingReceipt, setPendingReceipt] = useState<string | null>(null);
   const [hasReceiptChanged, setHasReceiptChanged] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const form = useForm<ExpenseDetailFormData>({
      
@@ -229,7 +230,7 @@ export function ExpenseForm({
         {/* Transaction Date */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">Transaction Date</label>
-          <Popover>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
               <button
                 type="button"
@@ -250,7 +251,10 @@ export function ExpenseForm({
               <Calendar
                 mode="single"
                 selected={form.watch("transactionDate")}
-                onSelect={(date) => form.setValue("transactionDate", date ?? new Date(), { shouldValidate: true })}
+                onSelect={(date) => {
+                  form.setValue("transactionDate", date ?? new Date(), { shouldValidate: true });
+                  setCalendarOpen(false);
+                }}
                 disabled={(date) => date > new Date()}
                 initialFocus
               />

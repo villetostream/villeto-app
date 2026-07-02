@@ -17,6 +17,7 @@ import {
   useUpdateLineItem,
   useDeleteLineItem,
   useSubmitPurchaseRequest,
+  useGetPurchaseRequestById,
   useGetProcurementCategories,
   useCreateProcurementCategory,
   type LineItemPayload,
@@ -26,7 +27,7 @@ import {
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
-import { isPRPriority, parseLineItemsFromAddResponse, toApiLineItemPayload } from "@/lib/types/purchase-request-helpers";
+import { isPRPriority, toApiLineItemPayload } from "@/lib/types/purchase-request-helpers";
 
 function cleanLineItemPayload(payload: LineItemPayload): LineItemPayload {
   return toApiLineItemPayload(payload);
@@ -387,7 +388,7 @@ function LineItemModal({
         </div>
 
         <div className="px-6 py-4 border-t border-border bg-white z-10 shrink-0 rounded-b-2xl">
-          <button type="button" onClick={handleSave} disabled={loading}
+          <button type="button" onClick={handleSave} disabled={loading || !(form.name || "").trim() || !form.categoryId || form.quantity <= 0 || form.unitPrice <= 0}
             className="w-full h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {initial ? "Save Changes" : "Add Item"}
@@ -448,6 +449,7 @@ export default function NewPurchaseRequestPage() {
   // Header form
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [priority, setPriority] = useState<PRPriority | "">("");
   const [currency, setCurrency] = useState("USD");
   const [neededByDate, setNeededByDate] = useState("");
@@ -471,9 +473,13 @@ export default function NewPurchaseRequestPage() {
   const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
   const { data: catData } = useGetProcurementCategories();
   const addLineItem = useAddLineItem(purchaseRequestId || "");
-  const updateLineItem = useUpdateLineItem(purchaseRequestId || "", editingItem?.item.purchaseRequestLineItemId || "");
+  const updateLineItem = useUpdateLineItem(purchaseRequestId || "", editingItem?.item.purchaseRequestLineItemId || (editingItem?.item as any)?.id || "");
   const deleteLineItem = useDeleteLineItem(purchaseRequestId || "");
   const submitPR = useSubmitPurchaseRequest(purchaseRequestId || "");
+  // Fetch the saved PR so we always have authoritative IDs for edit/delete
+  const { refetch: refetchPR } = useGetPurchaseRequestById(purchaseRequestId || "", {
+    enabled: false, // only refetch manually after mutations
+  });
 
   const rawCategories = catData?.data || [];
   const categories = rawCategories.flatMap(c => [c, ...(c.children || [])]);
@@ -523,34 +529,12 @@ export default function NewPurchaseRequestPage() {
     if (!purchaseRequestId) return;
     setModalLoading(true);
     try {
-      // Remove forbidden properties defined by the backend
       const cleanPayload = cleanLineItemPayload(payload);
-      const res = await addLineItem.mutateAsync({ lineItems: [cleanPayload] });
-      // The API might return the updated PR or an array of items. 
-      const returnedData = res.data;
-      const parsedItems = parseLineItemsFromAddResponse(returnedData);
-      if (parsedItems.length > 0) {
-        const isFullList =
-          Array.isArray(returnedData) ||
-          (returnedData && typeof returnedData === "object" && "lineItems" in returnedData);
-
-        if (isFullList) {
-          setSavedLineItems(parsedItems);
-        } else {
-          setSavedLineItems((prev) => {
-            const combined = [...prev, ...parsedItems];
-            const unique: PurchaseRequestLineItem[] = [];
-            const seen = new Set<string>();
-            for (const item of combined) {
-              if (!seen.has(item.purchaseRequestLineItemId)) {
-                seen.add(item.purchaseRequestLineItemId);
-                unique.push(item);
-              }
-            }
-            return unique;
-          });
-        }
-      }
+      await addLineItem.mutateAsync({ lineItems: [cleanPayload] });
+      // Refetch the PR to get authoritative line items with correct IDs
+      const refetched = await refetchPR();
+      const items = refetched.data?.data?.lineItems || [];
+      if (items.length > 0) setSavedLineItems(items);
       setShowModal(false);
       toast.success("Item added");
     } catch (err: unknown) {
@@ -564,8 +548,11 @@ export default function NewPurchaseRequestPage() {
     if (!purchaseRequestId || !editingItem) return;
     setModalLoading(true);
     try {
-      const res = await updateLineItem.mutateAsync(payload);
-      setSavedLineItems(prev => prev.map((it, i) => i === editingItem.index ? res.data : it));
+      await updateLineItem.mutateAsync(payload);
+      // Refetch the PR to get the updated line items
+      const refetched = await refetchPR();
+      const items = refetched.data?.data?.lineItems || [];
+      if (items.length > 0) setSavedLineItems(items);
       setEditingItem(null);
       setShowModal(false);
       toast.success("Item updated");
@@ -579,8 +566,17 @@ export default function NewPurchaseRequestPage() {
   const confirmDeleteItem = async () => {
     if (!purchaseRequestId || !itemToDelete) return;
     try {
-      await deleteLineItem.mutateAsync(itemToDelete.item.purchaseRequestLineItemId);
-      setSavedLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
+      const lineItemId = itemToDelete.item.purchaseRequestLineItemId || (itemToDelete.item as any).id;
+      if (!lineItemId) throw new Error("Item ID is missing");
+      await deleteLineItem.mutateAsync(lineItemId);
+      // Refetch the PR to sync the list
+      const refetched = await refetchPR();
+      const items = refetched.data?.data?.lineItems;
+      if (items) {
+        setSavedLineItems(items);
+      } else {
+        setSavedLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
+      }
       toast.success("Item removed");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to remove item"));
@@ -595,24 +591,29 @@ export default function NewPurchaseRequestPage() {
   };
 
   const editInitial: ModalItem | undefined = editingItem ? {
-    name: editingItem.item.name,
+    name: editingItem.item.name || "",
     description: editingItem.item.description || "",
     categoryId: editingItem.item.categoryId || "",
     categoryName: "",
     departmentId: editingItem.item.departmentId || "",
-    quantity: editingItem.item.quantity,
-    unitPrice: editingItem.item.unitPrice,
-    taxAmount: editingItem.item.taxAmount,
+    quantity: editingItem.item.quantity || 0,
+    unitPrice: editingItem.item.unitPrice || 0,
+    taxAmount: editingItem.item.taxAmount || 0,
     sku: editingItem.item.sku || "",
     unitOfMeasure: editingItem.item.unitOfMeasure || "unit",
   } : undefined;
 
   const totals = savedLineItems.reduce(
-    (acc, it) => ({
-      subtotal: acc.subtotal + it.subtotal,
-      tax: acc.tax + it.taxAmount,
-      total: acc.total + it.lineTotal,
-    }),
+    (acc, it) => {
+      const lineSub = it.subtotal ?? (it.quantity * it.unitPrice);
+      const lineTax = it.taxAmount ?? 0;
+      const lineTot = it.lineTotal ?? (lineSub + lineTax);
+      return {
+        subtotal: acc.subtotal + lineSub,
+        tax: acc.tax + lineTax,
+        total: acc.total + lineTot,
+      };
+    },
     { subtotal: 0, tax: 0, total: 0 }
   );
 
@@ -688,7 +689,7 @@ export default function NewPurchaseRequestPage() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">Expected Date <span className="text-red-500">*</span></label>
-                <Popover>
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                   <PopoverTrigger asChild>
                     <button type="button" className={`w-full h-11 px-3 rounded-lg border border-border text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-primary cursor-pointer ${!neededByDate ? "text-muted-foreground" : "text-foreground"}`}>
                       {neededByDate ? format(new Date(neededByDate), "PPP") : "Pick a date"}
@@ -699,7 +700,12 @@ export default function NewPurchaseRequestPage() {
                     <CalendarPicker
                       mode="single"
                       selected={neededByDate ? new Date(neededByDate) : undefined}
-                      onSelect={(d) => d && setNeededByDate(format(d, "yyyy-MM-dd"))}
+                      onSelect={(d) => {
+                        if (d) {
+                          setNeededByDate(format(d, "yyyy-MM-dd"));
+                          setCalendarOpen(false);
+                        }
+                      }}
                       disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                       initialFocus
                     />
@@ -732,7 +738,7 @@ export default function NewPurchaseRequestPage() {
               <button type="button" onClick={handleSaveHeader} disabled={headerSaving}
                 className="h-11 px-8 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
                 {headerSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                Save &amp; Continue
+                Save & Continue
               </button>
             </div>
           </div>
@@ -818,7 +824,7 @@ export default function NewPurchaseRequestPage() {
                       {savedLineItems.map((item, i) => {
                         const catName = getCategoryName(item.categoryId);
                         return (
-                          <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
+                          <tr key={item.purchaseRequestLineItemId || (item as any).id || i} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
                             <td className="px-5 py-3.5 font-semibold text-foreground">{item.name}</td>
                             <td className="px-5 py-3.5 text-muted-foreground max-w-[180px] truncate">{item.description || "—"}</td>
                             <td className="px-5 py-3.5">
@@ -828,8 +834,8 @@ export default function NewPurchaseRequestPage() {
                               }
                             </td>
                             <td className="px-5 py-3.5 text-foreground">{item.quantity}</td>
-                            <td className="px-5 py-3.5 text-foreground">{currencySymbol}{item.unitPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3.5 font-medium text-foreground">{currencySymbol}{item.subtotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                            <td className="px-5 py-3.5 text-foreground">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                            <td className="px-5 py-3.5 font-medium text-foreground">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-1">
                                 <div className="relative group">

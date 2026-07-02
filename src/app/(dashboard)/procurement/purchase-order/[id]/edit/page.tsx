@@ -397,6 +397,7 @@ export default function EditPurchaseOrderPage() {
   const [deliveryDate, setDeliveryDate] = useState("");
   const [notes, setNotes] = useState("");
   const [seeded, setSeeded] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   useEffect(() => {
     if (po && !seeded) {
@@ -611,7 +612,7 @@ export default function EditPurchaseOrderPage() {
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Expected Delivery <span className="text-red-500">*</span></label>
-              <Popover>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                 <PopoverTrigger asChild>
                   <button type="button" className={`w-full h-11 px-3 rounded-lg border border-border text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-primary cursor-pointer ${!deliveryDate ? "text-muted-foreground" : "text-foreground"}`}>
                     {deliveryDate ? format(new Date(deliveryDate), "PPP") : "Pick a date"}
@@ -622,7 +623,12 @@ export default function EditPurchaseOrderPage() {
                   <CalendarPicker
                     mode="single"
                     selected={deliveryDate ? new Date(deliveryDate) : undefined}
-                    onSelect={d => d && setDeliveryDate(format(d, "yyyy-MM-dd"))}
+                    onSelect={(d) => {
+                      if (d) {
+                        setDeliveryDate(format(d, "yyyy-MM-dd"));
+                        setCalendarOpen(false);
+                      }
+                    }}
                     disabled={date => date < new Date(new Date().setHours(0, 0, 0, 0))}
                     initialFocus
                   />
@@ -686,8 +692,8 @@ export default function EditPurchaseOrderPage() {
                           }
                         </td>
                         <td className="px-5 py-3.5 text-foreground">{item.quantity}</td>
-                        <td className="px-5 py-3.5 text-foreground">{currencySymbol}{item.unitPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                        <td className="px-5 py-3.5 font-medium text-foreground">{currencySymbol}{sub.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                        <td className="px-5 py-3.5 text-foreground">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                        <td className="px-5 py-3.5 font-medium text-foreground">{currencySymbol}{(sub || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-1">
                             <button type="button" onClick={() => { setEditingItem({ item, index: i }); setShowModal(true); }}
