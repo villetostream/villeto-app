@@ -412,7 +412,51 @@ export default function NewReportPage() {
         finalPayload = { reportTitle, expenses: expensesPayload };
         if (draftId) finalPayload.draftId = draftId;
         logger.log("[doSubmit] Final payload being sent to manual reports endpoint:", finalPayload);
-        await axios.post(API_KEYS.EXPENSE.REPORTS, finalPayload);
+        const res = await axios.post(API_KEYS.EXPENSE.REPORTS, finalPayload);
+
+        // ── Check if the policy engine requires ACTION_REQUIRED (201 but not submitted) ──
+        const responseData = res.data?.data;
+        if (responseData?.submitted === false && responseData?.resolution === "ACTION_REQUIRED") {
+          const requiredActions = Array.isArray(responseData.requiredActions) ? responseData.requiredActions : [];
+          
+          if (requiredActions.length > 0) {
+            const newViolations = requiredActions.map((action: any) => {
+              const expenseIndex = action.expenseIndex;
+              const expense = expenses[expenseIndex];
+              return {
+                expenseId: expense?.id || `unknown-${expenseIndex}`,
+                expenseName: expense?.name || "Unknown Expense",
+                violation: {
+                  type: "soft_warning",
+                  message: action.message || "Justification required",
+                  ruleType: action.type || "POLICY_RULE",
+                },
+                justification: expense?.justification,
+              };
+            });
+            
+            // Map the violations to the expenses so they show up in the preview list too!
+            setExpenses((prev) => {
+              const next = [...prev];
+              requiredActions.forEach((action: any) => {
+                const idx = action.expenseIndex;
+                if (next[idx]) {
+                   next[idx].policyViolations = [{
+                     type: "soft_warning",
+                     message: action.message || "Justification required",
+                     ruleType: action.type || "POLICY_RULE"
+                   }];
+                }
+              });
+              return next;
+            });
+
+            setPolicyViolations(newViolations);
+            setPendingSubmitStatus(status);
+            setIsPolicyModalOpen(true);
+            return; // Stop here, wait for user justification
+          }
+        }
       }
 
       toast.success(status === "draft" ? "Report saved as draft" : "Report submitted successfully!");

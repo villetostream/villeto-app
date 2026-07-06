@@ -62,7 +62,11 @@ export function ExpenseDetailModal({
     expense.policyViolations.forEach((v) => {
       if (v.type === "hard_block" || v.type === "POLICY_RULE") hasHardBlock = true;
       const msg = v.message.toLowerCase();
-      if (msg.includes("receipt")) {
+      
+      if (v.ruleType === "duplicate_receipt") {
+        fieldErrors.general = fieldErrors.general || [];
+        fieldErrors.general.push(v.message);
+      } else if (msg.includes("receipt")) {
         fieldErrors.receiptImage = fieldErrors.receiptImage || [];
         fieldErrors.receiptImage.push(v.message);
       } else if (msg.includes("limit")) {
@@ -201,6 +205,11 @@ export function ExpenseDetailModal({
                   </Button>
                 </>
               )}
+              {fieldErrors.receiptImage?.map((msg, i) => (
+                <p key={i} className="text-xs font-medium text-red-500 mt-1">
+                  {msg}
+                </p>
+              ))}
             </div>
           )}
         </div>

@@ -35,17 +35,13 @@ import { splitExpenseSchema } from "./split/splitSchema";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { Loader2, AlertCircle, Check } from "lucide-react";
+import { Loader2, AlertCircle, Check, Eye, AlertTriangle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidatePersonalExpenseQueries } from "@/lib/react-query/expenses";
-import {
-  getApiErrorMessage,
-  isPolicyViolationError,
-  isDuplicateReceiptError,
-  getDuplicateReceipts,
-  getPolicyErrorsByExpenseIndex,
-} from "@/lib/types/api-error";
+import { getApiErrorMessage, isPolicyViolationError, isDuplicateReceiptError, getDuplicateReceipts, getPolicyErrorsByExpenseIndex, DuplicateReceiptItem } from "@/lib/types/api-error";
 import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
+import { CompanyExpenseItemModal } from "@/components/expenses/company/CompanyExpenseItemModal";
+import { PolicyJustificationDrawer, type PolicyRequiredAction } from "@/components/expenses/PolicyJustificationDrawer";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -174,7 +170,13 @@ export function ManualExpenseForm({
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [policyErrorsByIndex, setPolicyErrorsByIndex] = useState<Record<number, string>>({});
+  const [duplicateErrorsByIndex, setDuplicateErrorsByIndex] = useState<Record<number, DuplicateReceiptItem[]>>({});
+  const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateReceiptItem | null>(null);
   const [pendingReceiptByIndex, setPendingReceiptByIndex] = useState<Record<number, string>>({});
+  // ACTION_REQUIRED policy state
+  const [requiredActionsByIndex, setRequiredActionsByIndex] = useState<Record<number, PolicyRequiredAction>>({});
+  const [justificationsByIndex, setJustificationsByIndex] = useState<Record<number, string>>({});
+  const [drawerOpenForIndex, setDrawerOpenForIndex] = useState<number | null>(null);
   const searchParams = useSearchParams();
   const reportName = isEditMode
     ? reportDetail?.reportTitle || ""
@@ -510,6 +512,15 @@ export function ManualExpenseForm({
     setPolicyErrorsByIndex(getPolicyErrorsByExpenseIndex(meta, error));
   };
 
+  const applyDuplicateErrorState = (error: unknown) => {
+    const duplicates = getDuplicateReceipts(error);
+    if (duplicates.length > 0) {
+      setDuplicateErrorsByIndex({ 0: duplicates });
+    } else {
+      setDuplicateErrorsByIndex({});
+    }
+  };
+
   const addExpense = () => {
     append({
       title: "",
@@ -570,6 +581,7 @@ export function ManualExpenseForm({
     data: ExpenseFormValues,
     includeReceipts: boolean,
     status: "draft" | "pending",
+    justifications: Record<number, string> = {},
   ) => {
     // Validate all categories exist
     const invalidCategories = data.expenses.filter(
@@ -598,6 +610,7 @@ export function ManualExpenseForm({
         amount: number;
         transactionDate: string;
         receiptImage?: string;
+        justification?: string;
       } = {
         title: expense.title,
         merchantName: expense.vendor,
@@ -606,6 +619,10 @@ export function ManualExpenseForm({
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
+
+      // Attach justification if provided for this expense index
+      const j = justifications[idx];
+      if (j && j.trim()) expenseObj.justification = j.trim();
 
       // Only include receiptImage if it's a new base64 upload (starts with data:)
       if (includeReceipts) {
@@ -632,6 +649,7 @@ export function ManualExpenseForm({
   const buildPatchReportPayload = (
     data: ExpenseFormValues,
     includeReceipts: boolean,
+    justifications: Record<number, string> = {},
   ) => {
     // Validate all categories exist
     const invalidCategories = data.expenses.filter(
@@ -661,6 +679,7 @@ export function ManualExpenseForm({
         transactionDate: string;
         receiptImage?: string;
         expenseId?: string;
+        justification?: string;
       } = {
         title: expense.title,
         merchantName: expense.vendor,
@@ -674,6 +693,10 @@ export function ManualExpenseForm({
       if (isEditMode && reportDetail?.expenses?.[idx]) {
         expenseObj.expenseId = reportDetail.expenses[idx].expenseId;
       }
+
+      // Attach justification if provided for this expense index
+      const j = justifications[idx];
+      if (j && j.trim()) expenseObj.justification = j.trim();
 
       // Only include receiptImage if it's a new base64 upload (starts with data:)
       if (includeReceipts) {
@@ -879,13 +902,32 @@ export function ManualExpenseForm({
 
       if (isEditMode && reportId && reportDetail?.expenses) {
         // Use single PATCH /reports/{reportId} endpoint to update entire report
-        const basePayload = buildPatchReportPayload(data, true);
+        const basePayload = buildPatchReportPayload(data, true, justificationsByIndex);
         const reportPayload = {
           ...basePayload,
           status: "pending", // Explicitly set to pending on final submit
         };
-        await axios.patch(`reports/${reportId}`, reportPayload);
+        const response = await axios.patch(`reports/${reportId}`, reportPayload);
 
+        // Check if the policy engine requires ACTION_REQUIRED (201 but not submitted)
+        const responseData = response.data?.data;
+        if (responseData?.submitted === false && responseData?.resolution === "ACTION_REQUIRED") {
+          const actions: PolicyRequiredAction[] = Array.isArray(responseData.requiredActions)
+            ? responseData.requiredActions
+            : [];
+          const byIndex: Record<number, PolicyRequiredAction> = {};
+          actions.forEach((a) => { byIndex[a.expenseIndex] = a; });
+          setRequiredActionsByIndex(byIndex);
+          toast.warning(
+            "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.",
+            { duration: 6000 },
+          );
+          return;
+        }
+
+        // Successful submission — clear any pending action state
+        setRequiredActionsByIndex({});
+        setJustificationsByIndex({});
         setPolicyErrorsByIndex({});
         toast.success(
           `Your ${data.expenses.length} expense(s) have been updated and submitted successfully.`,
@@ -914,8 +956,28 @@ export function ManualExpenseForm({
         }, 500);
       } else {
         // Use POST for creating new expenses
-        const payload = buildExpensePayload(data, true, "pending");
-        await axios.post(API_KEYS.EXPENSE.REPORTS, payload);
+        const payload = buildExpensePayload(data, true, "pending", justificationsByIndex);
+        const response = await axios.post(API_KEYS.EXPENSE.REPORTS, payload);
+
+        // Check if the policy engine requires ACTION_REQUIRED (201 but not submitted)
+        const responseData = response.data?.data;
+        if (responseData?.submitted === false && responseData?.resolution === "ACTION_REQUIRED") {
+          const actions: PolicyRequiredAction[] = Array.isArray(responseData.requiredActions)
+            ? responseData.requiredActions
+            : [];
+          const byIndex: Record<number, PolicyRequiredAction> = {};
+          actions.forEach((a) => { byIndex[a.expenseIndex] = a; });
+          setRequiredActionsByIndex(byIndex);
+          toast.warning(
+            "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.",
+            { duration: 6000 },
+          );
+          return;
+        }
+
+        // Successful submission — clear any pending action state
+        setRequiredActionsByIndex({});
+        setJustificationsByIndex({});
         setPolicyErrorsByIndex({});
         toast.success(
           `Your ${data.expenses.length} expense(s) have been submitted successfully.`,
@@ -952,6 +1014,7 @@ export function ManualExpenseForm({
       logger.error("Error submitting expenses:", error);
 
       if (isDuplicateReceiptError(error)) {
+        applyDuplicateErrorState(error);
         toast.error(getApiErrorMessage(error, "This receipt appears to have been submitted previously"));
         return;
       }
@@ -1049,8 +1112,28 @@ export function ManualExpenseForm({
                                 <div className="flex items-center gap-3 min-w-0">
                                   {policyErrorsByIndex[index] && (
                                     <AlertCircle
-                                      className="w-4 h-4 text-red-500 shrink-0"
+                                      className="w-4 h-4 text-red-500 shrink-0 cursor-pointer"
                                       aria-label="Policy violation"
+                                    />
+                                  )}
+                                  {requiredActionsByIndex[index] && (
+                                    <AlertTriangle
+                                      className="w-4 h-4 text-amber-500 shrink-0 cursor-pointer"
+                                      aria-label="Justification required"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDrawerOpenForIndex(index);
+                                      }}
+                                    />
+                                  )}
+                                  {duplicateErrorsByIndex[index] && duplicateErrorsByIndex[index].length > 0 && (
+                                    <AlertCircle
+                                      className="w-4 h-4 text-red-500 shrink-0 cursor-pointer"
+                                      aria-label="Duplicate receipt — click to view original"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedDuplicate(duplicateErrorsByIndex[index][0]);
+                                      }}
                                     />
                                   )}
                                   <span className="font-medium">
@@ -1099,7 +1182,51 @@ export function ManualExpenseForm({
                                     <p className="text-xs text-red-600">{policyErrorsByIndex[index]}</p>
                                   </div>
                                 )}
-                                <div className={`space-y-5 max-w-lg flex flex-col pr-16 ${policyErrorsByIndex[index] ? "pt-14" : ""}`}>
+                                {requiredActionsByIndex[index] && (
+                                  <div className="absolute top-2 left-6 right-6 z-10">
+                                    <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-semibold text-amber-800">Explanation required to submit</p>
+                                          <p className="text-xs text-amber-700 truncate">{requiredActionsByIndex[index].categoryName} · {requiredActionsByIndex[index].policyName}</p>
+                                        </div>
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="shrink-0 h-7 px-2 text-amber-700 hover:bg-amber-100 hover:text-amber-900 font-medium text-xs"
+                                        onClick={(e) => { e.preventDefault(); setDrawerOpenForIndex(index); }}
+                                      >
+                                        {justificationsByIndex[index] ? "Edit explanation" : "Provide explanation"}
+                                      </Button>
+                                    </div>
+                                    {justificationsByIndex[index] && (
+                                      <p className="mt-1 text-xs text-green-700 flex items-center gap-1 px-1">
+                                        <Check className="w-3 h-3" /> Explanation saved
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                                {duplicateErrorsByIndex[index] && duplicateErrorsByIndex[index].length > 0 && (
+                                  <button
+                                    type="button"
+                                    className="absolute top-2 left-6 right-6 z-10 w-[calc(100%-3rem)] flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2 cursor-pointer hover:bg-red-100 transition-colors text-left"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setSelectedDuplicate(duplicateErrorsByIndex[index][0]);
+                                    }}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                      <p className="text-xs text-red-600">This receipt was submitted before — <span className="underline font-medium">click to see original</span></p>
+                                    </div>
+                                    <Eye className="w-4 h-4 text-red-500 shrink-0" />
+                                  </button>
+                                )}
+                                <div className={`space-y-5 max-w-lg flex flex-col pr-16 ${(policyErrorsByIndex[index] || requiredActionsByIndex[index] || duplicateErrorsByIndex[index]) ? "pt-14" : ""}  ${requiredActionsByIndex[index] && justificationsByIndex[index] ? "pt-20" : ""}`}>
                                   <SplitExpense
                                     control={form.control as unknown as Control<SplitExpenseFormValues>}
                                     expenseIndex={index}
@@ -1184,6 +1311,50 @@ export function ManualExpenseForm({
                                 <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                                 <p className="text-xs text-red-600">{policyErrorsByIndex[index]}</p>
                               </div>
+                            )}
+                            {requiredActionsByIndex[index] && (
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold text-amber-800">Explanation required to submit</p>
+                                      <p className="text-xs text-amber-700">{requiredActionsByIndex[index].categoryName} · {requiredActionsByIndex[index].policyName}</p>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="shrink-0 h-7 px-2 text-amber-700 hover:bg-amber-100 hover:text-amber-900 font-medium text-xs"
+                                    onClick={() => setDrawerOpenForIndex(index)}
+                                  >
+                                    {justificationsByIndex[index] ? "Edit explanation" : "Provide explanation"}
+                                  </Button>
+                                </div>
+                                {justificationsByIndex[index] && (
+                                  <p className="text-xs text-green-700 flex items-center gap-1 px-1">
+                                    <Check className="w-3 h-3" /> Explanation saved — ready to resubmit
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            {duplicateErrorsByIndex[index] && duplicateErrorsByIndex[index].length > 0 && (
+                              <button
+                                type="button"
+                                className="w-full flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2 cursor-pointer hover:bg-red-100 transition-colors text-left"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setSelectedDuplicate(duplicateErrorsByIndex[index][0]);
+                                }}
+                              >
+                                <div className="flex items-start gap-2">
+                                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                  <p className="text-xs text-red-600">This receipt was submitted before — <span className="underline font-medium">click to see original</span></p>
+                                </div>
+                                <Eye className="w-4 h-4 text-red-500 shrink-0" />
+                              </button>
                             )}
                             {fields.length > 1 && index != 0 && (
                               <div className="ml-auto w-fit flex">
@@ -1270,8 +1441,41 @@ export function ManualExpenseForm({
                 </div>
               )}
 
+              {/* Pending policy justification banner */}
+              {Object.keys(requiredActionsByIndex).length > 0 && (() => {
+                const total = Object.keys(requiredActionsByIndex).length;
+                const done = Object.keys(justificationsByIndex).filter(
+                  (k) => requiredActionsByIndex[Number(k)] && justificationsByIndex[Number(k)]?.trim()
+                ).length;
+                const remaining = total - done;
+                return (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-amber-800">
+                          {remaining > 0
+                            ? `${remaining} expense${remaining > 1 ? "s" : ""} need${remaining === 1 ? "s" : ""} your explanation`
+                            : "All explanations provided — ready to submit"}
+                        </p>
+                        <p className="text-xs text-amber-700 mt-0.5">
+                          {remaining > 0
+                            ? "Click the amber warning on each flagged expense and provide a business reason."
+                            : "Click Submit below to complete your submission."}
+                        </p>
+                      </div>
+                    </div>
+                    {remaining === 0 && (
+                      <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                        <Check className="w-4 h-4 text-green-600" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Form Actions */}
-              <div className="flex space-x-4 pt-10">
+              <div className="flex space-x-4 pt-4">
                 <Button
                   type="submit"
                   size={"md"}
@@ -1279,7 +1483,11 @@ export function ManualExpenseForm({
                     !hasAllReceipts ||
                     isSubmitting ||
                     isLoadingCategories ||
-                    (isEditMode && !hasFormChanges)
+                    (isEditMode && !hasFormChanges) ||
+                    (Object.keys(requiredActionsByIndex).length > 0 &&
+                      Object.keys(requiredActionsByIndex).some(
+                        (k) => !justificationsByIndex[Number(k)]?.trim()
+                      ))
                   }
                 >
                   {isSubmitting ? (
@@ -1362,6 +1570,7 @@ export function ManualExpenseForm({
                       } catch (error: unknown) {
                         logger.error("Error saving draft:", error);
                         if (isDuplicateReceiptError(error)) {
+                          applyDuplicateErrorState(error);
                           toast.error(getApiErrorMessage(error, "This receipt appears to have been submitted previously"));
                           return;
                         }
@@ -1406,6 +1615,39 @@ export function ManualExpenseForm({
           </Form>
         </>
       </div>
+
+      {/* Duplicate receipt detail modal */}
+      <CompanyExpenseItemModal
+        isOpen={selectedDuplicate !== null}
+        onClose={() => setSelectedDuplicate(null)}
+        expense={selectedDuplicate ? {
+          title: selectedDuplicate.title,
+          amount: selectedDuplicate.amount,
+          merchantName: selectedDuplicate.merchantName,
+          categoryName: "Previously Submitted Expense",
+          transactionDate: selectedDuplicate.transactionDate,
+          receiptUrl: selectedDuplicate.receiptUrl || undefined,
+          description: `Expense ID: ${selectedDuplicate.expenseId}`,
+        } : null}
+      />
+
+      {/* Policy justification drawer */}
+      {drawerOpenForIndex !== null && requiredActionsByIndex[drawerOpenForIndex] && (
+        <PolicyJustificationDrawer
+          isOpen={drawerOpenForIndex !== null}
+          onClose={() => setDrawerOpenForIndex(null)}
+          expenseTitle={
+            form.getValues(`expenses.${drawerOpenForIndex}.title`) ||
+            `Expense ${drawerOpenForIndex + 1}`
+          }
+          action={requiredActionsByIndex[drawerOpenForIndex]}
+          existingJustification={justificationsByIndex[drawerOpenForIndex] || ""}
+          onSave={(expenseIndex, justification) => {
+            setJustificationsByIndex((prev) => ({ ...prev, [expenseIndex]: justification }));
+            setDrawerOpenForIndex(null);
+          }}
+        />
+      )}
     </>
   );
 }
