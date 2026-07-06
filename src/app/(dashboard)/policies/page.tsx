@@ -19,6 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1006,7 +1007,24 @@ function PoliciesPage() {
     {
       accessorKey: "description",
       header: "Description",
-      cell: ({ row }) => <span className="text-muted-foreground">{row.original.description || "—"}</span>,
+      cell: ({ row }) => (
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="max-w-[280px] cursor-default">
+                <span className="text-muted-foreground block truncate">
+                  {row.original.description || "—"}
+                </span>
+              </div>
+            </TooltipTrigger>
+            {row.original.description && (
+              <TooltipContent align="start" className="max-w-[300px] break-words">
+                <p>{row.original.description}</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      ),
     },
     {
       accessorKey: "createdBy",
