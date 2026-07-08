@@ -93,6 +93,8 @@ export interface ExpenseItem {
   /** Whether the report passed automated policy checks */
   policyStatus?: "passed" | "failed" | string;
   transactionDate?: string;
+  /** Justification provided by the employee when the expense exceeded a soft-warn policy limit. */
+  policyJustification?: string | null;
 }
 
 export interface PersonalExpenseDetailResponse {

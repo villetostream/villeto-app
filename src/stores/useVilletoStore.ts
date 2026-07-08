@@ -41,6 +41,13 @@ export interface VilletoProduct {
     value: string
 }
 
+export interface SelfOwner {
+    firstName: string;
+    lastName: string;
+    email: string;
+    ownershipPercentage: number;
+}
+
 export interface OnboardingState {
     monthlySpend: number;
     spendRange: string;
@@ -51,6 +58,7 @@ export interface OnboardingState {
     showConnectModal: boolean;
     businessSnapshot: BusinessSnapshot;
     userProfiles: UserProfile[];
+    selfOwner: SelfOwner | null;
     financialPulse: FinancialPulse;
     villetoProducts: VilletoProduct[];
     contactEmail: string
@@ -74,6 +82,7 @@ interface VilletoState {
     setStoppedAtStep: (step: number | null) => void;
     updateBusinessSnapshot: (data: Partial<BusinessSnapshot>) => void;
     updateUserProfiles: (profiles: UserProfile[]) => void;
+    setSelfOwner: (owner: SelfOwner | null) => void;
     updateFinancialPulse: (data: Partial<FinancialPulse>) => void;
     toggleProduct: (productId: string) => void;
     submitApplication: () => void;
@@ -101,6 +110,7 @@ const initialState: OnboardingState = {
     showConnectModal: false,
     isExistingUser: false,
     stoppedAtStep: null,
+    selfOwner: null,
     businessSnapshot: {
         businessName: '',
         countryOfRegistration: '',
@@ -167,6 +177,9 @@ export const useOnboardingStore = create<VilletoState & OnboardingState>()(
 
             updateUserProfiles: (profiles) =>
                 set({ userProfiles: profiles }),
+
+            setSelfOwner: (owner) =>
+                set({ selfOwner: owner }),
 
             updateFinancialPulse: (data) =>
                 set((state) => ({

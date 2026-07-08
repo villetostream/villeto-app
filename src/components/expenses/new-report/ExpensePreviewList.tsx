@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/stores/auth-stores";
 
 export interface PolicyViolation {
-  type: "soft_warning" | "hard_block";
+  type: string;
   message: string;
-  ruleType: string;
+  ruleType?: string;
+  limitChecks?: any[];
 }
 
 export interface ExpenseItem {
@@ -22,7 +23,7 @@ export interface ExpenseItem {
   description?: string;
   transactionDate?: Date;
   fileName?: string;
-  policyViolations?: { type: string; message: string; ruleType?: string }[] | null;
+  policyViolations?: { type: string; message: string; ruleType?: string; limitChecks?: any[] }[] | null;
   justification?: string;
 }
 

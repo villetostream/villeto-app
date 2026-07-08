@@ -77,9 +77,10 @@ const PRIORITY_LABELS: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatAmount(n: number, currency = "USD") {
+function formatAmount(n?: number, currency = "USD") {
+  const val = n ?? 0;
   const sym = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
-  return `${sym}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${sym}${val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(d?: string) {
@@ -485,12 +486,12 @@ function CategoryDropdown({ value, onChange }: {
 
 interface ModalItem {
   name: string; categoryName: string; description: string; categoryId: string;
-  departmentId: string; quantity: number; unitPrice: number;
+  departmentId: string; quantity: number; unitPrice?: number;
   taxAmount: number; sku: string; unitOfMeasure: string;
 }
 const EMPTY_ITEM: ModalItem = {
   name: "", categoryName: "", description: "", categoryId: "", departmentId: "",
-  quantity: 0, unitPrice: 0, taxAmount: 0, sku: "", unitOfMeasure: "unit",
+  quantity: 0, taxAmount: 0, sku: "", unitOfMeasure: "unit",
 };
 
 function safeModalItem(initial?: ModalItem): ModalItem {
@@ -518,8 +519,8 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
   currency?: string;
 }) {
   const [form, setForm] = useState<ModalItem>(() => safeModalItem(initial));
-  const set = (k: keyof ModalItem, v: string | number) => setForm(p => ({ ...p, [k]: v }));
-  const subtotal = form.quantity * form.unitPrice;
+  const set = (k: keyof ModalItem, v: string | number | undefined) => setForm(p => ({ ...p, [k]: v }));
+  const subtotal = form.quantity * (form.unitPrice || 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -555,7 +556,7 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
                   {{ USD: "$", NGN: "₦", EUR: "€", GBP: "£", CAD: "$", AUD: "$" }[currency] || currency}
                 </span>
-                <input type="number" min={0} value={form.unitPrice || ""} onChange={e => set("unitPrice", Number(e.target.value))} placeholder="0.00"
+                <input type="number" min={0} value={form.unitPrice ?? ""} onChange={e => set("unitPrice", e.target.value === "" ? undefined : Number(e.target.value))} placeholder="0.00"
                   className="w-full h-11 pl-8 pr-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
               </div>
             </div>
@@ -586,7 +587,7 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
               if (!form.quantity || form.quantity <= 0) { toast.error("Quantity must be > 0"); return; }
               onSave({
                 name: form.name, description: form.description || undefined,
-                quantity: form.quantity, unitPrice: form.unitPrice,
+                quantity: form.quantity, unitPrice: form.unitPrice || 0,
                 taxAmount: form.taxAmount || undefined, sku: form.sku || undefined,
                 unitOfMeasure: form.unitOfMeasure || undefined,
                 categoryId: form.categoryId || undefined,
@@ -853,6 +854,8 @@ function CreatePOView({
       return next;
     });
 
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, string>>({});
+
   // ── Derived state ─────────────────────────────────────────────────────
   const vendorGroups = useMemo(() => {
     const map = new Map<string, PurchaseRequestLineItemType[]>();
@@ -893,7 +896,12 @@ function CreatePOView({
         vendorId: vId,
         deliveryDate: deliveryDate,
         notes: details?.notes || undefined,
-        lineItems: items.map(i => ({ purchaseRequestLineItemId: i.purchaseRequestLineItemId }))
+        lineItems: items.map(i => ({ 
+           purchaseRequestLineItemId: i.purchaseRequestLineItemId,
+           unitPrice: priceOverrides[i.purchaseRequestLineItemId] !== undefined && priceOverrides[i.purchaseRequestLineItemId] !== "" 
+               ? Number(priceOverrides[i.purchaseRequestLineItemId]) 
+               : undefined 
+        }))
       });
     });
     if (draftPurchaseOrders.length === 0) { toast.error("No items to create PO from"); return; }
@@ -920,8 +928,22 @@ function CreatePOView({
         )}
       </td>
       <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{item.quantity}</td>
-      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{formatAmount(item.unitPrice, currency)}</td>
-      <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">{formatAmount(item.subtotal, currency)}</td>
+      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">
+        <div className="relative w-28">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">{{ USD: "$", NGN: "₦", EUR: "€", GBP: "£", CAD: "$", AUD: "$" }[currency] || currency}</span>
+          <input
+            type="number"
+            min={0}
+            className="w-full h-8 pl-6 pr-2 rounded-md border border-border text-xs focus:outline-none focus:border-primary transition-colors bg-white"
+            value={priceOverrides[item.purchaseRequestLineItemId] ?? item.unitPrice ?? ""}
+            onChange={e => setPriceOverrides(prev => ({ ...prev, [item.purchaseRequestLineItemId]: e.target.value }))}
+            placeholder="0.00"
+          />
+        </div>
+      </td>
+      <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">
+        {formatAmount(item.quantity * (priceOverrides[item.purchaseRequestLineItemId] !== undefined && priceOverrides[item.purchaseRequestLineItemId] !== "" ? Number(priceOverrides[item.purchaseRequestLineItemId]) : (item.unitPrice || 0)), currency)}
+      </td>
       <td className="px-4 py-3 min-w-[180px]">
         <VendorSelect
           value={vendorId}
@@ -1036,7 +1058,12 @@ function CreatePOView({
               {Array.from(vendorGroups.entries()).map(([vendorId, groupItems]) => {
                 const vendor = vendors.find(v => v.vendorId === vendorId);
                 const accent = accentFor(vendorId);
-                const groupTotal = groupItems.reduce((s, li) => s + (li.subtotal || 0), 0);
+                const groupTotal = groupItems.reduce((s, li) => {
+                  const price = priceOverrides[li.purchaseRequestLineItemId] !== undefined && priceOverrides[li.purchaseRequestLineItemId] !== "" 
+                    ? Number(priceOverrides[li.purchaseRequestLineItemId]) 
+                    : (li.unitPrice || 0);
+                  return s + (li.quantity * price);
+                }, 0);
 
                 return (
                   <div key={vendorId} className={`rounded-2xl border-2 bg-white overflow-visible ${accent.border}`}>

@@ -29,7 +29,7 @@ export interface PurchaseRequestLineItem {
   name: string;
   description?: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice?: number;
   subtotal: number;
   taxAmount: number;
   lineTotal: number;
@@ -248,7 +248,7 @@ export interface LineItemPayload {
   name: string;
   description?: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice?: number;
   taxAmount?: number;
   sku?: string;
   unitOfMeasure?: string;

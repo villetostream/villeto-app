@@ -72,10 +72,21 @@ export function pickOptionalString(
   return undefined;
 }
 
+export interface PolicyLimitCheck {
+  timeUnit?: string;
+  limit?: number;
+  spentBeforeThisReport?: number;
+  thisReportAmount?: number;
+  totalAfterThisReport?: number;
+  exceeded?: boolean;
+  overage?: number;
+}
+
 export interface PolicyViolationItem {
   type?: string;
   message?: string;
   enforcementAction?: string;
+  limitChecks?: PolicyLimitCheck[];
 }
 
 export interface PolicyCauseItem {
@@ -97,6 +108,17 @@ function parseViolationItems(items: unknown[]): PolicyViolationItem[] {
     type: getOptionalString(v.type),
     message: getOptionalString(v.message) ?? getOptionalString(v.ruleMessage),
     enforcementAction: getOptionalString(v.enforcementAction),
+    limitChecks: Array.isArray(v.limitChecks)
+      ? v.limitChecks.filter(isRecord).map((lc) => ({
+          timeUnit: getOptionalString(lc.timeUnit),
+          limit: getNumber(lc.limit),
+          spentBeforeThisReport: getNumber(lc.spentBeforeThisReport),
+          thisReportAmount: getNumber(lc.thisReportAmount),
+          totalAfterThisReport: getNumber(lc.totalAfterThisReport),
+          exceeded: getBoolean(lc.exceeded),
+          overage: getNumber(lc.overage),
+        }))
+      : undefined,
   }));
 }
 
@@ -246,11 +268,15 @@ export function mapPolicyResultsToExpenses<
 
     return {
       ...exp,
-      policyViolations: matched.violations.map((v) => ({
-        type: v.enforcementAction === "block" ? "hard_block" : v.type || "POLICY_RULE",
-        message: v.message ?? "Policy violation",
-        ruleType: v.type,
-      })),
+      policyViolations: matched.violations.map((v) => {
+        const isHard = v.enforcementAction === "block";
+        return {
+          type: isHard ? "hard_block" : "soft_warning",
+          message: v.message || "Policy violation",
+          ruleType: v.type,
+          limitChecks: v.limitChecks,
+        };
+      }),
     };
   });
 }

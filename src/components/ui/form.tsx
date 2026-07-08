@@ -158,10 +158,11 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
-      className={cn("text-[0.8rem] font-medium text-destructive flex gap-2 items-center", className)}
+      className={cn("text-[0.8rem] font-medium text-destructive flex gap-1.5 items-start", className)}
       {...props}
-    >   <AlertCircle className="h-3 w-3" />
-      {body}
+    >
+      <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      <span className="leading-snug">{body}</span>
     </p>
   )
 })

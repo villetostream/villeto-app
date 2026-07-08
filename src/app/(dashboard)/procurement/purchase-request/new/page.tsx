@@ -261,7 +261,7 @@ interface ModalItem {
   categoryName: string;
   departmentId: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice?: number;
   taxAmount: number;
   sku: string;
   unitOfMeasure: string;
@@ -269,7 +269,7 @@ interface ModalItem {
 
 const EMPTY_MODAL: ModalItem = {
   name: "", description: "", categoryId: "", categoryName: "",
-  departmentId: "", quantity: 0, unitPrice: 0, taxAmount: 0,
+  departmentId: "", quantity: 0, taxAmount: 0,
   sku: "", unitOfMeasure: "unit",
 };
 
@@ -285,9 +285,9 @@ function LineItemModal({
 }) {
   const [form, setForm] = useState<ModalItem>(initial || EMPTY_MODAL);
   const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
-  const subtotal = form.quantity * form.unitPrice;
+  const subtotal = form.quantity * (form.unitPrice || 0);
 
-  const set = (k: keyof ModalItem, v: string | number) =>
+  const set = (k: keyof ModalItem, v: string | number | undefined) =>
     setForm(p => ({ ...p, [k]: v }));
 
   const handleSave = () => {
@@ -297,7 +297,7 @@ function LineItemModal({
       name: form.name,
       description: form.description || undefined,
       quantity: form.quantity,
-      unitPrice: form.unitPrice,
+      unitPrice: form.unitPrice || 0,
       taxAmount: form.taxAmount || undefined,
       sku: form.sku || undefined,
       unitOfMeasure: form.unitOfMeasure || undefined,
@@ -351,8 +351,8 @@ function LineItemModal({
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
                   {currencySymbol}
                 </span>
-                <input type="number" min={0} value={form.unitPrice || ""}
-                  onChange={e => set("unitPrice", Number(e.target.value))} placeholder="0.00"
+                <input type="number" min={0} value={form.unitPrice ?? ""}
+                  onChange={e => set("unitPrice", e.target.value === "" ? undefined : Number(e.target.value))} placeholder="0.00"
                   className="w-full h-11 pl-8 pr-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors bg-white" />
               </div>
             </div>
@@ -388,7 +388,7 @@ function LineItemModal({
         </div>
 
         <div className="px-6 py-4 border-t border-border bg-white z-10 shrink-0 rounded-b-2xl">
-          <button type="button" onClick={handleSave} disabled={loading || !(form.name || "").trim() || !form.categoryId || form.quantity <= 0 || form.unitPrice <= 0}
+          <button type="button" onClick={handleSave} disabled={loading || !(form.name || "").trim() || !form.categoryId || form.quantity <= 0}
             className="w-full h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {initial ? "Save Changes" : "Add Item"}
@@ -605,7 +605,7 @@ export default function NewPurchaseRequestPage() {
 
   const totals = savedLineItems.reduce(
     (acc, it) => {
-      const lineSub = it.subtotal ?? (it.quantity * it.unitPrice);
+      const lineSub = it.subtotal ?? (it.quantity * (it.unitPrice || 0));
       const lineTax = it.taxAmount ?? 0;
       const lineTot = it.lineTotal ?? (lineSub + lineTax);
       return {
