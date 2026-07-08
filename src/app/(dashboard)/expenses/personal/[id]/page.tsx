@@ -16,6 +16,7 @@ import {
 } from "@/lib/react-query/expenses";
 import { ExpenseDetailSkeleton } from "@/components/expenses/ExpenseDetailSkeleton";
 import { useAuthStore } from "@/stores/auth-stores";
+import { PolicyComplianceBadge } from "@/components/expenses/PolicyComplianceBadge";
 
 // Helper function to format date
 const formatDate = (dateString: string): string => {
@@ -169,6 +170,9 @@ export default function PersonalExpenseDetailPage() {
                     <th className="text-left p-3 text-sm font-medium text-muted-foreground">
                       Receipt
                     </th>
+                    <th className="text-left p-3 text-sm font-medium text-muted-foreground">
+                      Policy Compliance
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -219,6 +223,9 @@ export default function PersonalExpenseDetailPage() {
                           View
                         </button>
                       </td>
+                      <td className="p-3">
+                        <PolicyComplianceBadge policyJustification={expense.policyJustification} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -267,6 +274,7 @@ export default function PersonalExpenseDetailPage() {
           categoryName: selectedExpense.categoryName || "Uncategorized",
           description: selectedExpense.description,
           receiptUrl: selectedExpense.receiptUrl,
+          policyJustification: selectedExpense.policyJustification,
         } : null}
       />
 

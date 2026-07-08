@@ -52,6 +52,7 @@ export const useHydrateOnboardingData = () => {
             email: owner.user?.email || "",
             role: owner.user?.role || "",
             phone: owner.user?.phone || undefined,
+            ownershipPercentage: owner.ownershipPercentage,
         }));
 
         const officerProfiles = (company.controllingOfficers || []).map((officer: ControllingOfficer) => ({

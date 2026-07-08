@@ -2,16 +2,17 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Plus, Trash2, Info, ArrowRight } from "lucide-react";
+import { Plus, Trash2, Info, ArrowRight, Pencil } from "lucide-react";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AddBeneficialOwnerModal } from "@/components/onboarding/AddBeneficialOwner";
 import OnboardingTitle from "@/components/onboarding/_shared/OnboardingTitle";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
+import { useAuthStore } from "@/stores/auth-stores";
 import { LeaderShipPayload, useUpdateOnboardingLeadersApi } from "@/queries/onboarding/update-leadership";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PencilEdit02FreeIcons, UserGroup03FreeIcons } from "@hugeicons/core-free-icons";
+import { UserGroup03FreeIcons } from "@hugeicons/core-free-icons";
 import { useHydrateOnboardingData } from "@/hooks/useHydrateOnboardingData";
 
 interface Person {
@@ -119,11 +120,9 @@ export function OwnerCard({ owner, onEdit, onDelete, type, showIcons = true, isS
 
                 {/* Actions */}
                 {showIcons && (<div className="flex items-center gap-2 shrink-0">
-                    {!isSelfCard && (
-                        <Button variant="ghost" size="sm" onClick={() => onEdit(owner.id)}>
-                            <HugeiconsIcon icon={PencilEdit02FreeIcons} className="h-4 w-4" />
-                        </Button>
-                    )}
+                    <Button variant="ghost" size="sm" onClick={() => onEdit(owner.id)}>
+                        <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button
                         variant="ghost"
                         size="sm"
@@ -232,23 +231,23 @@ interface SelfOwner {
 
 export default function Leadership() {
     const router = useRouter();
-    const { userProfiles, updateUserProfiles } = useOnboardingStore();
+    const { userProfiles, updateUserProfiles, selfOwner, setSelfOwner } = useOnboardingStore();
     useHydrateOnboardingData();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingSelf, setEditingSelf] = useState(false);
     const newPersonIdRef = useRef(0);
-    const [editingPerson, setEditingPerson] = useState<{ id: string; type: "beneficial" | "officer" } | null>(null);
+    const [editingPerson, setEditingPerson] = useState<{ id: string } | null>(null);
 
-    // Tracks whether the current user is a beneficial owner (set when modal submitted with isSelf=true)
-    const [selfOwner, setSelfOwner] = useState<SelfOwner | null>(null);
-
-    // The businessOwners list only contains OTHER owners (not the current user)
+    // businessOwners: only people explicitly added (not the self-owner)
     const businessOwners = userProfiles.filter(
         profile => profile.ownershipPercentage !== undefined
     ) as BeneficialOwner[];
 
     const updateOnboarding = useUpdateOnboardingLeadersApi();
     const loading = updateOnboarding.isPending;
+
+    const isUserAnOwner = !!selfOwner;
 
     // Total ownership across self + all business owners
     const totalOwnership =
@@ -259,20 +258,18 @@ export default function Leadership() {
         const personWithSelf = person as typeof person & { isSelf: boolean };
 
         if (personWithSelf.isSelf) {
-            // This is the current user — store separately, don't put in businessOwners[]
+            // Store the current user as the self-owner in the persistent store
             setSelfOwner({
-                id: "self",
                 firstName: person.firstName,
                 lastName: person.lastName,
                 email: person.email,
-                role: person.role,
-                ownershipPercentage: (person as BeneficialOwner).ownershipPercentage ?? 0,
+                ownershipPercentage: Number((person as BeneficialOwner).ownershipPercentage ?? 0),
             });
         } else if (editingPerson) {
             // Editing an existing external owner
             const updatedProfiles = userProfiles.map(p =>
                 p.id === editingPerson.id
-                    ? { ...p, ...person, avatar: `${person.firstName.split(' ')[0] + person.lastName.split(' ')[0]}` }
+                    ? { ...p, ...person, avatar: `${person.firstName[0]}${person.lastName[0]}` }
                     : p
             );
             updateUserProfiles(updatedProfiles);
@@ -281,20 +278,26 @@ export default function Leadership() {
             const newPerson = {
                 ...person,
                 id: `person-${++newPersonIdRef.current}`,
-                avatar: `${person.firstName.split(' ')[0] + person.lastName.split(' ')[0]}`,
+                avatar: `${person.firstName[0]}${person.lastName[0]}`,
             };
             updateUserProfiles([...userProfiles, newPerson]);
         }
 
         setIsModalOpen(false);
         setEditingPerson(null);
+        setEditingSelf(false);
     };
 
     const handleEditPerson = (id: string) => {
-        const person = userProfiles.find(p => p.id === id);
-        if (person) {
-            setEditingPerson({ id, type: "beneficial" });
+        if (id === "self") {
+            setEditingSelf(true);
             setIsModalOpen(true);
+        } else {
+            const person = userProfiles.find(p => p.id === id);
+            if (person) {
+                setEditingPerson({ id });
+                setIsModalOpen(true);
+            }
         }
     };
 
@@ -306,8 +309,6 @@ export default function Leadership() {
         }
     };
 
-    const isUserAnOwner = !!selfOwner;
-
     const transformDataForPayload = (): LeaderShipPayload => {
         const payload: LeaderShipPayload = {
             isUserAnOwner,
@@ -316,12 +317,14 @@ export default function Leadership() {
                 lastName: owner.lastName,
                 email: owner.email,
                 ownershipPercentage: owner.ownershipPercentage ?? 0,
+                phone: owner.phone || "00000000000", // Fallback to satisfy backend validation
             })),
         };
 
-        if (isUserAnOwner && selfOwner) {
-            payload.selfOwnershipPercentage = selfOwner.ownershipPercentage;
-        }
+        // Always send selfOwnershipPercentage — the backend DTO requires it
+        payload.selfOwnershipPercentage = (isUserAnOwner && selfOwner)
+            ? Number(selfOwner.ownershipPercentage ?? 0)
+            : 0;
 
         return payload;
     };
@@ -345,7 +348,10 @@ export default function Leadership() {
             toast.success("Leader details updated successfully!");
             router.push("/onboarding/financial");
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to update company details");
+            const err = error as { response?: { data?: { message?: string | string[] } } };
+            const msg = err?.response?.data?.message;
+            const displayMsg = Array.isArray(msg) ? msg.join('\n') : (msg || (error instanceof Error ? error.message : "Failed to update company details"));
+            toast.error(displayMsg);
         }
     };
 
@@ -394,8 +400,8 @@ export default function Leadership() {
                         {selfOwner && (
                             <OwnerCard
                                 key="self"
-                                owner={selfOwner}
-                                onEdit={() => {}}
+                                owner={{ ...selfOwner, id: "self", role: "Owner" }}
+                                onEdit={handleEditPerson}
                                 onDelete={handleDeletePerson}
                                 type="beneficial"
                                 showIcons
@@ -432,11 +438,18 @@ export default function Leadership() {
                     onClose={() => {
                         setIsModalOpen(false);
                         setEditingPerson(null);
+                        setEditingSelf(false);
                     }}
                     onAdd={handleAddPerson}
                     mode="beneficial"
                     isOwner={true}
-                    editingPerson={editingPerson ? userProfiles.find(p => p.id === editingPerson.id) : undefined}
+                    editingPerson={
+                        editingSelf && selfOwner
+                            ? { ...selfOwner, id: "self" }
+                            : editingPerson
+                                ? userProfiles.find(p => p.id === editingPerson.id)
+                                : undefined
+                    }
                 />
             </div>
         </div>

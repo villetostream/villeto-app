@@ -30,6 +30,7 @@ import { Check } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { logger } from "@/lib/logger";
 import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
+import { PolicyComplianceBadge } from "@/components/expenses/PolicyComplianceBadge";
 import { asRecord, pickString } from "@/lib/types/api-error";
 
 const formatDate = (dateString: string): string => {
@@ -369,10 +370,7 @@ export default function CompanyExpenseDetailPage() {
                           </button>
                         </td>
                         <td className="p-3">
-                          <span className="flex items-center gap-1.5 text-green-600 text-sm font-medium">
-                            <Check className="h-4 w-4" />
-                            Within limit
-                          </span>
+                          <PolicyComplianceBadge policyJustification={expense.policyJustification} />
                         </td>
                       </tr>
                     ))}
@@ -418,6 +416,7 @@ export default function CompanyExpenseDetailPage() {
           description:  selectedExpense.description,
           receiptUrl:   selectedExpense.receiptUrl,
           transactionDate: selectedExpense.transactionDate,
+          policyJustification: selectedExpense.policyJustification,
         } : null}
       />
 

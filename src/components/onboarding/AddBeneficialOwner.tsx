@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { X, Plus, AlertCircle } from "lucide-react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import FormFieldInput from "../form fields/formFieldInput";
 import { Form } from "../ui/form";
@@ -17,6 +17,7 @@ import { useAuthStore } from "@/stores/auth-stores";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
 
 interface EditingPerson {
+    id?: string;
     firstName?: string;
     lastName?: string;
     email?: string;
@@ -79,10 +80,12 @@ export const AddBeneficialOwnerModal = ({
     // When the "I'm also" checkbox is toggled ON, populate from current user or onboarding state
     const handleIsSelfChange = (checked: boolean) => {
         setIsSelf(checked);
-        if (checked && (currentUser || preOnboarding || contactEmail)) {
-            const fName = currentUser?.firstName || preOnboarding?.contactFirstName || "";
-            const lName = currentUser?.lastName ? String(currentUser.lastName) : preOnboarding?.contactLastName || "";
-            const email = currentUser?.email || preOnboarding?.contactEmail || contactEmail || "";
+        if (checked) {
+            // During onboarding the user isn't fully logged-in via the main auth flow.
+            // The contactEmail/preOnboarding store is the reliable source of truth here.
+            const fName = preOnboarding?.contactFirstName || currentUser?.firstName || "";
+            const lName = preOnboarding?.contactLastName || (currentUser?.lastName ? String(currentUser.lastName) : "");
+            const email = contactEmail || preOnboarding?.contactEmail || currentUser?.email || "";
 
             setValue("firstName", fName, { shouldValidate: true });
             setValue("lastName", lName, { shouldValidate: true });
@@ -133,7 +136,7 @@ export const AddBeneficialOwnerModal = ({
                 ? "ORGANIZATION_OWNER"
                 : ("role" in data && typeof data.role === "string" ? data.role : ""),
             email: data.email,
-            ownershipPercentage: data.ownershipPercentage,
+            ownershipPercentage: Number(data.ownershipPercentage ?? 0),
             isSelf,
         });
         reset();
@@ -161,9 +164,11 @@ export const AddBeneficialOwnerModal = ({
 
     const isEditing = !!editingPerson;
 
+    const sliderValue = React.useMemo(() => [ownershipValue ?? 0], [ownershipValue]);
+
     return (
-        <Dialog open={isOpen} onOpenChange={handleCancel}>
-            <DialogContent className="!sm:min-w-[600px] p-0 rounded-lg">
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleCancel(); }}>
+            <DialogContent className="sm:min-w-[600px] p-0 rounded-lg">
                 <DialogHeader className="flex flex-row items-center justify-between space-y-0 p-6 pb-7 border-b border-b-muted">
                     <div className="flex items-center gap-2.5">
                         <div className="w-14 h-14 bg-muted/80 rounded-full flex items-center justify-center">
@@ -283,7 +288,7 @@ export const AddBeneficialOwnerModal = ({
                                     </div>
 
                                     <Slider
-                                        value={[(ownershipValue ?? 0)]}
+                                        value={sliderValue}
                                         onValueChange={handleOwnershipChange}
                                         max={maxOwnership}
                                         step={1}

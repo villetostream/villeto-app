@@ -213,7 +213,7 @@ const beneficialOwnerSchema = baseNameEmailSchema.extend({
   ownershipPercentage: z
     .number()
     .min(0, "Ownership cannot be negative")
-    .max(25, "Ownership cannot exceed 25%"),
+    .max(100, "Ownership cannot exceed 100%"),
 });
 
 // Officer schema — includes role

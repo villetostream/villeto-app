@@ -12,6 +12,8 @@ interface ReceiptUploadSectionProps {
   onReceiptsUpload: (receipts: { base64: string; name: string }[]) => void;
   onAddExpense: (data: ExpenseDetailFormData, receiptImage?: string) => void;
   categories: { categoryId: string; name: string }[];
+  /** Names of expenses already added to the report — used to prevent duplicates */
+  existingExpenseNames?: string[];
 }
 
 interface PendingReceipt {
@@ -23,6 +25,7 @@ export function ReceiptUploadSection({
   onReceiptsUpload,
   onAddExpense,
   categories,
+  existingExpenseNames = [],
 }: ReceiptUploadSectionProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -132,6 +135,7 @@ export function ReceiptUploadSection({
           onCancel={() => setShowManualForm(false)}
           submitLabel="Add to Report"
           cancelLabel="Cancel"
+          existingExpenseNames={existingExpenseNames}
         />
       </div>
     );

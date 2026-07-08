@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import React, { useState } from "react";
 
 // Define the raw form values (what the inputs give us, e.g. strings for numbers)
-const expenseDetailSchema = z.object({
+const baseExpenseDetailSchema = z.object({
   name: z.string().min(1, "Expense name is required"),
   amount: z.any().transform((val) => Number(val)).pipe(z.number().min(1, "Amount must be at least 1")),
   merchantName: z.string().min(1, "Merchant is required"),
@@ -29,7 +29,7 @@ const expenseDetailSchema = z.object({
   transactionDate: z.date({ message: "Transaction date is required" }),
 });
 
-export type ExpenseDetailFormData = z.infer<typeof expenseDetailSchema>;
+export type ExpenseDetailFormData = z.infer<typeof baseExpenseDetailSchema>;
 
 interface ExpenseCategory {
   categoryId: string;
@@ -52,6 +52,12 @@ interface ExpenseFormProps {
     receiptImage?: string[];
     general?: string[];
   };
+  /** When true, the submit button is always disabled (e.g. hard policy block active). */
+  forceDisableSubmit?: boolean;
+  /** Names of expenses already added to the report — used to prevent duplicates */
+  existingExpenseNames?: string[];
+  /** Callback fired when the form dirty state changes */
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
 export function ExpenseForm({
@@ -66,6 +72,9 @@ export function ExpenseForm({
   hideReceiptUpload = false,
   compact = false,
   fieldErrors,
+  forceDisableSubmit = false,
+  existingExpenseNames = [],
+  onDirtyChange,
 }: ExpenseFormProps) {
   const [receiptImage, setReceiptImage] = useState<string>(
     initialData?.receiptImage || ""
@@ -74,9 +83,28 @@ export function ExpenseForm({
   const [hasReceiptChanged, setHasReceiptChanged] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
+  const formSchema = React.useMemo(() => {
+    return baseExpenseDetailSchema.superRefine((data, ctx) => {
+      // If we are editing and the name hasn't changed, it's valid
+      if (initialData?.name && initialData.name.trim().toLowerCase() === data.name.trim().toLowerCase()) {
+        return;
+      }
+      // Check for duplicates against the existing names
+      const isDuplicate = existingExpenseNames.some(
+        (existingName) => existingName.trim().toLowerCase() === data.name.trim().toLowerCase()
+      );
+      if (isDuplicate) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `An expense named "${data.name}" already exists in this report.`,
+          path: ["name"],
+        });
+      }
+    });
+  }, [existingExpenseNames, initialData?.name]);
+
   const form = useForm<ExpenseDetailFormData>({
-     
-    resolver: zodResolver(expenseDetailSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: initialData?.name || "",
       amount: initialData?.amount || 0,
@@ -113,6 +141,14 @@ export function ExpenseForm({
   const receiptPreviewSrc = normalizeReceiptSrc(pendingReceipt ?? "");
   const hasCommittedReceipt = hasReceiptSrc(receiptImage);
   const isPreviewingSelection = Boolean(pendingReceipt);
+
+  const isFormDirty = form.formState.isDirty || hasReceiptChanged;
+
+  React.useEffect(() => {
+    if (onDirtyChange) {
+      onDirtyChange(isFormDirty);
+    }
+  }, [isFormDirty, onDirtyChange]);
 
   const categoryOptions = categories.map((cat) => ({
     label: cat.name,
@@ -183,6 +219,8 @@ export function ExpenseForm({
 
     return false;
   })();
+
+  const submitDisabled = forceDisableSubmit || isSubmitDisabled;
 
   return (
     <Form {...form}>
@@ -399,7 +437,7 @@ export function ExpenseForm({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitDisabled}
+              disabled={submitDisabled}
               className="bg-primary hover:bg-primary/90 text-white rounded-lg px-6"
             >
               {submitLabel}

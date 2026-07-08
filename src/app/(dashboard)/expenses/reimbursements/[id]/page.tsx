@@ -19,6 +19,7 @@ import { unsortedReimbursements } from "@/lib/mock-data";
 import { useState } from "react";
 import { useAxios } from "@/hooks/useAxios";
 import { toast } from "sonner";
+import { PolicyComplianceBadge } from "@/components/expenses/PolicyComplianceBadge";
 
 // ─── Status helpers (same as company page) ────────────────────────────────────
 
@@ -346,10 +347,7 @@ export default function ReimbursementDetailPage() {
                       <button className="text-sm text-primary hover:underline font-medium">View</button>
                     </td>
                     <td className="p-3">
-                      <span className="flex items-center gap-1.5 text-green-600 text-sm font-medium">
-                        <Check className="h-4 w-4" />
-                        Within limit
-                      </span>
+                      <PolicyComplianceBadge policyJustification={(item as any).policyJustification} />
                     </td>
                   </tr>
                 ))}

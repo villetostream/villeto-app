@@ -11,7 +11,7 @@ import { type ExpenseDetailFormData } from "@/components/expenses/new-report/Exp
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import { logger } from "@/lib/logger";
@@ -445,9 +445,21 @@ export default function EditReportPage() {
       {/* Header */}
       <div className="flex items-center justify-between pb-4 mb-4 border-b">
         <div className="flex items-center gap-4">
-          <span className="inline-block border rounded-md px-3 py-1 text-sm font-semibold text-foreground bg-white">
-              {reportTitle}
-          </span>
+          <div className="relative inline-grid items-center group">
+            {/* Hidden span dictates the width of the grid container based on text length */}
+            <span className="col-start-1 row-start-1 invisible whitespace-pre pl-3 pr-8 py-1 text-sm font-semibold">
+              {reportTitle || "Enter report name"}
+            </span>
+            <input
+              type="text"
+              value={reportTitle}
+              onChange={(e) => setReportTitle(e.target.value)}
+              placeholder="Enter report name"
+              className="col-start-1 row-start-1 w-full min-w-0 border border-border rounded-md pl-3 pr-8 py-1 text-sm font-semibold text-foreground bg-white hover:border-gray-400 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              title="Edit report name"
+            />
+            <Pencil className="absolute right-2.5 w-3.5 h-3.5 text-muted-foreground opacity-60 pointer-events-none" />
+          </div>
           <Button 
               variant="ghost" 
               className="text-red-500 hover:text-red-700 hover:bg-red-50"

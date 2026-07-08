@@ -2,7 +2,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check, FileText } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 
 interface ExpenseItemModalProps {
@@ -15,6 +15,8 @@ interface ExpenseItemModalProps {
     categoryName: string;
     description?: string;
     receiptUrl?: string;
+    /** Justification submitted when the expense exceeded a soft-warn policy limit */
+    policyJustification?: string | null;
   } | null;
 }
 
@@ -112,6 +114,19 @@ export function ExpenseItemModal({
                   {expense.description || "—"}
                 </div>
               </div>
+
+              {/* Policy Justification — only shown when it exists */}
+              {expense.policyJustification && (
+                <div>
+                  <label className="text-sm text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-amber-500" />
+                    Policy Justification
+                  </label>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-sm text-amber-800 leading-relaxed">
+                    {expense.policyJustification}
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t">

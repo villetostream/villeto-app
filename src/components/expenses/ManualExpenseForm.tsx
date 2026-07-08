@@ -177,6 +177,8 @@ export function ManualExpenseForm({
   const [requiredActionsByIndex, setRequiredActionsByIndex] = useState<Record<number, PolicyRequiredAction>>({});
   const [justificationsByIndex, setJustificationsByIndex] = useState<Record<number, string>>({});
   const [drawerOpenForIndex, setDrawerOpenForIndex] = useState<number | null>(null);
+  // Controlled accordion: start with first item open; auto-expand flagged items
+  const [openAccordionItems, setOpenAccordionItems] = useState<string[]>(["expense-0"]);
   const searchParams = useSearchParams();
   const reportName = isEditMode
     ? reportDetail?.reportTitle || ""
@@ -582,6 +584,7 @@ export function ManualExpenseForm({
     includeReceipts: boolean,
     status: "draft" | "pending",
     justifications: Record<number, string> = {},
+    requiredActions: Record<number, PolicyRequiredAction> = {},
   ) => {
     // Validate all categories exist
     const invalidCategories = data.expenses.filter(
@@ -620,9 +623,11 @@ export function ManualExpenseForm({
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
 
-      // Attach justification if provided for this expense index
-      const j = justifications[idx];
-      if (j && j.trim()) expenseObj.justification = j.trim();
+      // Only attach justification when the backend explicitly required it for this expense
+      // (i.e. there is an active ACTION_REQUIRED entry for this index)
+      if (requiredActions[idx] && justifications[idx]?.trim()) {
+        expenseObj.justification = justifications[idx].trim();
+      }
 
       // Only include receiptImage if it's a new base64 upload (starts with data:)
       if (includeReceipts) {
@@ -650,6 +655,7 @@ export function ManualExpenseForm({
     data: ExpenseFormValues,
     includeReceipts: boolean,
     justifications: Record<number, string> = {},
+    requiredActions: Record<number, PolicyRequiredAction> = {},
   ) => {
     // Validate all categories exist
     const invalidCategories = data.expenses.filter(
@@ -694,9 +700,10 @@ export function ManualExpenseForm({
         expenseObj.expenseId = reportDetail.expenses[idx].expenseId;
       }
 
-      // Attach justification if provided for this expense index
-      const j = justifications[idx];
-      if (j && j.trim()) expenseObj.justification = j.trim();
+      // Only attach justification when the backend explicitly required it for this expense
+      if (requiredActions[idx] && justifications[idx]?.trim()) {
+        expenseObj.justification = justifications[idx].trim();
+      }
 
       // Only include receiptImage if it's a new base64 upload (starts with data:)
       if (includeReceipts) {
@@ -902,7 +909,7 @@ export function ManualExpenseForm({
 
       if (isEditMode && reportId && reportDetail?.expenses) {
         // Use single PATCH /reports/{reportId} endpoint to update entire report
-        const basePayload = buildPatchReportPayload(data, true, justificationsByIndex);
+        const basePayload = buildPatchReportPayload(data, true, justificationsByIndex, requiredActionsByIndex);
         const reportPayload = {
           ...basePayload,
           status: "pending", // Explicitly set to pending on final submit
@@ -918,6 +925,11 @@ export function ManualExpenseForm({
           const byIndex: Record<number, PolicyRequiredAction> = {};
           actions.forEach((a) => { byIndex[a.expenseIndex] = a; });
           setRequiredActionsByIndex(byIndex);
+          // Auto-expand all flagged accordion items so user can see the amber banners
+          setOpenAccordionItems((prev) => {
+            const flaggedKeys = actions.map((a) => `expense-${a.expenseIndex}`);
+            return Array.from(new Set([...prev, ...flaggedKeys]));
+          });
           toast.warning(
             "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.",
             { duration: 6000 },
@@ -956,7 +968,7 @@ export function ManualExpenseForm({
         }, 500);
       } else {
         // Use POST for creating new expenses
-        const payload = buildExpensePayload(data, true, "pending", justificationsByIndex);
+        const payload = buildExpensePayload(data, true, "pending", justificationsByIndex, requiredActionsByIndex);
         const response = await axios.post(API_KEYS.EXPENSE.REPORTS, payload);
 
         // Check if the policy engine requires ACTION_REQUIRED (201 but not submitted)
@@ -968,6 +980,11 @@ export function ManualExpenseForm({
           const byIndex: Record<number, PolicyRequiredAction> = {};
           actions.forEach((a) => { byIndex[a.expenseIndex] = a; });
           setRequiredActionsByIndex(byIndex);
+          // Auto-expand all flagged accordion items so user can see the amber banners
+          setOpenAccordionItems((prev) => {
+            const flaggedKeys = actions.map((a) => `expense-${a.expenseIndex}`);
+            return Array.from(new Set([...prev, ...flaggedKeys]));
+          });
           toast.warning(
             "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.",
             { duration: 6000 },
@@ -1097,7 +1114,8 @@ export function ManualExpenseForm({
                   {fields.length > 1 ? (
                     <Accordion
                       type="multiple"
-                      defaultValue={["expense-0"]}
+                      value={openAccordionItems}
+                      onValueChange={setOpenAccordionItems}
                       className="w-full"
                     >
                       {fields.map((field, index) => {
@@ -1184,7 +1202,11 @@ export function ManualExpenseForm({
                                 )}
                                 {requiredActionsByIndex[index] && (
                                   <div className="absolute top-2 left-6 right-6 z-10">
-                                    <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                                    <button
+                                      type="button"
+                                      className="w-full text-left flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 hover:bg-amber-100 transition-colors cursor-pointer"
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDrawerOpenForIndex(index); }}
+                                    >
                                       <div className="flex items-start gap-2 flex-1 min-w-0">
                                         <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                                         <div className="min-w-0">
@@ -1192,16 +1214,10 @@ export function ManualExpenseForm({
                                           <p className="text-xs text-amber-700 truncate">{requiredActionsByIndex[index].categoryName} · {requiredActionsByIndex[index].policyName}</p>
                                         </div>
                                       </div>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        className="shrink-0 h-7 px-2 text-amber-700 hover:bg-amber-100 hover:text-amber-900 font-medium text-xs"
-                                        onClick={(e) => { e.preventDefault(); setDrawerOpenForIndex(index); }}
-                                      >
-                                        {justificationsByIndex[index] ? "Edit explanation" : "Provide explanation"}
-                                      </Button>
-                                    </div>
+                                      <span className="shrink-0 ml-2 text-xs font-medium text-amber-700 hover:text-amber-900 whitespace-nowrap">
+                                        {justificationsByIndex[index] ? "✏ Edit explanation" : "+ Provide explanation"}
+                                      </span>
+                                    </button>
                                     {justificationsByIndex[index] && (
                                       <p className="mt-1 text-xs text-green-700 flex items-center gap-1 px-1">
                                         <Check className="w-3 h-3" /> Explanation saved
@@ -1314,7 +1330,11 @@ export function ManualExpenseForm({
                             )}
                             {requiredActionsByIndex[index] && (
                               <div className="space-y-1">
-                                <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                                <button
+                                  type="button"
+                                  className="w-full text-left flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 hover:bg-amber-100 transition-colors cursor-pointer"
+                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDrawerOpenForIndex(index); }}
+                                >
                                   <div className="flex items-start gap-2 flex-1 min-w-0">
                                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                                     <div className="min-w-0">
@@ -1322,16 +1342,10 @@ export function ManualExpenseForm({
                                       <p className="text-xs text-amber-700">{requiredActionsByIndex[index].categoryName} · {requiredActionsByIndex[index].policyName}</p>
                                     </div>
                                   </div>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    className="shrink-0 h-7 px-2 text-amber-700 hover:bg-amber-100 hover:text-amber-900 font-medium text-xs"
-                                    onClick={() => setDrawerOpenForIndex(index)}
-                                  >
-                                    {justificationsByIndex[index] ? "Edit explanation" : "Provide explanation"}
-                                  </Button>
-                                </div>
+                                  <span className="shrink-0 ml-2 text-xs font-medium text-amber-700 hover:text-amber-900 whitespace-nowrap">
+                                    {justificationsByIndex[index] ? "✏ Edit explanation" : "+ Provide explanation"}
+                                  </span>
+                                </button>
                                 {justificationsByIndex[index] && (
                                   <p className="text-xs text-green-700 flex items-center gap-1 px-1">
                                     <Check className="w-3 h-3" /> Explanation saved — ready to resubmit
