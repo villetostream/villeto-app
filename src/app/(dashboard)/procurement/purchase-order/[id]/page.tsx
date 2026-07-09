@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import EditPurchaseOrderPage from "./edit/page";
 import { AlertCircle, X, Loader2, XCircle, PackageCheck, Pencil } from "lucide-react";
 import {
   usePurchaseOrder,
@@ -367,7 +368,10 @@ export default function PODetailPage() {
   type ModalType = "submit" | "issue" | "close" | "cancel" | "withdraw" | "approve" | "reject" | "receipt" | null;
   const [modal, setModal] = useState<ModalType>(null);
 
-  const { data, isLoading, isError } = usePurchaseOrder(id);
+  const { data, isLoading, isFetching, isError } = usePurchaseOrder(id);
+  // Use isFetching (not just isLoading) so we block rendering while React Query
+  // silently refreshes stale cached data — this prevents the old-status flash.
+  const isPageLoading = isLoading || isFetching;
   const po = data?.data;
 
   const submitMut   = useSubmitPurchaseOrderForApproval(id);
@@ -432,7 +436,7 @@ export default function PODetailPage() {
     }
   };
 
-  if (isLoading) {
+  if (isPageLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -459,7 +463,14 @@ export default function PODetailPage() {
     : undefined;
   const isOwnPO = !!user?.userId && !!createdById && user.userId === createdById;
   const isSubmitterView = isOwnScope || isOwnPO;
-  const stage = po.status as WFStage;
+  const stage = (po.status || "").toLowerCase() as WFStage;
+
+  // Draft POs are handled by the edit page (early-returned above).
+  // Any PO that reaches this point has already been submitted.
+  if (stage === "draft") {
+    return <EditPurchaseOrderPage />;
+  }
+
   const isDelivered = stage === "partially_delivered" || stage === "delivered";
   const submitDateStr = po.createdAt ? format(new Date(po.createdAt), "MMM dd, yyyy") : "N/A";
 
@@ -474,11 +485,13 @@ export default function PODetailPage() {
     {
       label: "Submitted for Approval",
       person: undefined,
-      badge: stage === "pending_approval" ? "Awaiting" : (stage !== "draft" ? "Submitted" : undefined),
+      // After the draft early-return above, stage can never be "draft" here,
+      // so submitted = true always, and we show "Awaiting" if pending approval.
+      badge: stage === "pending_approval" ? "Awaiting" : "Submitted",
       badgeColor: stage === "pending_approval" ? "text-orange-600 bg-orange-50" : "text-emerald-600 bg-emerald-50",
       timestamp: (po as any).submittedAt ?? null,
-      done: stage !== "draft",
-      pending: stage === "draft",
+      done: true,
+      pending: false,
     },
     {
       label: "Approved",
@@ -529,12 +542,13 @@ export default function PODetailPage() {
     },
   ];
 
-  // Derive which action buttons to show
-  const showEditDraft = stage === "draft" && isSubmitterView && canUpdateDraft;
-  const showSubmit  = stage === "draft" && isSubmitterView && canSubmitPO;
-  const showApprove = stage === "pending_approval" && !isSubmitterView && canApprovePO;
-  const showReject  = stage === "pending_approval" && !isSubmitterView && canApprovePO;
-  const showIssue   = (stage === "ready_to_issue" || stage === "approved") && canIssuePO;
+  // Derive which action buttons to show.
+  // NOTE: stage can never be "draft" here — draft POs are handled by the early return above.
+  const showEditDraft  = false; // drafts never reach this view
+  const showSubmit     = false; // drafts never reach this view
+  const showApprove    = stage === "pending_approval" && !isSubmitterView && canApprovePO;
+  const showReject     = stage === "pending_approval" && !isSubmitterView && canApprovePO;
+  const showIssue      = (stage === "ready_to_issue" || stage === "approved") && canIssuePO;
   const postApprovalStages: WFStage[] = [
     "approved",
     "ready_to_issue",
@@ -546,9 +560,9 @@ export default function PODetailPage() {
     "delivered",
   ];
   /** Withdraw (cancel endpoint) — submitter only, while pending approval */
-  const showWithdraw = stage === "pending_approval" && isSubmitterView && canCancelPO;
-  /** Neutral cancel for drafts (cancel endpoint) */
-  const showCancelDraft = stage === "draft" && isSubmitterView && canCancelPO && !showSubmit;
+  const showWithdraw   = stage === "pending_approval" && isSubmitterView && canCancelPO;
+  /** Neutral cancel for drafts — always false here (handled in the edit page) */
+  const showCancelDraft = false;
   /** Close (close endpoint) — after approval, any time until already closed/cancelled */
   const showClose = postApprovalStages.includes(stage) && canClosePO;
   const showReceipt = (stage === "ready_for_delivery" || stage === "delivered") && canReceivePO;
@@ -639,7 +653,6 @@ export default function PODetailPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-bold text-foreground">{po.poNumber || "Unnamed PO"}</h1>
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                stage === "draft"            ? "bg-gray-100 text-gray-600" :
                 stage === "pending_approval" ? "bg-orange-50 text-orange-600" :
                 stage === "cancelled"        ? "bg-red-50 text-red-600" :
                 isDelivered                  ? "bg-emerald-50 text-emerald-600" :

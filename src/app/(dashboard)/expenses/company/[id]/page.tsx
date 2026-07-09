@@ -175,7 +175,9 @@ export default function CompanyExpenseDetailPage() {
   const [rejectOpen, setRejectOpen]   = useState(false);
   const [feedbackModal, setFeedbackModal] = useState<{ open: boolean; type: "approved" | "rejected" } | null>(null);
 
-  const { data: expenseDetail, isLoading, error } = useCompanyExpenseDetail(reportId);
+  const { data: expenseDetail, isLoading, isFetching, error } = useCompanyExpenseDetail(reportId);
+  // Show skeleton during both first fetch AND background refetch to avoid showing stale status
+  const isPageLoading = isLoading || isFetching;
   const updateStatusMutation = useUpdateCompanyExpenseStatus();
 
   useEffect(() => {
@@ -190,7 +192,7 @@ export default function CompanyExpenseDetailPage() {
     fetchUser();
   }, [axios]);
 
-  if (isLoading) return <ExpenseDetailSkeleton />;
+  if (isPageLoading) return <ExpenseDetailSkeleton />;
 
   if (error || !expenseDetail) {
     return (
