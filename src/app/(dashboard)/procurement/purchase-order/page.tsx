@@ -305,7 +305,13 @@ function POTable({
   );
   const awaitingCount = (approvalCountData as unknown as number) ?? 0;
 
-  const purchaseOrders = data?.data || [];
+  // Filter out drafts from All POs view — drafts are private to the creator and
+  // only belong in the My POs tab. The backend doesn't support an exclude-status
+  // param, so we strip them client-side when scope is not "own".
+  const rawPurchaseOrders = data?.data || [];
+  const purchaseOrders = isMyScope
+    ? rawPurchaseOrders
+    : rawPurchaseOrders.filter(po => String(po.status || "").toLowerCase() !== "draft");
   const meta = data?.meta || { totalCount: 0, totalPages: 1, currentPage: 1, limit: perPage };
 
   // Mutations

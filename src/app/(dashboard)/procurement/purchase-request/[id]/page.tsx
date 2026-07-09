@@ -1308,7 +1308,9 @@ function PRDetailPage() {
   // Company-scope override unlock state (session-only, resets on navigation)
   const [overrideUnlocked, setOverrideUnlocked] = useState(false);
 
-  const { data, isLoading, isError, refetch } = useGetPurchaseRequestById(id);
+  const { data, isLoading, isFetching, isError, refetch } = useGetPurchaseRequestById(id);
+  // Block render on both first-load AND background refetch so stale cached status never flashes
+  const isPageLoading = isLoading || isFetching;
   const updatePR = useUpdatePurchaseRequest(id);
   const addLineItem = useAddLineItem(id);
   const deleteLineItem = useDeleteLineItem(id);
@@ -1626,7 +1628,7 @@ function PRDetailPage() {
 
   // ── Loading / error states ────────────────────────────────────────────────
 
-  if (isLoading) {
+  if (isPageLoading) {
     return (
       <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
         <Loader2 className="w-5 h-5 animate-spin" />

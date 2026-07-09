@@ -387,7 +387,8 @@ export default function EditPurchaseOrderPage() {
   const detailUrl = buildPODetailUrl(id, outerTab, innerTab);
   const listUrl = buildPOListUrl(outerTab, innerTab);
 
-  const { data: poData, isLoading } = usePurchaseOrder(id);
+  const { data: poData, isLoading, isFetching } = usePurchaseOrder(id);
+  const isPageLoading = isLoading || isFetching;
   const po = poData?.data;
 
   // Header form — seeded from the PO once loaded
@@ -545,7 +546,7 @@ export default function EditPurchaseOrderPage() {
     }
   };
 
-  if (isLoading) {
+  if (isPageLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -560,7 +561,7 @@ export default function EditPurchaseOrderPage() {
   }
 
   // Only allow editing if it's a draft
-  if ((po as any).status !== "draft") {
+  if (String((po as any).status || "").toLowerCase() !== "draft") {
     router.push(detailUrl);
     return null;
   }
