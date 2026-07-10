@@ -26,9 +26,10 @@ import { ExpenseDetailSkeleton } from "@/components/expenses/ExpenseDetailSkelet
 import { useState, useEffect } from "react";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { Check } from "lucide-react";
+import { Check, AlertCircle } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { logger } from "@/lib/logger";
+import { CONote } from "@/components/expenses/personal/CONote";
 import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
 import { PolicyComplianceBadge } from "@/components/expenses/PolicyComplianceBadge";
 import { asRecord, pickString } from "@/lib/types/api-error";
@@ -67,12 +68,16 @@ function RejectReasonModal({
 }) {
   const [reason, setReason] = useState("");
   const handleClose = () => { setReason(""); onClose(); };
+  
+  const MIN_LENGTH = 10;
+  const isTooShort = reason.trim().length > 0 && reason.trim().length < MIN_LENGTH;
+  const isValid = reason.trim().length >= MIN_LENGTH;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md rounded-2xl">
         <DialogHeader>
-          <DialogTitle>Reject Report</DialogTitle>
+          <DialogTitle className="text-xl">Reject Report</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground -mt-1">
           Please provide a reason for rejecting this expense. This will be shared with the employee.
@@ -85,14 +90,22 @@ function RejectReasonModal({
             placeholder="Write note here......"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="min-h-[100px] resize-none"
+            className="min-h-[100px] resize-none rounded-xl"
           />
+          <div className="flex justify-between items-center text-xs mt-1">
+            <span className={isTooShort ? "text-destructive" : "text-muted-foreground"}>
+              {reason.length < MIN_LENGTH && reason.length > 0 ? `Minimum ${MIN_LENGTH} characters required` : "Length requirements met"}
+            </span>
+            <span className="text-muted-foreground">
+              {reason.length} characters
+            </span>
+          </div>
         </div>
-        <div className="flex justify-end pt-1">
+        <div className="flex justify-end pt-3">
           <Button
-            onClick={() => { if (reason.trim()) onConfirm(reason); }}
-            disabled={!reason.trim() || isLoading}
-            className="bg-destructive hover:bg-destructive/90 text-white"
+            onClick={() => { if (isValid) onConfirm(reason); }}
+            disabled={!isValid || isLoading}
+            className="bg-destructive hover:bg-destructive/90 text-white rounded-xl px-6"
           >
             {isLoading ? "Processing..." : "Reject Report"}
           </Button>
@@ -150,6 +163,7 @@ function FeedbackModal({
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 interface User {
+  userId?: string;
   firstName: string;
   lastName: string;
   avatar?: string;
@@ -221,17 +235,42 @@ export default function CompanyExpenseDetailPage() {
   }
 
   const reportName   = expenseDetail.reportTitle;
-  const reportDate   = formatDate(expenseDetail.createdAt);
+  // Date derived from most recent timeline action below
   const totalAmount  = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
   const rawReportStatus = expenseDetail.status || expenses[0]?.status || "draft";
   const reportStatus = normalizeExpenseReportStatus(rawReportStatus);
   const reporterName = expenseDetail.reporter || "Unknown Reporter";
   
-  // Extract approver name if available
   const approverObj = asRecord(asRecord(expenseDetail).approvedBy);
   const approverName = pickString(approverObj, "firstName")
     ? `${pickString(approverObj, "firstName")} ${pickString(approverObj, "lastName")}`.trim()
     : undefined;
+
+  // ── Header date: show the timestamp of the MOST RECENT timeline action
+  const mostRecentTimestamp = (() => {
+    const timeline = expenseDetail.timeline;
+    if (timeline && timeline.length > 0) {
+      return timeline[timeline.length - 1].timestamp;
+    }
+    // Fallbacks
+    if (reportStatus === "rejected" && expenseDetail.rejectedAt) return expenseDetail.rejectedAt;
+    if ((reportStatus === "approved" || reportStatus === "paid") && expenseDetail.approvedAt) return expenseDetail.approvedAt;
+    if (expenseDetail.submittedAt) return expenseDetail.submittedAt;
+    return expenseDetail.createdAt;
+  })();
+  const reportDate = formatDate(mostRecentTimestamp);
+
+  // ── Build the "actioned by" label for CONote from the last timeline event
+  const actionedBy = (() => {
+    const timeline = expenseDetail.timeline;
+    if (!timeline || timeline.length === 0) return null;
+    const last = timeline[timeline.length - 1];
+    if (!last.performedBy) return null;
+    const { firstName, lastName, roleName } = last.performedBy;
+    const name = [firstName, lastName].filter(Boolean).join(" ");
+    if (!name) return null;
+    return roleName ? `${name} (${roleName})` : name;
+  })();
 
   const isOwnScope = scope === "own";
   const isTeamScope = scope === "team";
@@ -244,13 +283,16 @@ export default function CompanyExpenseDetailPage() {
     can("expense.report", "manage");
 
   const isPendingOrSubmitted = isPendingExpenseStatus(rawReportStatus);
+  const isCurrentUserReport = expenseDetail.reporterId === user?.userId;
 
   // Show approve/reject if:
-  // not own scope, AND pending/submitted, AND hasApprovePermission, AND (team scope OR (company scope AND overrideUnlocked))
-  const canTakeAction = !isOwnScope && isPendingOrSubmitted && hasApprovePermission && (isTeamScope || (isCompanyScope && overrideUnlocked));
+  // not own scope, AND NOT the user's own report, AND pending/submitted, AND hasApprovePermission, AND (team scope OR (company scope AND overrideUnlocked))
+  const canTakeAction = !isOwnScope && !isCurrentUserReport && isPendingOrSubmitted && hasApprovePermission && (isTeamScope || (isCompanyScope && overrideUnlocked));
 
-  // Show lock/unlock banner if: company scope AND pending/submitted AND hasApprovePermission
-  const showOverrideBanner = isCompanyScope && isPendingOrSubmitted && hasApprovePermission;
+  const showOwnReportBanner = !isOwnScope && isCurrentUserReport && isPendingOrSubmitted;
+
+  // Show lock/unlock banner if: company scope AND pending/submitted AND hasApprovePermission AND NOT the user's own report
+  const showOverrideBanner = isCompanyScope && isPendingOrSubmitted && hasApprovePermission && !isCurrentUserReport;
 
   const handleApprove = async () => {
     setIsApproving(true);
@@ -279,49 +321,58 @@ export default function CompanyExpenseDetailPage() {
 
   return (
     <>
-      <div className="max-w-7xl mx-auto p-6">
-        {/* Submitter header */}
-        <div className="flex items-center gap-3 mb-4">
-          <Avatar className="h-12 w-12">
-            <AvatarImage src={user?.avatar} alt={reporterName} />
-            <AvatarFallback>{getInitials(reporterName)}</AvatarFallback>
-          </Avatar>
-          <p className="text-sm font-semibold text-foreground">{reporterName}</p>
-        </div>
-
-        {/* Report title + status + actions */}
-        <div className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
-          <div>
-            <div className="mb-2 flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-foreground">{reportName}</h1>
-              <ExpenseStatusBadge status={rawReportStatus} context="manager" />
+      <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
+        
+        {/* Header - Transparent with exact original padding (dashboard 20px + page 24px = 44px -> p-11) */}
+        <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
+          <div className="max-w-7xl mx-auto w-full">
+            {/* Submitter header */}
+            <div className="flex items-center gap-3 mb-4">
+              <Avatar className="h-12 w-12">
+                <AvatarImage src={user?.avatar} alt={reporterName} />
+                <AvatarFallback>{getInitials(reporterName)}</AvatarFallback>
+              </Avatar>
+              <p className="text-sm font-semibold text-foreground">{reporterName}</p>
             </div>
-            <p className="text-sm text-muted-foreground">{reportDate}</p>
+
+            {/* Title, Status and Action Buttons */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-foreground">{reportName}</h1>
+                  <ExpenseStatusBadge status={rawReportStatus} context="manager" />
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">{reportDate}</p>
+              </div>
+
+              {/* Approve / Reject Actions */}
+              {canTakeAction && (
+                <div className="flex items-center gap-3 shrink-0">
+                  <Button
+                    onClick={handleApprove}
+                    disabled={isApproving || isRejecting}
+                    className="bg-teal-500 text-white hover:bg-teal-600 h-9 px-6 rounded-lg font-medium"
+                  >
+                    {isApproving ? "Processing..." : "Approve"}
+                  </Button>
+                  <Button
+                    onClick={() => setRejectOpen(true)}
+                    disabled={isApproving || isRejecting}
+                    className="bg-red-500 text-white hover:bg-red-600 h-9 px-6 rounded-lg font-medium"
+                  >
+                    Reject
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
-
-          {/* Approve / Reject Actions */}
-          {canTakeAction && (
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleApprove}
-                disabled={isApproving || isRejecting}
-                className="bg-teal-500 text-white hover:bg-teal-600 h-11 px-8 rounded-lg font-medium"
-              >
-                {isApproving ? "Processing..." : "Approve"}
-              </Button>
-              <Button
-                onClick={() => setRejectOpen(true)}
-                disabled={isApproving || isRejecting}
-                className="bg-red-500 text-white hover:bg-red-600 h-11 px-8 rounded-lg font-medium"
-              >
-                Reject
-              </Button>
-            </div>
-          )}
         </div>
 
-        {/* Two-column: items left, timeline right */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto min-h-0 px-9 sm:px-11 pb-9 sm:pb-11">
+          <div className="max-w-7xl mx-auto h-full min-h-0">
+            {/* Two-column: items left, timeline right */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left — items table */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white border border-border rounded-lg">
@@ -381,11 +432,27 @@ export default function CompanyExpenseDetailPage() {
               </div>
             </div>
 
+            {/* Manager's Feedback */}
+            {reportStatus !== "draft" && (
+              <CONote
+                status={reportStatus}
+                rejectionReason={expenseDetail.rejectionReason}
+                actionedBy={actionedBy}
+              />
+            )}
+            
             {/* Approve / Reject was here, moved to right column */}
           </div>
 
           {/* Right — Expense Timeline (visible to all roles) */}
           <div className="lg:col-span-1 space-y-4">
+            {showOwnReportBanner && (
+              <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm font-medium shadow-sm">
+                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="leading-relaxed">You can't approve or reject your own expense report. This report is awaiting review from another approver.</p>
+              </div>
+            )}
+            
             {showOverrideBanner && (
               <ManagerOverrideBanner
                 isUnlocked={overrideUnlocked}
@@ -402,6 +469,8 @@ export default function CompanyExpenseDetailPage() {
               approverName={approverName}
               timeline={expenseDetail.timeline}
             />
+          </div>
+        </div>
           </div>
         </div>
       </div>

@@ -76,7 +76,7 @@ export default function PersonalExpenseDetailPage() {
   }
 
   const reportName = expenseDetail.reportTitle;
-  const reportDate = formatDate(expenseDetail.createdAt);
+  // reportDate is now derived above from the most recent action
   const expenses = expenseDetail.expenses || [];
 
   // Check if we have any expenses
@@ -107,6 +107,35 @@ export default function PersonalExpenseDetailPage() {
   const fallbackName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Unknown User";
   const userName = expenseDetail.reporter || fallbackName;
 
+  // ── Header date: show the timestamp of the MOST RECENT timeline action
+  // so the date next to the status badge always matches the current state.
+  // e.g. a rejected report shows the rejection time, not the submission time.
+  const mostRecentTimestamp = (() => {
+    const timeline = expenseDetail.timeline;
+    if (timeline && timeline.length > 0) {
+      // Timeline is chronological — last entry is the most recent action
+      return timeline[timeline.length - 1].timestamp;
+    }
+    // Fallbacks by status-specific timestamps, then createdAt
+    if (reportStatus === "rejected" && expenseDetail.rejectedAt) return expenseDetail.rejectedAt;
+    if ((reportStatus === "approved" || reportStatus === "paid") && expenseDetail.approvedAt) return expenseDetail.approvedAt;
+    if (expenseDetail.submittedAt) return expenseDetail.submittedAt;
+    return expenseDetail.createdAt;
+  })();
+  const reportDate = formatDate(mostRecentTimestamp);
+
+  // ── Build the "actioned by" label for CONote from the last timeline event
+  const actionedBy = (() => {
+    const timeline = expenseDetail.timeline;
+    if (!timeline || timeline.length === 0) return null;
+    const last = timeline[timeline.length - 1];
+    if (!last.performedBy) return null;
+    const { firstName, lastName, roleName } = last.performedBy;
+    const name = [firstName, lastName].filter(Boolean).join(" ");
+    if (!name) return null;
+    return roleName ? `${name} (${roleName})` : name;
+  })();
+
   const handleExpenseClick = (expense: ExpenseItem) => {
     setSelectedExpense(expense);
     setIsExpenseModalOpen(true);
@@ -118,20 +147,26 @@ export default function PersonalExpenseDetailPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <h1 className="text-2xl font-semibold text-foreground">
-            {reportName}
-          </h1>
-          <ExpenseStatusBadge status={rawReportStatus} />
+    <>
+      <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
+      {/* Header - Transparent with exact original padding */}
+      <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
+        <div className="max-w-7xl mx-auto w-full flex flex-col justify-center">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground">
+              {reportName}
+            </h1>
+            <ExpenseStatusBadge status={rawReportStatus} />
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">{reportDate}</p>
         </div>
-        <p className="text-sm text-muted-foreground">{reportDate}</p>
       </div>
 
-      {/* Main Content - Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-9 sm:px-11 pb-9 sm:pb-11">
+        <div className="max-w-7xl mx-auto h-full min-h-0">
+          {/* Main Content - Two Column Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Expense Details */}
         <div className="lg:col-span-2 space-y-6">
           {/* Preview Items Section */}
@@ -233,8 +268,14 @@ export default function PersonalExpenseDetailPage() {
             </div>
           </div>
 
-          {/* CO's Note - Only show if not draft */}
-          {reportStatus !== "draft" && <CONote status={reportStatus} />}
+          {/* Manager's Feedback — only show if not draft */}
+          {reportStatus !== "draft" && (
+            <CONote
+              status={reportStatus}
+              rejectionReason={expenseDetail.rejectionReason}
+              actionedBy={actionedBy}
+            />
+          )}
 
           {/* Edit Expenses Button for Flagged Status */}
           {reportStatus === "flagged" && (
@@ -258,6 +299,9 @@ export default function PersonalExpenseDetailPage() {
             timeline={expenseDetail.timeline}
           />
         </div>
+        </div>
+          </div>
+        </div>
       </div>
 
       {/* Modals */}
@@ -278,6 +322,6 @@ export default function PersonalExpenseDetailPage() {
         } : null}
       />
 
-    </div>
+    </>
   );
 }

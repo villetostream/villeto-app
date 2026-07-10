@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle } from "lucide-react";
 
+const MIN_REASON_LENGTH = 10;
+
 interface RejectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -30,21 +32,17 @@ export function RejectionModal({
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
+  const trimmed = rejectionReason.trim();
+  const isReasonValid = trimmed.length >= MIN_REASON_LENGTH;
+
   const handleReject = async () => {
-    if (!rejectionReason.trim()) {
-      alert("Please provide a reason for rejection");
-      return;
-    }
+    if (!isReasonValid) return;
     setIsLoading(true);
-    // Simulate API call with short delay
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setIsLoading(false);
-    onReject(rejectionReason);
+    onReject(trimmed);
 
-    // Show success toast
     setShowSuccessToast(true);
-
-    // Auto-hide modal and reset after showing toast
     setTimeout(() => {
       handleClose();
     }, 12000);
@@ -59,92 +57,89 @@ export function RejectionModal({
   return (
     <>
       <Dialog open={open && !showSuccessToast} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md rounded-lg">
-          <>
-            <DialogHeader>
-              <DialogTitle>Reject Expense</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6">
-              {/* Expense Summary */}
-              <div className="bg-destructive/5 rounded-lg p-4 border border-destructive/10">
-                <p className="text-sm text-muted-foreground mb-1">
-                  Expense Title
-                </p>
-                <p className="text-base font-semibold text-foreground mb-4">
-                  {expenseTitle}
-                </p>
-                <p className="text-sm text-muted-foreground mb-1">Amount</p>
-                <p className="text-2xl font-bold text-destructive">
-                  {expenseAmount}
-                </p>
-              </div>
+        {/* rounded-2xl matches the app's modal design language */}
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Reject Expense Report</DialogTitle>
+          </DialogHeader>
 
-              {/* Rejection Message */}
-              <div className="space-y-2">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-5 h-5 text-destructive mt-0.5 shrink-0" />
-                  <p className="text-sm font-medium text-foreground">
-                    Please provide a reason for rejection. The requester will be
-                    notified.
-                  </p>
-                </div>
-              </div>
+          <div className="space-y-5">
+            {/* Expense Summary */}
+            <div className="bg-destructive/5 rounded-xl p-4 border border-destructive/10">
+              <p className="text-xs text-muted-foreground mb-0.5">Report</p>
+              <p className="text-sm font-semibold text-foreground mb-3">{expenseTitle}</p>
+              <p className="text-xs text-muted-foreground mb-0.5">Total Amount</p>
+              <p className="text-2xl font-bold text-destructive">{expenseAmount}</p>
+            </div>
 
-              {/* Rejection Reason */}
-              <div className="space-y-3">
+            {/* Warning notice */}
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-800 leading-relaxed">
+                The submitter will be notified with your rejection reason. Make
+                it clear and actionable so they know what to fix.
+              </p>
+            </div>
+
+            {/* Rejection Reason textarea */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-foreground">
                   Reason for Rejection
                 </label>
-                <Textarea
-                  placeholder="Explain why this expense is being rejected...."
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  className="min-h-[120px] resize-none"
-                />
+                <span className={`text-xs ${trimmed.length < MIN_REASON_LENGTH ? "text-muted-foreground" : "text-emerald-600"}`}>
+                  {trimmed.length < MIN_REASON_LENGTH
+                    ? `Min. ${MIN_REASON_LENGTH} characters`
+                    : `${trimmed.length} characters`}
+                </span>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4">
-                <Button
-                  onClick={handleClose}
-                  variant="outline"
-                  className="flex-1"
-                  disabled={isLoading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleReject}
-                  className="flex-1 bg-destructive hover:bg-destructive/90"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Processing..." : "Reject"}
-                </Button>
-              </div>
+              <Textarea
+                placeholder="Explain why this report is being rejected — be specific so the requester knows what to correct..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                className="min-h-[120px] resize-none rounded-xl"
+              />
             </div>
-          </>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <Button
+                onClick={handleClose}
+                variant="outline"
+                className="flex-1 rounded-xl"
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleReject}
+                className="flex-1 bg-destructive hover:bg-destructive/90 rounded-xl"
+                disabled={isLoading || !isReasonValid}
+                title={!isReasonValid ? `Please provide at least ${MIN_REASON_LENGTH} characters` : undefined}
+              >
+                {isLoading ? "Rejecting..." : "Reject Report"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Success Toast */}
       {showSuccessToast && (
         <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-5">
-          <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-6 max-w-sm">
-            <div className="flex items-start gap-4">
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-lg p-5 max-w-sm">
+            <div className="flex items-start gap-3">
               <div className="relative shrink-0">
-                <div className="absolute inset-0 bg-destructive/20 rounded-full animate-pulse"></div>
-                <div className="relative flex items-center justify-center w-12 h-12 bg-destructive rounded-full">
-                  <AlertCircle className="w-6 h-6 text-white" />
+                <div className="absolute inset-0 bg-destructive/20 rounded-full animate-pulse" />
+                <div className="relative flex items-center justify-center w-10 h-10 bg-destructive rounded-full">
+                  <AlertCircle className="w-5 h-5 text-white" />
                 </div>
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-foreground">
-                  Expense Rejected Successfully
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  The expense has been rejected and the requester has been
-                  notified with the reason. You can view this rejection in the
-                  expense audit trail.
+                <h3 className="font-semibold text-sm text-foreground">Report Rejected</h3>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  The report has been rejected and the submitter has been notified
+                  with your reason.
                 </p>
               </div>
             </div>
