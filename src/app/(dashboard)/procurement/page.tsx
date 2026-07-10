@@ -116,7 +116,13 @@ export default function Procurement() {
     { scope, status: "approved", requiresMyConversion: true },
     { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const readyForPO = (prConvertCount as unknown as number) ?? 0;
+  
+  const { data: prPartialConvertCount, isLoading: loadingPRPartialConvert } = useGetPurchaseRequests(
+    { scope, status: "partially_converted", requiresMyConversion: true },
+    { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
+  );
+
+  const readyForPO = ((prConvertCount as unknown as number) ?? 0) + ((prPartialConvertCount as unknown as number) ?? 0);
 
   const { data: poApprovalCount, isLoading: loadingPOApproval } = usePurchaseOrders(
     1, 1, "pending_approval", undefined, undefined, poScope,
@@ -125,7 +131,7 @@ export default function Procurement() {
   const needsMyApprovalPO = (poApprovalCount as unknown as number) ?? 0;
 
   const totalNeedsAction = needsMyApprovalPR + needsMyApprovalPO + readyForPO;
-  const isLoadingCounts  = loadingPRApproval || loadingPRConvert || loadingPOApproval;
+  const isLoadingCounts  = loadingPRApproval || loadingPRConvert || loadingPRPartialConvert || loadingPOApproval;
 
   // ── General overview counts ───────────────────────────────────────────────
 
