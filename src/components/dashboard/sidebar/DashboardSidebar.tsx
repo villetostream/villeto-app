@@ -189,7 +189,14 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
     { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 }
   );
   const prReadyForPOCount = (prConversionData as unknown as number) ?? 0;
-  const totalPRActionCount = prAwaitingCount + prReadyForPOCount;
+
+  const { data: prPartialConversionData } = useGetPurchaseRequests(
+    { scope: prScope as any, status: "partially_converted", requiresMyConversion: true },
+    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 }
+  );
+  const prPartialPOCount = (prPartialConversionData as unknown as number) ?? 0;
+
+  const totalPRActionCount = prAwaitingCount + prReadyForPOCount + prPartialPOCount;
 
   const canApprovePO = canPOApprove(can);
   const hasPOCompanyScope = canPOReadCompany(can);

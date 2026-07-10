@@ -270,11 +270,13 @@ function buildInnerTabs(canApprove: boolean, canConvert: boolean): TabCfg[] {
 
   if (canConvert) {
     tabs.push({ key: "ready_for_po", label: "Ready for PO", status: "approved", actionType: "convert" as const });
+    tabs.push({ key: "action_partially_converted", label: "Partially Converted", status: "partially_converted", actionType: "convert" as const });
   }
 
   // Remaining info tabs (skip "approved" if we already added "ready_for_po" for it)
   for (const t of BASE_ELEVATED_TABS.slice(1)) {
     if (t.key === "approved" && canConvert) continue; // already represented by ready_for_po
+    if (t.key === "partially_converted" && canConvert) continue; // already represented by action_partially_converted
     tabs.push(t);
   }
 
@@ -410,6 +412,12 @@ function PRTable({
   );
   const readyForPOCount = (conversionCountData as unknown as number) ?? 0;
 
+  const { data: partialConversionCountData } = useGetPurchaseRequests(
+    { scope, status: "partially_converted", requiresMyConversion: true },
+    { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
+  );
+  const partialPOCount = (partialConversionCountData as unknown as number) ?? 0;
+
   // ── Mutations ──────────────────────────────────────────────────────────────
 
   // Per-row approve — id is set via state before mutateAsync fires
@@ -516,6 +524,9 @@ function PRTable({
                       )}
                       {tab.key === "ready_for_po" && (
                         <ActionBadge count={readyForPOCount} />
+                      )}
+                      {tab.key === "action_partially_converted" && (
+                        <ActionBadge count={partialPOCount} />
                       )}
                     </TabsTrigger>
                   ))}

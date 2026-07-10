@@ -816,31 +816,22 @@ function CreatePOView({
   pr,
   vendors,
   onConvertToPOs,
-  onReject,
+  onCancel,
   convertLoading,
-  rejectLoading,
   departmentName,
   workflowSteps,
 }: {
   pr: PurchaseRequest;
   vendors: Vendor[];
   onConvertToPOs: (draftPurchaseOrders: DraftPurchaseOrder[]) => void;
-  onReject: () => void;
+  onCancel?: () => void;
   convertLoading: boolean;
-  rejectLoading: boolean;
   departmentName?: string | null;
   workflowSteps: WorkflowStep[];
 }) {
   const lineItems = useMemo<PurchaseRequestLineItemType[]>(() => {
     const allItems = pr.lineItems || [];
-    const purchaseOrders = (pr as any).purchaseOrders || [];
-    const convertedItemIds = new Set<string>();
-    purchaseOrders.forEach((po: any) => {
-      (po.lineItems || []).forEach((li: any) => {
-        convertedItemIds.add(li.purchaseRequestLineItemId);
-      });
-    });
-    return allItems.filter(item => !convertedItemIds.has(item.purchaseRequestLineItemId));
+    return allItems.filter(item => item.conversionStatus !== "converted");
   }, [pr]);
   const currency = pr.currency || "USD";
   const user = useAuthStore(s => s.user);
@@ -992,11 +983,12 @@ function CreatePOView({
             {pr.title && <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>}
           </div>
           <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
-            <button onClick={onReject} disabled={rejectLoading}
-              className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-60 flex items-center gap-1.5">
-              {rejectLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Reject Request
-            </button>
+            {onCancel && (
+              <button onClick={onCancel} disabled={convertLoading}
+                className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors disabled:opacity-60 flex items-center gap-1.5">
+                Cancel
+              </button>
+            )}
             <button
               onClick={handleCreate}
               disabled={!readyToCreate || convertLoading}
@@ -1419,7 +1411,8 @@ function PRDetailPage() {
 
   // Whether to show the lock/unlock override banner.
   // Never show it on the requester's own request — there is nothing to override.
-  const showOverrideBanner = isCompanyScope && !isOwnRequest && (
+  // Never show it on partially converted PRs — they've already been approved and are in progress.
+  const showOverrideBanner = isCompanyScope && !isOwnRequest && !isPartiallyConverted && (
     (isSubmitted && hasApprovePermission) ||
     ((isSubmitted || isApproved) && (hasWithdrawPermission || hasApprovePermission))
   );
@@ -1726,9 +1719,8 @@ function PRDetailPage() {
           pr={pr}
           vendors={vendors}
           onConvertToPOs={handleConvertToPOs}
-          onReject={() => setModal("reject")}
+          onCancel={isConvertingPartially ? () => setIsConvertingPartially(false) : undefined}
           convertLoading={convertToPO.isPending}
-          rejectLoading={rejectPR.isPending}
           departmentName={deptNameFallback}
           workflowSteps={workflowSteps}
         />
@@ -1843,7 +1835,7 @@ function PRDetailPage() {
             </div>
 
             {/* Action buttons — permission gated */}
-            {(canEdit || canSubmit || canApprove || canWithdraw) && (
+            {(canEdit || canSubmit || canApprove || canWithdraw || canCreatePO) && (
               <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
                 {canEdit && (
                   <>
@@ -1875,10 +1867,10 @@ function PRDetailPage() {
                     Approve Request
                   </button>
                 )}
-                {isPartiallyConverted && canCreatePO && !isConvertingPartially && (
+                {canCreatePO && !isConvertingPartially && (
                   <button onClick={() => setIsConvertingPartially(true)}
                     className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
-                    Convert Remaining to PO
+                    {isPartiallyConverted ? "Convert Remaining to PO" : "Convert to PO"}
                   </button>
                 )}
                 {canWithdraw && (
@@ -1890,6 +1882,7 @@ function PRDetailPage() {
                 )}
               </div>
             )}
+
           </div>
         </div>
 
@@ -1964,6 +1957,9 @@ function PRDetailPage() {
                   const groupsByVendor = new Map<string, typeof lineItems>();
                   const unassignedItems: typeof lineItems = [];
                   lineItems.forEach(li => {
+                    // Skip unconverted items so they don't appear in the main vendor groups (they will appear in Pending Conversion below)
+                    if (isPartiallyConverted && li.conversionStatus !== "converted") return;
+                    
                     const vId = li.resolvedVendorId;
                     if (vId) {
                       if (!groupsByVendor.has(vId)) groupsByVendor.set(vId, []);
@@ -2059,6 +2055,69 @@ function PRDetailPage() {
                         </div>
                       );
                     })}
+
+                    {/* Unconverted items — shown when PR is partially converted */}
+                    {(() => {
+                      if (!isPartiallyConverted) return null;
+                      
+                      const unconverted = lineItems.filter(li => li.conversionStatus !== "converted");
+                      if (unconverted.length === 0) return null;
+                      const unconvertedTotal = unconverted.reduce((s, li) => s + (li.subtotal || 0), 0);
+
+                      return (
+                        <div className="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/30 overflow-hidden">
+                          {/* Header */}
+                          <div className="px-5 py-3 flex items-center justify-between bg-amber-50 border-b border-amber-200">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-amber-400" />
+                              <div>
+                                <p className="text-sm font-bold text-amber-800">Pending Conversion</p>
+                                <p className="text-xs text-amber-600">These items have not been converted to a PO yet</p>
+                              </div>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                                {unconverted.length} item{unconverted.length !== 1 ? "s" : ""}
+                              </span>
+                              {unconvertedTotal > 0 && <span className="text-xs font-semibold text-amber-800">· {formatAmount(unconvertedTotal, currency)}</span>}
+                            </div>
+                            {canCreatePO && (
+                              <button
+                                onClick={() => setIsConvertingPartially(true)}
+                                className="h-8 px-3 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors flex items-center gap-1.5"
+                              >
+                                Convert to PO
+                              </button>
+                            )}
+                          </div>
+                          {/* Items Table */}
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-amber-200/60 bg-white/60">
+                                {["Item", "Description", "Category", "Qty", "Unit Price", "Subtotal"].map(h => (
+                                  <th key={h} className="px-5 py-2.5 text-left text-xs font-semibold text-amber-700 uppercase tracking-wide">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {unconverted.map(item => (
+                                <tr key={item.purchaseRequestLineItemId} className="border-b border-amber-100 last:border-0 hover:bg-amber-50/60 transition-colors">
+                                  <td className="px-5 py-3 font-semibold text-foreground">{item.name}</td>
+                                  <td className="px-5 py-3 text-muted-foreground max-w-[160px] truncate">{item.description || "—"}</td>
+                                  <td className="px-5 py-3">
+                                    {item.categoryId
+                                      ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-100 text-amber-700 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
+                                      : <span className="text-muted-foreground">—</span>}
+                                  </td>
+                                  <td className="px-5 py-3 text-foreground">{item.quantity}</td>
+                                  <td className="px-5 py-3 text-foreground">{formatAmount(item.unitPrice, currency)}</td>
+                                  <td className="px-5 py-3 font-medium text-foreground">{formatAmount(item.subtotal, currency)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+
                     {/* Grand Total */}
                     <div className="flex justify-end">
                       <div className="space-y-1.5 min-w-[220px] bg-white rounded-xl border border-border px-5 py-4">

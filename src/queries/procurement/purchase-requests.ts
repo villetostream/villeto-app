@@ -45,6 +45,8 @@ export interface PurchaseRequestLineItem {
   accountingTaxCodeRef?: string;
   accountingResolutionStatus: AccountingResolutionStatus;
   resolvedVendorId?: string;
+  conversionStatus?: "open" | "converted";
+  convertedQuantity?: number;
 }
 
 export type ApprovalStatus =
