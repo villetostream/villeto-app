@@ -103,8 +103,18 @@ export interface PersonalExpenseDetailResponse {
   deletedAt: string | null;
   reportId: string;
   reportTitle: string;
+  reporterId?: string;
   status?: PersonalExpenseStatus | "rejected";
+  policyStatus?: "passed" | "failed" | string | null;
+  approvalStatus?: "pending_approval" | "approved" | "rejected" | string | null;
   reporter?: string;
+  reporterRoleName?: string | null;
+  costCenter?: string | null;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  /** The actual reason text provided by the manager when rejecting the report */
+  rejectionReason?: string | null;
   expenses: ExpenseItem[];
   timeline?: TimelineEvent[];
 }

@@ -12,6 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useAxios } from "@/hooks/useAxios";
+import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import {
   useGetPurchaseRequestById,
   useUpdatePurchaseRequest,
@@ -829,7 +831,17 @@ function CreatePOView({
   departmentName?: string | null;
   workflowSteps: WorkflowStep[];
 }) {
-  const lineItems = useMemo<PurchaseRequestLineItemType[]>(() => pr.lineItems || [], [pr.lineItems]);
+  const lineItems = useMemo<PurchaseRequestLineItemType[]>(() => {
+    const allItems = pr.lineItems || [];
+    const purchaseOrders = (pr as any).purchaseOrders || [];
+    const convertedItemIds = new Set<string>();
+    purchaseOrders.forEach((po: any) => {
+      (po.lineItems || []).forEach((li: any) => {
+        convertedItemIds.add(li.purchaseRequestLineItemId);
+      });
+    });
+    return allItems.filter(item => !convertedItemIds.has(item.purchaseRequestLineItemId));
+  }, [pr]);
   const currency = pr.currency || "USD";
   const user = useAuthStore(s => s.user);
   const totalAmount = pr.totalAmount || 0;
@@ -871,7 +883,7 @@ function CreatePOView({
   const unassignedItems = lineItems.filter(li => !vendorMap[li.purchaseRequestLineItemId]);
   const assignedCount = lineItems.length - unassignedItems.length;
   const poCount = vendorGroups.size;
-  const readyToCreate = unassignedItems.length === 0 && poCount > 0;
+  const readyToCreate = poCount > 0;
 
   const [vendorDetails, setVendorDetails] = useState<Record<string, { deliveryDate: string; notes: string }>>({});
 
@@ -882,8 +894,8 @@ function CreatePOView({
   const defaultDate = pr.neededByDate ? pr.neededByDate.split("T")[0] : "";
 
   const handleCreate = () => {
-    if (unassignedItems.length > 0) {
-      toast.error(`${unassignedItems.length} item(s) still have no vendor assigned`);
+    if (poCount === 0) {
+      toast.error("Please assign a vendor to at least one item to create a Purchase Order.");
       return;
     }
     const draftPurchaseOrders: DraftPurchaseOrder[] = [];
@@ -909,7 +921,7 @@ function CreatePOView({
     onConvertToPOs(draftPurchaseOrders);
   };
 
-  const ItemRow = ({
+  const renderItemRow = ({
     item,
     inGroup,
     vendorId,
@@ -920,7 +932,7 @@ function CreatePOView({
     vendorId: string;
     accent?: typeof CARD_ACCENTS[0];
   }) => (
-    <tr className={`border-b border-border/30 last:border-0 transition-colors hover:bg-muted/10 ${inGroup && accent ? accent.rowAccent : ""}`}>
+    <tr key={item.purchaseRequestLineItemId} className={`border-b border-border/30 last:border-0 transition-colors hover:bg-muted/10 ${inGroup && accent ? accent.rowAccent : ""}`}>
       <td className="px-4 py-3">
         <p className="font-semibold text-foreground text-sm leading-tight">{item.name}</p>
         {item.description && (
@@ -968,34 +980,38 @@ function CreatePOView({
 
 
   return (
-    <div className="flex flex-col max-w-6xl mx-auto pb-24">
-      {/* ── Page Header ──────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-bold text-foreground">{pr.requestNumber}</h1>
-            <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} />
+    <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
+      {/* ── Page Header — outside scroll area so action buttons stay in view ── */}
+      <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
+        <div className="max-w-6xl mx-auto w-full flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold text-foreground">{pr.requestNumber}</h1>
+              <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} />
+            </div>
+            {pr.title && <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>}
           </div>
-          {pr.title && <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>}
-        </div>
-        <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
-          <button onClick={onReject} disabled={rejectLoading}
-            className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-60 flex items-center gap-1.5">
-            {rejectLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Reject Request
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={!readyToCreate || convertLoading}
-            className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2"
-          >
-            {convertLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-            Convert to {poCount} Purchase Order{poCount !== 1 ? "s" : ""}
-          </button>
+          <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+            <button onClick={onReject} disabled={rejectLoading}
+              className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-60 flex items-center gap-1.5">
+              {rejectLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              Reject Request
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={!readyToCreate || convertLoading}
+              className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2"
+            >
+              {convertLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              Convert to {poCount} Purchase Order{poCount !== 1 ? "s" : ""}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="flex gap-6 items-start flex-1 min-h-0">
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-9 sm:px-11 pb-9 sm:pb-11">
+      <div className="max-w-6xl mx-auto flex gap-6 items-start flex-1 min-h-0">
         {/* ── Left ─────────────────────────────────────────────────────── */}
         <div className="flex-1 space-y-4 min-w-0">
           {/* Info cards */}
@@ -1134,15 +1150,13 @@ function CreatePOView({
                       <table className="w-full text-sm">
                         <PurchaseRequestTableHead />
                         <tbody>
-                          {groupItems.map(item => (
-                            <ItemRow
-                              key={item.purchaseRequestLineItemId}
-                              item={item}
-                              inGroup
-                              vendorId={vendorId}
-                              accent={accent}
-                            />
-                          ))}
+                          {groupItems.map(item => renderItemRow({
+                              item,
+                              inGroup: true,
+                              vendorId,
+                              accent,
+                            })
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -1170,14 +1184,12 @@ function CreatePOView({
                     <table className="w-full text-sm">
                       <PurchaseRequestTableHead />
                       <tbody>
-                        {unassignedItems.map(item => (
-                          <ItemRow
-                            key={item.purchaseRequestLineItemId}
-                            item={item}
-                            inGroup={false}
-                            vendorId=""
-                          />
-                        ))}
+                        {unassignedItems.map(item => renderItemRow({
+                            item,
+                            inGroup: false,
+                            vendorId: "",
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1270,6 +1282,7 @@ function CreatePOView({
           </div>
         </div>
       </div>
+      </div>
     </div>
   );
 }
@@ -1292,6 +1305,7 @@ function PRDetailPage() {
   const searchParams = useSearchParams();
   const can          = useAuthStore(s => s.can);
   const user         = useAuthStore(s => s.user);
+  const axiosInstance = useAxios();
 
   // ── Scope validation: never trust ?scope= blindly from the URL ────────────
   // A user could manually type ?scope=company to try to elevate their view.
@@ -1330,6 +1344,7 @@ function PRDetailPage() {
   const updateLineItemHook = useUpdateLineItem(id, editingLineItem?.purchaseRequestLineItemId || "");
   const [modal, setModal] = useState<"submit" | "withdraw" | "reject" | "approve" | "add_item" | "edit_header" | "delete_item" | "delete_pr" | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isConvertingPartially, setIsConvertingPartially] = useState(false);
   const pr: PurchaseRequestDetail | undefined = data?.data;
   const departments = (deptData?.data || []).map(d => ({ label: d.departmentName, value: d.departmentId }));
   
@@ -1357,7 +1372,8 @@ function PRDetailPage() {
   // ── Status flags ─────────────────────────────────────────────────────────
   const isDraft     = pr?.status === "draft";
   const isSubmitted = pr?.status === "submitted";
-  const isApproved  = pr?.status === "approved" || pr?.status === "partially_converted";
+  const isPartiallyConverted = pr?.status === "partially_converted";
+  const isApproved  = pr?.status === "approved" || isPartiallyConverted;
   const _isLocked    = !isDraft; // once submitted, editing is locked
 
   // ── Permission gates ──────────────────────────────────────────────────────
@@ -1504,6 +1520,52 @@ function PRDetailPage() {
 
   const handleConvertToPOs = async (draftPurchaseOrders: DraftPurchaseOrder[]) => {
     try {
+      // 1. If there are any overridden prices, we must PATCH the line items first before converting
+      // The backend expects the PR line items to reflect the agreed unit price before PO creation.
+      /*
+      const updatePromises: Promise<any>[] = [];
+      draftPurchaseOrders.forEach((draft) => {
+        draft.lineItems.forEach((li) => {
+          if (li.unitPrice !== undefined) {
+            // Find original item to preserve other required fields if needed, 
+            // though typical PATCH only needs the updated fields.
+            const originalItem = pr?.lineItems.find(item => item.purchaseRequestLineItemId === li.purchaseRequestLineItemId);
+            if (originalItem) {
+              const payload: LineItemPayload = {
+                name: originalItem.name,
+                description: originalItem.description,
+                quantity: originalItem.quantity,
+                unitPrice: li.unitPrice,
+                taxAmount: originalItem.taxAmount,
+                sku: originalItem.sku,
+                unitOfMeasure: originalItem.unitOfMeasure,
+                categoryId: originalItem.categoryId,
+                departmentId: originalItem.departmentId,
+                accountingAccountRef: originalItem.accountingAccountRef,
+                accountingItemRef: originalItem.accountingItemRef,
+                accountingClassRef: originalItem.accountingClassRef,
+                accountingLocationRef: originalItem.accountingLocationRef,
+                accountingProjectRef: originalItem.accountingProjectRef,
+                accountingTaxCodeRef: originalItem.accountingTaxCodeRef,
+                accountingResolutionStatus: originalItem.accountingResolutionStatus,
+              };
+              updatePromises.push(
+                axiosInstance.patch(
+                  PROCUREMENT_KEYS.LINE_ITEM(id, li.purchaseRequestLineItemId),
+                  payload
+                )
+              );
+            }
+          }
+        });
+      });
+
+      if (updatePromises.length > 0) {
+        await Promise.all(updatePromises);
+      }
+      */
+
+      // 2. Convert to POs using the (now updated) line items
       await convertToPO.mutateAsync({ draftPurchaseOrders });
       toast.success("Purchase orders created successfully!");
     } catch (err: unknown) {
@@ -1649,8 +1711,8 @@ function PRDetailPage() {
     );
   }
 
-  // ── If user has create PO permission and PR is approved → show PO creation view ──
-  if (canCreatePO) {
+  // ── If user has create PO permission and PR is approved (or converting partially) → show PO creation view ──
+  if (canCreatePO && (pr.status === "approved" || isConvertingPartially)) {
     return (
       <>
         {modal === "reject" && (
@@ -1767,61 +1829,73 @@ function PRDetailPage() {
         />
       )}
 
-      <div className="flex flex-col h-full max-w-6xl mx-auto pb-4">
-        {/* Global Page Header */}
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-bold text-foreground">{pr.requestNumber}</h1>
-              <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} isOwnRequest={isOwnRequest} />
+      <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
+        {/* Global Page Header — transparent with exact original padding */}
+        <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
+          <div className="max-w-6xl mx-auto w-full flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold text-foreground">{pr.requestNumber}</h1>
+                <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} isOwnRequest={isOwnRequest} />
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>
+              {pr.description && <p className="text-xs text-muted-foreground mt-0.5">{pr.description}</p>}
             </div>
-            <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>
-            {pr.description && <p className="text-xs text-muted-foreground mt-0.5">{pr.description}</p>}
-          </div>
 
-          {/* Action buttons — permission gated */}
-          {(canEdit || canSubmit || canApprove || canWithdraw) && (
-            <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
-              {canEdit && (
-                <>
-                  <button onClick={() => setModal("edit_header")}
-                    className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors flex items-center gap-2">
-                    <Pencil className="w-3.5 h-3.5" /> Edit Request
+            {/* Action buttons — permission gated */}
+            {(canEdit || canSubmit || canApprove || canWithdraw) && (
+              <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+                {canEdit && (
+                  <>
+                    <button onClick={() => setModal("edit_header")}
+                      className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors flex items-center gap-2">
+                      <Pencil className="w-3.5 h-3.5" /> Edit Request
+                    </button>
+                    <button onClick={() => setModal("delete_pr")}
+                      className="h-9 px-4 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 hover:border-red-300 transition-colors flex items-center gap-2">
+                      <Trash2 className="w-3.5 h-3.5" /> Delete Draft
+                    </button>
+                  </>
+                )}
+                {canSubmit && (
+                  <button onClick={() => setModal("submit")} disabled={(pr?.lineItems?.length || 0) === 0}
+                    className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed">
+                    Submit Request
                   </button>
-                  <button onClick={() => setModal("delete_pr")}
-                    className="h-9 px-4 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 hover:border-red-300 transition-colors flex items-center gap-2">
-                    <Trash2 className="w-3.5 h-3.5" /> Delete Draft
+                )}
+                {canApprove && (
+                  <button onClick={() => setModal("reject")}
+                    className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                    Reject Request
                   </button>
-                </>
-              )}
-              {canSubmit && (
-                <button onClick={() => setModal("submit")} disabled={(pr?.lineItems?.length || 0) === 0}
-                  className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed">
-                  Submit Request
-                </button>
-              )}
-              {canApprove && (
-                <button onClick={() => setModal("reject")}
-                  className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
-                  Reject Request
-                </button>
-              )}
-              {canApprove && (
-                <button onClick={() => setModal("approve")}
-                  className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-                  Approve Request
-                </button>
-              )}
-              {canWithdraw && (
-                <button onClick={() => setModal("withdraw")}
-                  className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors flex items-center gap-2">
-                  {withdrawPR.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin inline" />}
-                  Withdraw Request
-                </button>
-              )}
-            </div>
-          )}
+                )}
+                {canApprove && (
+                  <button onClick={() => setModal("approve")}
+                    className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+                    Approve Request
+                  </button>
+                )}
+                {isPartiallyConverted && canCreatePO && !isConvertingPartially && (
+                  <button onClick={() => setIsConvertingPartially(true)}
+                    className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
+                    Convert Remaining to PO
+                  </button>
+                )}
+                {canWithdraw && (
+                  <button onClick={() => setModal("withdraw")}
+                    className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors flex items-center gap-2">
+                    {withdrawPR.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin inline" />}
+                    Withdraw Request
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto min-h-0 px-9 sm:px-11 pb-9 sm:pb-11">
+          <div className="flex flex-col h-full max-w-6xl mx-auto">
 
         {/* Self-approval restriction note — shown to requesters who hold approve
             permission but are viewing their own pending request. Mirrors the
@@ -2394,7 +2468,9 @@ function PRDetailPage() {
               </div>
             );
           })()}
-        </div>
+      </div>
+      </div>
+      </div>
       </div>
     </div>
     </>

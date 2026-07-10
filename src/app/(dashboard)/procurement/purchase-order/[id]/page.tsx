@@ -560,7 +560,12 @@ export default function PODetailPage() {
     "delivered",
   ];
   /** Withdraw (cancel endpoint) — submitter only, while pending approval */
-  const showWithdraw   = stage === "pending_approval" && isSubmitterView && canCancelPO;
+  const isCompanyScope = outerTab === "company";
+  const hasApprovePermission = canApprovePO; // Since PO doesn't have an explicit 'unlock' yet, we use approve permission for company scope
+  const showWithdraw = stage === "pending_approval" && (
+    (isOwnScope && isOwnPO && canCancelPO) ||
+    (isCompanyScope && hasApprovePermission)
+  );
   /** Neutral cancel for drafts — always false here (handled in the edit page) */
   const showCancelDraft = false;
   /** Close (close endpoint) — after approval, any time until already closed/cancelled */
@@ -646,86 +651,92 @@ export default function PODetailPage() {
       />
 
       {/* Layout */}
-      <div className="flex flex-col flex-1 min-h-0 h-full">
-        {/* Header - Full width */}
-        <div className="flex items-start justify-between flex-wrap gap-4 mb-4 shrink-0">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-foreground">{po.poNumber || "Unnamed PO"}</h1>
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                stage === "pending_approval" ? "bg-orange-50 text-orange-600" :
-                stage === "cancelled"        ? "bg-red-50 text-red-600" :
-                isDelivered                  ? "bg-emerald-50 text-emerald-600" :
-                                               "bg-purple-50 text-purple-600"
-              }`}>
-                {statusLabel}
-              </span>
+      <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
+        {/* Header - Transparent with exact original padding */}
+        <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
+          <div className="max-w-6xl mx-auto w-full flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-foreground">{po.poNumber || "Unnamed PO"}</h1>
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                  stage === "pending_approval" ? "bg-orange-50 text-orange-600" :
+                  stage === "cancelled"        ? "bg-red-50 text-red-600" :
+                  isDelivered                  ? "bg-emerald-50 text-emerald-600" :
+                                                "bg-purple-50 text-purple-600"
+                }`}>
+                  {statusLabel}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">Created on {submitDateStr}</p>
             </div>
-            <p className="text-sm text-muted-foreground mt-0.5">Created on {submitDateStr}</p>
-          </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
-            {showEditDraft && (
-              <button
-                onClick={() => router.push(buildPOEditUrl(id, outerTab, innerTab))}
-                className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors flex items-center gap-2"
-              >
-                <Pencil className="w-4 h-4" /> Edit Draft
-              </button>
-            )}
-            {showWithdraw && (
-              <button onClick={() => setModal("withdraw")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
-                Withdraw PO
-              </button>
-            )}
-            {showCancelDraft && (
-              <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors">
-                Withdraw
-              </button>
-            )}
-            {showSubmit && (
-              <>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+              {showEditDraft && (
+                <button
+                  onClick={() => router.push(buildPOEditUrl(id, outerTab, innerTab))}
+                  className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors flex items-center gap-2"
+                >
+                  <Pencil className="w-4 h-4" /> Edit Draft
+                </button>
+              )}
+              {showWithdraw && (
+                <button onClick={() => setModal("withdraw")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                  Withdraw PO
+                </button>
+              )}
+              {showCancelDraft && (
                 <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors">
                   Withdraw
                 </button>
-                <button onClick={() => setModal("submit")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-                  Submit for Approval
+              )}
+              {showSubmit && (
+                <>
+                  <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors">
+                    Withdraw
+                  </button>
+                  <button onClick={() => setModal("submit")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+                    Submit for Approval
+                  </button>
+                </>
+              )}
+              {showReject && (
+                <button onClick={() => setModal("reject")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                  Reject PO
                 </button>
-              </>
-            )}
-            {showReject && (
-              <button onClick={() => setModal("reject")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
-                Reject PO
-              </button>
-            )}
-            {showApprove && (
-              <button onClick={() => setModal("approve")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
-                Approve PO
-              </button>
-            )}
-            {showIssue && (
-              <button onClick={() => setModal("issue")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-                Issue PO
-              </button>
-            )}
-            {showReceipt && (
-              <button onClick={() => setModal("receipt")} className="h-9 px-5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-2">
-                <PackageCheck className="w-4 h-4" /> Confirm Receipt
-              </button>
-            )}
-            {showClose && (
-              <button onClick={() => setModal("close")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
-                Close PO
-              </button>
-            )}
+              )}
+              {showApprove && (
+                <button onClick={() => setModal("approve")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
+                  Approve PO
+                </button>
+              )}
+              {showIssue && (
+                <button onClick={() => setModal("issue")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+                  Issue PO
+                </button>
+              )}
+              {showReceipt && (
+                <button onClick={() => setModal("receipt")} className="h-9 px-5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-2">
+                  <PackageCheck className="w-4 h-4" /> Confirm Receipt
+                </button>
+              )}
+              {showClose && (
+                <button onClick={() => setModal("close")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                  Close PO
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* 2-Column Content */}
-        <div className="flex flex-1 gap-6 items-start min-h-0">
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto min-h-0 px-9 sm:px-11 pb-9 sm:pb-11">
+          <div className="max-w-6xl mx-auto flex flex-col">
+            {/* Split layout */}
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* Left Column */}
-          <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden space-y-4">
+          <div className="flex-1 flex flex-col min-w-0 space-y-4">
 
           {/* PO Details */}
           <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
@@ -822,7 +833,9 @@ export default function PODetailPage() {
             </div>
           </div>
         </div>
-      </div>
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );
