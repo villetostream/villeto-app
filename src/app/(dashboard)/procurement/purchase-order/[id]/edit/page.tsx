@@ -538,7 +538,7 @@ export default function EditPurchaseOrderPage() {
 
   const handleCancel = async () => {
     try {
-      await cancelPO.mutateAsync(id);
+      await cancelPO.mutateAsync({ id, reason: "Draft purchase order cancelled" });
       toast.success("Purchase Order cancelled.");
       router.push(listUrl);
     } catch (err) {

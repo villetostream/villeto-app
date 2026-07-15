@@ -68,6 +68,25 @@ interface ExpenseDetail {
   justification?: string;
 }
 
+// ─── Humanize backend receipt policy messages ────────────────────────────────
+/** Converts the backend's raw receipt policy message into plain English for users.
+ *  e.g. 'A receipt is required for "Utilities" expenses of 5000 or more. This expense is 5500.'
+ *  becomes: 'Receipt Required: Your expense of 5,500 exceeds the 5,000 receipt threshold for the Utilities category. Please attach a receipt.'
+ */
+function humanizeReceiptMessage(message: string): string {
+  if (!message) return message;
+  const match = message.match(/A receipt is required for "([^"]+)" expenses of ([\d,.]+) or more\. This expense is ([\d,.]+)\./i);
+  if (match) {
+    const [, category, thresholdStr, expenseStr] = match;
+    const threshold = Number(thresholdStr.replace(/,/g, ""));
+    const expense = Number(expenseStr.replace(/,/g, ""));
+    const fmtThreshold = isNaN(threshold) ? thresholdStr : threshold.toLocaleString();
+    const fmtExpense = isNaN(expense) ? expenseStr : expense.toLocaleString();
+    return `Receipt Required: Your expense of ${fmtExpense} exceeds the ${fmtThreshold} receipt threshold for the ${category} category. Please attach a receipt.`;
+  }
+  return message;
+}
+
 // ─── Local Policy Engine (best-effort hint only — backend is authoritative) ──
 function checkExpenseAgainstPolicies(
   expense: ExpenseItem,
@@ -102,8 +121,8 @@ function checkExpenseAgainstPolicies(
             type: rule.enforcement,
             message:
               rule.enforcement === "hard_block"
-                ? `A receipt is required for amounts above ${rule.currency ?? ""} ${rule.requiredAboveAmount.toLocaleString()}`
-                : `A receipt is recommended for amounts above ${rule.currency ?? ""} ${rule.requiredAboveAmount.toLocaleString()}`,
+                ? `Receipt Required: Your expense of ${expense.amount.toLocaleString()} exceeds the ${rule.currency ?? ""}${rule.requiredAboveAmount.toLocaleString()} receipt threshold for the ${expense.category} category. Please attach a receipt.`
+                : `Receipt Recommended: Your expense of ${expense.amount.toLocaleString()} exceeds the ${rule.currency ?? ""}${rule.requiredAboveAmount.toLocaleString()} receipt threshold for the ${expense.category} category. Please consider attaching a receipt.`,
             ruleType: "receipt_requirement",
           };
         }
@@ -519,7 +538,7 @@ export default function NewReportPage() {
                     ...next[idx],
                     policyViolations: [{
                       type: "soft_warning",
-                      message: action.message || "Justification required",
+                      message: humanizeReceiptMessage(action.message || "Justification required"),
                       ruleType: action.type || "POLICY_RULE",
                     }],
                   };
@@ -589,7 +608,7 @@ export default function NewReportPage() {
                   expenseName: exp.name,
                   violation: {
                     type: isHard ? "hard_block" : "soft_warning",
-                    message: v.message ?? "Policy violation",
+                    message: humanizeReceiptMessage(v.message ?? "Policy violation"),
                     ruleType: v.type,
                     limitChecks: (v as any).limitChecks, // type assertion since PolicyViolationItem has it
                   },
@@ -600,7 +619,7 @@ export default function NewReportPage() {
                 if (!isHard) {
                   newRequiredActions[exp.id] = {
                     requiredFields: ["policyJustification"],
-                    message: v.message ?? "Justification required",
+                    message: humanizeReceiptMessage(v.message ?? "Justification required"),
                     type: v.type,
                     expenseIndex: idx,
                   };

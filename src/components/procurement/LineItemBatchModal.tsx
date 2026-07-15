@@ -345,6 +345,7 @@ export default function LineItemBatchModal({
     if (persistKey && typeof window !== "undefined") {
       localStorage.removeItem(`line_item_staging:${persistKey}`);
     }
+    handleClose();
   };
 
   const handleEditSave = async () => {

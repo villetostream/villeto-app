@@ -41,9 +41,27 @@ interface PolicyJustificationDrawerProps {
 
 /** Simplifies raw backend policy messages into plain English sentences. */
 function humanizeMessage(message: string, categoryName: string): string {
-  // e.g. "Daily spend limit exceeded for Professional Services. Daily limit is NGN 4,000…"
-  // We try to present it as a friendly paragraph.
-  return message || `Your expense in the "${categoryName}" category exceeded a policy limit.`;
+  if (!message) return `Your expense in the "${categoryName}" category exceeded a policy limit.`;
+
+  // Transform backend's rigid receipt requirement message:
+  // From: "A receipt is required for \"Utilities\" expenses of 5000 or more. This expense is 5500."
+  // To: "Receipt Required: Your expense of 5,500 exceeds the 5,000 receipt threshold for the Utilities category. Please attach a receipt."
+  const receiptMatch = message.match(/A receipt is required for "([^"]+)" expenses of ([\d,.]+) or more\. This expense is ([\d,.]+)\./i);
+  
+  if (receiptMatch) {
+    const [_, category, thresholdStr, expenseStr] = receiptMatch;
+    
+    // Format numbers if they are unformatted (e.g. "5000" -> "5,000")
+    const thresholdNum = Number(thresholdStr.replace(/,/g, ''));
+    const expenseNum = Number(expenseStr.replace(/,/g, ''));
+    
+    const formattedThreshold = isNaN(thresholdNum) ? thresholdStr : thresholdNum.toLocaleString();
+    const formattedExpense = isNaN(expenseNum) ? expenseStr : expenseNum.toLocaleString();
+
+    return `Receipt Required: Your expense of ${formattedExpense} exceeds the ${formattedThreshold} receipt threshold for the ${category} category. Please attach a receipt.`;
+  }
+
+  return message;
 }
 
 function getPolicyTypeLabel(type: string): string {

@@ -168,6 +168,55 @@ function RejectModal({
   );
 }
 
+// ── Withdraw Modal ────────────────────────────────────────────────────────────
+
+function WithdrawModal({
+  open, onClose, onConfirm, isPending,
+}: { open: boolean; onClose: () => void; onConfirm: (reason: string) => void; isPending: boolean; }) {
+  const [reason, setReason] = useState("");
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
+        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
+          <X className="w-4 h-4 text-muted-foreground" />
+        </button>
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+            <XCircle className="w-5 h-5 text-red-500" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-foreground">Withdraw Purchase Order</h3>
+            <p className="text-sm text-muted-foreground mt-0.5">Please provide a reason for withdrawing this PO.</p>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-foreground">Reason <span className="text-red-500">*</span></label>
+          <textarea
+            value={reason} onChange={e => setReason(e.target.value)}
+            placeholder="e.g. Budget changed, alternative supplier found…" rows={4}
+            className="w-full rounded-xl border border-border px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400 transition-all"
+          />
+          {reason.trim().length > 0 && reason.trim().length < 10 && (
+            <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> At least 10 characters required.</p>
+          )}
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-border text-sm font-medium hover:bg-muted/40 transition-colors">Cancel</button>
+          <button
+            onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())}
+            disabled={reason.trim().length < 10 || isPending}
+            className="flex-1 h-10 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Withdraw PO"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Confirm Receipt Modal ─────────────────────────────────────────────────────
 
 function ConfirmReceiptModal({
@@ -396,13 +445,11 @@ export default function PODetailPage() {
     }
   };
 
-  const handleSimpleAction = async (type: "submit" | "issue" | "close" | "cancel" | "withdraw" | "approve") => {
+  const handleSimpleAction = async (type: "submit" | "issue" | "close" | "approve") => {
     try {
       if (type === "submit")  { await submitMut.mutateAsync();    toast.success("Purchase order submitted for approval."); }
       if (type === "issue")   { await issueMut.mutateAsync(id);   toast.success("Purchase order issued to vendor."); }
       if (type === "close")   { await closeMut.mutateAsync(id);   toast.success("Purchase order closed."); }
-      if (type === "cancel")  { await cancelMut.mutateAsync(id);  toast.success("Purchase order cancelled."); }
-      if (type === "withdraw") { await cancelMut.mutateAsync(id); toast.success("Purchase order withdrawn."); }
       if (type === "approve") {
         await approvalMut.mutateAsync({ id, payload: { decision: "approved" } });
         await issueMut.mutateAsync(id);
@@ -423,6 +470,17 @@ export default function PODetailPage() {
       router.push(listUrl);
     } catch (err: any) {
       displayExpertError(err, "Failed to reject purchase order.");
+    }
+  };
+
+  const handleWithdraw = async (reason: string) => {
+    try {
+      await cancelMut.mutateAsync({ id, reason });
+      toast.success("Purchase order withdrawn.");
+      setModal(null);
+      router.push(listUrl);
+    } catch (err: any) {
+      displayExpertError(err, "Failed to withdraw purchase order.");
     }
   };
 
@@ -642,25 +700,11 @@ export default function PODetailPage() {
         confirmLabel="Close PO"
         variant="danger"
       />
-      <ConfirmModal
-        open={modal === "cancel"}
+      <WithdrawModal
+        open={modal === "cancel" || modal === "withdraw"}
         onClose={() => setModal(null)}
-        onConfirm={() => handleSimpleAction("cancel")}
+        onConfirm={handleWithdraw}
         isPending={cancelMut.isPending}
-        title="Withdraw Purchase Order"
-        description="Are you sure you want to withdraw this purchase order?"
-        confirmLabel="Withdraw PO"
-        variant="danger"
-      />
-      <ConfirmModal
-        open={modal === "withdraw"}
-        onClose={() => setModal(null)}
-        onConfirm={() => handleSimpleAction("withdraw")}
-        isPending={cancelMut.isPending}
-        title="Withdraw Purchase Order"
-        description="This will withdraw the purchase order before approval. This action cannot be undone."
-        confirmLabel="Withdraw PO"
-        variant="danger"
       />
       <RejectModal
         open={modal === "reject"}
@@ -763,6 +807,17 @@ export default function PODetailPage() {
             <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* Left Column */}
           <div className="flex-1 flex flex-col min-w-0 space-y-4">
+
+          {/* Rejection / Withdrawal Reason */}
+          {po.rejectionReason && (stage === "rejected" || stage === "cancelled") && (
+            <div className={`flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm ${stage === "rejected" ? "border-red-200 bg-red-50 text-red-800" : "border-gray-200 bg-gray-50 text-gray-800"}`}>
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold">{stage === "rejected" ? "Reason for Rejection" : "Reason for Withdrawal"}</p>
+                <p className="mt-0.5">{po.rejectionReason}</p>
+              </div>
+            </div>
+          )}
 
           {/* PO Details */}
           <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
