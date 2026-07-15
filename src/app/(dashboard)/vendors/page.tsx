@@ -379,9 +379,9 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                {/* Contact First Name */}
+                {/* First Name */}
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground">Contact First Name</label>
+                  <label className="text-sm font-medium text-foreground">First Name</label>
                   <input
                     type="text"
                     value={contactFirstName}
@@ -394,9 +394,9 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
                   {errors.contactFirstName && <p className="text-xs text-destructive">{errors.contactFirstName}</p>}
                 </div>
 
-                {/* Contact Last Name */}
+                {/* Last Name */}
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground">Contact Last Name</label>
+                  <label className="text-sm font-medium text-foreground">Last Name</label>
                   <input
                     type="text"
                     value={contactLastName}

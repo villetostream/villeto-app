@@ -208,6 +208,7 @@ const MY_PO_TABS = [
   { key: "issued",          label: "Issued",           statusFilter: "issued" },
   { key: "delivered",       label: "Delivered",        statusFilter: "delivered" },
   { key: "closed",          label: "Closed",           statusFilter: "closed" },
+  { key: "rejected",        label: "Rejected",         statusFilter: "rejected" },
   { key: "cancelled",       label: "Withdrawn",        statusFilter: "cancelled" },
 ];
 
@@ -219,6 +220,7 @@ function buildAllPOTabs(canApprove: boolean) {
     { key: "issued",            label: "Issued",            statusFilter: "issued",           actionType: null },
     { key: "delivered",         label: "Delivered",         statusFilter: "delivered",        actionType: null },
     { key: "closed",            label: "Closed",            statusFilter: "closed",           actionType: null },
+    { key: "rejected",          label: "Rejected",          statusFilter: "rejected",         actionType: null },
     { key: "cancelled",         label: "Withdrawn",         statusFilter: "cancelled",        actionType: null },
   ];
   return tabs;

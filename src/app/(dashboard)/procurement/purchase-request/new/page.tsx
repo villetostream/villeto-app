@@ -6,6 +6,8 @@ import {
   ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
   CheckCircle2, Loader2, Pencil,
 } from "lucide-react";
+import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
+import type { LineItemPayload as _LIP } from "@/queries/procurement/purchase-requests";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
@@ -458,11 +460,11 @@ export default function NewPurchaseRequestPage() {
   const departmentId = departmentOverride ?? defaultDepartmentId;
   const [headerSaving, setHeaderSaving] = useState(false);
 
-  // Modal state
-  const [showModal, setShowModal] = useState(false);
+  // Panel state
+  const [panelOpen, setPanelOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<{ item: PurchaseRequestLineItem; index: number } | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ item: PurchaseRequestLineItem; index: number } | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
+  const [panelSaving, setPanelSaving] = useState(false);
 
   // API hooks
   const createPR = useCreatePurchaseRequest();
@@ -525,41 +527,41 @@ export default function NewPurchaseRequestPage() {
     }
   };
 
-  const handleAddItem = async (payload: LineItemPayload) => {
+  const handleAddItems = async (payloads: LineItemPayload[]) => {
     if (!purchaseRequestId) return;
-    setModalLoading(true);
+    setPanelSaving(true);
     try {
-      const cleanPayload = cleanLineItemPayload(payload);
-      await addLineItem.mutateAsync({ lineItems: [cleanPayload] });
-      // Refetch the PR to get authoritative line items with correct IDs
+      const cleanPayloads = payloads.map(cleanLineItemPayload);
+      await addLineItem.mutateAsync({ lineItems: cleanPayloads });
+      // Refetch to get authoritative IDs
       const refetched = await refetchPR();
       const items = refetched.data?.data?.lineItems || [];
       if (items.length > 0) setSavedLineItems(items);
-      setShowModal(false);
-      toast.success("Item added");
+      toast.success(`${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`);
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to add item"));
+      toast.error(getApiErrorMessage(err, "Failed to add items"));
+      throw err; // rethrow so panel keeps staged items
     } finally {
-      setModalLoading(false);
+      setPanelSaving(false);
     }
   };
 
   const handleEditItem = async (payload: LineItemPayload) => {
     if (!purchaseRequestId || !editingItem) return;
-    setModalLoading(true);
+    setPanelSaving(true);
     try {
       await updateLineItem.mutateAsync(payload);
-      // Refetch the PR to get the updated line items
       const refetched = await refetchPR();
       const items = refetched.data?.data?.lineItems || [];
       if (items.length > 0) setSavedLineItems(items);
       setEditingItem(null);
-      setShowModal(false);
+      setPanelOpen(false);
       toast.success("Item updated");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to update item"));
+      throw err;
     } finally {
-      setModalLoading(false);
+      setPanelSaving(false);
     }
   };
 
@@ -587,7 +589,7 @@ export default function NewPurchaseRequestPage() {
 
   const openEditModal = (item: PurchaseRequestLineItem, index: number) => {
     setEditingItem({ item, index });
-    setShowModal(true);
+    setPanelOpen(true);
   };
 
   const editInitial: ModalItem | undefined = editingItem ? {
@@ -636,17 +638,29 @@ export default function NewPurchaseRequestPage() {
 
   return (
     <>
-      {/* Line Item Modal */}
-      {showModal && (
-        <LineItemModal
-          onClose={() => { setShowModal(false); setEditingItem(null); }}
-          onSave={editingItem ? handleEditItem : handleAddItem}
-          initial={editInitial}
-          loading={modalLoading}
-          departments={departments}
-          currency={currency}
-        />
-      )}
+      {/* Line Item Batch Modal */}
+      <LineItemBatchModal
+        open={panelOpen}
+        onClose={() => { setPanelOpen(false); setEditingItem(null); }}
+        currency={currency}
+        onSaveAll={handleAddItems}
+        saving={panelSaving}
+        editInitial={editingItem ? {
+          name: editingItem.item.name || "",
+          description: editingItem.item.description || "",
+          categoryId: editingItem.item.categoryId || "",
+          categoryName: "",
+          quantity: editingItem.item.quantity || 0,
+          unitPrice: editingItem.item.unitPrice,
+          taxAmount: editingItem.item.taxAmount,
+          sku: editingItem.item.sku || "",
+          unitOfMeasure: editingItem.item.unitOfMeasure || "unit",
+          accountingResolutionStatus: "unresolved",
+        } : null}
+        onEditSaved={handleEditItem}
+        editSaving={panelSaving}
+        persistKey={purchaseRequestId || undefined}
+      />
 
       {/* ════════════════════════════════════════════════
           STEP 1 — Plain layout, no scroll, fits viewport
@@ -796,16 +810,16 @@ export default function NewPurchaseRequestPage() {
                     {savedLineItems.length}
                   </span>
                 </h2>
-                <button type="button" onClick={() => { setEditingItem(null); setShowModal(true); }}
+                <button type="button" onClick={() => { setEditingItem(null); setPanelOpen(true); }}
                   className="flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
-                  <Plus className="w-4 h-4" /> Add Item
+                  <Plus className="w-4 h-4" /> Add Items
                 </button>
               </div>
 
               {savedLineItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <p className="text-sm text-muted-foreground">No items yet. Click &quot;Add Item&quot; to get started.</p>
-                  <button type="button" onClick={() => { setEditingItem(null); setShowModal(true); }}
+                  <button type="button" onClick={() => { setEditingItem(null); setPanelOpen(true); }}
                     className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
                     <Plus className="w-4 h-4" /> Add first item
                   </button>
@@ -861,9 +875,9 @@ export default function NewPurchaseRequestPage() {
                   </table>
 
                   <div className="px-5 py-3 border-t border-border/40">
-                    <button type="button" onClick={() => { setEditingItem(null); setShowModal(true); }}
+                    <button type="button" onClick={() => { setEditingItem(null); setPanelOpen(true); }}
                       className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
-                      <Plus className="w-4 h-4" /> Add Item
+                      <Plus className="w-4 h-4" /> Add Items
                     </button>
                   </div>
 

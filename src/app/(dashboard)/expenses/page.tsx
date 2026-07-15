@@ -208,7 +208,7 @@ export default function Reimbursements() {
     { key: "all",      filter: null as string | null },
     { key: "pending",  filter: "pending" },
     { key: "approved", filter: "approved" },
-    { key: "rejected", filter: "declined" },
+    { key: "rejected", filter: "rejected" },
     { key: "paid",     filter: "paid" },
     { key: "draft",    filter: "draft" },
   ];
