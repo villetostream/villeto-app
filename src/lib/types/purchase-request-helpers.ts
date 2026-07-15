@@ -98,6 +98,8 @@ export interface PurchaseOrderRecord {
   priority?: string;
   currency?: string;
   totalAmount?: string | number;
+  rejectionReason?: string | null;
+  cancelledAt?: string | null;
   [key: string]: unknown;
 }
 

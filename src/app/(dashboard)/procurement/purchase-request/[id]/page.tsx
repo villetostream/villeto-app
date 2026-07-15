@@ -1921,6 +1921,17 @@ function PRDetailPage() {
           </div>
         )}
 
+        {/* Rejection / Withdrawal Reason */}
+        {pr.rejectionReason && (pr.status === "rejected" || pr.status === "cancelled") && (
+          <div className={`mb-4 flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm ${pr.status === "rejected" ? "border-red-200 bg-red-50 text-red-800" : "border-gray-200 bg-gray-50 text-gray-800"}`}>
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold">{pr.status === "rejected" ? "Reason for Rejection" : "Reason for Withdrawal"}</p>
+              <p className="mt-0.5">{pr.rejectionReason}</p>
+            </div>
+          </div>
+        )}
+
         {/* 2-Column Content */}
         <div className="flex flex-1 gap-6 items-start min-h-0">
           {/* Left Column */}

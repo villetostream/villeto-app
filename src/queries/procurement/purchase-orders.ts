@@ -258,12 +258,12 @@ export const useCancelPurchaseOrder = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const response = await axios.patch(PROCUREMENT_KEYS.CANCEL_PURCHASE_ORDER(id));
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const response = await axios.patch(PROCUREMENT_KEYS.CANCEL_PURCHASE_ORDER(id), { reason });
       return response.data;
     },
-    onSuccess: (_data, id: string) => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, id] });
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, variables.id] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
     },
   });
