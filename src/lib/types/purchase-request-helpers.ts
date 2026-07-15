@@ -91,6 +91,7 @@ export interface PurchaseOrderRecord {
   deliveredAt?: string | null;
   closedAt?: string | null;
   lineItems?: PurchaseOrderLineItemRecord[];
+  timeline?: import("../react-query/expenses").TimelineEvent[];
   createdBy?: Record<string, unknown> | string;
   requesterName?: string;
   departmentName?: string;

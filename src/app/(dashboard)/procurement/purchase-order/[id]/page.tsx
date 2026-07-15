@@ -474,72 +474,98 @@ export default function PODetailPage() {
   const isDelivered = stage === "partially_delivered" || stage === "delivered";
   const submitDateStr = po.createdAt ? format(new Date(po.createdAt), "MMM dd, yyyy") : "N/A";
 
-  // Workflow steps — updated to reflect draft→submitted→approved chain
+  const timelineByAction = (po.timeline || []).reduce((acc: any, event: any) => {
+    acc[event.action] = event;
+    return acc;
+  }, {});
+
+  const getPerson = (event: any, fallback?: string) => {
+    if (!event || !event.performedBy) return fallback;
+    const p = event.performedBy;
+    if (p.actorType === "vendor") return p.vendorName || "Vendor";
+    const name = `${p.firstName || ""} ${p.lastName || ""}`.trim();
+    return name || fallback;
+  };
+
+  const isApproved = stage === "approved" || stage === "ready_to_issue" || stage === "issued" || stage === "acknowledged" || stage === "ready_for_delivery" || isDelivered || stage === "closed";
+
+  // Workflow steps — updated to reflect draft→submitted→approved chain and backend timeline
   const workflowSteps = [
     {
       label: "Created",
-      person: po.createdBy ? `${(po.createdBy as any).firstName || ""} ${(po.createdBy as any).lastName || ""}`.trim() || "System" : "System",
-      timestamp: po.createdAt as string | null,
+      person: getPerson(timelineByAction["created"], po.createdBy ? `${(po.createdBy as any).firstName || ""} ${(po.createdBy as any).lastName || ""}`.trim() || "System" : "System"),
+      timestamp: timelineByAction["created"]?.timestamp || po.createdAt as string | null,
       done: true,
     },
     {
       label: "Submitted for Approval",
-      person: undefined,
+      person: getPerson(timelineByAction["submitted_for_approval"]),
       // After the draft early-return above, stage can never be "draft" here,
       // so submitted = true always, and we show "Awaiting" if pending approval.
       badge: stage === "pending_approval" ? "Awaiting" : "Submitted",
       badgeColor: stage === "pending_approval" ? "text-orange-600 bg-orange-50" : "text-emerald-600 bg-emerald-50",
-      timestamp: (po as any).submittedAt ?? null,
+      timestamp: timelineByAction["submitted_for_approval"]?.timestamp || ((po as any).submittedAt ?? null),
       done: true,
       pending: false,
     },
     {
-      label: "Approved",
-      person: undefined,
-      badge: stage === "approved" || stage === "ready_to_issue" || stage === "issued" || stage === "acknowledged" ||
-             stage === "ready_for_delivery" || isDelivered || stage === "closed" ? "Approved" : undefined,
-      badgeColor: "text-emerald-600 bg-emerald-50",
-      timestamp: (po as any).approvedAt ?? null,
-      done: stage === "approved" || stage === "ready_to_issue" || stage === "issued" || stage === "acknowledged" ||
-            stage === "ready_for_delivery" || isDelivered || stage === "closed",
+      label: timelineByAction["rejected"] ? "Rejected" : "Approved",
+      person: getPerson(timelineByAction["approved"] || timelineByAction["rejected"]),
+      badge: timelineByAction["rejected"] ? "Rejected" : isApproved ? "Approved" : undefined,
+      badgeColor: timelineByAction["rejected"] ? "text-red-600 bg-red-50" : "text-emerald-600 bg-emerald-50",
+      timestamp: timelineByAction["approved"]?.timestamp || timelineByAction["rejected"]?.timestamp || ((po as any).approvedAt ?? null),
+      done: isApproved || !!timelineByAction["rejected"],
       pending: stage === "pending_approval",
     },
-    {
-      label: "Issued to Vendor",
-      person: po.vendor ? (po.vendor.displayName || po.vendor.legalName) : "Vendor",
-      badge: po.issuedAt ? "Issued" : undefined,
-      badgeColor: "text-emerald-600 bg-emerald-50",
-      timestamp: po.issuedAt,
-      done: !!po.issuedAt,
-      pending: stage === "ready_to_issue",
-    },
-    {
-      label: "Vendor Acknowledged",
-      person: po.vendor ? (po.vendor.displayName || po.vendor.legalName) : "Vendor",
-      badge: po.acknowledgedAt ? "Acknowledged" : undefined,
-      badgeColor: "text-blue-600 bg-blue-50",
-      timestamp: po.acknowledgedAt,
-      done: !!po.acknowledgedAt,
-      pending: stage === "issued",
-    },
-    {
-      label: "Delivery Status",
-      person: isDelivered ? "Vendor" : undefined,
-      badge: stage === "partially_delivered" ? "Partial" : stage === "delivered" ? "Full Delivery" : undefined,
-      badgeColor: stage === "partially_delivered" ? "text-amber-600 bg-amber-50" : "text-emerald-600 bg-emerald-50",
-      timestamp: po.deliveredAt,
-      done: isDelivered,
-      pending: stage === "acknowledge" || stage === "ready_for_delivery",
-    },
-    {
-      label: "Closed",
-      person: po.closedAt ? "System" : undefined,
-      badge: po.closedAt ? "Closed" : undefined,
-      badgeColor: "text-gray-600 bg-gray-100",
-      timestamp: po.closedAt as string | null,
-      done: !!po.closedAt,
-      pending: stage === "delivered",
-    },
+    ...(!timelineByAction["rejected"] && stage !== "cancelled" ? [
+      {
+        label: "Issued to Vendor",
+        person: getPerson(timelineByAction["issued"], po.vendor ? (po.vendor.displayName || po.vendor.legalName) : "Vendor"),
+        badge: timelineByAction["issued"] || po.issuedAt ? "Issued" : undefined,
+        badgeColor: "text-emerald-600 bg-emerald-50",
+        timestamp: timelineByAction["issued"]?.timestamp || po.issuedAt,
+        done: !!timelineByAction["issued"] || !!po.issuedAt,
+        pending: stage === "ready_to_issue",
+      },
+      {
+        label: "Vendor Acknowledged",
+        person: getPerson(timelineByAction["acknowledged"], po.vendor ? (po.vendor.displayName || po.vendor.legalName) : "Vendor"),
+        badge: timelineByAction["acknowledged"] || po.acknowledgedAt ? "Acknowledged" : undefined,
+        badgeColor: "text-blue-600 bg-blue-50",
+        timestamp: timelineByAction["acknowledged"]?.timestamp || po.acknowledgedAt,
+        done: !!timelineByAction["acknowledged"] || !!po.acknowledgedAt,
+        pending: stage === "issued",
+      },
+      {
+        label: "Delivery Status",
+        person: getPerson(timelineByAction["partially_delivered"] || timelineByAction["delivered"] || timelineByAction["ready_for_delivery"], isDelivered ? "Vendor" : undefined),
+        badge: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "Partial" : stage === "delivered" || timelineByAction["delivered"] ? "Full Delivery" : timelineByAction["ready_for_delivery"] ? "Ready for Delivery" : undefined,
+        badgeColor: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "text-amber-600 bg-amber-50" : "text-emerald-600 bg-emerald-50",
+        timestamp: timelineByAction["delivered"]?.timestamp || timelineByAction["partially_delivered"]?.timestamp || timelineByAction["ready_for_delivery"]?.timestamp || po.deliveredAt,
+        done: !!timelineByAction["delivered"] || !!timelineByAction["partially_delivered"] || isDelivered,
+        pending: stage === "acknowledged" || stage === "ready_for_delivery",
+      },
+      {
+        label: "Closed",
+        person: getPerson(timelineByAction["closed"], po.closedAt ? "System" : undefined),
+        badge: timelineByAction["closed"] || po.closedAt ? "Closed" : undefined,
+        badgeColor: "text-gray-600 bg-gray-100",
+        timestamp: timelineByAction["closed"]?.timestamp || po.closedAt as string | null,
+        done: !!timelineByAction["closed"] || !!po.closedAt,
+        pending: stage === "delivered",
+      }
+    ] : []),
+    ...(stage === "cancelled" || timelineByAction["cancelled"] ? [
+      {
+        label: "Withdrawn",
+        person: getPerson(timelineByAction["cancelled"], "System"),
+        badge: "Withdrawn",
+        badgeColor: "text-gray-600 bg-gray-100",
+        timestamp: timelineByAction["cancelled"]?.timestamp || (po as any).cancelledAt as string | null,
+        done: true,
+        pending: false,
+      }
+    ] : [])
   ];
 
   // Derive which action buttons to show.

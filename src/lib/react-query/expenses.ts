@@ -37,9 +37,12 @@ interface ExpenseSubmissionPayload {
 export interface TimelineEvent {
   action: string;
   performedBy: {
-    firstName?: string;
-    lastName?: string;
+    actorType?: string;
+    firstName?: string | null;
+    lastName?: string | null;
     roleName?: string | null;
+    vendorId?: string | null;
+    vendorName?: string | null;
   } | null;
   timestamp: string;
   notes?: string | null;

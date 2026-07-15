@@ -8,6 +8,7 @@ import {
   Plus, Trash2, Calendar as CalendarIcon,
   Scissors, Check, Search,
 } from "lucide-react";
+import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -1334,7 +1335,9 @@ function PRDetailPage() {
 
   const [editingLineItem, setEditingLineItem] = useState<PurchaseRequestLineItem | null>(null);
   const updateLineItemHook = useUpdateLineItem(id, editingLineItem?.purchaseRequestLineItemId || "");
-  const [modal, setModal] = useState<"submit" | "withdraw" | "reject" | "approve" | "add_item" | "edit_header" | "delete_item" | "delete_pr" | null>(null);
+  const [modal, setModal] = useState<"submit" | "withdraw" | "reject" | "approve" | "edit_header" | "delete_item" | "delete_pr" | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelSaving, setPanelSaving] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isConvertingPartially, setIsConvertingPartially] = useState(false);
   const pr: PurchaseRequestDetail | undefined = data?.data;
@@ -1389,11 +1392,11 @@ function PRDetailPage() {
     can("procurement.purchase_request", "approve_department") ||
     can("procurement.purchase_request", "approve_company");
 
-  // Withdraw: owner can withdraw their own request; admin can withdraw via override on company scope.
+  // Withdraw: owner can withdraw their own submitted or approved request. 
+  // (Drafts cannot be withdrawn, and company scope overrides cannot withdraw).
   const hasWithdrawPermission = can("procurement.purchase_request", "withdraw");
-  const canWithdraw = (isDraft || isSubmitted || isApproved) && (
-    (isOwnScope && isOwnRequest && (hasWithdrawPermission || can("procurement.purchase_request", "submit"))) ||
-    (isCompanyScope && overrideUnlocked && (hasWithdrawPermission || hasApprovePermission))
+  const canWithdraw = (isSubmitted || isApproved) && (
+    (isOwnScope && isOwnRequest && (hasWithdrawPermission || can("procurement.purchase_request", "submit")))
   );
 
   // On own scope — never show approve/reject
@@ -1429,24 +1432,31 @@ function PRDetailPage() {
     }
   };
 
-  const handleAddItem = async (payload: LineItemPayload) => {
+  const handleAddItems = async (payloads: LineItemPayload[]) => {
+    setPanelSaving(true);
     try {
-      await addLineItem.mutateAsync({ lineItems: [cleanLineItemPayload(payload)] });
-      setModal(null);
-      toast.success("Item added");
+      await addLineItem.mutateAsync({ lineItems: payloads.map(cleanLineItemPayload) });
+      toast.success(`${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`);
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to add item"));
+      toast.error(getApiErrorMessage(err, "Failed to add items"));
+      throw err; // rethrow so panel keeps staged items on failure
+    } finally {
+      setPanelSaving(false);
     }
   };
 
   const handleEditItem = async (payload: LineItemPayload) => {
+    setPanelSaving(true);
     try {
       await updateLineItemHook.mutateAsync(payload);
       setEditingLineItem(null);
-      setModal(null);
+      setPanelOpen(false);
       toast.success("Item updated");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to update item"));
+      throw err;
+    } finally {
+      setPanelSaving(false);
     }
   };
 
@@ -1794,21 +1804,29 @@ function PRDetailPage() {
           onConfirm={handleApprove}
         />
       )}
-      {(modal === "add_item" || (modal === null && editingLineItem)) && (
-        <LineItemModal
-          onClose={() => { setModal(null); setEditingLineItem(null); }}
-          onSave={editingLineItem ? handleEditItem : handleAddItem}
-          initial={editingLineItem ? {
-            name: editingLineItem.name, description: editingLineItem.description || "",
-            categoryId: editingLineItem.categoryId || "", categoryName: "",
-            departmentId: editingLineItem.departmentId || "",
-            quantity: editingLineItem.quantity, unitPrice: editingLineItem.unitPrice,
-            taxAmount: editingLineItem.taxAmount, sku: editingLineItem.sku || "",
-            unitOfMeasure: editingLineItem.unitOfMeasure || "unit",
-          } : undefined}
-          loading={addLineItem.isPending || updateLineItemHook.isPending}
-          departments={departmentOptions}
+      {/* Line Item Batch Modal — for draft add/edit */}
+      {isDraft && (
+        <LineItemBatchModal
+          open={panelOpen}
+          onClose={() => { setPanelOpen(false); setEditingLineItem(null); }}
           currency={pr.currency || "USD"}
+          onSaveAll={handleAddItems}
+          saving={panelSaving}
+          editInitial={editingLineItem ? {
+            name: editingLineItem.name,
+            description: editingLineItem.description || "",
+            categoryId: editingLineItem.categoryId || "",
+            categoryName: "",
+            quantity: editingLineItem.quantity,
+            unitPrice: editingLineItem.unitPrice,
+            taxAmount: editingLineItem.taxAmount,
+            sku: editingLineItem.sku || "",
+            unitOfMeasure: editingLineItem.unitOfMeasure || "unit",
+            accountingResolutionStatus: "unresolved",
+          } : null}
+          onEditSaved={handleEditItem}
+          editSaving={panelSaving}
+          persistKey={id}
         />
       )}
       {modal === "edit_header" && (
@@ -2150,9 +2168,9 @@ function PRDetailPage() {
                     </span>
                   </h2>
                   {canEdit && (
-                    <button onClick={() => setModal("add_item")}
+                    <button onClick={() => { setEditingLineItem(null); setPanelOpen(true); }}
                       className="flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
-                      <Plus className="w-4 h-4" /> Add Item
+                      <Plus className="w-4 h-4" /> Add Items
                     </button>
                   )}
                 </div>
@@ -2161,7 +2179,7 @@ function PRDetailPage() {
                   <div className="flex flex-col items-center justify-center py-12 gap-3">
                     <p className="text-sm text-muted-foreground">No items added yet.</p>
                     {canEdit && (
-                      <button onClick={() => setModal("add_item")}
+                      <button onClick={() => { setEditingLineItem(null); setPanelOpen(true); }}
                         className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
                         <Plus className="w-4 h-4" /> Add first item
                       </button>
@@ -2196,7 +2214,7 @@ function PRDetailPage() {
                                 <td className="px-5 py-3.5">
                                   <div className="flex items-center gap-1">
                                     <div className="relative group">
-                                      <button onClick={() => setEditingLineItem(item)}
+                                    <button onClick={() => { setEditingLineItem(item); setPanelOpen(true); }}
                                         className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors">
                                         <Pencil className="w-3.5 h-3.5" />
                                       </button>
@@ -2221,9 +2239,9 @@ function PRDetailPage() {
 
                     {canEdit && (
                       <div className="shrink-0 px-5 py-3 border-t border-border/40 bg-white">
-                        <button onClick={() => setModal("add_item")}
+                        <button onClick={() => { setEditingLineItem(null); setPanelOpen(true); }}
                           className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
-                          <Plus className="w-4 h-4" /> Add Item
+                          <Plus className="w-4 h-4" /> Add Items
                         </button>
                       </div>
                     )}
