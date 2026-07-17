@@ -8,6 +8,7 @@ import {
 import { useGetProcurementCategories } from "@/queries/procurement/purchase-requests";
 import type { LineItemPayload } from "@/queries/procurement/purchase-requests";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores/auth-stores";
 
 // ─── Category Dropdown (self-contained) ──────────────────────────────────────
 
@@ -161,7 +162,7 @@ interface FormState {
 
 const EMPTY_FORM: FormState = {
   name: "", description: "", categoryId: "", categoryName: "",
-  quantity: "", unitPrice: "", unitOfMeasure: "unit", sku: "", taxAmount: "",
+  quantity: "", unitPrice: "", unitOfMeasure: "", sku: "", taxAmount: "",
 };
 
 function currSym(currency: string): string {
@@ -196,6 +197,9 @@ export default function LineItemBatchModal({
 }: LineItemBatchModalProps) {
   const isEditMode = !!editInitial;
   const sym = currSym(currency);
+  const userId = useAuthStore(state => state.user?.userId);
+  // Scope persist key to the logged-in user so staging data never survives logout
+  const scopedPersistKey = persistKey && userId ? `${userId}:${persistKey}` : null;
 
   const [form, setForm] = useState<FormState>(() =>
     editInitial
@@ -206,7 +210,7 @@ export default function LineItemBatchModal({
           categoryName: editInitial.categoryName || "",
           quantity: editInitial.quantity || "",
           unitPrice: editInitial.unitPrice ?? "",
-          unitOfMeasure: editInitial.unitOfMeasure || "unit",
+          unitOfMeasure: editInitial.unitOfMeasure || "",
           sku: editInitial.sku || "",
           taxAmount: editInitial.taxAmount ?? "",
         }
@@ -223,7 +227,7 @@ export default function LineItemBatchModal({
             categoryName: editInitial.categoryName || "",
             quantity: editInitial.quantity || "",
             unitPrice: editInitial.unitPrice ?? "",
-            unitOfMeasure: editInitial.unitOfMeasure || "unit",
+            unitOfMeasure: editInitial.unitOfMeasure || "",
             sku: editInitial.sku || "",
             taxAmount: editInitial.taxAmount ?? "",
           }
@@ -243,9 +247,9 @@ export default function LineItemBatchModal({
 
   // ── Staged items ──────────────────────────────────────────────────────────
   const [staged, setStaged] = useState<StagedItem[]>(() => {
-    if (persistKey && typeof window !== "undefined") {
+    if (scopedPersistKey && typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem(`line_item_staging:${persistKey}`);
+        const saved = localStorage.getItem(`line_item_staging:${scopedPersistKey}`);
         if (saved) return JSON.parse(saved) as StagedItem[];
       } catch { /* ignore */ }
     }
@@ -253,23 +257,25 @@ export default function LineItemBatchModal({
   });
 
   useEffect(() => {
-    if (!persistKey || typeof window === "undefined") return;
+    if (!scopedPersistKey || typeof window === "undefined") return;
     try {
       if (staged.length > 0) {
-        localStorage.setItem(`line_item_staging:${persistKey}`, JSON.stringify(staged));
+        localStorage.setItem(`line_item_staging:${scopedPersistKey}`, JSON.stringify(staged));
       } else {
-        localStorage.removeItem(`line_item_staging:${persistKey}`);
+        localStorage.removeItem(`line_item_staging:${scopedPersistKey}`);
       }
     } catch { /* ignore */ }
-  }, [staged, persistKey]);
+  }, [staged, scopedPersistKey]);
 
   const [stagingEditId, setStagingEditId] = useState<string | null>(null);
-  const [errors, setErrors] = useState<{ name?: string; quantity?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; quantity?: string; categoryId?: string; unitOfMeasure?: string }>({});
 
   const validate = (): boolean => {
     const errs: typeof errors = {};
     if (!form.name.trim()) errs.name = "Item name is required";
     if (form.quantity === "" || Number(form.quantity) <= 0) errs.quantity = "Quantity must be > 0";
+    if (!form.categoryId) errs.categoryId = "Category is required";
+    if (!form.unitOfMeasure.trim()) errs.unitOfMeasure = "Unit of Measure is required";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -318,7 +324,7 @@ export default function LineItemBatchModal({
       categoryName: item.categoryName || "",
       quantity: item.quantity,
       unitPrice: item.unitPrice ?? "",
-      unitOfMeasure: item.unitOfMeasure || "unit",
+      unitOfMeasure: item.unitOfMeasure || "",
       sku: item.sku || "",
       taxAmount: item.taxAmount ?? "",
     });
@@ -335,15 +341,49 @@ export default function LineItemBatchModal({
   };
 
   const handleSaveAll = async () => {
-    if (staged.length === 0) {
+    const isFormDirty =
+      form.name.trim() !== "" ||
+      form.quantity !== "" ||
+      form.unitPrice !== "" ||
+      form.categoryId !== "" ||
+      form.unitOfMeasure !== "" ||
+      form.description.trim() !== "";
+
+    let itemsToSave = [...staged];
+
+    // If the user typed something but forgot to click "Add to Staged Items"
+    if (isFormDirty) {
+      if (!validate()) {
+        toast.error("Please complete the missing fields for the current item, or clear the form.");
+        return;
+      }
+      // If valid, automatically include the current form in the batch
+      const autoStagedItem: StagedItem = {
+        name: form.name,
+        description: form.description,
+        categoryId: form.categoryId,
+        categoryName: form.categoryName,
+        quantity: form.quantity as number,
+        unitPrice: form.unitPrice as number | undefined,
+        unitOfMeasure: form.unitOfMeasure,
+        sku: form.sku,
+        taxAmount: form.taxAmount as number | undefined,
+        _stagingId: `staging-auto-${Date.now()}`,
+      };
+      itemsToSave.push(autoStagedItem);
+    }
+
+    if (itemsToSave.length === 0) {
       toast.error("Add at least one item before saving");
       return;
     }
-    const payloads: LineItemPayload[] = staged.map(({ _stagingId: _, categoryName: __, ...rest }) => rest);
+
+    const payloads: LineItemPayload[] = itemsToSave.map(({ _stagingId: _, categoryName: __, ...rest }) => rest);
     await onSaveAll(payloads);
     setStaged([]);
-    if (persistKey && typeof window !== "undefined") {
-      localStorage.removeItem(`line_item_staging:${persistKey}`);
+    setForm(EMPTY_FORM);
+    if (scopedPersistKey && typeof window !== "undefined") {
+      localStorage.removeItem(`line_item_staging:${scopedPersistKey}`);
     }
     handleClose();
   };
@@ -370,9 +410,10 @@ export default function LineItemBatchModal({
 
   if (!open) return null;
 
+
   // Render the form section
   const renderForm = () => (
-    <div className="p-5 space-y-4">
+    <div className="p-5 space-y-4 flex flex-col h-full">
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/40">
         <div className="flex items-center gap-2">
           <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${stagingEditId || isEditMode ? "bg-amber-100" : "bg-primary/10"}`}>
@@ -381,7 +422,7 @@ export default function LineItemBatchModal({
               : <Plus className="w-3 h-3 text-primary" />}
           </div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            {isEditMode ? "Edit item" : stagingEditId ? "Edit staged item" : "New item"}
+            {isEditMode ? "Edit item" : stagingEditId ? "Edit staged item" : "New item details"}
           </p>
         </div>
 
@@ -394,9 +435,9 @@ export default function LineItemBatchModal({
           </button>
         ) : (
           <button type="button" onClick={handleAddToStaging}
-            className="h-8 px-3 rounded-lg border border-primary text-primary text-xs font-semibold hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+            className="h-8 px-3 rounded-lg border border-[#00BFA5] bg-[#E8F8F5] text-[#00BFA5] text-xs font-semibold hover:bg-[#E8F8F5]/80 transition-colors flex items-center justify-center gap-1.5 shadow-sm">
             <Plus className="w-3 h-3" />
-            {stagingEditId ? "Update staged" : "Add to list"}
+            {stagingEditId ? "Update Staged Item" : "Add to Staged Items"}
           </button>
         )}
       </div>
@@ -416,11 +457,16 @@ export default function LineItemBatchModal({
 
       {/* Category */}
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-foreground">Category</label>
-        <PanelCategoryDropdown
-          value={form.categoryId}
-          onChange={(id, name) => setForm(p => ({ ...p, categoryId: id, categoryName: name }))}
-        />
+        <label className="text-sm font-medium text-foreground">
+          Category <span className="text-red-500">*</span>
+        </label>
+        <div className={errors.categoryId ? "ring-1 ring-destructive rounded-lg" : ""}>
+          <PanelCategoryDropdown
+            value={form.categoryId}
+            onChange={(id, name) => { setForm(p => ({ ...p, categoryId: id, categoryName: name })); setErrors(p => ({ ...p, categoryId: undefined })); }}
+          />
+        </div>
+        {errors.categoryId && <p className="text-xs text-destructive">{errors.categoryId}</p>}
       </div>
 
       {/* Qty + Unit Price */}
@@ -451,12 +497,15 @@ export default function LineItemBatchModal({
 
       {/* Unit of Measure */}
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-foreground">Unit of Measure</label>
+        <label className="text-sm font-medium text-foreground">
+          Unit of Measure <span className="text-red-500">*</span>
+        </label>
         <input type="text" value={form.unitOfMeasure}
-          onChange={e => set("unitOfMeasure", e.target.value)}
-          placeholder="unit / box / kg"
-          className="w-full h-10 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors"
+          onChange={e => { set("unitOfMeasure", e.target.value); setErrors(p => ({ ...p, unitOfMeasure: undefined })); }}
+          placeholder="e.g. unit, kg, box"
+          className={`w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-primary transition-colors ${errors.unitOfMeasure ? "border-destructive" : "border-border"}`}
         />
+        {errors.unitOfMeasure && <p className="text-xs text-destructive">{errors.unitOfMeasure}</p>}
       </div>
 
       {/* Description */}
@@ -472,7 +521,7 @@ export default function LineItemBatchModal({
 
       {/* Subtotal preview */}
       {subtotal > 0 && (
-        <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 rounded-xl">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 rounded-xl mt-auto">
           <span className="text-sm text-muted-foreground">Line Subtotal</span>
           <span className="text-sm font-semibold text-foreground">
             {sym}{subtotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -481,6 +530,7 @@ export default function LineItemBatchModal({
       )}
     </div>
   );
+
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center">
@@ -510,10 +560,15 @@ export default function LineItemBatchModal({
 
         {/* Body (Split View) */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
-          
-          {/* Left Pane (List of Staged Items) - Only show in batch mode */}
+
+          {/* Left Pane (Form) */}
+          <div className={`${isEditMode ? 'w-full' : 'md:w-[45%]'} bg-white flex flex-col min-h-0 overflow-y-auto border-r border-border`}>
+            {renderForm()}
+          </div>
+
+          {/* Right Pane (Staged Items list) - Only show in batch mode */}
           {!isEditMode && (
-            <div className="flex-1 md:w-[55%] border-r border-border bg-muted/10 flex flex-col overflow-hidden min-h-0">
+            <div className="flex-1 md:w-[55%] bg-muted/10 flex flex-col overflow-hidden min-h-0">
               <div className="px-5 py-3 border-b border-border/50 flex items-center justify-between bg-white shrink-0">
                 <span className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <Package2 className="w-4 h-4 text-muted-foreground" />
@@ -525,7 +580,7 @@ export default function LineItemBatchModal({
                   </span>
                 )}
               </div>
-              
+
               <div className="flex-1 overflow-y-auto min-h-0 p-5">
                 {staged.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center gap-3">
@@ -546,11 +601,8 @@ export default function LineItemBatchModal({
                       const lineSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
                       return (
                         <div key={item._stagingId}
-                          className={`p-4 rounded-xl border bg-white transition-all shadow-sm ${isBeingEdited ? "border-primary ring-1 ring-primary/20" : "border-border hover:border-border/80"}`}>
+                          className={`p-3 rounded-xl border bg-white transition-all shadow-sm ${isBeingEdited ? "border-primary ring-1 ring-primary/20" : "border-border hover:border-border/80"}`}>
                           <div className="flex items-start gap-3">
-                            <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                              <span className="text-xs font-bold text-muted-foreground">{idx + 1}</span>
-                            </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex justify-between items-start gap-4">
                                 <p className="text-sm font-semibold text-foreground truncate" title={item.name}>{item.name}</p>
@@ -560,7 +612,7 @@ export default function LineItemBatchModal({
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                 <span className="text-xs text-muted-foreground">
                                   {item.quantity} {item.unitOfMeasure || 'unit'} {item.unitPrice ? `@ ${sym}${item.unitPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : ""}
                                 </span>
@@ -592,11 +644,6 @@ export default function LineItemBatchModal({
               </div>
             </div>
           )}
-
-          {/* Right Pane (Form) */}
-          <div className={`${isEditMode ? 'w-full' : 'md:w-[45%]'} bg-white flex flex-col min-h-0 overflow-y-auto`}>
-            {renderForm()}
-          </div>
         </div>
 
         {/* Footer (batch save) */}
