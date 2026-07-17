@@ -432,15 +432,6 @@ export default function CompanyExpenseDetailPage() {
               </div>
             </div>
 
-            {/* Manager's Feedback */}
-            {reportStatus !== "draft" && (
-              <CONote
-                status={reportStatus}
-                rejectionReason={expenseDetail.rejectionReason}
-                actionedBy={actionedBy}
-              />
-            )}
-            
             {/* Approve / Reject was here, moved to right column */}
           </div>
 
