@@ -399,7 +399,7 @@ export default function Reimbursements() {
                 </TabsTrigger>
               ))}
             </TabsList>
-            {outerTab === "personal-expenses" && <NewExpenseHeaderAction />}
+            <NewExpenseHeaderAction />
           </div>
 
           {hasCompanyScope && (

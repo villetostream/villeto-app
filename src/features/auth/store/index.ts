@@ -95,7 +95,6 @@ export const useAuthStore = create<AuthState>()(
             storage: createJSONStorage(() => sessionStorage),
             partialize: (state) => ({
                 user: state.user,
-                accessToken: state.accessToken,
                 companyPermissions: state.companyPermissions,
             }),
             onRehydrateStorage: () => (state) => {

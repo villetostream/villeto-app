@@ -102,4 +102,10 @@ export const PROCUREMENT_KEYS = {
   CONFIRM_RECEIPT: (id: string) => `procurement/purchase-orders/${id}/confirm-receipt` as const,
   /** POST — add line items to a draft (non-PR) PO */
   PO_LINE_ITEMS: (id: string) => `procurement/purchase-orders/${id}/line-items` as const,
+  // ── Procurement Policy endpoints ─────────────────────────────────────────
+  PROCUREMENT_POLICIES: "policy/procurement",
+  PROCUREMENT_POLICY: (id: string) => `policy/procurement/${id}` as const,
+  PROCUREMENT_POLICY_ACTION: (id: string, action: "approve" | "reject") => `policy/procurement/${id}/${action}` as const,
+  // ── Approved Vendors (no pagination — returns all approved) ─────────────
+  APPROVED_VENDORS: "vendors?approvalStatus=approved",
 } as const;

@@ -52,15 +52,15 @@ function ActionsCell({ expense }: { expense: PersonalExpenseRow }) {
 
 export const personalExpenseColumns: ColumnDef<PersonalExpenseRow>[] = [
   {
-    accessorKey: "date",
-    header: ({ column }) => (
-      <SortableColumnHeader column={column} title="DATE" />
-    ),
-  },
-  {
     accessorKey: "reportName",
     header: ({ column }) => (
       <SortableColumnHeader column={column} title="REPORT NAME" />
+    ),
+  },
+  {
+    accessorKey: "date",
+    header: ({ column }) => (
+      <SortableColumnHeader column={column} title="DATE" />
     ),
   },
   { accessorKey: "category", header: "COST CENTER" },

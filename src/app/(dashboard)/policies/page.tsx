@@ -9,6 +9,9 @@ import {
 } from "lucide-react";
 import PolicyCreationModal, { type CreatedPolicyData } from "@/components/policies/PolicyCreationModal";
 import SimpleAddExpenseCategoryDialog from "@/components/policies/SimpleAddExpenseCategoryDialog";
+import { ProcurementPolicySection } from "@/components/policies/procurement/ProcurementPolicySection";
+import { ProcurementPolicyWizard } from "@/components/policies/procurement/ProcurementPolicyWizard";
+import type { ProcurementPolicyListItem } from "@/components/policies/procurement/types";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { DataTable } from "@/components/datatable";
 import { ColumnDef } from "@tanstack/react-table";
@@ -303,8 +306,10 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
   };
 
   const getScopeText = () => {
+    const sType = (fullPolicy as any)?.scopeType || (fullPolicy as any)?.scope?.type;
+    if (sType === "all" || sType === "all_employees") return "All Employees";
+    
     if (!fullPolicy?.scope) return policy.appliedTo;
-    if (fullPolicy.scope.type === "all" || fullPolicy.scope.type === "all_employees") return "All Employees";
     const scope = fullPolicy.scope;
     const deptIds = scope.type === "specific" ? scope.departments || [] : [];
     const roleIds = scope.type === "specific" ? scope.userRoles || fullPolicy.applicableRoles || [] : [];
@@ -613,6 +618,22 @@ function PoliciesPage() {
     router.replace(`/policies?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
+  // Top-level policy type toggle (Expenses Policy vs Procurement Policy).
+  // Procurement policies are UI-only for now — no backend/endpoints exist
+  // for them yet, so their data lives in local state below.
+  const policyType: "expense" | "procurement" =
+    searchParams.get("type") === "procurement" ? "procurement" : "expense";
+
+  const [procurementPolicies, setProcurementPolicies] = useState<ProcurementPolicyListItem[]>([]);
+  const [procurementView, setProcurementView] = useState<"list" | "create">("list");
+
+  const switchPolicyType = useCallback((type: "expense" | "procurement") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("type", type);
+    router.replace(`/policies?${params.toString()}`, { scroll: false });
+    setProcurementView("list");
+  }, [router, searchParams]);
+
   const [isCreatePolicyOpen, setIsCreatePolicyOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen]   = useState(false);
   const [detailPolicy, setDetailPolicy]     = useState<Policy | null>(null);
@@ -647,7 +668,7 @@ function PoliciesPage() {
   // Pagination state for the policies table
   const policyTableProps = useDataTable({
     initialPage: 1,
-    initialPageSize: 10,
+    initialPageSize: 5,
     totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
@@ -656,7 +677,7 @@ function PoliciesPage() {
 
   const expenseTableProps = useDataTable({
     initialPage: 1,
-    initialPageSize: 10,
+    initialPageSize: 5,
     totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
@@ -665,7 +686,7 @@ function PoliciesPage() {
 
   const archivedTableProps = useDataTable({
     initialPage: 1,
-    initialPageSize: 10,
+    initialPageSize: 5,
     totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
@@ -705,7 +726,7 @@ function PoliciesPage() {
         name: getString(p.name),
         version: Number(p.version) || 1,
         category: getCatNames(asArray(p.expenseCategories)),
-        appliedTo: getString(scope.type) === "all" || getString(scope.type) === "all_employees" ? "All Employees" : "Specific Employees",
+        appliedTo: getString(p.scopeType) === "all" || getString(p.scopeType) === "all_employees" || getString(scope.type) === "all" || getString(scope.type) === "all_employees" ? "All Employees" : "Specific Employees",
         createdBy: createdByName,
         date: p.createdAt ? new Date(getString(p.createdAt)).toLocaleDateString() : "—",
         status: (getString(p.status).toLowerCase() as PolicyStatus) || "inactive",
@@ -728,25 +749,37 @@ function PoliciesPage() {
   const { setAction, clearAction } = useHeaderActionStore();
 
   useEffect(() => {
-    if (activeTab === "policies") {
+    if (policyType === "procurement") {
       if (canCreatePolicy) {
-        setAction({ label: "New Policy", dataTourId: "new-policy-button", onClick: () => setIsCreatePolicyOpen(true) });
+        setAction({
+          label: "New Procurement Policy",
+          dataTourId: "new-procurement-policy-button",
+          onClick: () => setProcurementView("create"),
+        });
       } else {
         clearAction();
       }
-    } else if (activeTab === "expense") {
-      if (canManageCategories) {
-        setAction({ label: "New Expense Category", dataTourId: "new-expense-category-button", onClick: () => setIsAddCategoryOpen(true) });
+    } else { // policyType === "expense"
+      if (activeTab === "policies") {
+        if (canCreatePolicy) {
+          setAction({ label: "New Expense Policy", dataTourId: "new-policy-button", onClick: () => setIsCreatePolicyOpen(true) });
+        } else {
+          clearAction();
+        }
+      } else if (activeTab === "expense") {
+        if (canManageCategories) {
+          setAction({ label: "New Expense Category", dataTourId: "new-expense-category-button", onClick: () => setIsAddCategoryOpen(true) });
+        } else {
+          clearAction();
+        }
       } else {
+        // Archived tab — no button
         clearAction();
       }
-    } else {
-      // Archived tab — no button
-      clearAction();
     }
     // Cleanup on unmount
     return () => clearAction();
-  }, [activeTab, setAction, clearAction, canCreatePolicy, canManageCategories]);
+  }, [activeTab, policyType, setAction, clearAction, canCreatePolicy, canManageCategories]);
 
   /* derived */
   const activePolicies   = useMemo(() => policies.filter(p => !p.archivedOn), [policies]);
@@ -1066,9 +1099,56 @@ function PoliciesPage() {
     },
   ], [handleViewCategory]);
 
+  const policyTypeToggle = (
+    <div className="sticky top-0 z-40 bg-background pt-2 pb-4 -mx-6 px-6 flex items-center justify-between flex-wrap gap-3 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-12 before:bg-background">
+      <div className="flex bg-muted rounded-xl p-1 w-fit">
+        <button
+          data-tour="expenses-policy-type-tab"
+          onClick={() => switchPolicyType("expense")}
+          className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+            policyType === "expense" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Expenses Policy
+        </button>
+        <button
+          data-tour="procurement-policy-type-tab"
+          onClick={() => switchPolicyType("procurement")}
+          className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+            policyType === "procurement" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Procurement Policy
+        </button>
+      </div>
+    </div>
+  );
+
+  if (policyType === "procurement" && procurementView === "create") {
+    return (
+      <div className="h-full flex flex-col p-6 bg-background">
+        <div className="bg-card rounded-[1.25rem] flex-1 flex flex-col min-h-0 overflow-hidden">
+          <ProcurementPolicyWizard
+            onCancel={() => setProcurementView("list")}
+            onComplete={() => setProcurementView("list")}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-background min-h-screen p-6 space-y-6">
+      <>
+      {policyTypeToggle}
 
+      {policyType === "procurement" ? (
+        <ProcurementPolicySection
+          canCreate={canCreatePolicy}
+          onCreateClick={() => setProcurementView("create")}
+        />
+      ) : (
+      <>
       {/* ── Stat cards ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1.5">
         {statCards.map((s) => (
@@ -1284,6 +1364,9 @@ function PoliciesPage() {
           </>
         )}
       </div>
+      </>
+      )}
+      </>
 
       {/* ── Modals ── */}
       <PolicyCreationModal

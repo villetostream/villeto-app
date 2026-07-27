@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
 import { useVerifyOtpApi } from "@/queries/pre-onboarding/verify-otp";
 import { useConfirmationOnboardingApi } from "@/queries/pre-onboarding/confirm-onbarding-status";
@@ -15,6 +15,9 @@ const RESEND_TIMER_SECONDS = 5 * 60; // 5 minutes
 
 export default function VerifyOtp() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const emailParam = searchParams.get("email");
+    
     const onboarding = useOnboardingStore();
     const verifyOtp = useVerifyOtpApi();
     const loading = verifyOtp.isPending;
@@ -25,7 +28,14 @@ export default function VerifyOtp() {
 
     const isExistingUser = onboarding.isExistingUser;
     const _stoppedAtStep = onboarding.stoppedAtStep;
-    const email = onboarding.contactEmail;
+    const email = onboarding.contactEmail || emailParam || "";
+
+    // Sync email from URL to store if missing
+    useEffect(() => {
+        if (emailParam && !onboarding.contactEmail) {
+            onboarding.setContactEmail(emailParam);
+        }
+    }, [emailParam, onboarding.contactEmail, onboarding]);
 
     // Resend countdown timer
     useEffect(() => {

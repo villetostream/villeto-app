@@ -7,7 +7,8 @@ import { ReceiptUploadSection } from "@/components/expenses/new-report/ReceiptUp
 import { ExpensePreviewList, type ExpenseItem } from "@/components/expenses/new-report/ExpensePreviewList";
 import { ExpenseDetailModal } from "@/components/expenses/new-report/ExpenseDetailModal";
 import { ReceiptPreviewModal } from "@/components/expenses/new-report/ReceiptPreviewModal";
-import { type ExpenseDetailFormData } from "@/components/expenses/new-report/ExpenseForm";
+import { PolicyCheckModal, type PolicyCheckResult } from "@/components/expenses/new-report/PolicyCheckModal";
+import { type ExpenseDetailFormData, type SplitParticipant } from "@/components/expenses/new-report/ExpenseForm";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
@@ -15,7 +16,7 @@ import { Loader2, Trash2, Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import { logger } from "@/lib/logger";
-import { getApiErrorMessage, isPolicyViolationError, applyPolicyViolationErrorToExpenses } from "@/lib/types/api-error";
+import { getApiErrorMessage, isPolicyViolationError, applyPolicyViolationErrorToExpenses, getPolicyExpenseResults } from "@/lib/types/api-error";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -62,6 +63,40 @@ const simulateOCR = async (_receiptBase64: string): Promise<{
   };
 };
 
+// ─── Humanize backend receipt policy messages ────────────────────────────────
+function humanizeReceiptMessage(message: string): string {
+  if (!message) return message;
+  const match = message.match(/A receipt is required for "([^"]+)" expenses of ([\d,.]+) or more\. This expense is ([\d,.]+)\./i);
+  if (match) {
+    const [, category, thresholdStr, expenseStr] = match;
+    const threshold = Number(thresholdStr.replace(/,/g, ""));
+    const expense = Number(expenseStr.replace(/,/g, ""));
+    const fmtThreshold = isNaN(threshold) ? thresholdStr : threshold.toLocaleString();
+    const fmtExpense = isNaN(expense) ? expenseStr : expense.toLocaleString();
+    return `Receipt Required: Your expense of ${fmtExpense} exceeds the ${fmtThreshold} receipt threshold for the ${category} category. Please attach a receipt.`;
+  }
+  return message;
+}
+
+/** Build a fresh PolicyCheckResult[] from current expenses state. */
+function deriveFreshViolations(expenses: ExpenseItem[]): PolicyCheckResult[] {
+  const results: PolicyCheckResult[] = [];
+  for (const expense of expenses) {
+    if (expense.policyViolations && expense.policyViolations.length > 0) {
+      for (const v of expense.policyViolations) {
+        if (v.type === "hard_block" || v.type === "block") {
+          results.push({ expenseId: expense.id, expenseName: expense.name, violation: v as any, justification: expense.justification });
+        } else if (v.type === "soft_warning" || v.type === "soft_warn") {
+          if (!expense.justification?.trim()) {
+            results.push({ expenseId: expense.id, expenseName: expense.name, violation: v as any, justification: expense.justification });
+          }
+        }
+      }
+    }
+  }
+  return results;
+}
+
 export default function EditReportPage() {
   const params = useParams();
   const reportId = params.id as string;
@@ -88,6 +123,12 @@ export default function EditReportPage() {
   
   // Track deleted expense IDs (for existing expenses only)
   const [deletedExpenseIds, setDeletedExpenseIds] = useState<string[]>([]);
+
+  // Policy modal states
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [pendingSubmitStatus, setPendingSubmitStatus] = useState<"draft" | "pending" | null>(null);
+  const [requiredActionsByExpenseId, setRequiredActionsByExpenseId] = useState<Record<string, any>>({});
+  const [detailModalReadOnly, setDetailModalReadOnly] = useState(false);
 
   // Dirty state tracking
   const [initialData, setInitialData] = useState<string>("");
@@ -166,23 +207,37 @@ export default function EditReportPage() {
   }, [reportId, axios, router]);
 
   // Handle receipt upload (New expenses)
-  const handleReceiptsUpload = async (receipts: { base64: string; name: string }[]) => {
+  const handleReceiptsUpload = async (receipts: { base64: string; name: string }[], isSplit?: boolean) => {
     setIsProcessing(true);
     try {
       const ocrResults = await Promise.all(
         receipts.map((receipt) => simulateOCR(receipt.base64))
       );
 
-      const newExpenses: ExpenseItem[] = ocrResults.map((result, index) => ({
-        id: `new-${Date.now()}-${index}`, // Temporary ID for new items
-        name: result.merchantName || `Expense ${expenses.length + index + 1}`,
+      let currentNames = [...expenses.map((e) => e.name)];
+      const newExpenses: ExpenseItem[] = ocrResults.map((result, index) => {
+        let name = result.merchantName;
+        if (!name) {
+          let counter = 1;
+          name = `Expense ${counter}`;
+          while (currentNames.some((n) => n.trim().toLowerCase() === name.toLowerCase())) {
+            counter++;
+            name = `Expense ${counter}`;
+          }
+        }
+        currentNames.push(name);
+        return {
+          id: `new-${Date.now()}-${index}`, // Temporary ID for new items
+          name,
         category: result.category || "",
         amount: 0,
         receiptImage: receipts[index].base64,
         merchantName: result.merchantName,
         transactionDate: new Date(result.transactionDate),
         fileName: receipts[index].name,
-      }));
+        isSplit: !!isSplit,
+      };
+    });
 
       setExpenses((prev) => [...prev, ...newExpenses]);
       toast.success(`${receipts.length} receipt(s) scanned successfully`);
@@ -195,7 +250,12 @@ export default function EditReportPage() {
   };
 
   // Handle manual expense addition
-  const handleAddExpense = (data: ExpenseDetailFormData, receiptImage?: string) => {
+  const handleAddExpense = (
+    data: ExpenseDetailFormData,
+    receiptImage?: string,
+    isSplit?: boolean,
+    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
+  ) => {
     const newExpense: ExpenseItem = {
       id: `new-${Date.now()}`,
       name: data.name,
@@ -205,6 +265,12 @@ export default function EditReportPage() {
       description: data.description,
       receiptImage: receiptImage || "",
       transactionDate: data.transactionDate ?? new Date(),
+      isSplit: !!isSplit,
+      ...(splitData && {
+        splitParticipants: splitData.participants,
+        splitAllocationMode: splitData.allocationMode,
+        splitAllocations: splitData.allocations,
+      }),
     };
     setExpenses((prev) => [...prev, newExpense]);
     toast.success("Expense added");
@@ -220,7 +286,9 @@ export default function EditReportPage() {
   const handleSaveExpense = (
     expenseId: string,
     data: ExpenseDetailFormData,
-    newReceipt?: string
+    newReceipt?: string,
+    justification?: string,
+    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
   ) => {
     setExpenses((prev) =>
       prev.map((exp) =>
@@ -234,7 +302,13 @@ export default function EditReportPage() {
               description: data.description,
               transactionDate: data.transactionDate ?? exp.transactionDate,
               policyViolations: null,
+              ...(justification !== undefined && { justification }),
               ...(newReceipt !== undefined && { receiptImage: newReceipt }),
+              ...(splitData && {
+                splitParticipants: splitData.participants,
+                splitAllocationMode: splitData.allocationMode,
+                splitAllocations: splitData.allocations,
+              }),
             }
           : exp
       )
@@ -287,23 +361,46 @@ export default function EditReportPage() {
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
+  const handlePolicyContinue = async (justifications: Record<string, string>) => {
+    // Apply justifications to expenses
+    setExpenses((prev) =>
+      prev.map((e) => (justifications[e.id] ? { ...e, justification: justifications[e.id] } : e))
+    );
+    setIsPolicyModalOpen(false);
+    await handleSubmit(pendingSubmitStatus!, justifications);
+  };
+
+  const handlePolicyEditExpense = (expenseId: string) => {
+    setIsPolicyModalOpen(false);
+    setSelectedExpenseId(expenseId);
+    setDetailModalReadOnly(false);
+    setIsDetailModalOpen(true);
+  };
+
   // Submit Changes (PATCH)
-  const handleSubmit = async (status: "draft" | "pending") => {
-    if (expenses.length === 0) {
+  const handleSubmit = async (
+    status: "draft" | "pending",
+    justifications: Record<string, string> = {},
+    overrideExpenses?: typeof expenses,
+    overrideRequiredActions?: Record<string, any>,
+    retryCount = 0
+  ) => {
+    const activeExpenses = overrideExpenses ?? expenses;
+    if (activeExpenses.length === 0) {
       toast.error("Report must have at least one expense");
       return;
     }
 
     // Validation
     if (status === "pending") {
-      const missingReceipts = expenses.filter((exp) => !exp.receiptImage);
+      const missingReceipts = activeExpenses.filter((exp) => !exp.receiptImage);
       if (missingReceipts.length > 0) {
         toast.error("All expenses must have receipts before submitting");
         return;
       }
     }
 
-    const invalidExpenses = expenses.filter(
+    const invalidExpenses = activeExpenses.filter(
       (exp) => !exp.name || exp.amount < 0 || !exp.category
     );
     if (invalidExpenses.length > 0) {
@@ -331,9 +428,15 @@ export default function EditReportPage() {
           return dataUrl.split(",")[1];
       };
 
-      const expensesPayload = expenses.map((expense) => {
+      const expensesPayload = activeExpenses.map((expense) => {
         const category = categories.find((cat) => cat.name === expense.category);
         if (!category) throw new Error(`Category not found: ${expense.category}`);
+
+        const justificationValue = justifications[expense.id] || expense.justification;
+        const action = (overrideRequiredActions || requiredActionsByExpenseId)[expense.id];
+        const isJustificationRequired = action?.requiredFields?.includes("policyJustification") || action?.requiredFields?.includes("justification");
+        const isReceiptRequired = action?.requiredFields?.includes("receiptUrl");
+        const isActionRequired = isJustificationRequired || isReceiptRequired;
 
         const payload: Record<string, unknown> = {
           title: expense.name,
@@ -344,12 +447,13 @@ export default function EditReportPage() {
           transactionDate: expense.transactionDate
             ? new Date(expense.transactionDate).toISOString()
             : new Date().toISOString(),
+          // isSplit: expense.isSplit,
+          // splitParticipants: expense.splitParticipants,
+          // splitAllocationMode: expense.splitAllocationMode,
+          // splitAllocations: expense.splitAllocations,
+          ...(justificationValue && isActionRequired ? { policyJustification: justificationValue } : {}),
         };
         
-        // NOTE: Draft expenses never have real server-side expenseIds.
-        // The submit endpoint explicitly forbids expenseId in the payload,
-        // so we never include it here.
-
         // Add receipt if it's new (base64)
         const base64 = extractBase64(expense.receiptImage);
         if (base64) {
@@ -373,7 +477,91 @@ export default function EditReportPage() {
           expenses: expensesPayload,
         };
         // Use POST to submit the draft
-        await axios.post(API_KEYS.EXPENSE.REPORTS, requestPayload);
+        const res = await axios.post(API_KEYS.EXPENSE.REPORTS, requestPayload);
+
+        // ── Check if the policy engine requires ACTION_REQUIRED (201 but not submitted) ──
+        const responseData = res.data?.data;
+        if (responseData?.submitted === false && responseData?.resolution === "ACTION_REQUIRED") {
+          const requiredActions = Array.isArray(responseData.requiredActions) ? responseData.requiredActions : [];
+          // Build a lookup of enforcement action per expense index from the warnings array
+          // warnings[].enforcementAction is the authoritative source (soft_warn vs block)
+          const warningsByIndex: Record<number, any> = {};
+          (Array.isArray(responseData.warnings) ? responseData.warnings : []).forEach((w: any) => {
+            (Array.isArray(w.affectedExpenseIndexes) ? w.affectedExpenseIndexes : []).forEach((idx: number) => {
+              const existing = warningsByIndex[idx];
+              const isHardNew = w.enforcementAction === "block" || w.enforcementAction === "hard_block";
+              const isHardExisting = existing?.enforcementAction === "block" || existing?.enforcementAction === "hard_block";
+              if (!existing || (isHardNew && !isHardExisting)) {
+                warningsByIndex[idx] = w;
+              }
+            });
+          });
+
+          if (requiredActions.length > 0) {
+            const newRequiredActions: Record<string, any> = { ...requiredActionsByExpenseId };
+            let allRequiredHaveJustification = true;
+
+            requiredActions.forEach((action: any) => {
+              const exp = activeExpenses[action.expenseIndex];
+              if (exp) {
+                newRequiredActions[exp.id] = action;
+                // Determine enforcement level from the warnings array (authoritative)
+                const warning = warningsByIndex[action.expenseIndex];
+                const enforcementAction = warning?.enforcementAction ?? "soft_warn";
+                const isHardBlock = enforcementAction === "block" || enforcementAction === "hard_block";
+
+                const needsJustification = action.requiredFields?.includes("policyJustification") || action.requiredFields?.includes("justification");
+                // Only block auto-retry if enforcement is genuinely hard
+                if (isHardBlock) {
+                  allRequiredHaveJustification = false;
+                } else if (needsJustification) {
+                  const hasJustification = justifications[exp.id] || exp.justification?.trim();
+                  if (!hasJustification) {
+                    allRequiredHaveJustification = false;
+                  }
+                }
+              }
+            });
+
+            if (allRequiredHaveJustification && retryCount === 0) {
+              return handleSubmit(status, justifications, activeExpenses, newRequiredActions, retryCount + 1);
+            }
+
+            setExpenses((prev) => {
+              const next = [...prev];
+              requiredActions.forEach((action: any) => {
+                const idx = action.expenseIndex;
+                if (next[idx]) {
+                  // Resolve enforcement level from warnings array — this is authoritative
+                  const warning = warningsByIndex[idx];
+                  const enforcementAction = warning?.enforcementAction ?? "soft_warn";
+                  const isHardBlock = enforcementAction === "block" || enforcementAction === "hard_block";
+                  const violationType = isHardBlock ? "hard_block" : "soft_warning";
+                  const violationMsg = humanizeReceiptMessage(action.message || "Policy action required for this expense.");
+
+                  next[idx] = {
+                    ...next[idx],
+                    policyViolations: [{
+                      type: violationType,
+                      message: violationMsg,
+                      ruleType: action.type || "POLICY_RULE",
+                    }],
+                  };
+                }
+              });
+              return next;
+            });
+
+            setRequiredActionsByExpenseId(newRequiredActions);
+            setPendingSubmitStatus(status);
+            
+            const hasPendingWarnings = Object.keys(newRequiredActions).length > 0;
+            if (hasPendingWarnings) {
+              setIsPolicyModalOpen(true);
+            }
+            return;
+          }
+        }
       }
 
       toast.success(
@@ -402,7 +590,56 @@ export default function EditReportPage() {
       logger.error("Error updating report:", error);
 
       if (isPolicyViolationError(error)) {
-        setExpenses((prev) => applyPolicyViolationErrorToExpenses(prev, error));
+        setExpenses((prev) => {
+          const updated = applyPolicyViolationErrorToExpenses(prev, error);
+          const expenseResults = getPolicyExpenseResults(error);
+
+          if (expenseResults.length > 0) {
+            const freshViolations: PolicyCheckResult[] = [];
+            const newRequiredActions: Record<string, any> = {};
+
+            expenseResults.forEach((result) => {
+              const idx = result.expenseIndex ?? -1;
+              const exp = idx >= 0 ? updated[idx] : undefined;
+              if (!exp) return;
+              (result.violations ?? []).forEach((v) => {
+                const isHard = v.enforcementAction === "block";
+                freshViolations.push({
+                  expenseId: exp.id,
+                  expenseName: exp.name,
+                  violation: {
+                    type: isHard ? "hard_block" : "soft_warning",
+                    message: humanizeReceiptMessage(v.message ?? "Policy violation"),
+                    ruleType: v.type,
+                    limitChecks: (v as any).limitChecks,
+                  },
+                  justification: exp.justification,
+                });
+                
+                if (!isHard) {
+                  newRequiredActions[exp.id] = {
+                    requiredFields: ["policyJustification"],
+                    message: humanizeReceiptMessage(v.message ?? "Justification required"),
+                    type: v.type,
+                    expenseIndex: idx,
+                  };
+                }
+              });
+            });
+
+            if (Object.keys(newRequiredActions).length > 0) {
+              setRequiredActionsByExpenseId((prevReq) => ({ ...prevReq, ...newRequiredActions }));
+            }
+
+            if (freshViolations.length > 0) {
+              setPendingSubmitStatus("pending");
+              setIsPolicyModalOpen(true);
+            }
+          }
+
+          return updated;
+        });
+
         toast.error("Some expenses violated policy rules. Please review them.");
         setIsSavingDraft(false);
         setIsSubmittingReport(false);
@@ -508,6 +745,7 @@ export default function EditReportPage() {
             categories={categories}
             onReceiptsUpload={handleReceiptsUpload}
             onAddExpense={handleAddExpense}
+            existingExpenseNames={expenses.map((e) => e.name)}
           />
         </div>
       </div>
@@ -521,6 +759,7 @@ export default function EditReportPage() {
         expense={expenses.find((e) => e.id === selectedExpenseId) || null}
         categories={categories}
         onSave={handleSaveExpense}
+        existingExpenseNames={expenses.map((e) => e.name)}
       />
 
       <ReceiptPreviewModal
@@ -551,6 +790,15 @@ export default function EditReportPage() {
         onConfirm={handleDeleteReport}
         title="Delete Entire Report"
         description="Are you sure you want to delete this entire report with all its expenses? This action cannot be undone."
+      />
+
+      <PolicyCheckModal
+        isOpen={isPolicyModalOpen}
+        onClose={() => setIsPolicyModalOpen(false)}
+        violations={deriveFreshViolations(expenses)}
+        onProceedWithWarnings={handlePolicyContinue}
+        onEditExpense={handlePolicyEditExpense}
+        isRechecking={isSubmittingReport}
       />
 
       {isProcessing && (

@@ -12,7 +12,7 @@ import {
 import { ExpenseDetailModal } from "@/components/expenses/new-report/ExpenseDetailModal";
 import { ReceiptPreviewModal } from "@/components/expenses/new-report/ReceiptPreviewModal";
 import { PolicyCheckModal, type PolicyCheckResult } from "@/components/expenses/new-report/PolicyCheckModal";
-import { type ExpenseDetailFormData } from "@/components/expenses/new-report/ExpenseForm";
+import { type ExpenseDetailFormData, type SplitParticipant } from "@/components/expenses/new-report/ExpenseForm";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
@@ -240,20 +240,34 @@ export default function NewReportPage() {
   }, [axios]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleReceiptsUpload = async (receipts: { base64: string; name: string }[]) => {
+  const handleReceiptsUpload = async (receipts: { base64: string; name: string }[], isSplit?: boolean) => {
     setIsProcessing(true);
     try {
       const ocrResults = await Promise.all(receipts.map((r) => simulateOCR(r.base64)));
-      const newExpenses: ExpenseItem[] = ocrResults.map((result, i) => ({
-        id: `expense-${Date.now()}-${i}`,
-        name: result.merchantName || `Expense ${expenses.length + i + 1}`,
+      let currentNames = [...expenses.map((e) => e.name)];
+      const newExpenses: ExpenseItem[] = ocrResults.map((result, i) => {
+        let name = result.merchantName;
+        if (!name) {
+          let counter = 1;
+          name = `Expense ${counter}`;
+          while (currentNames.some((n) => n.trim().toLowerCase() === name.toLowerCase())) {
+            counter++;
+            name = `Expense ${counter}`;
+          }
+        }
+        currentNames.push(name);
+        return {
+          id: `expense-${Date.now()}-${i}`,
+          name,
         category: result.category || "",
         amount: 0,
         receiptImage: receipts[i].base64,
         merchantName: result.merchantName,
         transactionDate: new Date(result.transactionDate),
         fileName: receipts[i].name,
-      }));
+        isSplit: !!isSplit,
+      };
+    });
       setExpenses((prev) => [...prev, ...newExpenses]);
       toast.success(`${receipts.length} receipt(s) scanned successfully`);
     } catch (error) {
@@ -264,7 +278,12 @@ export default function NewReportPage() {
     }
   };
 
-  const handleAddExpense = (data: ExpenseDetailFormData, receiptImage?: string) => {
+  const handleAddExpense = (
+    data: ExpenseDetailFormData,
+    receiptImage?: string,
+    isSplit?: boolean,
+    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
+  ) => {
     // Prevent duplicate expense names (case-insensitive)
     const isDuplicate = expenses.some(
       (e) => e.name.trim().toLowerCase() === data.name.trim().toLowerCase()
@@ -285,6 +304,12 @@ export default function NewReportPage() {
         description: data.description,
         receiptImage: receiptImage || "",
         transactionDate: data.transactionDate ?? new Date(),
+        isSplit: !!isSplit,
+        ...(splitData && {
+          splitParticipants: splitData.participants,
+          splitAllocationMode: splitData.allocationMode,
+          splitAllocations: splitData.allocations,
+        }),
       },
     ]);
     toast.success("Expense added");
@@ -309,7 +334,13 @@ export default function NewReportPage() {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
   };
 
-  const handleSaveExpense = (expenseId: string, data: ExpenseDetailFormData, newReceipt?: string, justification?: string) => {
+  const handleSaveExpense = (
+    expenseId: string,
+    data: ExpenseDetailFormData,
+    newReceipt?: string,
+    justification?: string,
+    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
+  ) => {
     // Check if amount, category, or receipt changed BEFORE updating state (while old value is still in closure)
     const currentExpense = expenses.find((e) => e.id === expenseId);
     const amountOrCategoryChanged = !!(currentExpense &&
@@ -333,6 +364,11 @@ export default function NewReportPage() {
           // Keep existing justification unless a new one is explicitly provided
           justification: justification !== undefined ? justification : e.justification,
           ...(newReceipt !== undefined && { receiptImage: newReceipt }),
+          ...(splitData && {
+            splitParticipants: splitData.participants,
+            splitAllocationMode: splitData.allocationMode,
+            splitAllocations: splitData.allocations,
+          }),
         };
       })
     );
@@ -462,7 +498,46 @@ export default function NewReportPage() {
         // Justification: use the one from the modal or the one already saved on the expense.
         const justificationValue = justifications[expense.id] || expense.justification;
         const action = (overrideRequiredActions || requiredActionsByExpenseId)[expense.id];
-        const isActionRequired = action?.requiredFields?.includes("policyJustification") || action?.requiredFields?.includes("justification");
+        // Needs policyJustification if the backend explicitly requested it
+        const isJustificationRequired = action?.requiredFields?.includes("policyJustification") || action?.requiredFields?.includes("justification");
+        // Needs a receipt if the backend requires receiptUrl
+        const isReceiptRequired = action?.requiredFields?.includes("receiptUrl");
+        const isActionRequired = isJustificationRequired || isReceiptRequired;
+
+        const isSplit = !!expense.isSplit;
+        const expenseType = isSplit ? "split" : "individual";
+
+        // Build splitAllocations payload: [{userId, amount}] per backend spec
+        let splitAllocations: { userId: string; amount: number }[] | undefined;
+        if (isSplit && expense.splitParticipants && expense.splitParticipants.length > 0) {
+          if (expense.splitAllocationMode === "equal") {
+            const perPersonStr = (expense.amount / expense.splitParticipants.length).toFixed(2);
+            const perPerson = parseFloat(perPersonStr);
+            const lastIndex = expense.splitParticipants.length - 1;
+            const nonLastTotal = perPerson * lastIndex;
+            const autoLast = Math.max(0, expense.amount - nonLastTotal);
+
+            splitAllocations = expense.splitParticipants.map((p, idx) => ({
+              userId: p.userId,
+              amount: idx === lastIndex ? parseFloat(autoLast.toFixed(2)) : perPerson,
+            }));
+          } else if (expense.splitAllocations) {
+            // Manual: compute the last participant's auto-filled amount
+            const lastIndex = expense.splitParticipants.length - 1;
+            const nonLastTotal = expense.splitParticipants
+              .slice(0, lastIndex)
+              .reduce((sum, p) => sum + (parseFloat(expense.splitAllocations![p.userId] ?? "") || 0), 0);
+            const autoLast = Math.max(0, expense.amount - nonLastTotal);
+
+            splitAllocations = expense.splitParticipants.map((p, idx) => ({
+              userId: p.userId,
+              amount:
+                idx === lastIndex
+                  ? parseFloat(autoLast.toFixed(2))
+                  : parseFloat(parseFloat(expense.splitAllocations![p.userId] ?? "0").toFixed(2)),
+            }));
+          }
+        }
 
         const payload: Record<string, unknown> = {
           title: expense.name,
@@ -470,11 +545,13 @@ export default function NewReportPage() {
           description: expense.description || "",
           expenseCategoryId: category.categoryId,
           amount: expense.amount,
+          expenseType,
           transactionDate: expense.transactionDate
             ? new Date(expense.transactionDate).toISOString()
             : new Date().toISOString(),
           // ONLY attach policyJustification if the backend explicitly requested it AND we have a value
           ...(justificationValue && isActionRequired ? { policyJustification: justificationValue } : {}),
+          ...(splitAllocations ? { splitAllocations } : {}),
         };
         if (expense.receiptImage?.startsWith("data:")) {
           const b64 = extractBase64(expense.receiptImage);
@@ -503,6 +580,20 @@ export default function NewReportPage() {
         const responseData = res.data?.data;
         if (responseData?.submitted === false && responseData?.resolution === "ACTION_REQUIRED") {
           const requiredActions = Array.isArray(responseData.requiredActions) ? responseData.requiredActions : [];
+          // Build a lookup of enforcement action per expense index from the warnings array
+          // warnings[].enforcementAction is the authoritative source (soft_warn vs block)
+          const warningsByIndex: Record<number, any> = {};
+          (Array.isArray(responseData.warnings) ? responseData.warnings : []).forEach((w: any) => {
+            (Array.isArray(w.affectedExpenseIndexes) ? w.affectedExpenseIndexes : []).forEach((idx: number) => {
+              // If multiple warnings affect the same index, prefer the stricter one
+              const existing = warningsByIndex[idx];
+              const isHardNew = w.enforcementAction === "block" || w.enforcementAction === "hard_block";
+              const isHardExisting = existing?.enforcementAction === "block" || existing?.enforcementAction === "hard_block";
+              if (!existing || (isHardNew && !isHardExisting)) {
+                warningsByIndex[idx] = w;
+              }
+            });
+          });
 
           if (requiredActions.length > 0) {
             // Track which expenses exactly need justification according to the backend
@@ -514,7 +605,16 @@ export default function NewReportPage() {
               const exp = activeExpenses[action.expenseIndex];
               if (exp) {
                 newRequiredActions[exp.id] = action;
-                if (action.requiredFields?.includes("policyJustification") || action.requiredFields?.includes("justification")) {
+                // Determine enforcement level from the warnings array (authoritative)
+                const warning = warningsByIndex[action.expenseIndex];
+                const enforcementAction = warning?.enforcementAction ?? "soft_warn";
+                const isHardBlock = enforcementAction === "block" || enforcementAction === "hard_block";
+
+                const needsJustification = action.requiredFields?.includes("policyJustification") || action.requiredFields?.includes("justification");
+                // Only treat receipt as blocking auto-retry if it's a hard_block enforcement
+                if (isHardBlock) {
+                  allRequiredHaveJustification = false;
+                } else if (needsJustification) {
                   const hasJustification = justifications[exp.id] || exp.justification?.trim();
                   if (!hasJustification) {
                     allRequiredHaveJustification = false;
@@ -534,11 +634,18 @@ export default function NewReportPage() {
               requiredActions.forEach((action: any) => {
                 const idx = action.expenseIndex;
                 if (next[idx]) {
+                  // Resolve enforcement level from warnings array — this is authoritative
+                  const warning = warningsByIndex[idx];
+                  const enforcementAction = warning?.enforcementAction ?? "soft_warn";
+                  const isHardBlock = enforcementAction === "block" || enforcementAction === "hard_block";
+                  const violationType = isHardBlock ? "hard_block" : "soft_warning";
+                  const violationMsg = humanizeReceiptMessage(action.message || "Policy action required for this expense.");
+
                   next[idx] = {
                     ...next[idx],
                     policyViolations: [{
-                      type: "soft_warning",
-                      message: humanizeReceiptMessage(action.message || "Justification required"),
+                      type: violationType,
+                      message: violationMsg,
                       ruleType: action.type || "POLICY_RULE",
                     }],
                   };

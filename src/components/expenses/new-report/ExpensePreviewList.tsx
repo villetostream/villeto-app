@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { Eye, Trash2, Pencil, Check, X, AlertCircle } from "lucide-react";
+import type { SplitParticipant } from "./ExpenseForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/stores/auth-stores";
+import { toast } from "sonner";
 
 export interface PolicyViolation {
   type: string;
@@ -25,6 +28,13 @@ export interface ExpenseItem {
   fileName?: string;
   policyViolations?: { type: string; message: string; ruleType?: string; limitChecks?: any[] }[] | null;
   justification?: string;
+  /** Flag marking this expense as a split expense — drives expenseType in the submit payload. */
+  isSplit?: boolean;
+  /** Split participants keyed by userId — fed into splitAllocations payload. */
+  splitParticipants?: SplitParticipant[];
+  splitAllocationMode?: "equal" | "manual";
+  /** Keyed by userId */
+  splitAllocations?: Record<string, string>;
 }
 
 interface ExpensePreviewListProps {
@@ -55,7 +65,19 @@ export function ExpensePreviewList({
   };
 
   const handleSaveEdit = (id: string) => {
-    if (editValue.trim()) onEditName(id, editValue.trim());
+    const trimmed = editValue.trim();
+    if (!trimmed) {
+      handleCancelEdit();
+      return;
+    }
+    const isDuplicate = expenses.some(
+      (e) => e.id !== id && e.name.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (isDuplicate) {
+      toast.error(`An expense named "${trimmed}" already exists.`);
+      return;
+    }
+    onEditName(id, trimmed);
     setEditingId(null);
     setEditValue("");
   };
@@ -134,6 +156,11 @@ export function ExpensePreviewList({
                           )}
                           <div className="flex items-center gap-1.5 group min-w-0">
                             <span className="text-xs font-medium text-foreground truncate max-w-[120px]">{expense.name}</span>
+                            {expense.isSplit && (
+                              <Badge className="bg-purple-100 text-purple-600 border-transparent px-1.5 py-0.5 text-[10px] leading-none">
+                                Split
+                              </Badge>
+                            )}
                             <Button size="icon" variant="ghost"
                               className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                               onClick={() => handleStartEdit(expense.id, expense.name)}>

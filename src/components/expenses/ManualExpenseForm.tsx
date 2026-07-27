@@ -930,10 +930,14 @@ export function ManualExpenseForm({
             const flaggedKeys = actions.map((a) => `expense-${a.expenseIndex}`);
             return Array.from(new Set([...prev, ...flaggedKeys]));
           });
-          toast.warning(
-            "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.",
-            { duration: 6000 },
-          );
+          const needsReceipt = actions.some((a) => a.requiredFields?.includes("receiptUrl"));
+          const needsJustification = actions.some((a) => a.requiredFields?.includes("justification") || a.requiredFields?.includes("policyJustification"));
+          const toastMsg = needsReceipt && needsJustification
+            ? "Some expenses require a receipt and a written explanation before they can be submitted. See highlighted items below."
+            : needsReceipt
+            ? "Some expenses require a receipt before they can be submitted. Please attach one to the highlighted expense(s) below."
+            : "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.";
+          toast.warning(toastMsg, { duration: 6000 });
           return;
         }
 
@@ -985,10 +989,14 @@ export function ManualExpenseForm({
             const flaggedKeys = actions.map((a) => `expense-${a.expenseIndex}`);
             return Array.from(new Set([...prev, ...flaggedKeys]));
           });
-          toast.warning(
-            "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.",
-            { duration: 6000 },
-          );
+          const needsReceipt = actions.some((a) => a.requiredFields?.includes("receiptUrl"));
+          const needsJustification = actions.some((a) => a.requiredFields?.includes("justification") || a.requiredFields?.includes("policyJustification"));
+          const toastMsg = needsReceipt && needsJustification
+            ? "Some expenses require a receipt and a written explanation before they can be submitted. See highlighted items below."
+            : needsReceipt
+            ? "Some expenses require a receipt before they can be submitted. Please attach one to the highlighted expense(s) below."
+            : "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.";
+          toast.warning(toastMsg, { duration: 6000 });
           return;
         }
 

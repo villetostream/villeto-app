@@ -131,7 +131,7 @@ const AddNewReport = ({
                   size={"md"}
                   type="submit"
                   disabled={!isValid || isSubmitting}
-                  className="min-w-24 bg-[#7FE3DB] hover:bg-[#7FE3DB]/90 text-[#344054]"
+                  className="min-w-24 bg-primary hover:bg-primary/90 text-white"
                 >
                   {isSubmitting ? "Processing..." : "Confirm"}
                 </Button>

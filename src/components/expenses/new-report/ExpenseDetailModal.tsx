@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ExpenseForm, type ExpenseDetailFormData } from "./ExpenseForm";
+import { ExpenseForm, type ExpenseDetailFormData, type SplitParticipant } from "./ExpenseForm";
 import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 import { AlertTriangle, XCircle } from "lucide-react";
 import { logger } from "@/lib/logger";
@@ -37,9 +37,20 @@ interface ExpenseDetailModalProps {
     transactionDate?: Date;
     policyViolations?: PolicyViolationEntry[] | null;
     justification?: string;
+    isSplit?: boolean;
+    splitParticipants?: SplitParticipant[];
+    splitAllocationMode?: "equal" | "manual";
+    /** Keyed by userId */
+    splitAllocations?: Record<string, string>;
   } | null;
   categories: ExpenseCategory[];
-  onSave: (expenseId: string, data: ExpenseDetailFormData, newReceipt?: string, justification?: string) => void;
+  onSave: (
+    expenseId: string,
+    data: ExpenseDetailFormData,
+    newReceipt?: string,
+    justification?: string,
+    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
+  ) => void;
   readOnly?: boolean;
   /** Names of expenses already added to the report — used to prevent duplicates */
   existingExpenseNames?: string[];
@@ -82,6 +93,9 @@ export function ExpenseDetailModal({
       description: expense.description,
       receiptImage,
       transactionDate: expense.transactionDate,
+      splitParticipants: expense.splitParticipants,
+      splitAllocationMode: expense.splitAllocationMode,
+      splitAllocations: expense.splitAllocations,
     };
   }, [expense, receiptImage]);
 
@@ -261,9 +275,10 @@ export function ExpenseDetailModal({
               <ExpenseForm
                 initialData={initialData}
                 categories={categories}
-                onSave={(data, formReceiptImage) => {
+                mode={expense.isSplit ? "split" : "individual"}
+                onSave={(data, formReceiptImage, splitData) => {
                   const justificationToSave = showJustificationBox ? inlineJustification : undefined;
-                  onSave(expense.id, data, formReceiptImage || receiptImage, justificationToSave);
+                  onSave(expense.id, data, formReceiptImage || receiptImage, justificationToSave, splitData);
                   onClose();
                 }}
                 onCancel={onClose}

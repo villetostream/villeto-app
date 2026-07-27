@@ -49,6 +49,7 @@ export default function DashboardLayoutContent({
   const isMounted = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
   const axios = useAxios();
   const { setCompanyPermissions, login, logout, user, isLoading } = useAuthStore();
+  const accessToken = useAuthStore((s) => s.accessToken);
   const router = useRouter();
   const isTourActive = useTourStore((s) => s.isTourActive);
   const setupGuideReady = useTourStore((s) => s.setupGuideReady);
@@ -142,6 +143,10 @@ export default function DashboardLayoutContent({
 
   if (!user) {
     return <SplashScreen />;
+  }
+
+  if (!accessToken) {
+    return <SplashScreen />; // Wait for initial proactive refresh
   }
 
   return (

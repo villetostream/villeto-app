@@ -1154,7 +1154,7 @@ export default function PolicyCreationModal({
           {/* ════ STEP 1 — Name ════════════════════════════════ */}
           {step === 1 && (
             <div className="p-9">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-5">New Policy</p>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-5">{policyId ? "Edit Expense Policy" : "New Expense Policy"}</p>
               <h2 className="text-[22px] font-semibold text-gray-900 mb-7">Policy Name</h2>
               <input autoFocus
                 placeholder="e.g. Sales Team Travel Policy"

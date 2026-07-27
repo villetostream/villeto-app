@@ -32,6 +32,7 @@ import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useNotificationCount } from "@/hooks/useNotificationCount";
 import { useAuthStore } from "@/stores/auth-stores";
 import NewExpenseHeaderAction from "@/components/expenses/NewExpenseHeaderAction";
+import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
@@ -428,6 +429,8 @@ export function UserSection() {
 
   const { fromDate, toDate, setFromDate, setToDate, resetDates } = useDateFilterStore();
   const { action: headerAction, clearAction } = useHeaderActionStore();
+  const customBackHandler = useHeaderBackStore((s) => s.handler);
+  const clearBackHandler = useHeaderBackStore((s) => s.clearBackHandler);
 
   useEffect(() => {
     const isProcurementListPage =
@@ -437,7 +440,9 @@ export function UserSection() {
     const isExpensesListPageNow = pathname === "/expenses";
     if (!isExpensesListPageNow && !isProcurementListPage) resetDates();
     clearAction();
-  }, [pathname, resetDates, clearAction]);
+    // Any registered in-page back handler belongs to the page we're leaving.
+    clearBackHandler();
+  }, [pathname, resetDates, clearAction, clearBackHandler]);
 
   const can = useAuthStore((state) => state.can);
   const authReady = useAuthStore((state) => !state.isLoading);
@@ -655,11 +660,20 @@ export function UserSection() {
     <div className="flex items-center justify-between w-full">
       {/* ── Left ── */}
       <div className="flex items-center gap-3">
-        {isBackButtonPage ? (
+        {customBackHandler || isBackButtonPage ? (
           <Button
             variant="ghost"
             className="flex items-center gap-2 px-0 text-xl hover:bg-transparent hover:text-primary h-auto! py-1! has-[>svg]:px-0!"
-            onClick={handleBack}
+            onClick={() => {
+              // A page-registered handler always knows its own exact "one
+              // level back" (e.g. the previous step of a wizard) better than
+              // the generic pathname-based logic below, so it takes priority.
+              if (customBackHandler) {
+                customBackHandler();
+                return;
+              }
+              handleBack();
+            }}
           >
             <ArrowLeft className="w-4 h-4" />
             <span className="text-base">Back</span>
@@ -669,7 +683,7 @@ export function UserSection() {
         )}
         {/* For personal-only users on /expenses, mount the CTA here so it
             registers into the header action store (no inline heading needed) */}
-        {isPersonalOnly && pathname === "/expenses" && !isBackButtonPage && (
+        {isPersonalOnly && pathname === "/expenses" && !isBackButtonPage && !customBackHandler && (
           <NewExpenseHeaderAction />
         )}
       </div>

@@ -198,7 +198,6 @@ export const useAuthStore = create<AuthState>()(
             // Only persist serialisable fields — Sets are not JSON-serialisable
             partialize: (state) => ({
                 user: state.user,
-                accessToken: state.accessToken,
                 companyPermissions: state.companyPermissions,
             }),
             onRehydrateStorage: () => (state) => {

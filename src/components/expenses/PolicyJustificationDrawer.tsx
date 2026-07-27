@@ -21,6 +21,7 @@ import {
 
 export interface PolicyRequiredAction {
   expenseIndex: number;
+  affectedExpenseIndexes?: number[];
   type: string;
   policyId: string;
   policyName: string;
