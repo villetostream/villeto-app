@@ -130,7 +130,9 @@ export function PolicyCheckModal({
               {/* Hard Blocks */}
               {showHardSection && (
                 <div className="space-y-2">
-                  {hardBlocks.map((v) => (
+                  {hardBlocks.map((v) => {
+                    const isReceiptViolation = v.violation.ruleType === "RECEIPT_REQUIRED";
+                    return (
                     <div
                       key={v.expenseId}
                       className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start justify-between gap-3"
@@ -166,10 +168,10 @@ export function PolicyCheckModal({
                           onEditExpense(v.expenseId);
                         }}
                       >
-                        Edit
+                        {isReceiptViolation ? "Add Receipt" : "Edit"}
                       </Button>
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
 

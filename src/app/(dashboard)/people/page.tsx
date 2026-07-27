@@ -26,8 +26,10 @@ function People() {
     const canReadDirectory  = can('user', 'read') || can('user', 'manage');
 
     const usersApi     = useGetAllUsersApi({ enabled: canReadUsers });
-    const _deptsApi     = useGetAllDepartmentsApi({ enabled: canReadDepts });
-    const rolesApi     = useGetAllRolesApi({}, { enabled: canReadRoles });
+    // useGetAllDepartmentsApi and useGetAllRolesApi are called here at page level
+    // so their cache is warm before UserProfileModal opens (which gates them on isOpen).
+    const deptsApi     = useGetAllDepartmentsApi({ enabled: canReadDepts });
+    const rolesApi     = useGetAllRolesApi({ limit: 50 }, { enabled: canReadRoles });
     const directoryApi = useGetDirectoryUsersApi({ enabled: canReadDirectory });
 
     const directoryTotalCount = directoryApi?.data?.meta?.totalCount ?? 0;

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ExpenseTimeline } from "@/components/expenses/personal/ExpenseTimeline";
 import { CONote } from "@/components/expenses/personal/CONote";
 import { ExpenseItemModal } from "@/components/expenses/personal/ExpenseItemModal";
@@ -17,6 +18,7 @@ import {
 import { ExpenseDetailSkeleton } from "@/components/expenses/ExpenseDetailSkeleton";
 import { useAuthStore } from "@/stores/auth-stores";
 import { PolicyComplianceBadge } from "@/components/expenses/PolicyComplianceBadge";
+import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 
 // Helper function to format date
 const formatDate = (dateString: string): string => {
@@ -54,6 +56,10 @@ export default function PersonalExpenseDetailPage() {
     isLoading,
     error,
   } = usePersonalExpenseDetail(reportId);
+
+  // Pre-fetch users so the cache is warm before the modal opens.
+  // This prevents the "Unknown User" flash when viewing split allocations.
+  useGetAllUsersApi({ enabled: true });
 
   if (isLoading) {
     return <ExpenseDetailSkeleton />;
@@ -219,8 +225,13 @@ export default function PersonalExpenseDetailPage() {
                     >
                       <td className="p-3">
                         <div>
-                          <p className="text-sm font-medium text-foreground">
+                          <p className="text-sm font-medium text-foreground flex items-center gap-2">
                             {expense.title}
+                            {(expense.isSplit || expense.expenseType?.toLowerCase() === "split" || (Array.isArray(expense.splitAllocations) && expense.splitAllocations.length > 0)) && (
+                              <Badge className="bg-purple-100 text-purple-600 border-transparent px-1.5 py-0.5 text-[10px] leading-none font-medium">
+                                Split
+                              </Badge>
+                            )}
                           </p>
                           {expense.description && (
                             <p className="text-xs text-muted-foreground">
@@ -318,7 +329,13 @@ export default function PersonalExpenseDetailPage() {
           categoryName: selectedExpense.categoryName || "Uncategorized",
           description: selectedExpense.description,
           receiptUrl: selectedExpense.receiptUrl,
+          transactionDate: selectedExpense.transactionDate,
+          createdAt: selectedExpense.createdAt,
           policyJustification: selectedExpense.policyJustification,
+          isSplit: selectedExpense.isSplit,
+          expenseType: selectedExpense.expenseType,
+          splitParticipants: selectedExpense.splitParticipants,
+          splitAllocations: selectedExpense.splitAllocations,
         } : null}
       />
 

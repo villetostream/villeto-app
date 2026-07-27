@@ -26,6 +26,10 @@ interface ExpenseItemPayload {
   /** ISO 8601 string — the actual date the transaction occurred (from the receipt/user input) */
   transactionDate: string;
   receiptImage?: string;
+  isSplit?: boolean;
+  splitParticipants?: string[];
+  splitAllocationMode?: "equal" | "manual";
+  splitAllocations?: Record<string, string>;
 }
 
 interface ExpenseSubmissionPayload {
@@ -98,6 +102,11 @@ export interface ExpenseItem {
   transactionDate?: string;
   /** Justification provided by the employee when the expense exceeded a soft-warn policy limit. */
   policyJustification?: string | null;
+  isSplit?: boolean;
+  expenseType?: "individual" | "split";
+  splitParticipants?: string[];
+  splitAllocationMode?: "equal" | "manual";
+  splitAllocations?: { amount: number; userId: string }[] | Record<string, string>;
 }
 
 export interface PersonalExpenseDetailResponse {

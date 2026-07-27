@@ -7,7 +7,7 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, MessageSquare } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import OnboardingTitle from "@/components/onboarding/_shared/OnboardingTitle";
 import CircleProgress from "@/components/HalfProgressCircle";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
@@ -24,6 +24,9 @@ type FormData = z.infer<typeof registrationSchema>;
 
 export default function GetStarted() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const emailParam = searchParams.get("email");
+    
     const onboarding = useOnboardingStore()
     const startOnboarding = useStartOnboardingApi();
     const loading = startOnboarding.isPending;
@@ -35,19 +38,25 @@ export default function GetStarted() {
             contactFirstName: onboarding.preOnboarding?.contactFirstName ?? "",
             contactLastName: onboarding.preOnboarding?.contactLastName ?? "",
             accountType: onboarding.preOnboarding?.accountType ?? undefined,
-            contactEmail: onboarding.contactEmail
+            contactEmail: onboarding.contactEmail || emailParam || ""
         },
     });
+    
     useEffect(() => {
-        if (onboarding.preOnboarding) {
+        // If we have an email in the URL but not in the store, save it to the store
+        if (emailParam && !onboarding.contactEmail) {
+            onboarding.setContactEmail(emailParam);
+        }
+        
+        if (onboarding.preOnboarding || emailParam) {
             form.reset({
-                contactFirstName: onboarding.preOnboarding.contactFirstName || "",
-                contactLastName: onboarding.preOnboarding.contactLastName || "",
-                accountType: onboarding.preOnboarding.accountType || undefined,
-                contactEmail: onboarding.contactEmail || "",
+                contactFirstName: onboarding.preOnboarding?.contactFirstName || "",
+                contactLastName: onboarding.preOnboarding?.contactLastName || "",
+                accountType: onboarding.preOnboarding?.accountType || undefined,
+                contactEmail: onboarding.contactEmail || emailParam || "",
             });
         }
-    }, [onboarding.preOnboarding, onboarding.contactEmail, form]);
+    }, [onboarding.preOnboarding, onboarding.contactEmail, emailParam, form]);
 
     const onSubmit = async (data: FormData) => {
         try {

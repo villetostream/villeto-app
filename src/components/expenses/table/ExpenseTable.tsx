@@ -147,7 +147,7 @@ useEffect(() => { onFilteredDataChangeRef.current = onFilteredDataChange; });
       columns={columnsOverride ?? []}
       paginationProps={tableprops.paginationProps}
       emptyState={emptyState}
-      enableRowSelection={true}
+      enableRowSelection={false}
       enableColumnVisibility={true}
       selectedDataIds={tableprops.selectedDataIds}
       setSelectedDataIds={tableprops.setSelectedDataIds}

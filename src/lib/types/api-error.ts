@@ -135,7 +135,12 @@ export function isPolicyViolationError(error: unknown): boolean {
     return true;
   }
 
-  if (message.includes("policy limit") || message.includes("policy violation")) {
+  // New backend shape: resolution = "BLOCK" with top-level violations[]
+  if (getString(nested.resolution) === "BLOCK") {
+    return true;
+  }
+
+  if (message.includes("policy limit") || message.includes("policy violation") || message.includes("report blocked")) {
     return true;
   }
 
@@ -162,7 +167,8 @@ export function getPolicyExpenseResults(error: unknown): PolicyExpenseResult[] {
 
   const expenseResults = nested.expenseResults;
   if (Array.isArray(expenseResults) && expenseResults.length > 0) {
-    return expenseResults.filter(isRecord).map((r) => ({
+    // Parse each expense result
+    const parsed: PolicyExpenseResult[] = expenseResults.filter(isRecord).map((r) => ({
       expenseIndex: typeof r.expenseIndex === "number" ? r.expenseIndex : undefined,
       expenseTitle: getOptionalString(r.expenseTitle) ?? getOptionalString(r.title),
       categoryName: getOptionalString(r.categoryName),
@@ -171,6 +177,92 @@ export function getPolicyExpenseResults(error: unknown): PolicyExpenseResult[] {
           ? r.amount
           : undefined,
       violations: parseViolationItems(asArray(r.violations)),
+    }));
+
+    // NEW backend shape: top-level violations[] carry affectedExpenseIndexes[]
+    // while per-expense violations[] is empty. Fan violations out onto each
+    // affected expense result so the UI can display them.
+    const topLevelViolations = asArray(nested.violations).filter(isRecord);
+    if (topLevelViolations.length > 0) {
+      const hasMissingPerExpenseViolations = parsed.some((r) => !r.violations || r.violations.length === 0);
+      if (hasMissingPerExpenseViolations) {
+        // Build a map: expenseIndex -> violations[]
+        const byIndex: Record<number, PolicyViolationItem[]> = {};
+        topLevelViolations.forEach((v) => {
+          const affectedIndexes = asArray(v.affectedExpenseIndexes).filter(
+            (i): i is number => typeof i === "number"
+          );
+          const violationItem: PolicyViolationItem = {
+            type: getOptionalString(v.type),
+            message: getOptionalString(v.message),
+            enforcementAction: getOptionalString(v.enforcementAction),
+            limitChecks: Array.isArray(v.limitChecks)
+              ? v.limitChecks.filter(isRecord).map((lc) => ({
+                  timeUnit: getOptionalString(lc.timeUnit),
+                  limit: getNumber(lc.limit),
+                  spentBeforeThisReport: getNumber(lc.spentBeforeThisReport),
+                  thisReportAmount: getNumber(lc.thisReportAmount),
+                  totalAfterThisReport: getNumber(lc.totalAfterThisReport),
+                  exceeded: getBoolean(lc.exceeded),
+                  overage: getNumber(lc.overage),
+                }))
+              : undefined,
+          };
+          affectedIndexes.forEach((idx) => {
+            if (!byIndex[idx]) byIndex[idx] = [];
+            byIndex[idx].push(violationItem);
+          });
+        });
+
+        // Merge into parsed results
+        return parsed.map((r) => {
+          const idx = r.expenseIndex;
+          const extra = idx !== undefined ? byIndex[idx] ?? [] : [];
+          return {
+            ...r,
+            violations: [...(r.violations ?? []), ...extra],
+          };
+        });
+      }
+    }
+
+    return parsed;
+  }
+
+  // Standalone top-level violations[] without expenseResults (edge case)
+  const topLevelOnly = asArray(nested.violations).filter(isRecord);
+  if (topLevelOnly.length > 0) {
+    // Create one synthetic result per unique affectedExpenseIndex
+    const byIndex: Record<number, PolicyViolationItem[]> = {};
+    topLevelOnly.forEach((v) => {
+      const affectedIndexes = asArray(v.affectedExpenseIndexes).filter(
+        (i): i is number => typeof i === "number"
+      );
+      const violationItem: PolicyViolationItem = {
+        type: getOptionalString(v.type),
+        message: getOptionalString(v.message),
+        enforcementAction: getOptionalString(v.enforcementAction),
+        limitChecks: Array.isArray(v.limitChecks)
+          ? v.limitChecks.filter(isRecord).map((lc) => ({
+              timeUnit: getOptionalString(lc.timeUnit),
+              limit: getNumber(lc.limit),
+              spentBeforeThisReport: getNumber(lc.spentBeforeThisReport),
+              thisReportAmount: getNumber(lc.thisReportAmount),
+              totalAfterThisReport: getNumber(lc.totalAfterThisReport),
+              exceeded: getBoolean(lc.exceeded),
+              overage: getNumber(lc.overage),
+            }))
+          : undefined,
+      };
+      const targets = affectedIndexes.length > 0 ? affectedIndexes : [0];
+      targets.forEach((idx) => {
+        if (!byIndex[idx]) byIndex[idx] = [];
+        byIndex[idx].push(violationItem);
+      });
+    });
+    return Object.entries(byIndex).map(([idx, violations]) => ({
+      expenseIndex: Number(idx),
+      violations,
     }));
   }
 

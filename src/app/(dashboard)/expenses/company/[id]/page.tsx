@@ -3,6 +3,7 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -23,16 +24,15 @@ import {
   type ExpenseItem,
 } from "@/lib/react-query/expenses";
 import { ExpenseDetailSkeleton } from "@/components/expenses/ExpenseDetailSkeleton";
-import { useState, useEffect } from "react";
-import { useAxios } from "@/hooks/useAxios";
-import { API_KEYS } from "@/lib/constants/apis";
-import { Check, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, Check } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { logger } from "@/lib/logger";
 import { CONote } from "@/components/expenses/personal/CONote";
 import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
 import { PolicyComplianceBadge } from "@/components/expenses/PolicyComplianceBadge";
 import { asRecord, pickString } from "@/lib/types/api-error";
+import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 
 const formatDate = (dateString: string): string => {
   try {
@@ -175,13 +175,20 @@ export default function CompanyExpenseDetailPage() {
   const scope   = (searchParams.get("scope") || "company") as "own" | "team" | "company";
   const router  = useRouter();
   const reportId = params.id as string;
-  const axios   = useAxios();
   const currencySymbol = useAuthStore((state) => state.getCurrencySymbol());
   const { can } = useAuthStore();
 
   const [overrideUnlocked, setOverrideUnlocked] = useState(false);
 
-  const [user, setUser]               = useState<User | null>(null);
+  // Read the logged-in user synchronously from the auth store to avoid a flash
+  // caused by an async /me fetch completing after the first render.
+  const authUser = useAuthStore((state) => state.user);
+  const user: User | null = authUser ? {
+    userId: authUser.userId,
+    firstName: authUser.firstName,
+    lastName: String(authUser.lastName),
+    avatar: undefined,
+  } : null;
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -194,17 +201,10 @@ export default function CompanyExpenseDetailPage() {
   const isPageLoading = isLoading || isFetching;
   const updateStatusMutation = useUpdateCompanyExpenseStatus();
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const response = await axios.get<{ data: User }>(API_KEYS.USER.ME);
-        setUser(response.data.data);
-      } catch (err) {
-        logger.error("Failed to fetch user:", err);
-      }
-    };
-    fetchUser();
-  }, [axios]);
+  // Pre-fetch users so the cache is warm before the modal opens.
+  // This prevents the "Unknown User" flash when viewing split allocations.
+  useGetAllUsersApi({ enabled: true });
+
 
   if (isPageLoading) return <ExpenseDetailSkeleton />;
 
@@ -403,7 +403,14 @@ export default function CompanyExpenseDetailPage() {
                         onClick={() => { setSelectedExpense(expense); setIsExpenseModalOpen(true); }}
                       >
                         <td className="p-3">
-                          <p className="text-sm font-medium text-foreground">{expense.title}</p>
+                          <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                            {expense.title}
+                            {(expense.isSplit || expense.expenseType?.toLowerCase() === "split" || (Array.isArray(expense.splitAllocations) && expense.splitAllocations.length > 0)) && (
+                              <Badge className="bg-purple-100 text-purple-600 border-transparent px-1.5 py-0.5 text-[10px] leading-none font-medium">
+                                Split
+                              </Badge>
+                            )}
+                          </p>
                           {expense.description && (
                             <p className="text-xs text-muted-foreground">{expense.description}</p>
                           )}
@@ -479,6 +486,9 @@ export default function CompanyExpenseDetailPage() {
           receiptUrl:   selectedExpense.receiptUrl,
           transactionDate: selectedExpense.transactionDate,
           policyJustification: selectedExpense.policyJustification,
+          isSplit: selectedExpense.isSplit,
+          splitParticipants: selectedExpense.splitParticipants,
+          splitAllocations: selectedExpense.splitAllocations,
         } : null}
       />
 

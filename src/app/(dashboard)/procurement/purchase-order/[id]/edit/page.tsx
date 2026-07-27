@@ -376,6 +376,65 @@ function LineItemModal({
   );
 }
 
+// ─── Cancel PO Modal ─────────────────────────────────────────────────────────
+
+function CancelPOModal({
+  open,
+  onClose,
+  onConfirm,
+  isPending,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+  isPending: boolean;
+}) {
+  const [reason, setReason] = useState("");
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
+        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
+          <X className="w-4 h-4 text-muted-foreground" />
+        </button>
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+            <X className="w-5 h-5 text-red-500" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-foreground">Cancel Purchase Order</h3>
+            <p className="text-sm text-muted-foreground mt-0.5">Please provide a reason for cancelling this draft PO.</p>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-foreground">Reason <span className="text-red-500">*</span></label>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="e.g. Budget was reallocated to a higher-priority purchase."
+            rows={4}
+            className="w-full rounded-xl border border-border px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400 transition-all"
+          />
+          {reason.trim().length > 0 && reason.trim().length < 10 && (
+            <p className="text-xs text-red-500 flex items-center gap-1"><ArrowLeft className="w-3 h-3 rotate-90" /> At least 10 characters required.</p>
+          )}
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-border text-sm font-medium hover:bg-muted/40 transition-colors">Keep Draft</button>
+          <button
+            onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())}
+            disabled={reason.trim().length < 10 || isPending}
+            className="flex-1 h-10 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancel PO"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Edit Page ───────────────────────────────────────────────────────────
 
 export default function EditPurchaseOrderPage() {
@@ -536,9 +595,9 @@ export default function EditPurchaseOrderPage() {
     }
   };
 
-  const handleCancel = async () => {
+  const handleCancel = async (reason: string) => {
     try {
-      await cancelPO.mutateAsync({ id, reason: "Draft purchase order cancelled" });
+      await cancelPO.mutateAsync({ id, reason });
       toast.success("Purchase Order cancelled.");
       router.push(listUrl);
     } catch (err) {
@@ -768,24 +827,13 @@ export default function EditPurchaseOrderPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Cancel PO Confirm */}
-      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel this Purchase Order?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently cancel the draft PO. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep Draft</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel} disabled={cancelPO.isPending} className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2">
-              {cancelPO.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Cancel PO
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Cancel PO Modal — collects reason before calling the cancel endpoint */}
+      <CancelPOModal
+        open={showCancelDialog}
+        onClose={() => setShowCancelDialog(false)}
+        onConfirm={handleCancel}
+        isPending={cancelPO.isPending}
+      />
     </>
   );
 }

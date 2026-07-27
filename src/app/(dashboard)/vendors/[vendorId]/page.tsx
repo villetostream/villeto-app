@@ -193,12 +193,7 @@ function VendorDetailsPage() {
               Reject vendor
             </button>
           )}
-          {isUnderReview && can('vendor', 'review') && (
-            <button disabled={isSubmitting} onClick={() => setRequestInfoModalOpen(true)}
-              className="px-5 h-10 rounded-xl border border-[#00BFA5] text-[#00BFA5] font-semibold text-sm hover:bg-[#00BFA5]/5 transition-colors disabled:opacity-50">
-              Request Info
-            </button>
-          )}
+
           {isUnderReview && can('vendor', 'approve') && (
             <button disabled={isSubmitting} onClick={() => handleDecision("approved")}
               className="px-5 h-10 rounded-xl bg-[#00BFA5] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">

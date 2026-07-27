@@ -5,12 +5,21 @@ import { useState, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ImagePlus, X } from "lucide-react";
-import { ExpenseForm, type ExpenseDetailFormData } from "./ExpenseForm";
+import { ImagePlus, X, Users } from "lucide-react";
+import { ExpenseForm, type ExpenseDetailFormData, type SplitParticipant } from "./ExpenseForm";
 
 interface ReceiptUploadSectionProps {
-  onReceiptsUpload: (receipts: { base64: string; name: string }[]) => void;
-  onAddExpense: (data: ExpenseDetailFormData, receiptImage?: string) => void;
+  onReceiptsUpload: (receipts: { base64: string; name: string }[], isSplit?: boolean) => void;
+  onAddExpense: (
+    data: ExpenseDetailFormData,
+    receiptImage?: string,
+    isSplit?: boolean,
+    splitData?: {
+      participants: SplitParticipant[];
+      allocationMode: "equal" | "manual";
+      allocations: Record<string, string>;
+    }
+  ) => void;
   categories: { categoryId: string; name: string }[];
   /** Names of expenses already added to the report — used to prevent duplicates */
   existingExpenseNames?: string[];
@@ -21,17 +30,24 @@ interface PendingReceipt {
   previewUrl: string;
 }
 
+type ExpenseTab = "individual" | "split";
+
 export function ReceiptUploadSection({
   onReceiptsUpload,
   onAddExpense,
   categories,
   existingExpenseNames = [],
 }: ReceiptUploadSectionProps) {
+  // Which tab is active — the existing scan/manual flow lives under "individual",
+  // "split" is a UI-only duplicate that does not touch any endpoint.
+  const [activeTab, setActiveTab] = useState<ExpenseTab>("individual");
+
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
   const [pendingReceipts, setPendingReceipts] = useState<PendingReceipt[]>([]);
 
+  const isSplitTab = activeTab === "split";
   const hasPending = pendingReceipts.length > 0;
 
   useEffect(() => {
@@ -110,7 +126,7 @@ export function ReceiptUploadSection({
           name: file.name,
         })),
       );
-      onReceiptsUpload(processedFiles);
+      onReceiptsUpload(processedFiles, isSplitTab);
       clearPending();
     } catch (error) {
       logger.error("Error processing files:", error);
@@ -119,17 +135,71 @@ export function ReceiptUploadSection({
     }
   };
 
+  // Switching tabs resets any in-progress upload/manual entry so the two flows
+  // never bleed into each other.
+  const handleTabChange = (tab: ExpenseTab) => {
+    if (tab === activeTab) return;
+    setActiveTab(tab);
+    setShowManualForm(false);
+    clearPending();
+  };
+
+  const uploadInputId = isSplitTab ? "receipt-upload-input-split" : "receipt-upload-input";
+
+  // ── Tab switcher ────────────────────────────────────────────────────────
+  const tabSwitcher = (
+    <div className="flex justify-center mb-4">
+      <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-muted/40">
+        <button
+          type="button"
+          onClick={() => handleTabChange("individual")}
+          className={cn(
+            "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+            !isSplitTab
+              ? "bg-white text-primary shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Individual Expense
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange("split")}
+          className={cn(
+            "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+            isSplitTab
+              ? "bg-white text-primary shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Split Expense
+        </button>
+      </div>
+    </div>
+  );
+
   if (showManualForm) {
     return (
       <div className="h-full flex flex-col animate-in fade-in zoom-in-[0.99] duration-150 ease-out">
+        {tabSwitcher}
         <div className="mb-4 flex flex-row justify-between items-center bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
-          <span className="font-semibold text-dashboard-text-primary">Manual Expense Entry</span>
+          <span className="font-semibold text-dashboard-text-primary">
+            {isSplitTab ? "Split Expense Entry" : "Manual Expense Entry"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowManualForm(false)}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+          >
+            Cancel Manual entry
+          </button>
         </div>
         <ExpenseForm
-          formId="manual-expense-form"
+          formId={isSplitTab ? "split-expense-form" : "manual-expense-form"}
           categories={categories}
-          onSave={(data, receipt) => {
-            onAddExpense(data, receipt);
+          mode={isSplitTab ? "split" : "individual"}
+          onSave={(data, receipt, splitData) => {
+            onAddExpense(data, receipt, isSplitTab, splitData);
             setShowManualForm(false);
           }}
           onCancel={() => setShowManualForm(false)}
@@ -143,6 +213,8 @@ export function ReceiptUploadSection({
 
   return (
     <div className="animate-in fade-in zoom-in-[0.99] duration-150 ease-out space-y-4">
+      {tabSwitcher}
+
       <div
         className={cn(
           "border-2 border-dashed border-primary rounded-lg transition-colors bg-white overflow-hidden",
@@ -162,7 +234,7 @@ export function ReceiptUploadSection({
               : "w-full max-w-sm space-y-6",
           )}
         >
-          <div className="w-14 h-14 rounded-2xl bg-[#F0FBFA] flex items-center justify-center">
+          <div className="relative w-14 h-14 rounded-2xl bg-[#F0FBFA] flex items-center justify-center">
             {hasPending ? (
               <ImagePlus className="w-7 h-7 text-[#111827]" />
             ) : (
@@ -172,21 +244,28 @@ export function ReceiptUploadSection({
                 <path d="M3 13C3 12.4477 3.44772 12 4 12C4.55228 12 5 12.4477 5 13V18C5 18.5523 5.44772 19 6 19H18C18.5523 19 19 18.5523 19 18V13C19 12.4477 19.4477 12 20 12C20.5523 12 21 12.4477 21 13V18C21 20.2091 19.2091 22 17 22H7C4.79086 22 3 20.2091 3 18V13Z" fill="#111827" />
               </svg>
             )}
+            {isSplitTab && (
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center ring-2 ring-white">
+                <Users className="w-2.5 h-2.5 text-white" />
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
             <h3 className="text-lg font-semibold text-[#111827]">
-              {hasPending ? "Add more receipts" : "Scan Receipts"}
+              {hasPending ? "Add more receipts" : isSplitTab ? "Scan Receipts to Split" : "Scan Receipts"}
             </h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
               {hasPending
                 ? `${pendingReceipts.length} selected — review on the right, then add to your report.`
-                : "Upload receipt images to scan and add them to your report."}
+                : isSplitTab
+                  ? "Upload receipt images to scan and split them across participants."
+                  : "Upload receipt images to scan and add them to your report."}
             </p>
           </div>
 
           <input
-            id="receipt-upload-input"
+            id={uploadInputId}
             type="file"
             accept="image/*"
             multiple
@@ -195,7 +274,7 @@ export function ReceiptUploadSection({
           />
           <Button
             type="button"
-            onClick={() => document.getElementById("receipt-upload-input")?.click()}
+            onClick={() => document.getElementById(uploadInputId)?.click()}
             disabled={isUploading}
             variant={hasPending ? "outline" : "default"}
             className={cn(
