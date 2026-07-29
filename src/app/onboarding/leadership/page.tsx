@@ -257,7 +257,7 @@ export default function Leadership() {
     const handleAddPerson = (person: Omit<BeneficialOwner, "id"> | Omit<Officer, "id"> & { isSelf: boolean }) => {
         const personWithSelf = person as typeof person & { isSelf: boolean };
 
-        if (personWithSelf.isSelf) {
+        if (personWithSelf.isSelf || editingSelf) {
             // Store the current user as the self-owner in the persistent store
             setSelfOwner({
                 firstName: person.firstName,
@@ -265,6 +265,8 @@ export default function Leadership() {
                 email: person.email,
                 ownershipPercentage: Number((person as BeneficialOwner).ownershipPercentage ?? 0),
             });
+            // If they were also in userProfiles as a regular owner/officer, remove them to prevent duplicates
+            updateUserProfiles(userProfiles.filter(p => p.email?.toLowerCase() !== person.email?.toLowerCase()));
         } else if (editingPerson) {
             // Editing an existing external owner
             const updatedProfiles = userProfiles.map(p =>
