@@ -20,6 +20,8 @@ export const useHydrateOnboardingData = () => {
         businessSnapshot,
         updateBusinessSnapshot,
         updateUserProfiles,
+        contactEmail,
+        setSelfOwner,
     } = useOnboardingStore();
 
     const hasHydrated = useRef(false);
@@ -63,9 +65,59 @@ export const useHydrateOnboardingData = () => {
             role: officer.user?.role || "",
         }));
 
-        const allProfiles = [...ownerProfiles, ...officerProfiles];
+        type HydratedProfile = {
+            id: string;
+            firstName: string;
+            lastName: string;
+            email: string;
+            role: string;
+            phone?: string;
+            ownershipPercentage?: number;
+        };
+
+        const profileMap = new Map<string, HydratedProfile>();
+        const mergedProfiles: HydratedProfile[] = [
+            ...ownerProfiles,
+            ...officerProfiles.map(o => ({ ...o, ownershipPercentage: undefined as number | undefined })),
+        ];
+        mergedProfiles.forEach(profile => {
+            const key = profile.email || profile.id;
+            if (profileMap.has(key)) {
+                const existing = profileMap.get(key)!;
+                profileMap.set(key, {
+                    ...existing,
+                    ...profile,
+                    ownershipPercentage: existing.ownershipPercentage ?? profile.ownershipPercentage,
+                    role: existing.role || profile.role,
+                });
+            } else {
+                profileMap.set(key, profile);
+            }
+        });
+
+        const allProfiles = Array.from(profileMap.values());
+        
+        // Extract selfOwner if they are the applicant
+        const selfProfileIndex = allProfiles.findIndex(p => p.email && contactEmail && p.email.toLowerCase() === contactEmail.toLowerCase());
+        
+        if (selfProfileIndex !== -1) {
+            const selfProfile = allProfiles[selfProfileIndex];
+            if (selfProfile.ownershipPercentage !== undefined) {
+                setSelfOwner({
+                    firstName: selfProfile.firstName,
+                    lastName: selfProfile.lastName,
+                    email: selfProfile.email,
+                    ownershipPercentage: selfProfile.ownershipPercentage
+                });
+            }
+            // Remove self from userProfiles to avoid duplication
+            allProfiles.splice(selfProfileIndex, 1);
+        }
+
         if (allProfiles.length > 0) {
             updateUserProfiles(allProfiles);
+        } else {
+            updateUserProfiles([]);
         }
 
         // Hydrate financial pulse (spend limit)
