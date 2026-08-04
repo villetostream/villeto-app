@@ -93,21 +93,19 @@ export default function ReviewConfirmation() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-[780px] space-y-6 py-4">
       <CongratulationsModal />
       {/* Header */}
-      <div className="text-left mb-10 ">
-        <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center">
+      <div className="mb-9 text-left">
+        <div className="mb-5 flex size-11 items-center justify-center rounded-[10px] bg-[#e7f6f2]">
           <HugeiconsIcon
             icon={CheckmarkBadge03Icon}
-            className="size-14 text-primary"
+            className="size-6 text-[#087f70]"
           />
         </div>
         <OnboardingTitle
-          title={"Review & Confirmation"}
-          subtitle={
-            "Please go through the information you have provided before submission"
-          }
+          title="Review your application"
+          subtitle="Confirm the information below before submitting your Villeto workspace application."
         />
       </div>
       {/* Business Snapshot */}
@@ -303,12 +301,12 @@ export default function ReviewConfirmation() {
       </Card>
 
       {/* Submit Button */}
-      <div className="flex justify-end pt-6">
+      <div className="flex justify-end border-t border-black/[0.07] pt-5">
         <Button
           onClick={handleSubmit}
           disabled={isSubmitting}
           size={"md"}
-          className="!px-12"
+          className="h-[50px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[13px] font-semibold text-white hover:bg-[#0c9785] sm:w-auto"
         >
           {isSubmitting ? (
             <>

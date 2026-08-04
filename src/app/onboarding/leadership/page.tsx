@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import { AddBeneficialOwnerModal } from "@/components/onboarding/AddBeneficialOwner";
 import OnboardingTitle from "@/components/onboarding/_shared/OnboardingTitle";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
-import { useAuthStore } from "@/stores/auth-stores";
 import { LeaderShipPayload, useUpdateOnboardingLeadersApi } from "@/queries/onboarding/update-leadership";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -219,16 +218,6 @@ export function ActionButtons({
     );
 }
 
-// ─── Self-owner state ──────────────────────────────────────────────────────────
-interface SelfOwner {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    role: string;
-    ownershipPercentage: number;
-}
-
 export default function Leadership() {
     const router = useRouter();
     const { userProfiles, updateUserProfiles, selfOwner, setSelfOwner } = useOnboardingStore();
@@ -361,15 +350,15 @@ export default function Leadership() {
     const hasOwners = isUserAnOwner || businessOwners.length > 0;
 
     return (
-        <div className="h-full flex-col flex">
+        <div className="mx-auto flex min-h-full max-w-[780px] flex-col py-4">
             <div className="text-left space-y-4">
-                <div className=" size-24 flex items-center justify-center bg-primary-light rounded-full mb-10">
-                    <HugeiconsIcon icon={UserGroup03FreeIcons} className="size-16 text-primary" />
+                <div className="mb-5 flex size-11 items-center justify-center rounded-[10px] bg-[#e7f6f2]">
+                    <HugeiconsIcon icon={UserGroup03FreeIcons} className="size-6 text-[#087f70]" />
                 </div>
 
                 <OnboardingTitle
-                    title="Beneficial Owner"
-                    subtitle="Enter details of owner(s) of the company."
+                    title="Leadership and ownership"
+                    subtitle="Add beneficial owners and the officers responsible for your company."
                 />
             </div>
 

@@ -1,25 +1,24 @@
-
-import { Metadata } from "next";
+import type { Metadata } from "next";
 import { OnboardingSidebar } from "@/components/onboarding/_shared/OnboardingSidebar";
-import QueryProvider from "@/providers/queryClientProvider";
 import OnboardingGuard from "@/components/onboarding/_shared/OnboardingGuard";
+import QueryProvider from "@/providers/queryClientProvider";
+
 export const metadata: Metadata = {
-  title: "Onboarding ",
-  description: "Company onboarding process",
+  title: "Set up your Villeto workspace",
+  description: "Complete your company onboarding.",
 };
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
-  // Determine current step from pathname if needed, or let each page handle
   return (
-    <div className="flex p-5 gap-5 bg-background h-screen overflow-hidden">
+    <div className="flex min-h-dvh flex-col bg-[#f2f5f4] lg:h-dvh lg:flex-row lg:overflow-hidden">
       <OnboardingSidebar />
       <QueryProvider>
         <OnboardingGuard>
-          <div className="flex-1  p-8 px-[5.43777%] w-full h-full min-[]: bg-white overflow-y-auto">
-
-            {children}
-
-          </div>
+          <main className="min-w-0 flex-1 overflow-y-auto bg-white">
+            <div className="mx-auto min-h-full w-full max-w-[920px] px-6 py-10 sm:px-10 lg:px-12 lg:py-14 xl:px-16">
+              {children}
+            </div>
+          </main>
         </OnboardingGuard>
       </QueryProvider>
     </div>
