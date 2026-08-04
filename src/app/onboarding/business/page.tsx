@@ -166,23 +166,22 @@ export default function Business() {
   }
 
   return (
-    <div className="space-y-8 flex flex-col justify-start h-full py-4">
+    <div className="mx-auto flex min-h-full max-w-[720px] flex-col justify-center py-4">
       <div className="text-left ">
-        <div className="w-16 h-16 bg-primary-light rounded-full flex mb-10">
+        <div className="mb-5 flex size-11 items-center justify-center rounded-[10px] bg-[#e7f6f2]">
           <HugeiconsIcon
             icon={Building03FreeIcons}
-            className="size-16 text-primary"
+            className="size-6 text-[#087f70]"
           />
         </div>
 
         <OnboardingTitle
-          title="Tell us more about your Business"
-          subtitle="
-                    Tell us about your business"
+          title="Tell us about your business"
+          subtitle="Confirm your company details so we can configure the right workspace settings."
         />
       </div>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="mt-8 space-y-5">
           <FormFieldLogoUpload
             control={form.control}
             name="businessLogo"
@@ -280,10 +279,10 @@ export default function Business() {
                         )} />
                 </div> */}
 
-          <div className="w-full flex mt-10">
+          <div className="mt-8 flex w-full border-t border-black/[0.07] pt-5">
             <Button
               type="submit"
-              className="ml-auto! min-w-[250px] max-w-[250px] self-end"
+              className="ml-auto h-[50px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[13px] font-semibold text-white hover:bg-[#0c9785] sm:w-auto"
               disabled={loading}
             >
               {loading ? "Creating..." : "Continue"}{" "}

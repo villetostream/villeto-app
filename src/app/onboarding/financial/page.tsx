@@ -42,31 +42,31 @@ export default function FinancialPulse() {
     }
 
     return (
-        <div className="h-full bg-background flex">
-            <div className="flex-1 flex flex-col justify-center">
+        <div className="mx-auto flex min-h-full max-w-[760px] bg-background py-4">
+            <div className="flex flex-1 flex-col justify-center">
 
                 {/* Header */}
-                <div className="text-left mb-12">
-                    <div className="w-24 h-24 bg-primary-light rounded-full flex items-center justify-center mb-10">
-                        <HugeiconsIcon icon={Invoice02Icon} className="size-16 text-primary" />
+                <div className="mb-9 text-left">
+                    <div className="mb-5 flex size-11 items-center justify-center rounded-[10px] bg-[#e7f6f2]">
+                        <HugeiconsIcon icon={Invoice02Icon} className="size-6 text-[#087f70]" />
                     </div>
-                    <OnboardingTitle title={"Company Expenditure"} subtitle={"Manage how much your company spends over a period of time"} />
+                    <OnboardingTitle title="Your company spend profile" subtitle="Estimate your monthly spend and connect the account you will use with Villeto." />
 
                 </div>
 
                 {/* Form Content */}
-                <div className="space-y-12">
+                <div className="space-y-9">
                     <SpendingSlider />
                     <BankConnection />
                 </div>
 
                 {/* Continue Button */}
-                <div className="mt-12 flex justify-end">
+                <div className="mt-10 flex justify-end border-t border-black/[0.07] pt-5">
                     <Button
                         size="lg"
                         disabled={loading ?? !canContinue}
                         onClick={handleSubmit}
-                        className={`px-8 py-3 bg-primary hover:bg-villeto-primary-light text-white`}
+                        className="h-[50px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[13px] font-semibold text-white hover:bg-[#0c9785] sm:w-auto"
                     >
                         {loading ? "Creating" : "   Continue"}
                         {loading ? <Loader2 className="size-6 animate-spin" /> : <svg className="w-4 h-4 ml-2" viewBox="0 0 24 24" fill="none">

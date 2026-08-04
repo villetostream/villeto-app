@@ -80,19 +80,19 @@ export default function ChooseProducts() {
     const isAnyProductSelected = villetoProducts.some(product => product.selected);
 
     return (
-        <div className="flex-1 ">
+        <div className="mx-auto max-w-[760px] py-4">
 
             {/* Header */}
-            <div className="text-left mb-10 ">
-                <div className="w-24 h-24 bg-primary-light rounded-full flex items-center justify-center mb-10">
-                    <HugeiconsIcon icon={ProductLoadingIcon} className="size-14 text-primary" />
+            <div className="mb-9 text-left">
+                <div className="mb-5 flex size-11 items-center justify-center rounded-[10px] bg-[#e7f6f2]">
+                    <HugeiconsIcon icon={ProductLoadingIcon} className="size-6 text-[#087f70]" />
                 </div>
-                <OnboardingTitle title={"Choose your Villeto Product"} subtitle={"Villeto offers a wide array of products to choose from."} />
+                <OnboardingTitle title="Choose your Villeto products" subtitle="Select the tools your team plans to use. You can change these later." />
 
             </div>
 
             {/* Products Grid */}
-            <div className="space-y-4 mb-12">
+            <div className="mb-10 space-y-3">
                 {products.map((product) => {
                     const Icon = product.icon;
                     const isSelected = isProductSelected(product.id);
@@ -100,7 +100,7 @@ export default function ChooseProducts() {
                     return (
                         <Card
                             key={product.id}
-                            className={`p-5 cursor-pointer transition-all duration-200 hover:shadow-md border ${isSelected
+                            className={`cursor-pointer rounded-[10px] border p-4 transition-all duration-200 hover:shadow-sm ${isSelected
                                 ? 'border-primary bg-primary/5'
                                 : 'border-gray-300 hover:border-villeto-primary/30'
                                 }`}
@@ -134,12 +134,12 @@ export default function ChooseProducts() {
             </div>
 
             {/* Continue Button */}
-            <div className="flex justify-end">
+            <div className="flex justify-end border-t border-black/[0.07] pt-5">
                 <Button
                     onClick={handleContinue}
                     disabled={loading ?? !isAnyProductSelected}
                     size="md"
-                    className="!px-12  font-medium flex items-center space-x-2  disabled:cursor-not-allowed"
+                    className="h-[50px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[13px] font-semibold text-white hover:bg-[#0c9785] sm:w-auto"
                 >
                     <span>{loading ? "Creating..." : "Continue"}</span>
                     {loading ? <Loader2 className="aize-5 animate-spin" /> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
