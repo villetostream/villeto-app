@@ -77,11 +77,11 @@ function WorkflowProgress({ steps }: { steps: WorkflowStepType[] }) {
             <div className="flex flex-col items-center shrink-0 pt-0.5">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
                 status === "done"
-                  ? "bg-primary/10"
-                  : "bg-muted border border-border"
+                  ? "bg-[#f0faf8]"
+                  : "bg-[#f5f7f6] border border-black/[0.06]"
               }`}>
                 {status === "done"
-                  ? <svg className="w-3 h-3 text-primary" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                  ? <svg className="w-3 h-3 text-[#087f70]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                   : <div className={`w-1.5 h-1.5 rounded-full ${status === "pending" ? "bg-amber-400" : "bg-muted-foreground/40"}`} />
                 }
               </div>
@@ -92,9 +92,9 @@ function WorkflowProgress({ steps }: { steps: WorkflowStepType[] }) {
 
             {/* Content */}
             <div className={`pb-4 min-w-0 ${isLast ? "pb-0" : ""}`}>
-              <p className={`text-xs font-medium ${status === "done" ? "text-muted-foreground" : "text-muted-foreground/60"}`}>{step.label}</p>
+              <p className={`text-xs font-medium ${status === "done" ? "text-[#68726d]" : "text-[#84908a]"}`}>{step.label}</p>
               {step.person && (
-                <p className={`text-sm font-semibold flex items-center gap-1.5 flex-wrap mt-0.5 ${status === "done" || status === "pending" ? "text-foreground" : "text-muted-foreground/60"}`}>
+                <p className={`text-sm font-semibold flex items-center gap-1.5 flex-wrap mt-0.5 ${status === "done" || status === "pending" ? "text-[#0b100e]" : "text-[#84908a]"}`}>
                   {step.person}
                   {step.badge && (
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badgeColor}`}>
@@ -109,7 +109,7 @@ function WorkflowProgress({ steps }: { steps: WorkflowStepType[] }) {
                 </span>
               )}
               {step.timestamp && (
-                <p className="text-xs text-muted-foreground mt-0.5">{safeFmt(step.timestamp)}</p>
+                <p className="text-xs text-[#68726d] mt-0.5">{safeFmt(step.timestamp)}</p>
               )}
             </div>
           </div>
@@ -129,36 +129,36 @@ function RejectModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
-        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-          <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
+        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+          <X className="w-4 h-4 text-[#68726d]" />
         </button>
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-            <XCircle className="w-5 h-5 text-red-500" />
+          <div className="w-10 h-10 rounded-full bg-[#fff5f5] flex items-center justify-center shrink-0">
+            <XCircle className="w-5 h-5 text-[#d33d44]" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-foreground">Reject Purchase Order</h3>
-            <p className="text-sm text-muted-foreground mt-0.5">A reason is required so the creator can take action.</p>
+            <h3 className="text-base font-bold text-[#0b100e]">Reject Purchase Order</h3>
+            <p className="text-sm text-[#68726d] mt-0.5">A reason is required so the creator can take action.</p>
           </div>
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-foreground">Reason <span className="text-red-500">*</span></label>
+          <label className="text-xs font-semibold text-[#0b100e]">Reason <span className="text-[#d33d44]">*</span></label>
           <textarea
             value={reason} onChange={e => setReason(e.target.value)}
             placeholder="e.g. Vendor not yet approved for this category…" rows={4}
-            className="w-full rounded-xl border border-border px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400 transition-all"
+            className="w-full rounded-[12px] border border-black/[0.06] px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400 transition-all"
           />
           {reason.trim().length > 0 && reason.trim().length < 10 && (
-            <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> At least 10 characters required.</p>
+            <p className="text-xs text-[#d33d44] flex items-center gap-1"><AlertCircle className="w-3 h-3" /> At least 10 characters required.</p>
           )}
         </div>
         <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-border text-sm font-medium hover:bg-muted/40 transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
           <button
             onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())}
             disabled={reason.trim().length < 10 || isPending}
-            className="flex-1 h-10 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 h-10 rounded-[12px] bg-[#d33d44] text-white text-sm font-semibold hover:bg-[#b83038] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Rejection"}
           </button>
@@ -178,36 +178,36 @@ function WithdrawModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
-        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-          <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
+        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+          <X className="w-4 h-4 text-[#68726d]" />
         </button>
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-            <XCircle className="w-5 h-5 text-red-500" />
+          <div className="w-10 h-10 rounded-full bg-[#fff5f5] flex items-center justify-center shrink-0">
+            <XCircle className="w-5 h-5 text-[#d33d44]" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-foreground">Withdraw Purchase Order</h3>
-            <p className="text-sm text-muted-foreground mt-0.5">Please provide a reason for withdrawing this PO.</p>
+            <h3 className="text-base font-bold text-[#0b100e]">Withdraw Purchase Order</h3>
+            <p className="text-sm text-[#68726d] mt-0.5">Please provide a reason for withdrawing this PO.</p>
           </div>
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-foreground">Reason <span className="text-red-500">*</span></label>
+          <label className="text-xs font-semibold text-[#0b100e]">Reason <span className="text-[#d33d44]">*</span></label>
           <textarea
             value={reason} onChange={e => setReason(e.target.value)}
             placeholder="e.g. Budget changed, alternative supplier found…" rows={4}
-            className="w-full rounded-xl border border-border px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400 transition-all"
+            className="w-full rounded-[12px] border border-black/[0.06] px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400 transition-all"
           />
           {reason.trim().length > 0 && reason.trim().length < 10 && (
-            <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> At least 10 characters required.</p>
+            <p className="text-xs text-[#d33d44] flex items-center gap-1"><AlertCircle className="w-3 h-3" /> At least 10 characters required.</p>
           )}
         </div>
         <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-border text-sm font-medium hover:bg-muted/40 transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
           <button
             onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())}
             disabled={reason.trim().length < 10 || isPending}
-            className="flex-1 h-10 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 h-10 rounded-[12px] bg-[#d33d44] text-white text-sm font-semibold hover:bg-[#b83038] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Withdraw PO"}
           </button>
@@ -253,47 +253,47 @@ function ConfirmReceiptModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 space-y-5 max-h-[90vh] overflow-y-auto">
-        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-          <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-lg mx-4 p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+          <X className="w-4 h-4 text-[#68726d]" />
         </button>
 
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-            <PackageCheck className="w-5 h-5 text-emerald-600" />
+          <div className="w-10 h-10 rounded-full bg-[#f0faf8] flex items-center justify-center shrink-0">
+            <PackageCheck className="w-5 h-5 text-[#087f70]" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-foreground">Confirm Delivery Receipt</h3>
-            <p className="text-sm text-muted-foreground mt-0.5">Enter the quantities received for each line item.</p>
+            <h3 className="text-base font-bold text-[#0b100e]">Confirm Delivery Receipt</h3>
+            <p className="text-sm text-[#68726d] mt-0.5">Enter the quantities received for each line item.</p>
           </div>
         </div>
 
         {/* Received At */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-foreground">Date Received <span className="text-red-500">*</span></label>
+          <label className="text-xs font-semibold text-[#0b100e]">Date Received <span className="text-[#d33d44]">*</span></label>
           <input
             type="date" value={receivedAt} onChange={e => setReceivedAt(e.target.value)}
-            className="w-full h-9 rounded-lg border border-border px-3 text-sm focus:outline-none focus:border-primary transition-colors"
+            className="w-full h-9 rounded-lg border border-black/[0.06] px-3 text-sm focus:outline-none focus:border-[#087f70] transition-colors"
           />
         </div>
 
         {/* Line Items */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-foreground">Line Items</p>
-          <div className="border border-border rounded-xl overflow-hidden">
+          <p className="text-xs font-semibold text-[#0b100e]">Line Items</p>
+          <div className="border border-black/[0.06] rounded-[12px] overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-muted/20 border-b border-border/60">
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Item</th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Ordered</th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Received</th>
+                <tr className="bg-[#f9faf9] border-b border-border/60">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-[#68726d]">Item</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-[#68726d]">Ordered</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-[#68726d]">Received</th>
                 </tr>
               </thead>
               <tbody>
                 {(lineItems || []).map((li: any) => (
                   <tr key={li.purchaseOrderLineItemId} className="border-b border-border/40 last:border-0">
-                    <td className="px-4 py-3 font-medium text-foreground">{li.name}</td>
-                    <td className="px-4 py-3 text-center text-muted-foreground">{li.quantity}</td>
+                    <td className="px-4 py-3 font-medium text-[#0b100e]">{li.name}</td>
+                    <td className="px-4 py-3 text-center text-[#68726d]">{li.quantity}</td>
                     <td className="px-4 py-3 text-center">
                       <input
                         type="number" min={0} max={li.quantity}
@@ -302,7 +302,7 @@ function ConfirmReceiptModal({
                           ...prev,
                           [li.purchaseOrderLineItemId]: Math.min(li.quantity, Math.max(0, Number(e.target.value))),
                         }))}
-                        className="w-20 h-8 text-center rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors mx-auto block"
+                        className="w-20 h-8 text-center rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors mx-auto block"
                       />
                     </td>
                   </tr>
@@ -314,19 +314,19 @@ function ConfirmReceiptModal({
 
         {/* Notes */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-foreground">Notes <span className="text-muted-foreground font-normal">(optional)</span></label>
+          <label className="text-xs font-semibold text-[#0b100e]">Notes <span className="text-[#68726d] font-normal">(optional)</span></label>
           <textarea
             value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="Any notes about the delivery…" rows={3}
-            className="w-full rounded-xl border border-border px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:border-primary transition-all"
+            className="w-full rounded-[12px] border border-black/[0.06] px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:border-[#087f70] transition-all"
           />
         </div>
 
         <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-border text-sm font-medium hover:bg-muted/40 transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
           <button
             onClick={handleSubmit} disabled={!receivedAt || isPending}
-            className="flex-1 h-10 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 h-10 rounded-[12px] bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Receipt"}
           </button>
@@ -348,40 +348,40 @@ function ConfirmModal({
 }) {
   if (!open) return null;
   const variantCls = {
-    danger:  "bg-red-500 hover:bg-red-600",
-    primary: "bg-primary hover:opacity-90",
+    danger:  "bg-[#d33d44] hover:bg-[#b83038]",
+    primary: "bg-[#087f70] hover:opacity-90",
     success: "bg-emerald-600 hover:bg-emerald-700",
   }[variant];
   const iconBg = {
-    danger:  "bg-red-50",
+    danger:  "bg-[#fff5f5]",
     primary: "bg-amber-50",
-    success: "bg-emerald-50",
+    success: "bg-[#f0faf8]",
   }[variant];
   const iconCls = {
-    danger:  "text-red-500",
+    danger:  "text-[#d33d44]",
     primary: "text-amber-500",
-    success: "text-emerald-600",
+    success: "text-[#087f70]",
   }[variant];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
-        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-          <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+          <X className="w-4 h-4 text-[#68726d]" />
         </button>
         <div className="flex flex-col items-center gap-3 text-center">
           <div className={`w-14 h-14 rounded-full ${iconBg} flex items-center justify-center`}>
             <AlertCircle className={`w-7 h-7 ${iconCls}`} />
           </div>
-          <h3 className="text-base font-bold text-foreground">{title}</h3>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <h3 className="text-base font-bold text-[#0b100e]">{title}</h3>
+          <p className="text-sm text-[#68726d]">{description}</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-border text-sm font-medium hover:bg-muted/40 transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
           <button
             onClick={onConfirm} disabled={isPending}
-            className={`flex-1 h-10 rounded-xl text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${variantCls}`}
+            className={`flex-1 h-10 rounded-[12px] text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${variantCls}`}
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : confirmLabel}
           </button>
@@ -497,7 +497,7 @@ export default function PODetailPage() {
   if (isPageLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#087f70]" />
       </div>
     );
   }
@@ -509,7 +509,7 @@ export default function PODetailPage() {
           title="Purchase order not found"
           description="This purchase order may have been removed or you may not have access to view it."
         />
-        <button onClick={() => router.push(listUrl)} className="text-primary font-medium hover:underline">
+        <button onClick={() => router.push(listUrl)} className="text-[#087f70] font-medium hover:underline">
           Back to purchase orders
         </button>
       </div>
@@ -561,7 +561,7 @@ export default function PODetailPage() {
       // After the draft early-return above, stage can never be "draft" here,
       // so submitted = true always, and we show "Awaiting" if pending approval.
       badge: stage === "pending_approval" ? "Awaiting" : "Submitted",
-      badgeColor: stage === "pending_approval" ? "text-orange-600 bg-orange-50" : "text-emerald-600 bg-emerald-50",
+      badgeColor: stage === "pending_approval" ? "text-orange-600 bg-orange-50" : "text-[#087f70] bg-[#f0faf8]",
       timestamp: timelineByAction["submitted_for_approval"]?.timestamp || ((po as any).submittedAt ?? null),
       done: true,
       pending: false,
@@ -570,7 +570,7 @@ export default function PODetailPage() {
       label: timelineByAction["rejected"] ? "Rejected" : "Approved",
       person: getPerson(timelineByAction["approved"] || timelineByAction["rejected"]),
       badge: timelineByAction["rejected"] ? "Rejected" : isApproved ? "Approved" : undefined,
-      badgeColor: timelineByAction["rejected"] ? "text-red-600 bg-red-50" : "text-emerald-600 bg-emerald-50",
+      badgeColor: timelineByAction["rejected"] ? "text-[#d33d44] bg-[#fff5f5]" : "text-[#087f70] bg-[#f0faf8]",
       timestamp: timelineByAction["approved"]?.timestamp || timelineByAction["rejected"]?.timestamp || ((po as any).approvedAt ?? null),
       done: isApproved || !!timelineByAction["rejected"],
       pending: stage === "pending_approval",
@@ -580,7 +580,7 @@ export default function PODetailPage() {
         label: "Issued to Vendor",
         person: getPerson(timelineByAction["issued"], po.vendor ? (po.vendor.displayName || po.vendor.legalName) : "Vendor"),
         badge: timelineByAction["issued"] || po.issuedAt ? "Issued" : undefined,
-        badgeColor: "text-emerald-600 bg-emerald-50",
+        badgeColor: "text-[#087f70] bg-[#f0faf8]",
         timestamp: timelineByAction["issued"]?.timestamp || po.issuedAt,
         done: !!timelineByAction["issued"] || !!po.issuedAt,
         pending: stage === "ready_to_issue",
@@ -598,7 +598,7 @@ export default function PODetailPage() {
         label: "Delivery Status",
         person: getPerson(timelineByAction["partially_delivered"] || timelineByAction["delivered"] || timelineByAction["ready_for_delivery"], isDelivered ? "Vendor" : undefined),
         badge: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "Partial" : stage === "delivered" || timelineByAction["delivered"] ? "Full Delivery" : timelineByAction["ready_for_delivery"] ? "Ready for Delivery" : undefined,
-        badgeColor: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "text-amber-600 bg-amber-50" : "text-emerald-600 bg-emerald-50",
+        badgeColor: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "text-amber-600 bg-amber-50" : "text-[#087f70] bg-[#f0faf8]",
         timestamp: timelineByAction["delivered"]?.timestamp || timelineByAction["partially_delivered"]?.timestamp || timelineByAction["ready_for_delivery"]?.timestamp || po.deliveredAt,
         done: !!timelineByAction["delivered"] || !!timelineByAction["partially_delivered"] || isDelivered,
         pending: stage === "acknowledged" || stage === "ready_for_delivery",
@@ -727,17 +727,17 @@ export default function PODetailPage() {
           <div className="max-w-6xl mx-auto w-full flex items-center justify-between flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">{po.poNumber || "Unnamed PO"}</h1>
+                <h1 className="text-2xl font-bold text-[#0b100e]">{po.poNumber || "Unnamed PO"}</h1>
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                   stage === "pending_approval" ? "bg-orange-50 text-orange-600" :
-                  stage === "cancelled"        ? "bg-red-50 text-red-600" :
-                  isDelivered                  ? "bg-emerald-50 text-emerald-600" :
+                  stage === "cancelled"        ? "bg-[#fff5f5] text-[#d33d44]" :
+                  isDelivered                  ? "bg-[#f0faf8] text-[#087f70]" :
                                                 "bg-purple-50 text-purple-600"
                 }`}>
                   {statusLabel}
                 </span>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">Created on {submitDateStr}</p>
+              <p className="text-sm text-[#68726d] mt-1">Created on {submitDateStr}</p>
             </div>
 
             {/* Action Buttons */}
@@ -745,43 +745,43 @@ export default function PODetailPage() {
               {showEditDraft && (
                 <button
                   onClick={() => router.push(buildPOEditUrl(id, outerTab, innerTab))}
-                  className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors flex items-center gap-2"
+                  className="h-9 px-4 rounded-lg border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors flex items-center gap-2"
                 >
                   <Pencil className="w-4 h-4" /> Edit Draft
                 </button>
               )}
               {showWithdraw && (
-                <button onClick={() => setModal("withdraw")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                <button onClick={() => setModal("withdraw")} className="h-9 px-4 rounded-lg border border-red-300 text-[#d33d44] text-sm font-medium hover:bg-[#fff5f5] transition-colors">
                   Withdraw PO
                 </button>
               )}
               {showCancelDraft && (
-                <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors">
+                <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors">
                   Withdraw
                 </button>
               )}
               {showSubmit && (
                 <>
-                  <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors">
+                  <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors">
                     Withdraw
                   </button>
-                  <button onClick={() => setModal("submit")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+                  <button onClick={() => setModal("submit")} className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity">
                     Submit for Approval
                   </button>
                 </>
               )}
               {showReject && (
-                <button onClick={() => setModal("reject")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                <button onClick={() => setModal("reject")} className="h-9 px-4 rounded-lg border border-red-300 text-[#d33d44] text-sm font-medium hover:bg-[#fff5f5] transition-colors">
                   Reject PO
                 </button>
               )}
               {showApprove && (
-                <button onClick={() => setModal("approve")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
+                <button onClick={() => setModal("approve")} className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
                   Approve PO
                 </button>
               )}
               {showIssue && (
-                <button onClick={() => setModal("issue")} className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+                <button onClick={() => setModal("issue")} className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity">
                   Issue PO
                 </button>
               )}
@@ -791,7 +791,7 @@ export default function PODetailPage() {
                 </button>
               )}
               {showClose && (
-                <button onClick={() => setModal("close")} className="h-9 px-4 rounded-lg border border-red-300 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                <button onClick={() => setModal("close")} className="h-9 px-4 rounded-lg border border-red-300 text-[#d33d44] text-sm font-medium hover:bg-[#fff5f5] transition-colors">
                   Close PO
                 </button>
               )}
@@ -810,7 +810,7 @@ export default function PODetailPage() {
 
           {/* Rejection / Withdrawal Reason */}
           {po.rejectionReason && (stage === "rejected" || stage === "cancelled") && (
-            <div className={`flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm ${stage === "rejected" ? "border-red-200 bg-red-50 text-red-800" : "border-gray-200 bg-gray-50 text-gray-800"}`}>
+            <div className={`flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm ${stage === "rejected" ? "border-[#d33d44]/20 bg-[#fff5f5] text-red-800" : "border-gray-200 bg-gray-50 text-gray-800"}`}>
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <div>
                 <p className="font-semibold">{stage === "rejected" ? "Reason for Rejection" : "Reason for Withdrawal"}</p>
@@ -820,84 +820,84 @@ export default function PODetailPage() {
           )}
 
           {/* PO Details */}
-          <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
-            <h2 className="text-base font-semibold text-foreground">PO Details</h2>
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-6 space-y-4">
+            <h2 className="text-base font-semibold text-[#0b100e]">PO Details</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Requester</p>
-                <p className="text-sm font-semibold text-foreground">{po.requesterName || "—"}</p>
+                <p className="text-xs text-[#68726d] mb-1">Requester</p>
+                <p className="text-sm font-semibold text-[#0b100e]">{po.requesterName || "—"}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Department</p>
-                <p className="text-sm font-semibold text-foreground">{po.departmentName || "—"}</p>
+                <p className="text-xs text-[#68726d] mb-1">Department</p>
+                <p className="text-sm font-semibold text-[#0b100e]">{po.departmentName || "—"}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Vendor</p>
-                <p className="text-sm font-semibold text-foreground">{po.vendor?.displayName || po.vendor?.legalName || "—"}</p>
+                <p className="text-xs text-[#68726d] mb-1">Vendor</p>
+                <p className="text-sm font-semibold text-[#0b100e]">{po.vendor?.displayName || po.vendor?.legalName || "—"}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Priority</p>
+                <p className="text-xs text-[#68726d] mb-1">Priority</p>
                 <span className="text-sm font-semibold text-amber-500 capitalize">{po.priority || "Medium"}</span>
               </div>
               {po.deliveryDate && (
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Expected Delivery</p>
-                  <p className="text-sm font-semibold text-foreground">
+                  <p className="text-xs text-[#68726d] mb-1">Expected Delivery</p>
+                  <p className="text-sm font-semibold text-[#0b100e]">
                     {format(new Date(po.deliveryDate as string), "MMM dd, yyyy")}
                   </p>
                 </div>
               )}
               {po.notes && (
                 <div className="col-span-2 md:col-span-4">
-                  <p className="text-xs text-muted-foreground mb-1">Notes</p>
-                  <p className="text-sm text-foreground">{po.notes as string}</p>
+                  <p className="text-xs text-[#68726d] mb-1">Notes</p>
+                  <p className="text-sm text-[#0b100e]">{po.notes as string}</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* Line Items */}
-          <div className="bg-white rounded-2xl border border-border overflow-hidden">
-            <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-base font-semibold text-foreground">
-                Line Items <span className="text-muted-foreground font-normal ml-1">{po.lineItems?.length || 0}</span>
+          <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
+            <div className="px-6 py-4 border-b border-black/[0.06]">
+              <h2 className="text-base font-semibold text-[#0b100e]">
+                Line Items <span className="text-[#68726d] font-normal ml-1">{po.lineItems?.length || 0}</span>
               </h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border/60 bg-muted/20">
-                    <th className="px-6 py-3 text-left font-semibold text-foreground">Name</th>
-                    <th className="px-6 py-3 text-left font-semibold text-foreground">Category</th>
-                    <th className="px-6 py-3 text-center font-semibold text-foreground">Qty</th>
-                    <th className="px-6 py-3 text-right font-semibold text-foreground">Unit Price</th>
-                    <th className="px-6 py-3 text-right font-semibold text-foreground">Subtotal</th>
+                  <tr className="border-b border-border/60 bg-[#f9faf9]">
+                    <th className="px-6 py-3 text-left font-semibold text-[#0b100e]">Name</th>
+                    <th className="px-6 py-3 text-left font-semibold text-[#0b100e]">Category</th>
+                    <th className="px-6 py-3 text-center font-semibold text-[#0b100e]">Qty</th>
+                    <th className="px-6 py-3 text-right font-semibold text-[#0b100e]">Unit Price</th>
+                    <th className="px-6 py-3 text-right font-semibold text-[#0b100e]">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
                   {po.lineItems?.length ? po.lineItems.map((item: any) => (
                     <tr key={item.purchaseOrderLineItemId} className="border-b border-border/40">
                       <td className="px-6 py-4">
-                        <p className="font-semibold text-foreground">{item.name}</p>
-                        {item.description ? <p className="text-xs text-muted-foreground">{item.description as string}</p> : null}
+                        <p className="font-semibold text-[#0b100e]">{item.name}</p>
+                        {item.description ? <p className="text-xs text-[#68726d]">{item.description as string}</p> : null}
                       </td>
-                      <td className="px-6 py-4 text-muted-foreground">{(item.category as any)?.name || "—"}</td>
+                      <td className="px-6 py-4 text-[#68726d]">{(item.category as any)?.name || "—"}</td>
                       <td className="px-6 py-4 text-center">{Number(item.quantity)}</td>
                       <td className="px-6 py-4 text-right">{formatCurrency(item.unitPrice, po.currency)}</td>
-                      <td className="px-6 py-4 text-right text-foreground font-medium">{formatCurrency(item.subtotal as string, po.currency as string)}</td>
+                      <td className="px-6 py-4 text-right text-[#0b100e] font-medium">{formatCurrency(item.subtotal as string, po.currency as string)}</td>
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No line items attached</td>
+                      <td colSpan={5} className="px-6 py-8 text-center text-[#68726d]">No line items attached</td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <div className="flex justify-end px-6 py-4 border-t border-border/40 bg-muted/5">
+            <div className="flex justify-end px-6 py-4 border-t border-border/40 bg-[#f9faf9]">
               <div className="flex items-center gap-8">
-                <span className="text-sm font-semibold text-primary">Total Amount</span>
-                <span className="text-lg font-bold text-foreground">{formatCurrency(po.totalAmount as string, po.currency as string)}</span>
+                <span className="text-sm font-semibold text-[#087f70]">Total Amount</span>
+                <span className="text-lg font-bold text-[#0b100e]">{formatCurrency(po.totalAmount as string, po.currency as string)}</span>
               </div>
             </div>
           </div>
@@ -905,7 +905,7 @@ export default function PODetailPage() {
 
         {/* Right Sidebar */}
         <div className="w-[300px] shrink-0 h-full overflow-y-auto pr-1 space-y-4 pb-4">
-          <div className="bg-white rounded-2xl border border-border overflow-hidden">
+          <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
             <div className="bg-[#1C2B36] rounded-t-2xl px-5 py-4">
               <h3 className="text-base font-bold text-white">Workflow Progress</h3>
             </div>

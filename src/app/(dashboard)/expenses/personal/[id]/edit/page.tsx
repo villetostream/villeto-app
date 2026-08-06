@@ -670,19 +670,19 @@ export default function EditReportPage() {
   const isSubmitDisabled = isActionInProgress || isEmpty || hasUnresolvedViolations; // Can submit even if not dirty? Usually yes if it was draft.
 
   const saveDraftClass = isSaveDisabled
-    ? "bg-gray-100 text-gray-400 border border-gray-200 rounded-lg h-12 px-8 text-base font-medium cursor-not-allowed focus:outline-none focus:ring-0"
-    : "bg-white border border-primary text-primary hover:bg-primary/10 rounded-lg h-12 px-8 text-base font-medium focus:outline-none focus:ring-0";
+    ? "bg-[#f9faf9] text-[#84908a] border border-black/[0.08] rounded-[8px] h-10 px-6 text-[13px] font-semibold cursor-not-allowed"
+    : "bg-white border border-[#087f70] text-[#087f70] hover:bg-[#f0faf8] rounded-[8px] h-10 px-6 text-[13px] font-semibold transition-colors";
 
   const submitClass = isSubmitDisabled
-    ? "bg-gray-100 text-gray-400 border border-gray-100 rounded-lg h-12 px-8 text-base font-medium cursor-not-allowed focus:outline-none focus:ring-0"
-    : "bg-primary border border-primary text-white hover:bg-primary/90 rounded-lg h-12 px-8 text-base font-medium focus:outline-none focus:ring-0";
+    ? "bg-[#f9faf9] text-[#84908a] border border-black/[0.08] rounded-[8px] h-10 px-6 text-[13px] font-semibold cursor-not-allowed"
+    : "bg-[#087f70] border border-[#087f70] text-white hover:bg-[#076b5e] rounded-[8px] h-10 px-6 text-[13px] font-semibold shadow-sm transition-colors";
 
   return (
     <div className="max-w-7xl mx-auto p-4 h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 mb-4 border-b">
-        <div className="flex items-center gap-4">
-          <div className="relative inline-grid items-center group">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 mb-4 border-b">
+        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+          <div className="relative inline-grid items-center group w-full md:w-auto">
             {/* Hidden span dictates the width of the grid container based on text length */}
             <span className="col-start-1 row-start-1 invisible whitespace-pre pl-3 pr-8 py-1 text-sm font-semibold">
               {reportTitle || "Enter report name"}
@@ -692,43 +692,42 @@ export default function EditReportPage() {
               value={reportTitle}
               onChange={(e) => setReportTitle(e.target.value)}
               placeholder="Enter report name"
-              className="col-start-1 row-start-1 w-full min-w-0 border border-border rounded-md pl-3 pr-8 py-1 text-sm font-semibold text-foreground bg-white hover:border-gray-400 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              className="col-start-1 row-start-1 w-full min-w-0 border border-black/[0.08] rounded-[8px] pl-3 pr-8 py-1 text-[13px] font-semibold text-[#0b100e] bg-white hover:border-gray-400 focus:border-[#087f70] focus:ring-1 focus:ring-[#087f70] outline-none transition-all"
               title="Edit report name"
             />
             <Pencil className="absolute right-2.5 w-3.5 h-3.5 text-muted-foreground opacity-60 pointer-events-none" />
           </div>
-          <Button 
-              variant="ghost" 
-              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+          <button 
+              type="button"
+              className="flex items-center text-[13px] font-semibold text-[#d33d44] hover:text-[#c33339] hover:bg-[#fdf2f2] px-3 py-1.5 rounded-[6px] transition-colors disabled:opacity-50"
               onClick={() => setIsDeleteReportModalOpen(true)}
-              disabled={isActionInProgress}
           >
-              <Trash2 className="w-4 h-4 mr-2" />
+              <Trash2 className="w-4 h-4 mr-1.5" />
               Delete Report
-          </Button>
+          </button>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <button
             onClick={() => handleSubmit("draft")}
             disabled={isSaveDisabled}
             className={saveDraftClass}
           >
             {isActionInProgress ? (isSavingDraft ? "Saving..." : "Processing...") : "Save Changes"}
-          </Button>
-          <Button
+          </button>
+          <button
             onClick={() => handleSubmit("pending")}
             disabled={isSubmitDisabled}
             className={submitClass}
           >
             {isActionInProgress ? (isSubmittingReport ? "Submitting..." : "Processing...") : "Submit Report"}
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* ── Main layout: Preview (60%) | Scan/Form (40%) ── */}
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
         {/* Left: Preview list — 60% */}
-        <div className="w-full lg:w-[60%] min-w-0 overflow-y-auto pr-4">
+        <div className="w-full lg:w-[60%] min-w-0 lg:overflow-y-auto lg:pr-4">
           <ExpensePreviewList
             expenses={expenses}
             total={expenses.reduce((sum, exp) => sum + exp.amount, 0)}
@@ -740,7 +739,7 @@ export default function EditReportPage() {
         </div>
 
         {/* Right: Scan / Manual form — 40% */}
-        <div className="w-full lg:w-[40%] min-w-0 overflow-y-auto pl-2 pr-4">
+        <div className="w-full lg:w-[40%] min-w-0 lg:overflow-y-auto lg:pl-2 lg:pr-4">
           <ReceiptUploadSection
             categories={categories}
             onReceiptsUpload={handleReceiptsUpload}
@@ -802,10 +801,10 @@ export default function EditReportPage() {
       />
 
       {isProcessing && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 flex items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span>Processing receipts...</span>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-[14px] p-6 flex items-center gap-3 shadow-xl">
+            <Loader2 className="h-6 w-6 animate-spin text-[#087f70]" />
+            <span className="text-[14px] font-semibold text-[#0b100e]">Processing receipts...</span>
           </div>
         </div>
       )}

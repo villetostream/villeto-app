@@ -106,7 +106,7 @@ function formatTs(d?: string) {
 
 function StatusBadge({ status, approvalStatus, isOwnRequest }: { status: string; approvalStatus?: string | null; isOwnRequest?: boolean }) {
   const displayKey = getPRDisplayStatus(status, approvalStatus, isOwnRequest);
-  const cfg = PR_STATUS_CFG[displayKey] || PR_STATUS_CFG[status] || { label: status, className: "text-muted-foreground bg-muted/40" };
+  const cfg = PR_STATUS_CFG[displayKey] || PR_STATUS_CFG[status] || { label: status, className: "text-[#68726d] bg-[#f9faf9]" };
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${cfg.className}`}>
       {cfg.label}
@@ -116,9 +116,9 @@ function StatusBadge({ status, approvalStatus, isOwnRequest }: { status: string;
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white rounded-xl border border-border p-4 flex-1 border-l-[3px] border-l-emerald-500">
-      <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className="text-base font-bold text-foreground">{value}</p>
+    <div className="bg-white rounded-[12px] border border-black/[0.06] p-4 flex-1 border-l-[3px] border-l-emerald-500">
+      <p className="text-xs text-[#68726d] mb-1">{label}</p>
+      <p className="text-base font-bold text-[#0b100e]">{value}</p>
     </div>
   );
 }
@@ -143,7 +143,7 @@ function SimpleSelect({
   const selected = options.find(o => o.value === value);
   if (disabled) {
     return (
-      <div className="w-full h-10 px-3 rounded-lg border border-border bg-muted/30 text-sm flex items-center text-foreground">
+      <div className="w-full h-10 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center text-[#0b100e]">
         {selected?.label || value}
       </div>
     );
@@ -151,15 +151,15 @@ function SimpleSelect({
   return (
     <div className="relative" ref={ref}>
       <button type="button" onClick={() => setOpen(v => !v)}
-        className="w-full h-10 px-3 rounded-lg border border-border bg-muted/30 text-sm flex items-center justify-between hover:border-primary/60 focus:outline-none transition-colors">
+        className="w-full h-10 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between hover:border-[#087f70]/60 focus:outline-none transition-colors">
         <span>{selected?.label || "Select..."}</span>
-        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-4 h-4 text-[#68726d] transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="absolute left-0 right-0 z-50 bg-white border border-border rounded-xl shadow-lg mt-1 max-h-48 overflow-y-auto">
+        <div className="absolute left-0 right-0 z-50 bg-white border border-black/[0.06] rounded-[12px] shadow-lg mt-1 max-h-48 overflow-y-auto">
           {options.map(o => (
             <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors ${value === o.value ? "text-primary font-medium" : "text-foreground"}`}>
+              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors ${value === o.value ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
               {o.label}
             </button>
           ))}
@@ -192,11 +192,11 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
             <div className="flex flex-col items-center shrink-0 pt-0.5">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
                 step.status === "done"
-                  ? "bg-primary/10"
-                  : "bg-muted border border-border"
+                  ? "bg-[#f0faf8]"
+                  : "bg-[#f5f7f6] border border-black/[0.06]"
               }`}>
                 {step.status === "done"
-                  ? <svg className="w-3 h-3 text-primary" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                  ? <svg className="w-3 h-3 text-[#087f70]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                   : <div className={`w-1.5 h-1.5 rounded-full ${step.status === "pending" ? "bg-amber-400" : "bg-muted-foreground/40"}`} />
                 }
               </div>
@@ -207,9 +207,9 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
 
             {/* Content */}
             <div className={`pb-4 min-w-0 ${isLast ? "pb-0" : ""}`}>
-              <p className={`text-xs font-medium ${step.status === "done" ? "text-muted-foreground" : "text-muted-foreground/60"}`}>{step.label}</p>
+              <p className={`text-xs font-medium ${step.status === "done" ? "text-[#68726d]" : "text-[#84908a]"}`}>{step.label}</p>
               {step.person && (
-                <p className={`text-sm font-semibold flex items-center gap-1.5 flex-wrap mt-0.5 ${step.status === "done" || step.status === "pending" ? "text-foreground" : "text-muted-foreground/60"}`}>
+                <p className={`text-sm font-semibold flex items-center gap-1.5 flex-wrap mt-0.5 ${step.status === "done" || step.status === "pending" ? "text-[#0b100e]" : "text-[#84908a]"}`}>
                   {step.person}
                   {step.badge && (
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badgeColor}`}>
@@ -224,7 +224,7 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
                 </span>
               )}
               {step.timestamp && (
-                <p className="text-xs text-muted-foreground mt-0.5">{step.timestamp}</p>
+                <p className="text-xs text-[#68726d] mt-0.5">{step.timestamp}</p>
               )}
             </div>
           </div>
@@ -245,28 +245,28 @@ function WithdrawModal({ onClose, onConfirm, loading }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5">
-        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-          <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-sm p-6 space-y-5">
+        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+          <X className="w-4 h-4 text-[#68726d]" />
         </button>
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
-            <AlertCircle className="w-7 h-7 text-red-500" />
+          <div className="w-14 h-14 rounded-full bg-[#fff5f5] flex items-center justify-center">
+            <AlertCircle className="w-7 h-7 text-[#d33d44]" />
           </div>
-          <h3 className="text-base font-bold text-foreground">Withdraw Request</h3>
-          <p className="text-sm text-muted-foreground">Please provide a reason for withdrawing this purchase request.</p>
+          <h3 className="text-base font-bold text-[#0b100e]">Withdraw Request</h3>
+          <p className="text-sm text-[#68726d]">Please provide a reason for withdrawing this purchase request.</p>
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">Reason for withdrawal <span className="text-red-500">*</span></label>
+          <label className="text-sm font-medium text-[#0b100e]">Reason for withdrawal <span className="text-[#d33d44]">*</span></label>
           <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
             placeholder="e.g. Requirements have changed, budget re-allocated..."
-            className="w-full px-3 py-2.5 rounded-lg border border-border text-sm resize-none focus:outline-none focus:border-primary transition-colors" />
+            className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors" />
         </div>
         <button onClick={() => {
           if (!reason.trim()) { toast.error("Please provide a reason"); return; }
           onConfirm(reason.trim());
         }} disabled={loading}
-          className="w-full h-11 rounded-xl bg-red-500 text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 transition-opacity">
+          className="w-full h-11 rounded-[12px] bg-[#d33d44] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 transition-opacity">
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
           Withdraw Request
         </button>
@@ -286,28 +286,28 @@ function RejectModal({ onClose, onConfirm, loading }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5">
-        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-          <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-sm p-6 space-y-5">
+        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+          <X className="w-4 h-4 text-[#68726d]" />
         </button>
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
-            <AlertCircle className="w-7 h-7 text-red-500" />
+          <div className="w-14 h-14 rounded-full bg-[#fff5f5] flex items-center justify-center">
+            <AlertCircle className="w-7 h-7 text-[#d33d44]" />
           </div>
-          <h3 className="text-base font-bold text-foreground">Reject Request</h3>
-          <p className="text-sm text-muted-foreground">Please provide a reason for rejecting this purchase request.</p>
+          <h3 className="text-base font-bold text-[#0b100e]">Reject Request</h3>
+          <p className="text-sm text-[#68726d]">Please provide a reason for rejecting this purchase request.</p>
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">Rejection reason <span className="text-red-500">*</span></label>
+          <label className="text-sm font-medium text-[#0b100e]">Rejection reason <span className="text-[#d33d44]">*</span></label>
           <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
             placeholder="e.g. Over budget, needs revision..."
-            className="w-full px-3 py-2.5 rounded-lg border border-border text-sm resize-none focus:outline-none focus:border-primary transition-colors" />
+            className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors" />
         </div>
         <button onClick={() => {
           if (!reason.trim()) { toast.error("Please provide a reason"); return; }
           onConfirm(reason.trim());
         }} disabled={loading}
-          className="w-full h-11 rounded-xl bg-red-500 text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 transition-opacity">
+          className="w-full h-11 rounded-[12px] bg-[#d33d44] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 transition-opacity">
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
           Reject Request
         </button>
@@ -325,19 +325,19 @@ function ConfirmModal({ title, message, onConfirm, onClose, confirmLabel = "Conf
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-5">
-        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-          <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-sm mx-4 p-6 space-y-5">
+        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+          <X className="w-4 h-4 text-[#68726d]" />
         </button>
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center ${danger ? "bg-red-50" : "bg-amber-50"}`}>
-            <AlertCircle className={`w-7 h-7 ${danger ? "text-red-500" : "text-amber-500"}`} />
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center ${danger ? "bg-[#fff5f5]" : "bg-amber-50"}`}>
+            <AlertCircle className={`w-7 h-7 ${danger ? "text-[#d33d44]" : "text-amber-500"}`} />
           </div>
-          <h3 className="text-base font-bold text-foreground">{title}</h3>
-          <p className="text-sm text-muted-foreground">{message}</p>
+          <h3 className="text-base font-bold text-[#0b100e]">{title}</h3>
+          <p className="text-sm text-[#68726d]">{message}</p>
         </div>
         <button onClick={onConfirm} disabled={loading}
-          className={`w-full h-11 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 ${danger ? "bg-red-500" : "bg-primary"}`}>
+          className={`w-full h-11 rounded-[12px] text-white text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 ${danger ? "bg-[#d33d44]" : "bg-[#087f70]"}`}>
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
           {confirmLabel}
         </button>
@@ -398,23 +398,23 @@ function CategoryDropdown({ value, onChange }: {
   return (
     <div className="relative" ref={ref}>
       <button type="button" onClick={() => setOpen(v => !v)}
-        className="w-full h-11 px-3 rounded-lg border border-border bg-muted/30 text-sm flex items-center justify-between cursor-pointer hover:border-primary/60 focus:outline-none transition-colors">
-        <span className={value ? "text-foreground" : "text-muted-foreground"}>
+        className="w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between cursor-pointer hover:border-[#087f70]/60 focus:outline-none transition-colors">
+        <span className={value ? "text-[#0b100e]" : "text-[#68726d]"}>
           {value ? selectedName || "Selected" : "Select category..."}
         </span>
-        <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 z-50 bg-white border border-border rounded-xl shadow-xl mt-1 overflow-hidden">
-          <div className="p-2 border-b border-border">
+        <div className="absolute left-0 right-0 z-50 bg-white border border-black/[0.06] rounded-[12px] shadow-xl mt-1 overflow-hidden">
+          <div className="p-2 border-b border-black/[0.06]">
             <div className="relative">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#68726d]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <input ref={searchRef} value={search} onChange={e => { setSearch(e.target.value); setExpandedId(null); }}
                 placeholder="Search categories..."
-                className="w-full h-8 pl-8 pr-7 text-sm rounded-md border border-border focus:outline-none focus:border-primary transition-colors bg-white" />
+                className="w-full h-8 pl-8 pr-7 text-sm rounded-md border border-black/[0.06] focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
               {search && (
-                <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#68726d] hover:text-[#0b100e]">
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -423,18 +423,18 @@ function CategoryDropdown({ value, onChange }: {
 
           {isLoading ? (
             <div className="flex items-center justify-center py-6">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              <Loader2 className="w-4 h-4 animate-spin text-[#68726d]" />
             </div>
           ) : q ? (
             <div className="max-h-56 overflow-y-auto py-1">
               {searchResults.length === 0 ? (
-                <p className="text-sm text-muted-foreground px-4 py-3 text-center">No matches for &ldquo;{search}&rdquo;</p>
+                <p className="text-sm text-[#68726d] px-4 py-3 text-center">No matches for &ldquo;{search}&rdquo;</p>
               ) : (
                 searchResults.map(r => (
                   <button key={r.id} type="button" onClick={() => { onChange(r.id, r.name); close(); }}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors flex items-baseline gap-2 ${value === r.id ? "text-primary font-medium" : "text-foreground"}`}>
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors flex items-baseline gap-2 ${value === r.id ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
                     <span>{r.name}</span>
-                    {r.parentName && <span className="text-xs text-muted-foreground font-normal">in {r.parentName}</span>}
+                    {r.parentName && <span className="text-xs text-[#68726d] font-normal">in {r.parentName}</span>}
                   </button>
                 ))
               )}
@@ -442,7 +442,7 @@ function CategoryDropdown({ value, onChange }: {
           ) : (
             <div className="max-h-56 overflow-y-auto py-1">
               {rawCategories.length === 0 ? (
-                <p className="text-sm text-muted-foreground px-4 py-3">No categories yet</p>
+                <p className="text-sm text-[#68726d] px-4 py-3">No categories yet</p>
               ) : (
                 rawCategories.map(cat => {
                   const isExpanded = expandedId === cat.categoryId;
@@ -452,21 +452,21 @@ function CategoryDropdown({ value, onChange }: {
                     <div key={cat.categoryId}>
                       <div className="flex items-center">
                         <button type="button" onClick={() => { onChange(cat.categoryId, cat.name); close(); }}
-                          className={`flex-1 text-left px-4 py-2.5 text-sm font-medium hover:bg-muted/40 transition-colors ${isSelected ? "text-primary" : "text-foreground"}`}>
+                          className={`flex-1 text-left px-4 py-2.5 text-sm font-medium hover:bg-[#f9faf9] transition-colors ${isSelected ? "text-[#087f70]" : "text-[#0b100e]"}`}>
                           {cat.name}
                         </button>
                         {subs.length > 0 && (
                           <button type="button" onClick={() => setExpandedId(isExpanded ? null : cat.categoryId)}
-                            className={`w-9 h-9 flex items-center justify-center mr-1 rounded-lg transition-colors ${isExpanded ? "text-primary bg-primary/5" : "text-muted-foreground hover:bg-muted/40"}`}>
+                            className={`w-9 h-9 flex items-center justify-center mr-1 rounded-lg transition-colors ${isExpanded ? "text-[#087f70] bg-[#f0faf8]" : "text-[#68726d] hover:bg-[#f9faf9]"}`}>
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                           </button>
                         )}
                       </div>
                       {isExpanded && (
-                        <div className="bg-muted/10 border-t border-b border-border/40">
+                        <div className="bg-[#f9faf9] border-t border-b border-border/40">
                           {subs.map(sub => (
                             <button key={sub.categoryId} type="button" onClick={() => { onChange(sub.categoryId, sub.name); close(); }}
-                              className={`w-full text-left pl-7 pr-4 py-2 text-sm flex items-center gap-2 hover:bg-muted/40 transition-colors ${value === sub.categoryId ? "text-primary font-medium" : "text-foreground"}`}>
+                              className={`w-full text-left pl-7 pr-4 py-2 text-sm flex items-center gap-2 hover:bg-[#f9faf9] transition-colors ${value === sub.categoryId ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
                               <span className="w-1 h-1 rounded-full bg-muted-foreground/50 shrink-0" />
                               {sub.name}
                             </button>
@@ -528,62 +528,62 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-white z-10 shrink-0 rounded-t-2xl">
-          <h3 className="text-base font-bold text-foreground">{initial ? "Edit Line Item" : "Add Line Item"}</h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-            <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] bg-white z-10 shrink-0 rounded-t-2xl">
+          <h3 className="text-base font-bold text-[#0b100e]">{initial ? "Edit Line Item" : "Add Line Item"}</h3>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+            <X className="w-4 h-4 text-[#68726d]" />
           </button>
         </div>
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Item Name <span className="text-red-500">*</span></label>
+            <label className="text-sm font-medium text-[#0b100e]">Item Name <span className="text-[#d33d44]">*</span></label>
             <input type="text" value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Dell XPS Laptop"
-              className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+              className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Category</label>
+            <label className="text-sm font-medium text-[#0b100e]">Category</label>
             <CategoryDropdown value={form.categoryId} onChange={(id, name) => setForm(p => ({ ...p, categoryId: id, categoryName: name }))} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Quantity <span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium text-[#0b100e]">Quantity <span className="text-[#d33d44]">*</span></label>
               <input type="number" min={1} value={form.quantity || ""} onChange={e => set("quantity", Number(e.target.value))} placeholder="0"
-                className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+                className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">
+              <label className="text-sm font-medium text-[#0b100e]">
                 Unit Price
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">
                   {{ USD: "$", NGN: "₦", EUR: "€", GBP: "£", CAD: "$", AUD: "$" }[currency] || currency}
                 </span>
                 <input type="number" min={0} value={form.unitPrice ?? ""} onChange={e => set("unitPrice", e.target.value === "" ? undefined : Number(e.target.value))} placeholder="0.00"
-                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
               </div>
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Unit of Measure</label>
+            <label className="text-sm font-medium text-[#0b100e]">Unit of Measure</label>
             <input type="text" value={form.unitOfMeasure} onChange={e => set("unitOfMeasure", e.target.value)} placeholder="unit / box / kg"
-              className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+              className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+            <label className="text-sm font-medium text-[#0b100e]">Description <span className="text-[#68726d] font-normal">(optional)</span></label>
             <textarea value={form.description} onChange={e => set("description", e.target.value)} rows={3} placeholder="Brief description of this item"
-              className="w-full px-3 py-2.5 rounded-lg border border-border text-sm resize-none focus:outline-none focus:border-primary transition-colors" />
+              className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors" />
           </div>
           {subtotal > 0 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-muted/30 rounded-xl mt-2">
-              <span className="text-sm text-muted-foreground">Line Subtotal</span>
-              <span className="text-sm font-semibold text-foreground">
+            <div className="flex items-center justify-between px-4 py-3 bg-[#f9faf9] rounded-[12px] mt-2">
+              <span className="text-sm text-[#68726d]">Line Subtotal</span>
+              <span className="text-sm font-semibold text-[#0b100e]">
                 {formatAmount(subtotal, currency)}
               </span>
             </div>
           )}
         </div>
-        <div className="px-6 py-4 border-t border-border bg-white z-10 shrink-0 rounded-b-2xl">
+        <div className="px-6 py-4 border-t border-black/[0.06] bg-white z-10 shrink-0 rounded-b-2xl">
           <button type="button" disabled={loading}
             onClick={() => {
               if (!(form.name || "").trim()) { toast.error("Item name required"); return; }
@@ -598,7 +598,7 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
                 accountingResolutionStatus: "unresolved",
               });
             }}
-            className="w-full h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity">
+            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {initial ? "Save Changes" : "Add Item"}
           </button>
@@ -630,35 +630,35 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-white z-10">
-          <h3 className="text-base font-bold text-foreground">Edit Request Details</h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-            <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] sticky top-0 bg-white z-10">
+          <h3 className="text-base font-bold text-[#0b100e]">Edit Request Details</h3>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+            <X className="w-4 h-4 text-[#68726d]" />
           </button>
         </div>
         <div className="p-6 space-y-4">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Title</label>
+            <label className="text-sm font-medium text-[#0b100e]">Title</label>
             <input type="text" value={title} onChange={e => setTitle(e.target.value)}
-              className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+              className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Priority</label>
+              <label className="text-sm font-medium text-[#0b100e]">Priority</label>
               <SimpleSelect value={priority} onChange={v => { if (isPRPriorityValue(v)) setPriority(v); }} options={PRIORITIES} />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Currency</label>
+              <label className="text-sm font-medium text-[#0b100e]">Currency</label>
               <SimpleSelect value={currency} onChange={setCurrency} options={CURRENCIES.map(c => ({ label: c, value: c }))} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Expected Date</label>
+              <label className="text-sm font-medium text-[#0b100e]">Expected Date</label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <button type="button" className={`w-full h-10 px-3 rounded-lg border border-border text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-primary ${!neededByDate ? "text-muted-foreground" : "text-foreground"}`}>
+                  <button type="button" className={`w-full h-10 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}>
                     {neededByDate ? format(new Date(neededByDate), "PPP") : "Pick a date"}
                     <CalendarIcon className="w-4 h-4 ml-2 opacity-50" />
                   </button>
@@ -674,21 +674,21 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
               </Popover>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Department</label>
+              <label className="text-sm font-medium text-[#0b100e]">Department</label>
               <SimpleSelect value={departmentId} onChange={setDepartmentId} options={departments} disabled={!canChangeDept} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+            <label className="text-sm font-medium text-[#0b100e]">Description <span className="text-[#68726d] font-normal">(optional)</span></label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
               placeholder="Provide context for this request..."
-              className="w-full px-3 py-2.5 rounded-lg border border-border text-sm resize-none focus:outline-none focus:border-primary transition-colors" />
+              className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors" />
           </div>
         </div>
         <div className="px-6 pb-6">
           <button type="button" disabled={loading}
             onClick={() => onSave({ title, description: description || undefined, priority, currency, neededByDate, departmentId })}
-            className="w-full h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 transition-opacity">
+            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-2 transition-opacity">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />} Save Changes
           </button>
         </div>
@@ -743,35 +743,35 @@ function VendorSelect({ value, onChange, vendors }: {
           return !v;
         });
       }}
-        className="w-full h-9 px-3 rounded-lg border border-border bg-white text-sm flex items-center justify-between hover:border-primary/60 focus:outline-none transition-colors">
-        <span className={selected ? "text-foreground" : "text-muted-foreground text-xs"}>
+        className="w-full h-9 px-3 rounded-lg border border-black/[0.06] bg-white text-sm flex items-center justify-between hover:border-[#087f70]/60 focus:outline-none transition-colors">
+        <span className={selected ? "text-[#0b100e]" : "text-[#68726d] text-xs"}>
           {selected ? (selected.displayName || selected.legalName || "Unknown Vendor") : "Select vendor"}
         </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-3.5 h-3.5 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="absolute left-0 right-0 z-50 bg-white border border-border rounded-xl shadow-lg mt-1 overflow-hidden" style={{ minWidth: "200px" }}>
+        <div className="absolute left-0 right-0 z-50 bg-white border border-black/[0.06] rounded-[12px] shadow-lg mt-1 overflow-hidden" style={{ minWidth: "200px" }}>
           {/* Search input */}
           <div className="px-2 pt-2 pb-1 border-b border-border/40">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#68726d] pointer-events-none" />
               <input
                 ref={searchRef}
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search vendor..."
-                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-border/60 bg-muted/20 focus:outline-none focus:border-primary/50 focus:bg-white transition-colors"
+                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-border/60 bg-[#f9faf9] focus:outline-none focus:border-[#087f70]/60 focus:bg-white transition-colors"
               />
             </div>
           </div>
           {/* Vendor list */}
           <div className="max-h-44 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground px-4 py-3 text-center">No vendors found</p>
+              <p className="text-sm text-[#68726d] px-4 py-3 text-center">No vendors found</p>
             ) : filtered.map(v => (
               <button key={v.vendorId} type="button" onClick={() => { onChange(v.vendorId); setOpen(false); setSearch(""); }}
-                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors ${value === v.vendorId ? "text-primary font-medium bg-primary/5" : "text-foreground"}`}>
+                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors ${value === v.vendorId ? "text-[#087f70] font-medium bg-[#f0faf8]" : "text-[#0b100e]"}`}>
                 {v.displayName || v.legalName || "Unknown Vendor"}
               </button>
             ))}
@@ -793,7 +793,7 @@ type PurchaseRequestLineItemType = NonNullable<PurchaseRequest["lineItems"]>[num
 
 const CARD_ACCENTS = [
   { border: "border-violet-300", header: "bg-violet-50 border-b border-violet-200", badge: "bg-violet-100 text-violet-700", dot: "bg-violet-500", rowAccent: "bg-violet-50/40" },
-  { border: "border-emerald-300", header: "bg-emerald-50 border-b border-emerald-200", badge: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500", rowAccent: "bg-emerald-50/40" },
+  { border: "border-emerald-300", header: "bg-[#f0faf8] border-b border-emerald-200", badge: "bg-[#e6f5f3] text-[#087f70]", dot: "bg-[#f0faf8]0", rowAccent: "bg-[#f0faf8]/40" },
   { border: "border-sky-300",     header: "bg-sky-50 border-b border-sky-200",         badge: "bg-sky-100 text-sky-700",         dot: "bg-sky-500",     rowAccent: "bg-sky-50/40" },
   { border: "border-amber-300",   header: "bg-amber-50 border-b border-amber-200",     badge: "bg-amber-100 text-amber-700",     dot: "bg-amber-500",   rowAccent: "bg-amber-50/40" },
   { border: "border-pink-300",    header: "bg-pink-50 border-b border-pink-200",       badge: "bg-pink-100 text-pink-700",       dot: "bg-pink-500",    rowAccent: "bg-pink-50/40" },
@@ -805,7 +805,7 @@ function PurchaseRequestTableHead() {
     <thead>
       <tr className="border-b border-border/60 bg-white">
         {["Item", "Qty", "Unit Price", "Subtotal", "Vendor"].map(h => (
-          <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+          <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[#68726d] uppercase tracking-wide">{h}</th>
         ))}
         <th className="w-10" />
       </tr>
@@ -924,28 +924,28 @@ function CreatePOView({
     vendorId: string;
     accent?: typeof CARD_ACCENTS[0];
   }) => (
-    <tr key={item.purchaseRequestLineItemId} className={`border-b border-border/30 last:border-0 transition-colors hover:bg-muted/10 ${inGroup && accent ? accent.rowAccent : ""}`}>
+    <tr key={item.purchaseRequestLineItemId} className={`border-b border-border/30 last:border-0 transition-colors hover:bg-[#f9faf9] ${inGroup && accent ? accent.rowAccent : ""}`}>
       <td className="px-4 py-3">
-        <p className="font-semibold text-foreground text-sm leading-tight">{item.name}</p>
+        <p className="font-semibold text-[#0b100e] text-sm leading-tight">{item.name}</p>
         {item.description && (
-          <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[180px]">{item.description}</p>
+          <p className="text-xs text-[#68726d] mt-0.5 truncate max-w-[180px]">{item.description}</p>
         )}
       </td>
-      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{item.quantity}</td>
-      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">
+      <td className="px-4 py-3 text-sm text-[#0b100e] whitespace-nowrap">{item.quantity}</td>
+      <td className="px-4 py-3 text-sm text-[#0b100e] whitespace-nowrap">
         <div className="relative w-28">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">{{ USD: "$", NGN: "₦", EUR: "€", GBP: "£", CAD: "$", AUD: "$" }[currency] || currency}</span>
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#68726d] text-xs">{{ USD: "$", NGN: "₦", EUR: "€", GBP: "£", CAD: "$", AUD: "$" }[currency] || currency}</span>
           <input
             type="number"
             min={0}
-            className="w-full h-8 pl-6 pr-2 rounded-md border border-border text-xs focus:outline-none focus:border-primary transition-colors bg-white"
+            className="w-full h-8 pl-6 pr-2 rounded-md border border-black/[0.06] text-xs focus:outline-none focus:border-[#087f70] transition-colors bg-white"
             value={priceOverrides[item.purchaseRequestLineItemId] ?? item.unitPrice ?? ""}
             onChange={e => setPriceOverrides(prev => ({ ...prev, [item.purchaseRequestLineItemId]: e.target.value }))}
             placeholder="0.00"
           />
         </div>
       </td>
-      <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">
+      <td className="px-4 py-3 text-sm font-semibold text-[#0b100e] whitespace-nowrap">
         {formatAmount(item.quantity * (priceOverrides[item.purchaseRequestLineItemId] !== undefined && priceOverrides[item.purchaseRequestLineItemId] !== "" ? Number(priceOverrides[item.purchaseRequestLineItemId]) : (item.unitPrice || 0)), currency)}
       </td>
       <td className="px-4 py-3 min-w-[180px]">
@@ -960,7 +960,7 @@ function CreatePOView({
           <button
             onClick={() => removeFromGroup(item.purchaseRequestLineItemId)}
             title="Move back to Unassigned"
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:text-[#d33d44] hover:bg-[#fff5f5] transition-colors"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -978,22 +978,22 @@ function CreatePOView({
         <div className="max-w-6xl mx-auto w-full flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold text-foreground">{pr.requestNumber}</h1>
+              <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
               <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} />
             </div>
-            {pr.title && <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>}
+            {pr.title && <p className="text-sm text-[#68726d] mt-1">{pr.title}</p>}
           </div>
           <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
             {onCancel && (
               <button onClick={onCancel} disabled={convertLoading}
-                className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors disabled:opacity-60 flex items-center gap-1.5">
+                className="h-9 px-4 rounded-lg border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors disabled:opacity-60 flex items-center gap-1.5">
                 Cancel
               </button>
             )}
             <button
               onClick={handleCreate}
               disabled={!readyToCreate || convertLoading}
-              className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2"
+              className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2"
             >
               {convertLoading && <Loader2 className="w-4 h-4 animate-spin" />}
               Convert to {poCount} Purchase Order{poCount !== 1 ? "s" : ""}
@@ -1015,7 +1015,7 @@ function CreatePOView({
           </div>
 
           {/* Instructions */}
-          <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-sky-50 border border-sky-200">
+          <div className="flex items-start gap-3 px-4 py-3 rounded-[12px] bg-sky-50 border border-sky-200">
             <div className="w-5 h-5 rounded-full bg-sky-500 flex items-center justify-center shrink-0 mt-0.5">
               <span className="text-white text-[10px] font-bold">i</span>
             </div>
@@ -1026,20 +1026,20 @@ function CreatePOView({
           </div>
 
           {/* Progress */}
-          <div className="bg-white rounded-xl border border-border px-5 py-4">
+          <div className="bg-white rounded-[12px] border border-black/[0.06] px-5 py-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground">Vendor assignment progress</span>
-              <span className="text-xs font-semibold text-foreground">{assignedCount} / {lineItems.length} items assigned</span>
+              <span className="text-xs font-medium text-[#68726d]">Vendor assignment progress</span>
+              <span className="text-xs font-semibold text-[#0b100e]">{assignedCount} / {lineItems.length} items assigned</span>
             </div>
-            <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
+            <div className="h-2 rounded-full bg-[#f9faf9] overflow-hidden">
               <div
-                className="h-full rounded-full bg-primary transition-all duration-300"
+                className="h-full rounded-full bg-[#087f70] transition-all duration-300"
                 style={{ width: lineItems.length ? `${(assignedCount / lineItems.length) * 100}%` : "0%" }}
               />
             </div>
             {poCount > 0 && (
-              <p className="text-xs text-muted-foreground mt-2">
-                <span className="font-semibold text-foreground">{poCount}</span>{" "}
+              <p className="text-xs text-[#68726d] mt-2">
+                <span className="font-semibold text-[#0b100e]">{poCount}</span>{" "}
                 Purchase Order{poCount > 1 ? "s" : ""} will be created
               </p>
             )}
@@ -1047,13 +1047,13 @@ function CreatePOView({
 
           {/* No vendors onboarded */}
           {vendors.length === 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-6 flex flex-col items-center text-center gap-3">
+            <div className="bg-amber-50 border border-amber-200 rounded-[12px] px-5 py-6 flex flex-col items-center text-center gap-3">
               <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
                 <AlertCircle className="w-6 h-6 text-amber-500" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground">No vendors onboarded yet</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                <p className="text-sm font-semibold text-[#0b100e]">No vendors onboarded yet</p>
+                <p className="text-xs text-[#68726d] mt-1 max-w-sm">
                   You need at least one approved vendor before creating a Purchase Order.
                   Onboard a vendor first, then return here to complete this step.
                 </p>
@@ -1075,20 +1075,20 @@ function CreatePOView({
                 }, 0);
 
                 return (
-                  <div key={vendorId} className={`rounded-2xl border-2 bg-white overflow-visible ${accent.border}`}>
+                  <div key={vendorId} className={`rounded-[14px] border-2 bg-white overflow-visible ${accent.border}`}>
                     {/* Card header */}
                     <div className={`px-5 py-3 flex items-center justify-between rounded-t-xl ${accent.header}`}>
                       <div className="flex items-center gap-3 flex-wrap">
                         <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${accent.dot}`} />
                         <div>
-                          <p className="text-sm font-bold text-foreground leading-tight">{vendor?.displayName || vendor?.legalName || vendorId}</p>
-                          {vendor?.email && <p className="text-xs text-muted-foreground">{vendor.email}</p>}
+                          <p className="text-sm font-bold text-[#0b100e] leading-tight">{vendor?.displayName || vendor?.legalName || vendorId}</p>
+                          {vendor?.email && <p className="text-xs text-[#68726d]">{vendor.email}</p>}
                         </div>
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${accent.badge}`}>
                           {groupItems.length} item{groupItems.length > 1 ? "s" : ""} · 1 PO
                         </span>
                         {groupTotal > 0 && (
-                          <span className="text-xs font-semibold text-foreground">
+                          <span className="text-xs font-semibold text-[#0b100e]">
                             · {formatAmount(groupTotal, currency)}
                           </span>
                         )}
@@ -1096,7 +1096,7 @@ function CreatePOView({
                       <button
                         onClick={() => ungroupAllForVendor(vendorId)}
                         title="Move all items back to Unassigned"
-                        className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-red-200 text-red-500 text-xs font-medium hover:bg-red-50 transition-colors shrink-0"
+                        className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#d33d44]/20 text-[#d33d44] text-xs font-medium hover:bg-[#fff5f5] transition-colors shrink-0"
                       >
                         <Scissors className="w-3.5 h-3.5" />
                         Ungroup All
@@ -1105,10 +1105,10 @@ function CreatePOView({
                     {/* Setup PO Details */}
                     <div className="px-5 py-3 border-b border-border/50 bg-white grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                            <label className="text-xs font-semibold text-muted-foreground">Delivery Date <span className="text-red-500">*</span></label>
+                            <label className="text-xs font-semibold text-[#68726d]">Delivery Date <span className="text-[#d33d44]">*</span></label>
                             <Popover>
                               <PopoverTrigger asChild>
-                                <button type="button" className={`w-full h-8 px-3 rounded-md border text-xs flex items-center justify-between transition-colors focus:outline-none focus:border-primary ${!(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? "text-muted-foreground border-border" : "text-foreground border-border/80"}`}>
+                                <button type="button" className={`w-full h-8 px-3 rounded-md border text-xs flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] ${!(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? "text-[#68726d] border-black/[0.06]" : "text-[#0b100e] border-border/80"}`}>
                                   {(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? format(new Date(vendorDetails[vendorId]?.deliveryDate || defaultDate), "PPP") : "Pick a date"}
                                   <CalendarIcon className="w-3.5 h-3.5 ml-1.5 opacity-50 shrink-0" />
                                 </button>
@@ -1128,10 +1128,10 @@ function CreatePOView({
                             </Popover>
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-xs font-semibold text-muted-foreground">Notes <span className="text-muted-foreground/60 font-normal">(optional)</span></label>
+                            <label className="text-xs font-semibold text-[#68726d]">Notes <span className="text-[#84908a] font-normal">(optional)</span></label>
                             <input 
                                 type="text" 
-                                className="w-full h-8 px-2 text-sm border rounded-md focus:outline-none focus:border-primary" 
+                                className="w-full h-8 px-2 text-sm border rounded-md focus:outline-none focus:border-[#087f70]" 
                                 placeholder="e.g. Hardware for new hires"
                                 value={vendorDetails[vendorId]?.notes || ""} 
                                 onChange={e => setVendorDetails(p => ({...p, [vendorId]: { ...(p[vendorId] || {deliveryDate:""}), notes: e.target.value }}))} 
@@ -1159,11 +1159,11 @@ function CreatePOView({
 
               {/* ── Unassigned Pool ─────────────────────────────────────── */}
               {unassignedItems.length > 0 && (
-                <div className="rounded-2xl border-2 border-dashed border-border bg-white overflow-visible">
-                  <div className="px-5 py-3 bg-muted/20 flex items-center justify-between rounded-t-xl">
+                <div className="rounded-[14px] border-2 border-dashed border-black/[0.06] bg-white overflow-visible">
+                  <div className="px-5 py-3 bg-[#f9faf9] flex items-center justify-between rounded-t-xl">
                     <div className="flex items-center gap-3">
                       <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
-                      <p className="text-sm font-semibold text-muted-foreground">Unassigned Items</p>
+                      <p className="text-sm font-semibold text-[#68726d]">Unassigned Items</p>
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
                         {unassignedItems.length} item{unassignedItems.length > 1 ? "s" : ""}
                       </span>
@@ -1191,8 +1191,8 @@ function CreatePOView({
 
               {/* All assigned confirmation */}
               {unassignedItems.length === 0 && poCount > 0 && (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
-                  <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-[12px] bg-[#f0faf8] border border-emerald-200">
+                  <div className="w-5 h-5 rounded-full bg-[#f0faf8]0 flex items-center justify-center shrink-0">
                     <Check className="w-3 h-3 text-white" />
                   </div>
                   <p className="text-sm text-emerald-800">
@@ -1207,7 +1207,7 @@ function CreatePOView({
 
         {/* ── Sidebar ───────────────────────────────────────────────────── */}
         <div className="w-[300px] shrink-0 space-y-4">
-          <div className="bg-[#1C2B36] rounded-2xl p-5 text-white space-y-4">
+          <div className="bg-[#1C2B36] rounded-[14px] p-5 text-white space-y-4">
             <h3 className="text-sm font-semibold">Request Summary</h3>
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
@@ -1234,8 +1234,8 @@ function CreatePOView({
 
           {/* PO Breakdown */}
           {poCount > 0 && (
-            <div className="bg-white rounded-2xl border border-border p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">PO Breakdown</h3>
+            <div className="bg-white rounded-[14px] border border-black/[0.06] p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-[#0b100e]">PO Breakdown</h3>
               <div className="space-y-2.5">
                 {Array.from(vendorGroups.entries()).map(([vId, items], idx) => {
                   const vendor = vendors.find(v => v.vendorId === vId);
@@ -1245,8 +1245,8 @@ function CreatePOView({
                     <div key={vId} className="flex items-start gap-2.5">
                       <div className={`w-2 h-2 rounded-full ${accent.dot} mt-1.5 shrink-0`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-foreground truncate">{vendor?.displayName || vendor?.legalName || vId}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs font-semibold text-[#0b100e] truncate">{vendor?.displayName || vendor?.legalName || vId}</p>
+                        <p className="text-xs text-[#68726d]">
                           {items.length} item{items.length > 1 ? "s" : ""} · {formatAmount(gTotal, currency)}
                         </p>
                       </div>
@@ -1257,8 +1257,8 @@ function CreatePOView({
             </div>
           )}
 
-          <div className="bg-white rounded-2xl border border-border p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-4">Workflow Progress</h3>
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
+            <h3 className="text-sm font-semibold text-[#0b100e] mb-4">Workflow Progress</h3>
             <WorkflowProgress steps={workflowSteps.map(step => {
               if (step.label === "Converted to PO" && step.status === "inactive") {
                 return {
@@ -1622,7 +1622,7 @@ function PRDetailPage() {
         person: formatPerson(approveEvent),
         timestamp: formatTs(approveEvent.timestamp),
         badge: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "Rejected" : "Approved",
-        badgeColor: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "text-red-500 bg-red-50" : "text-emerald-600 bg-emerald-50",
+        badgeColor: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "text-[#d33d44] bg-[#fff5f5]" : "text-[#087f70] bg-[#f0faf8]",
         status: "done"
       } : { label: "Manager Approved", status: "inactive" };
 
@@ -1636,7 +1636,7 @@ function PRDetailPage() {
           person: formatPerson(withdrawEvent),
           timestamp: formatTs(withdrawEvent.timestamp),
           badge: "Withdrawn",
-          badgeColor: "text-red-500 bg-red-50",
+          badgeColor: "text-[#d33d44] bg-[#fff5f5]",
           status: "done"
         };
       } else {
@@ -1678,7 +1678,7 @@ function PRDetailPage() {
         label: "Manager Approved",
         person: pr.approvedBy ? `${pr.approvedBy.firstName} ${pr.approvedBy.lastName}` : undefined,
         badge: pr.status === "rejected" ? "Rejected" : isApprovedOrBeyond ? "Approved" : undefined,
-        badgeColor: pr.status === "rejected" ? "text-red-500 bg-red-50" : "text-emerald-600 bg-emerald-50",
+        badgeColor: pr.status === "rejected" ? "text-[#d33d44] bg-[#fff5f5]" : "text-[#087f70] bg-[#f0faf8]",
         status: (isApprovedOrBeyond ? "done" : isSubmittedOrBeyond ? "pending" : "inactive") as StepStatus,
         timestamp: isApprovedOrBeyond ? formatTs(pr.approvedAt || pr.updatedAt) : undefined,
       },
@@ -1686,7 +1686,7 @@ function PRDetailPage() {
         label: pr.status === "cancelled" ? "Withdrawn" : "Converted to PO",
         status: (pr.status === "cancelled" ? "done" : isPOCreated ? "done" : "inactive") as StepStatus,
         badge: pr.status === "cancelled" ? "Withdrawn" : undefined,
-        badgeColor: pr.status === "cancelled" ? "text-red-500 bg-red-50" : undefined,
+        badgeColor: pr.status === "cancelled" ? "text-[#d33d44] bg-[#fff5f5]" : undefined,
       },
     ];
   })() : [];
@@ -1695,7 +1695,7 @@ function PRDetailPage() {
 
   if (isPageLoading) {
     return (
-      <div className="flex items-center justify-center h-64 gap-2 text-muted-foreground">
+      <div className="flex items-center justify-center h-64 gap-2 text-[#68726d]">
         <Loader2 className="w-5 h-5 animate-spin" />
         <span className="text-sm">Loading request...</span>
       </div>
@@ -1705,9 +1705,9 @@ function PRDetailPage() {
   if (isError || !pr) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <AlertCircle className="w-8 h-8 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Failed to load purchase request.</p>
-        <button onClick={() => refetch()} className="flex items-center gap-2 h-9 px-4 rounded-lg border border-border text-sm hover:bg-muted/40 transition-colors">
+        <AlertCircle className="w-8 h-8 text-[#68726d]" />
+        <p className="text-sm text-[#68726d]">Failed to load purchase request.</p>
+        <button onClick={() => refetch()} className="flex items-center gap-2 h-9 px-4 rounded-lg border border-black/[0.06] text-sm hover:bg-[#f9faf9] transition-colors">
           Try again
         </button>
       </div>
@@ -1845,11 +1845,11 @@ function PRDetailPage() {
           <div className="max-w-6xl mx-auto w-full flex items-start justify-between gap-4 flex-wrap">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-bold text-foreground">{pr.requestNumber}</h1>
+                <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
                 <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} isOwnRequest={isOwnRequest} />
               </div>
-              <p className="text-sm text-muted-foreground mt-1">{pr.title}</p>
-              {pr.description && <p className="text-xs text-muted-foreground mt-0.5">{pr.description}</p>}
+              <p className="text-sm text-[#68726d] mt-1">{pr.title}</p>
+              {pr.description && <p className="text-xs text-[#68726d] mt-0.5">{pr.description}</p>}
             </div>
 
             {/* Action buttons — permission gated */}
@@ -1858,42 +1858,42 @@ function PRDetailPage() {
                 {canEdit && (
                   <>
                     <button onClick={() => setModal("edit_header")}
-                      className="h-9 px-4 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted/40 transition-colors flex items-center gap-2">
+                      className="h-9 px-4 rounded-lg border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors flex items-center gap-2">
                       <Pencil className="w-3.5 h-3.5" /> Edit Request
                     </button>
                     <button onClick={() => setModal("delete_pr")}
-                      className="h-9 px-4 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 hover:border-red-300 transition-colors flex items-center gap-2">
+                      className="h-9 px-4 rounded-lg border border-[#d33d44]/20 text-[#d33d44] text-sm font-medium hover:bg-[#fff5f5] hover:border-red-300 transition-colors flex items-center gap-2">
                       <Trash2 className="w-3.5 h-3.5" /> Delete Draft
                     </button>
                   </>
                 )}
                 {canSubmit && (
                   <button onClick={() => setModal("submit")} disabled={(pr?.lineItems?.length || 0) === 0}
-                    className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed">
+                    className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed">
                     Submit Request
                   </button>
                 )}
                 {canApprove && (
                   <button onClick={() => setModal("reject")}
-                    className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                    className="h-9 px-4 rounded-lg border border-red-400 text-[#d33d44] text-sm font-medium hover:bg-[#fff5f5] transition-colors">
                     Reject Request
                   </button>
                 )}
                 {canApprove && (
                   <button onClick={() => setModal("approve")}
-                    className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+                    className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity">
                     Approve Request
                   </button>
                 )}
                 {canCreatePO && !isConvertingPartially && (
                   <button onClick={() => setIsConvertingPartially(true)}
-                    className="h-9 px-5 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
+                    className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
                     {isPartiallyConverted ? "Convert Remaining to PO" : "Convert to PO"}
                   </button>
                 )}
                 {canWithdraw && (
                   <button onClick={() => setModal("withdraw")}
-                    className="h-9 px-4 rounded-lg border border-red-400 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors flex items-center gap-2">
+                    className="h-9 px-4 rounded-lg border border-red-400 text-[#d33d44] text-sm font-medium hover:bg-[#fff5f5] transition-colors flex items-center gap-2">
                     {withdrawPR.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin inline" />}
                     Withdraw Request
                   </button>
@@ -1923,7 +1923,7 @@ function PRDetailPage() {
 
         {/* Rejection / Withdrawal Reason */}
         {pr.rejectionReason && (pr.status === "rejected" || pr.status === "cancelled") && (
-          <div className={`mb-4 flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm ${pr.status === "rejected" ? "border-red-200 bg-red-50 text-red-800" : "border-gray-200 bg-gray-50 text-gray-800"}`}>
+          <div className={`mb-4 flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm ${pr.status === "rejected" ? "border-[#d33d44]/20 bg-[#fff5f5] text-red-800" : "border-gray-200 bg-gray-50 text-gray-800"}`}>
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <div>
               <p className="font-semibold">{pr.status === "rejected" ? "Reason for Rejection" : "Reason for Withdrawal"}</p>
@@ -1956,7 +1956,7 @@ function PRDetailPage() {
               if (showGroupedView) {
                 const poAccents = [
                   { border: "border-violet-300", header: "bg-violet-50 border-b border-violet-200", badge: "bg-violet-100 text-violet-700", dot: "bg-violet-500" },
-                  { border: "border-emerald-300", header: "bg-emerald-50 border-b border-emerald-200", badge: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
+                  { border: "border-emerald-300", header: "bg-[#f0faf8] border-b border-emerald-200", badge: "bg-[#e6f5f3] text-[#087f70]", dot: "bg-[#f0faf8]0" },
                   { border: "border-sky-300", header: "bg-sky-50 border-b border-sky-200", badge: "bg-sky-100 text-sky-700", dot: "bg-sky-500" },
                   { border: "border-amber-300", header: "bg-amber-50 border-b border-amber-200", badge: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
                   { border: "border-pink-300", header: "bg-pink-50 border-b border-pink-200", badge: "bg-pink-100 text-pink-700", dot: "bg-pink-500" },
@@ -2017,7 +2017,7 @@ function PRDetailPage() {
                 return (
                   <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 space-y-4">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-base font-semibold text-foreground">Assigned Vendors</h2>
+                      <h2 className="text-base font-semibold text-[#0b100e]">Assigned Vendors</h2>
                       <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold px-1.5">
                         {displayGroups.length}
                       </span>
@@ -2030,23 +2030,23 @@ function PRDetailPage() {
                       const poTotal = group.lineItems.reduce((s, li) => s + (li.subtotal || 0), 0);
 
                       return (
-                        <div key={group.id} className={`rounded-2xl border-2 bg-white overflow-hidden ${accent.border}`}>
+                        <div key={group.id} className={`rounded-[14px] border-2 bg-white overflow-hidden ${accent.border}`}>
                           {/* PO Card Header */}
                           <div className={`px-5 py-3 flex items-center justify-between ${accent.header}`}>
                             <div className="flex items-center gap-3 flex-wrap">
                               <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${accent.dot}`} />
                               <div>
-                                <p className="text-sm font-bold text-foreground">{group.vendorName}</p>
-                                {group.poNumber && <p className="text-xs text-muted-foreground">{group.poNumber}</p>}
+                                <p className="text-sm font-bold text-[#0b100e]">{group.vendorName}</p>
+                                {group.poNumber && <p className="text-xs text-[#68726d]">{group.poNumber}</p>}
                               </div>
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${accent.badge}`}>
                                 {group.lineItems.length} item{group.lineItems.length !== 1 ? "s" : ""}
                               </span>
-                              {poTotal > 0 && <span className="text-xs font-semibold text-foreground">· {formatAmount(poTotal, currency)}</span>}
+                              {poTotal > 0 && <span className="text-xs font-semibold text-[#0b100e]">· {formatAmount(poTotal, currency)}</span>}
                             </div>
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-4 text-xs text-[#68726d]">
                               {group.deliveryDate && (
-                                <span>Delivery: <strong className="text-foreground">{formatDate(group.deliveryDate)}</strong></span>
+                                <span>Delivery: <strong className="text-[#0b100e]">{formatDate(group.deliveryDate)}</strong></span>
                               )}
                               {group.status && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold capitalize">
@@ -2060,23 +2060,23 @@ function PRDetailPage() {
                             <thead>
                               <tr className="border-b border-border/60 bg-white">
                                 {["Item", "Description", "Category", "Qty", "Unit Price", "Subtotal"].map(h => (
-                                  <th key={h} className="px-5 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                                  <th key={h} className="px-5 py-2.5 text-left text-xs font-semibold text-[#68726d] uppercase tracking-wide">{h}</th>
                                 ))}
                               </tr>
                             </thead>
                             <tbody>
                               {group.lineItems.map(item => (
-                                <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
-                                  <td className="px-5 py-3 font-semibold text-foreground">{item.name}</td>
-                                  <td className="px-5 py-3 text-muted-foreground max-w-[160px] truncate">{item.description || "—"}</td>
+                                <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-[#f9faf9] transition-colors">
+                                  <td className="px-5 py-3 font-semibold text-[#0b100e]">{item.name}</td>
+                                  <td className="px-5 py-3 text-[#68726d] max-w-[160px] truncate">{item.description || "—"}</td>
                                   <td className="px-5 py-3">
                                     {item.categoryId
                                       ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
-                                      : <span className="text-muted-foreground">—</span>}
+                                      : <span className="text-[#68726d]">—</span>}
                                   </td>
-                                  <td className="px-5 py-3 text-foreground">{item.quantity}</td>
-                                  <td className="px-5 py-3 text-foreground">{formatAmount(item.unitPrice, currency)}</td>
-                                  <td className="px-5 py-3 font-medium text-foreground">{formatAmount(item.subtotal, currency)}</td>
+                                  <td className="px-5 py-3 text-[#0b100e]">{item.quantity}</td>
+                                  <td className="px-5 py-3 text-[#0b100e]">{formatAmount(item.unitPrice, currency)}</td>
+                                  <td className="px-5 py-3 font-medium text-[#0b100e]">{formatAmount(item.subtotal, currency)}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2094,7 +2094,7 @@ function PRDetailPage() {
                       const unconvertedTotal = unconverted.reduce((s, li) => s + (li.subtotal || 0), 0);
 
                       return (
-                        <div className="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/30 overflow-hidden">
+                        <div className="rounded-[14px] border-2 border-dashed border-amber-300 bg-amber-50/30 overflow-hidden">
                           {/* Header */}
                           <div className="px-5 py-3 flex items-center justify-between bg-amber-50 border-b border-amber-200">
                             <div className="flex items-center gap-3 flex-wrap">
@@ -2129,16 +2129,16 @@ function PRDetailPage() {
                             <tbody>
                               {unconverted.map(item => (
                                 <tr key={item.purchaseRequestLineItemId} className="border-b border-amber-100 last:border-0 hover:bg-amber-50/60 transition-colors">
-                                  <td className="px-5 py-3 font-semibold text-foreground">{item.name}</td>
-                                  <td className="px-5 py-3 text-muted-foreground max-w-[160px] truncate">{item.description || "—"}</td>
+                                  <td className="px-5 py-3 font-semibold text-[#0b100e]">{item.name}</td>
+                                  <td className="px-5 py-3 text-[#68726d] max-w-[160px] truncate">{item.description || "—"}</td>
                                   <td className="px-5 py-3">
                                     {item.categoryId
                                       ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-100 text-amber-700 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
-                                      : <span className="text-muted-foreground">—</span>}
+                                      : <span className="text-[#68726d]">—</span>}
                                   </td>
-                                  <td className="px-5 py-3 text-foreground">{item.quantity}</td>
-                                  <td className="px-5 py-3 text-foreground">{formatAmount(item.unitPrice, currency)}</td>
-                                  <td className="px-5 py-3 font-medium text-foreground">{formatAmount(item.subtotal, currency)}</td>
+                                  <td className="px-5 py-3 text-[#0b100e]">{item.quantity}</td>
+                                  <td className="px-5 py-3 text-[#0b100e]">{formatAmount(item.unitPrice, currency)}</td>
+                                  <td className="px-5 py-3 font-medium text-[#0b100e]">{formatAmount(item.subtotal, currency)}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2149,18 +2149,18 @@ function PRDetailPage() {
 
                     {/* Grand Total */}
                     <div className="flex justify-end">
-                      <div className="space-y-1.5 min-w-[220px] bg-white rounded-xl border border-border px-5 py-4">
+                      <div className="space-y-1.5 min-w-[220px] bg-white rounded-[12px] border border-black/[0.06] px-5 py-4">
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Subtotal</span>
+                          <span className="text-[#68726d]">Subtotal</span>
                           <span className="font-medium">{formatAmount(pr.subtotal, currency)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Tax</span>
+                          <span className="text-[#68726d]">Tax</span>
                           <span className="font-medium">{formatAmount(pr.taxAmount, currency)}</span>
                         </div>
                         <div className="flex justify-between text-sm border-t border-border/60 pt-1.5">
-                          <span className="font-semibold text-foreground">Total</span>
-                          <span className="font-bold text-foreground">{formatAmount(pr.totalAmount, currency)}</span>
+                          <span className="font-semibold text-[#0b100e]">Total</span>
+                          <span className="font-bold text-[#0b100e]">{formatAmount(pr.totalAmount, currency)}</span>
                         </div>
                       </div>
                     </div>
@@ -2170,9 +2170,9 @@ function PRDetailPage() {
 
               // Fallback: flat table (draft / submitted / approved states)
               return (
-                <div className="bg-white rounded-2xl border border-border flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="px-5 py-4 border-b border-border flex items-center justify-between shrink-0">
-                  <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <div className="bg-white rounded-[14px] border border-black/[0.06] flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="px-5 py-4 border-b border-black/[0.06] flex items-center justify-between shrink-0">
+                  <h2 className="text-base font-semibold text-[#0b100e] flex items-center gap-2">
                     Request Items
                     <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold px-1.5">
                       {lineItems.length}
@@ -2180,7 +2180,7 @@ function PRDetailPage() {
                   </h2>
                   {canEdit && (
                     <button onClick={() => { setEditingLineItem(null); setPanelOpen(true); }}
-                      className="flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
+                      className="flex items-center gap-1 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors">
                       <Plus className="w-4 h-4" /> Add Items
                     </button>
                   )}
@@ -2188,10 +2188,10 @@ function PRDetailPage() {
 
                 {lineItems.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 gap-3">
-                    <p className="text-sm text-muted-foreground">No items added yet.</p>
+                    <p className="text-sm text-[#68726d]">No items added yet.</p>
                     {canEdit && (
                       <button onClick={() => { setEditingLineItem(null); setPanelOpen(true); }}
-                        className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
+                        className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#087f70] text-[#087f70] text-sm font-medium hover:bg-[#f0faf8] transition-colors">
                         <Plus className="w-4 h-4" /> Add first item
                       </button>
                     )}
@@ -2201,43 +2201,43 @@ function PRDetailPage() {
                     <div className="flex-1 min-h-0 overflow-y-auto">
                       <table className="w-full text-sm">
                         <thead className="sticky top-0 z-10 bg-white">
-                          <tr className="border-b border-border/60 bg-muted/5 shadow-sm">
+                          <tr className="border-b border-border/60 bg-[#f9faf9] shadow-sm">
                             {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal", ...(canEdit ? [""] : [])].map(h => (
-                              <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                              <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-[#68726d] uppercase tracking-wide">{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
                           {lineItems.map(item => (
-                            <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
-                              <td className="px-5 py-3.5 font-semibold text-foreground">{item.name}</td>
-                              <td className="px-5 py-3.5 text-muted-foreground max-w-[180px] truncate">{item.description || "—"}</td>
+                            <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-[#f9faf9] transition-colors">
+                              <td className="px-5 py-3.5 font-semibold text-[#0b100e]">{item.name}</td>
+                              <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
                               <td className="px-5 py-3.5">
                                 {item.categoryId
                                   ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
-                                  : <span className="text-muted-foreground">—</span>
+                                  : <span className="text-[#68726d]">—</span>
                                 }
                               </td>
-                              <td className="px-5 py-3.5 text-foreground">{item.quantity}</td>
-                              <td className="px-5 py-3.5 text-foreground">{formatAmount(item.unitPrice, currency)}</td>
-                              <td className="px-5 py-3.5 font-medium text-foreground">{formatAmount(item.subtotal, currency)}</td>
+                              <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
+                              <td className="px-5 py-3.5 text-[#0b100e]">{formatAmount(item.unitPrice, currency)}</td>
+                              <td className="px-5 py-3.5 font-medium text-[#0b100e]">{formatAmount(item.subtotal, currency)}</td>
                               {canEdit && (
                                 <td className="px-5 py-3.5">
                                   <div className="flex items-center gap-1">
                                     <div className="relative group">
                                     <button onClick={() => { setEditingLineItem(item); setPanelOpen(true); }}
-                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors">
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
                                         <Pencil className="w-3.5 h-3.5" />
                                       </button>
-                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-foreground text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
+                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
                                     </div>
                                     <div className="relative group">
                                       <button onClick={() => { setItemToDelete({ id: item.purchaseRequestLineItemId, name: item.name }); setModal("delete_item"); }}
                                         disabled={deleteLineItem.isPending}
-                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-40">
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors disabled:opacity-40">
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </button>
-                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-foreground text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
+                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
                                     </div>
                                   </div>
                                 </td>
@@ -2251,7 +2251,7 @@ function PRDetailPage() {
                     {canEdit && (
                       <div className="shrink-0 px-5 py-3 border-t border-border/40 bg-white">
                         <button onClick={() => { setEditingLineItem(null); setPanelOpen(true); }}
-                          className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
+                          className="flex items-center gap-1.5 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors">
                           <Plus className="w-4 h-4" /> Add Items
                         </button>
                       </div>
@@ -2260,16 +2260,16 @@ function PRDetailPage() {
                     <div className="shrink-0 flex justify-end px-5 py-4 border-t border-border/60 bg-white">
                       <div className="space-y-1.5 min-w-[220px]">
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Subtotal</span>
+                          <span className="text-[#68726d]">Subtotal</span>
                           <span className="font-medium">{formatAmount(pr.subtotal, currency)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Tax</span>
+                          <span className="text-[#68726d]">Tax</span>
                           <span className="font-medium">{formatAmount(pr.taxAmount, currency)}</span>
                         </div>
                         <div className="flex justify-between text-sm border-t border-border/60 pt-1.5">
-                          <span className="font-semibold text-foreground">Total</span>
-                          <span className="font-bold text-foreground">{formatAmount(pr.totalAmount, currency)}</span>
+                          <span className="font-semibold text-[#0b100e]">Total</span>
+                          <span className="font-bold text-[#0b100e]">{formatAmount(pr.totalAmount, currency)}</span>
                         </div>
                       </div>
                     </div>
@@ -2294,7 +2294,7 @@ function PRDetailPage() {
 
           {/* ── Own scope: dark-header Workflow Progress card only ── */}
           {isOwnScope && (
-            <div className="bg-white rounded-2xl border border-border overflow-hidden">
+            <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
               <div className="bg-[#1C2B36] rounded-t-2xl px-5 py-4">
                 <h3 className="text-base font-bold text-white">Workflow Progress</h3>
               </div>
@@ -2306,7 +2306,7 @@ function PRDetailPage() {
 
           {/* ── Team/Company scope: Request Summary dark card ── */}
           {!isOwnScope && (
-            <div className="bg-[#1C2B36] rounded-2xl p-5 text-white">
+            <div className="bg-[#1C2B36] rounded-[14px] p-5 text-white">
               <h3 className="text-base font-bold mb-4">Request Summary</h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -2334,7 +2334,7 @@ function PRDetailPage() {
           {/* ── Team/Company scope: bare workflow timeline below summary card ── */}
           {!isOwnScope && (() => {
             const CheckIcon = () => (
-              <svg className="w-3 h-3 text-primary" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <svg className="w-3 h-3 text-[#087f70]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             );
@@ -2431,7 +2431,7 @@ function PRDetailPage() {
                   badge: approveEvent 
                     ? { 
                         text: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "Rejected" : "Approved", 
-                        color: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-600" 
+                        color: approveEvent.action === "rejected" || approveEvent.action === "declined" ? "bg-[#fff5f5] text-[#d33d44]" : "bg-[#f0faf8] text-[#087f70]" 
                       } 
                     : nextStepKey === "manager"
                     ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
@@ -2444,9 +2444,9 @@ function PRDetailPage() {
                   done: !!(poEvent || withdrawEvent),
                   personName: withdrawEvent ? formatPerson(withdrawEvent) : poEvent ? formatPerson(poEvent) : null,
                   badge: withdrawEvent 
-                    ? { text: "Withdrawn", color: "bg-red-50 text-red-500" }
+                    ? { text: "Withdrawn", color: "bg-[#fff5f5] text-[#d33d44]" }
                     : poEvent
-                    ? { text: "Done", color: "bg-emerald-50 text-emerald-600" }
+                    ? { text: "Done", color: "bg-[#f0faf8] text-[#087f70]" }
                     : nextStepKey === "create_po"
                     ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
                     : null,
@@ -2481,7 +2481,7 @@ function PRDetailPage() {
                       })()
                     : `You (${getRoleName(user)})`,
                   badge: approvedBy
-                    ? { text: "Approved", color: "bg-emerald-50 text-emerald-600" }
+                    ? { text: "Approved", color: "bg-[#f0faf8] text-[#087f70]" }
                     : nextStepKey === "manager"
                     ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
                     : null,
@@ -2493,9 +2493,9 @@ function PRDetailPage() {
                   done: pr.status === "cancelled" ? true : hasPO,
                   personName: pr.status === "cancelled" ? "System" : (hasPO ? (isPoCreatorSelf ? `${poCreatorName} (You)` : poCreatorName) : null),
                   badge: pr.status === "cancelled"
-                    ? { text: "Withdrawn", color: "bg-red-50 text-red-500" }
+                    ? { text: "Withdrawn", color: "bg-[#fff5f5] text-[#d33d44]" }
                     : hasPO
-                    ? { text: "Done", color: "bg-emerald-50 text-emerald-600" }
+                    ? { text: "Done", color: "bg-[#f0faf8] text-[#087f70]" }
                     : nextStepKey === "create_po"
                     ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
                     : null,
@@ -2515,8 +2515,8 @@ function PRDetailPage() {
                       <div className="flex flex-col items-center shrink-0 pt-0.5">
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
                           step.done
-                            ? "bg-primary/10"
-                            : "bg-muted border border-border"
+                            ? "bg-[#f0faf8]"
+                            : "bg-[#f5f7f6] border border-black/[0.06]"
                         }`}>
                           {step.done
                             ? <CheckIcon />
@@ -2530,9 +2530,9 @@ function PRDetailPage() {
 
                       {/* Content */}
                       <div className={`pb-4 min-w-0 ${isLast ? "pb-0" : ""}`}>
-                        <p className={`text-xs font-medium ${step.done ? "text-muted-foreground" : "text-muted-foreground/60"}`}>{step.label}</p>
+                        <p className={`text-xs font-medium ${step.done ? "text-[#68726d]" : "text-[#84908a]"}`}>{step.label}</p>
                         {step.personName && (
-                          <p className={`text-sm font-semibold flex items-center gap-1.5 flex-wrap mt-0.5 ${step.done ? "text-foreground" : "text-muted-foreground/60"}`}>
+                          <p className={`text-sm font-semibold flex items-center gap-1.5 flex-wrap mt-0.5 ${step.done ? "text-[#0b100e]" : "text-[#84908a]"}`}>
                             {step.personName}
                             {step.badge && (
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badge.color}`}>
@@ -2547,7 +2547,7 @@ function PRDetailPage() {
                           </span>
                         )}
                         {step.timestamp && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{step.timestamp}</p>
+                          <p className="text-xs text-[#68726d] mt-0.5">{step.timestamp}</p>
                         )}
                       </div>
                     </div>

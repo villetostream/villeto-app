@@ -42,7 +42,7 @@ export function StepConfigure({
     <div className="max-w-3xl space-y-8">
       <div>
         <h2 className="text-xl font-bold text-foreground mb-1">Configure Policy Details</h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-[#68726d]">
           Provide a name, description, and scheduling details for this policy.
         </p>
       </div>
@@ -57,20 +57,20 @@ export function StepConfigure({
             placeholder="e.g. High-value purchase approval"
             value={name}
             onChange={(e) => onChange({ name: e.target.value })}
-            className="h-12 rounded-xl"
+            className="h-12 rounded-[14px]"
           />
         </div>
 
         <div>
           <label className="block text-sm font-semibold text-foreground mb-2">
             Description{" "}
-            <span className="text-muted-foreground font-normal text-xs">(Optional)</span>
+            <span className="text-[#68726d] font-normal text-xs">(Optional)</span>
           </label>
           <Textarea
             placeholder="Briefly describe the purpose of this policy…"
             value={description}
             onChange={(e) => onChange({ description: e.target.value })}
-            className="rounded-xl min-h-[100px]"
+            className="rounded-[14px] min-h-[100px]"
           />
         </div>
       </div>
@@ -79,11 +79,11 @@ export function StepConfigure({
       <div>
         <p className="text-sm font-semibold text-foreground mb-4">
           Schedule{" "}
-          <span className="text-muted-foreground font-normal text-xs">(Optional)</span>
+          <span className="text-[#68726d] font-normal text-xs">(Optional)</span>
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-[11px] text-muted-foreground mb-1.5">
+            <label className="block text-[11px] text-[#68726d] mb-1.5">
               Effective from
             </label>
             <Popover open={effectiveOpen} onOpenChange={setEffectiveOpen}>
@@ -91,8 +91,8 @@ export function StepConfigure({
                 <button
                   type="button"
                   className={cn(
-                    "w-full h-11 flex items-center justify-between rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:border-primary transition-colors",
-                    !effectiveAt && "text-muted-foreground"
+                    "w-full h-11 flex items-center justify-between rounded-[14px] border border-black/[0.06] bg-white px-3 text-sm focus:outline-none focus:border-primary transition-colors",
+                    !effectiveAt && "text-[#68726d]"
                   )}
                 >
                   <span>
@@ -115,7 +115,7 @@ export function StepConfigure({
             </Popover>
           </div>
           <div>
-            <label className="block text-[11px] text-muted-foreground mb-1.5">
+            <label className="block text-[11px] text-[#68726d] mb-1.5">
               Expires on
             </label>
             <Popover open={expiresOpen} onOpenChange={setExpiresOpen}>
@@ -123,8 +123,8 @@ export function StepConfigure({
                 <button
                   type="button"
                   className={cn(
-                    "w-full h-11 flex items-center justify-between rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:border-primary transition-colors",
-                    !expiresAt && "text-muted-foreground"
+                    "w-full h-11 flex items-center justify-between rounded-[14px] border border-black/[0.06] bg-white px-3 text-sm focus:outline-none focus:border-primary transition-colors",
+                    !expiresAt && "text-[#68726d]"
                   )}
                 >
                   <span>
@@ -159,7 +159,7 @@ export function StepConfigure({
         <label className="block text-sm font-semibold text-foreground mb-1">
           Priority
         </label>
-        <p className="text-xs text-muted-foreground mb-2">
+        <p className="text-xs text-[#68726d] mb-2">
           Lower numbers run first. Default is 100.
         </p>
         <Input
@@ -168,12 +168,12 @@ export function StepConfigure({
           max={999}
           value={priority}
           onChange={(e) => onChange({ priority: Number(e.target.value) || 100 })}
-          className="h-11 rounded-xl w-40"
+          className="h-11 rounded-[14px] w-40"
         />
       </div>
 
       {/* Requires Approval */}
-      <div className="rounded-2xl border border-border bg-white p-5">
+      <div className="rounded-[24px] border border-black/[0.06] bg-white p-5">
         <div className="flex items-center justify-between mb-1">
           <p className="text-sm font-semibold text-foreground">Policy requires approval</p>
           <Switch
@@ -183,13 +183,13 @@ export function StepConfigure({
             }
           />
         </div>
-        <p className="text-xs text-muted-foreground mb-4">
+        <p className="text-xs text-[#68726d] mb-4">
           When enabled, this policy must be approved before it becomes active.
         </p>
 
         {requiresApproval && (
           <div>
-            <label className="block text-[11px] text-muted-foreground mb-1.5">
+            <label className="block text-[11px] text-[#68726d] mb-1.5">
               Approval mode
             </label>
             <Select
@@ -198,7 +198,7 @@ export function StepConfigure({
                 onChange({ approvalMode: v as PolicyDraft["approvalMode"] })
               }
             >
-              <SelectTrigger className="h-11 w-full rounded-xl">
+              <SelectTrigger className="h-11 w-full rounded-[14px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

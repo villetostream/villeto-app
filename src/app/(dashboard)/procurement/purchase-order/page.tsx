@@ -38,22 +38,18 @@ import { toast } from "sonner";
 
 function POStatusBadge({ status, isOwnView }: { status: string; isOwnView?: boolean }) {
   const displayKey = getPODisplayStatus(status, isOwnView);
-  const cfg = PO_STATUS_CFG[displayKey] || PO_STATUS_CFG[status] || { label: status, className: "text-gray-600 bg-gray-100" };
-  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>{cfg.label}</span>;
+  const cfg = PO_STATUS_CFG[displayKey] || PO_STATUS_CFG[status] || { label: status, className: "text-[#68726d] bg-[#f9faf9]" };
+  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${cfg.className}`}>{cfg.label}</span>;
 }
-
-// ── Action badge ──────────────────────────────────────────────────────────────
 
 function ActionBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+    <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#d33d44] text-white text-[10px] font-bold leading-none">
       {count > 99 ? "99+" : count}
     </span>
   );
 }
-
-// ── Reject Reason Modal ───────────────────────────────────────────────────────
 
 function RejectModal({
   open, onClose, onConfirm, isPending,
@@ -65,38 +61,38 @@ function RejectModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
-        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-          <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] w-full max-w-md mx-4 p-6 space-y-5">
+        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+          <X className="w-4 h-4 text-[#68726d]" />
         </button>
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-            <XCircle className="w-5 h-5 text-red-500" />
+          <div className="w-10 h-10 rounded-[10px] bg-[#fff5f5] flex items-center justify-center shrink-0">
+            <XCircle className="w-5 h-5 text-[#d33d44]" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-foreground">Reject Purchase Order</h3>
-            <p className="text-sm text-muted-foreground mt-0.5">Provide a reason for rejection.</p>
+            <h3 className="text-[15px] font-bold text-[#0b100e]">Reject Purchase Order</h3>
+            <p className="text-[13px] text-[#68726d] mt-0.5">Provide a reason for rejection.</p>
           </div>
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-foreground">Reason <span className="text-red-500">*</span></label>
+          <label className="text-[12px] font-semibold text-[#0b100e]">Reason <span className="text-[#d33d44]">*</span></label>
           <textarea
             value={reason} onChange={e => setReason(e.target.value)}
             placeholder="e.g. Vendor not approved yet…" rows={4}
-            className="w-full rounded-xl border border-border px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400 transition-all"
+            className="w-full rounded-[10px] border border-black/[0.1] px-3.5 py-2.5 text-[13px] text-[#0b100e] resize-none focus:outline-none focus:ring-2 focus:ring-[#d33d44]/20 focus:border-[#d33d44]/50 transition-all bg-[#f9faf9] placeholder:text-[#84908a]"
           />
           {reason.trim().length > 0 && reason.trim().length < 10 && (
-            <p className="text-xs text-red-500 flex items-center gap-1">
+            <p className="text-[12px] text-[#d33d44] flex items-center gap-1">
               <AlertCircle className="w-3 h-3" /> Please provide at least 10 characters.
             </p>
           )}
         </div>
         <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-border text-sm font-medium hover:bg-muted/40 transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 h-10 rounded-[8px] border border-black/[0.12] text-[13px] font-medium text-[#68726d] hover:bg-[#f9faf9] transition-colors">Cancel</button>
           <button
             onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())}
             disabled={reason.trim().length < 10 || isPending}
-            className="flex-1 h-10 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 h-10 rounded-[8px] bg-[#d33d44] text-white text-[13px] font-semibold hover:bg-[#b83038] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Rejection"}
           </button>
@@ -105,8 +101,6 @@ function RejectModal({
     </div>
   );
 }
-
-// ── PO Action Menu for All POs (approver scope) ───────────────────────────────
 
 function AllPOActionMenu({
   po, canApprove, canIssue, approvingId, issuingId, onApprove, onReject, onIssue, onView,
@@ -142,7 +136,7 @@ function AllPOActionMenu({
 
   if (!showApproveReject && !showIssue) {
     return (
-      <button onClick={onView} className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors" title="View">
+      <button onClick={onView} className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[#68726d] hover:bg-[#f9faf9] transition-colors" title="View">
         <Eye className="w-4 h-4" />
       </button>
     );
@@ -153,32 +147,32 @@ function AllPOActionMenu({
       <button
         onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
         disabled={isBusy}
-        className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-50"
+        className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[#68726d] hover:bg-[#f0faf8] hover:text-[#087f70] transition-colors disabled:opacity-50"
         title="Actions"
       >
         {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreHorizontal className="w-4 h-4" />}
       </button>
       {open && (
-        <div className="absolute right-0 top-9 z-50 bg-white border border-border rounded-xl shadow-xl w-44 overflow-hidden py-1">
-          <button onClick={e => { e.stopPropagation(); setOpen(false); onView(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted/40 transition-colors">
-            <Eye className="w-3.5 h-3.5 text-muted-foreground" /> View Details
+        <div className="absolute right-0 top-9 z-50 bg-white border border-black/[0.08] rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] w-44 overflow-hidden py-1">
+          <button onClick={e => { e.stopPropagation(); setOpen(false); onView(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#0b100e] hover:bg-[#f9faf9] transition-colors">
+            <Eye className="w-3.5 h-3.5 text-[#84908a]" /> View Details
           </button>
           {showApproveReject && (
             <>
-              <div className="border-t border-border/60 my-1" />
-              <button onClick={e => { e.stopPropagation(); setOpen(false); onApprove(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors font-medium">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Approve
+              <div className="border-t border-black/[0.06] my-1" />
+              <button onClick={e => { e.stopPropagation(); setOpen(false); onApprove(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#087f70] hover:bg-[#f0faf8] transition-colors font-semibold">
+                <CheckCircle className="w-3.5 h-3.5 text-[#087f70]" /> Approve
               </button>
-              <button onClick={e => { e.stopPropagation(); setOpen(false); onReject(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium">
-                <XCircle className="w-3.5 h-3.5 text-red-500" /> Reject
+              <button onClick={e => { e.stopPropagation(); setOpen(false); onReject(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#d33d44] hover:bg-[#fff5f5] transition-colors font-semibold">
+                <XCircle className="w-3.5 h-3.5 text-[#d33d44]" /> Reject
               </button>
             </>
           )}
           {showIssue && (
             <>
-              <div className="border-t border-border/60 my-1" />
-              <button onClick={e => { e.stopPropagation(); setOpen(false); onIssue(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-primary hover:bg-primary/5 transition-colors font-medium">
-                <Send className="w-3.5 h-3.5 text-primary" /> Issue PO
+              <div className="border-t border-black/[0.06] my-1" />
+              <button onClick={e => { e.stopPropagation(); setOpen(false); onIssue(); }} className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#087f70] hover:bg-[#f0faf8] transition-colors font-semibold">
+                <Send className="w-3.5 h-3.5 text-[#087f70]" /> Issue PO
               </button>
             </>
           )}
@@ -188,11 +182,9 @@ function AllPOActionMenu({
   );
 }
 
-// ── My POs Action: view only — edit happens from the detail page ───────────────
-
 function MyPOActionMenu({ onView }: { onView: () => void }) {
   return (
-    <button onClick={onView} className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors" title="View">
+    <button onClick={onView} className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[#68726d] hover:bg-[#f9faf9] transition-colors" title="View">
       <Eye className="w-4 h-4" />
     </button>
   );
@@ -373,13 +365,13 @@ function POTable({
         isPending={approvalDecision.isPending}
       />
 
-      <div className="bg-white rounded-2xl border border-border overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 gap-8">
+      <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 gap-4 flex-wrap">
           <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
 
-          <div className="relative flex flex-1 items-center max-w-[55%]">
+          <div className="relative flex flex-1 items-center min-w-0">
             {canScrollLeft && (
-              <button onClick={() => scroll("left")} className="absolute left-0 z-10 -ml-2 p-1.5 bg-white border border-gray-200 shadow-sm rounded-full text-foreground hover:bg-gray-50 flex items-center justify-center transition-all">
+              <button onClick={() => scroll("left")} className="absolute left-0 z-10 -ml-1 p-1 bg-white border border-black/[0.08] shadow-sm rounded-full text-[#0b100e] hover:bg-[#f9faf9] flex items-center justify-center transition-all">
                 <ChevronLeft className="w-4 h-4" />
               </button>
             )}
@@ -393,14 +385,13 @@ function POTable({
               }}
             >
               <Tabs value={activeTab} onValueChange={v => { setActiveTab(v); setPage(1); }}>
-                <TabsList className="bg-muted/60 p-[3px] border border-border/40 flex shrink-0">
+                <TabsList className="bg-[#f5f7f6] p-1 h-9 rounded-[8px] border border-black/[0.06] flex shrink-0">
                   {statusTabs.map(tab => (
                     <TabsTrigger
                       key={tab.key} value={tab.key}
-                      className="px-4 py-1.5 text-xs font-semibold rounded-md whitespace-nowrap shrink-0 data-[state=active]:text-primary flex items-center"
+                      className="px-3 py-1 text-[12px] font-semibold rounded-[6px] whitespace-nowrap shrink-0 data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] flex items-center"
                     >
                       {tab.label}
-                      {/* Red badge on Awaiting Approval tab in All POs view */}
                       {tab.key === "awaiting_approval" && canApprove && <ActionBadge count={awaitingCount} />}
                     </TabsTrigger>
                   ))}
@@ -408,21 +399,21 @@ function POTable({
               </Tabs>
             </div>
             {canScrollRight && (
-              <button onClick={() => scroll("right")} className="absolute right-0 z-10 -mr-2 p-1.5 bg-white border border-gray-200 shadow-sm rounded-full text-foreground hover:bg-gray-50 flex items-center justify-center transition-all">
+              <button onClick={() => scroll("right")} className="absolute right-0 z-10 -mr-1 p-1 bg-white border border-black/[0.08] shadow-sm rounded-full text-[#0b100e] hover:bg-[#f9faf9] flex items-center justify-center transition-all">
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#84908a]" />
               <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search POs…"
-                className="pl-9 pr-4 h-9 rounded-lg border border-border text-sm w-52 focus:outline-none focus:border-primary bg-white transition-colors" />
+                className="pl-9 pr-4 h-9 rounded-[8px] border border-black/[0.12] text-[13px] w-48 focus:outline-none focus:border-[#087f70] bg-[#f9faf9] placeholder:text-[#84908a] text-[#0b100e] transition-colors" />
             </div>
 
             <Select value={vendorFilter} onValueChange={v => { setVendorFilter(v); setPage(1); }}>
-              <SelectTrigger className="w-40 h-9 bg-white border-border hover:bg-muted/40 transition-colors">
+              <SelectTrigger className="w-40 h-9 rounded-[8px] bg-white border-black/[0.12] text-[13px] text-[#0b100e] hover:bg-[#f9faf9] transition-colors">
                 <SelectValue placeholder="All Vendors" />
               </SelectTrigger>
               <SelectContent>
@@ -433,20 +424,20 @@ function POTable({
               </SelectContent>
             </Select>
 
-            <button className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
+            <button className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#087f70]/30 text-[#087f70] text-[13px] font-semibold hover:bg-[#f0faf8] transition-colors">
               <Download className="w-4 h-4" /> Export
             </button>
           </div>
         </div>
 
-        <div className="border-b border-border" />
+        <div className="border-b border-black/[0.06]" />
 
         <div className="overflow-x-auto min-h-[400px]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border/60 bg-muted/20">
+              <tr className="border-b border-black/[0.06] bg-[#f9faf9]">
                 {["PO Number", ...(showRequester ? ["Requester"] : []), "Vendor", "Department", "Date", "Total Amount", "Status", "Action"].map(h => (
-                  <th key={h} className="px-5 py-4 text-left text-xs font-semibold text-dashboard-text-secondary uppercase tracking-wider">{h}</th>
+                  <th key={h} className="px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -455,14 +446,14 @@ function POTable({
                 <tr>
                   <td colSpan={colSpan} className="px-5 py-24 text-center">
                     <div className="flex flex-col items-center justify-center gap-3">
-                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                      <span className="text-muted-foreground font-medium">Loading orders…</span>
+                      <Loader2 className="w-8 h-8 animate-spin text-[#087f70]" />
+                      <span className="text-[#68726d] text-[13px] font-medium">Loading orders…</span>
                     </div>
                   </td>
                 </tr>
               ) : isError ? (
                 <tr>
-                  <td colSpan={colSpan} className="px-5 py-16 text-center text-red-500 font-medium">
+                  <td colSpan={colSpan} className="px-5 py-16 text-center text-[#d33d44] text-[13px] font-medium">
                     Failed to load purchase orders. Please try refreshing.
                   </td>
                 </tr>
@@ -486,16 +477,16 @@ function POTable({
                   <tr
                     key={id}
                     onClick={() => navigateToDetail(id)}
-                    className={`border-b border-border/40 hover:bg-muted/10 transition-colors cursor-pointer ${
-                      needsAction ? "border-l-4 border-l-primary bg-amber-50/30 hover:bg-amber-50/50" : ""
+                    className={`border-b border-black/[0.06] last:border-0 hover:bg-[#f9faf9] transition-colors cursor-pointer ${
+                      needsAction ? "border-l-4 border-l-[#087f70] bg-[#f0faf8]/40 hover:bg-[#f0faf8]/60" : ""
                     }`}
                   >
-                    <td className="px-5 py-4 font-semibold text-foreground whitespace-nowrap">{po.poNumber}</td>
-                    {showRequester && <td className="px-5 py-4 text-foreground whitespace-nowrap">{requester || "—"}</td>}
-                    <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">{vendorLabel}</td>
-                    <td className="px-5 py-4 text-muted-foreground">{po.departmentName || "N/A"}</td>
-                    <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">{formattedDate}</td>
-                    <td className="px-5 py-4 font-medium">
+                    <td className="px-5 py-4 font-semibold text-[#0b100e] text-[13px] whitespace-nowrap">{po.poNumber}</td>
+                    {showRequester && <td className="px-5 py-4 text-[13px] text-[#0b100e] whitespace-nowrap">{requester || "—"}</td>}
+                    <td className="px-5 py-4 text-[13px] text-[#68726d] whitespace-nowrap">{vendorLabel}</td>
+                    <td className="px-5 py-4 text-[13px] text-[#68726d]">{po.departmentName || "N/A"}</td>
+                    <td className="px-5 py-4 text-[13px] text-[#68726d] whitespace-nowrap">{formattedDate}</td>
+                    <td className="px-5 py-4 text-[13px] font-semibold text-[#0b100e]">
                       {Number(po.totalAmount).toLocaleString("en-US", { style: "currency", currency: po.currency || "USD" })}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap"><POStatusBadge status={po.status} isOwnView={isMyScope} /></td>
@@ -523,7 +514,7 @@ function POTable({
           </table>
         </div>
 
-        <div className="border-t border-border">
+        <div className="border-t border-black/[0.06]">
           <Pagination
             total={meta.totalCount}
             page={meta.currentPage}
@@ -598,9 +589,13 @@ function PurchaseOrderPage() {
   return (
     <div className="space-y-4">
       <Tabs value={outerTab} onValueChange={setOuterTab}>
-        <TabsList>
+        <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
           {outerTabs.map(t => (
-            <TabsTrigger key={t.key} value={t.key} className="flex items-center gap-1">
+            <TabsTrigger
+              key={t.key}
+              value={t.key}
+              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full flex items-center gap-1"
+            >
               {t.label}
               {t.key === "all" && canApprovePO && <ActionBadge count={outerAwaitingCount} />}
             </TabsTrigger>

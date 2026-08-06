@@ -82,7 +82,7 @@ function SuccessModal({ count, onClose }: { count: number; onClose: () => void }
         </p>
         <button
           onClick={onClose}
-          className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity"
+          className="w-full h-11 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors"
         >
           Close
         </button>
@@ -235,13 +235,13 @@ export default function VendorBulkInvitePage() {
 
       {/* Upload step */}
       {step === "upload" && (
-        <div className="bg-white rounded-2xl border border-border p-8 w-full">
-          <h2 className="text-2xl font-bold text-foreground mb-1">Invite Vendors in Bulk</h2>
-          <p className="text-sm text-muted-foreground mb-8">Upload a file containing the necessary vendor information.</p>
+        <div className="bg-white rounded-[14px] border border-black/[0.08] p-6 w-full shadow-sm">
+          <h2 className="text-[18px] font-bold text-[#0b100e] mb-1">Invite Vendors in Bulk</h2>
+          <p className="text-[13px] text-[#68726d] mb-6">Upload a file containing the necessary vendor information.</p>
 
           <div className="mb-6">
             <div className="flex items-center justify-end mb-3">
-              <button className="flex items-center gap-2 text-sm text-primary font-medium hover:opacity-80 transition-opacity">
+              <button className="flex items-center gap-2 text-[13px] text-[#087f70] font-semibold hover:text-[#076b5e] transition-colors">
                 <Download className="w-4 h-4" />
                 Download a Template
               </button>
@@ -250,8 +250,8 @@ export default function VendorBulkInvitePage() {
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
-              className={`rounded-2xl border-2 border-dashed transition-all p-16 flex flex-col items-center justify-center text-center cursor-pointer ${
-                isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/20"
+              className={`rounded-[14px] border-2 border-dashed transition-all p-12 flex flex-col items-center justify-center text-center cursor-pointer ${
+                isDragging ? "border-[#087f70] bg-[#f0faf8]" : "border-black/[0.12] hover:border-[#087f70] hover:bg-[#f9faf9]"
               }`}
               onClick={() => fileInputRef.current?.click()}
             >
@@ -260,12 +260,12 @@ export default function VendorBulkInvitePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
                 </svg>
               </div>
-              <h4 className="font-semibold text-foreground mb-1">Upload CSV or Excel File</h4>
-              <p className="text-sm text-muted-foreground mb-5">Upload a file with user information to invite multiple vendors at once</p>
+              <h4 className="font-semibold text-[#0b100e] mb-1">Upload CSV or Excel File</h4>
+              <p className="text-[13px] text-[#84908a] mb-5">Upload a file with user information to invite multiple vendors at once</p>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                className="h-10 px-6 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                className="h-9 px-5 rounded-[8px] border border-black/[0.08] text-[13px] font-semibold text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors bg-white shadow-sm"
               >
                 Browse File
               </button>
@@ -279,8 +279,8 @@ export default function VendorBulkInvitePage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border p-6">
-            <h3 className="text-base font-semibold text-foreground mb-5">Required Fields</h3>
+          <div className="rounded-[10px] border border-black/[0.06] p-5 bg-[#f9faf9]">
+            <h3 className="text-[13px] font-semibold text-[#0b100e] mb-4">Required Fields</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {REQUIRED_FIELDS.map((f) => (
                 <div key={f.name}>

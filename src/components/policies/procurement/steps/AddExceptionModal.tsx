@@ -57,12 +57,12 @@ export function AddExceptionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[520px] p-7">
+      <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-[520px] p-7">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-foreground">Add Exception</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground"
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#f9faf9] transition-colors text-[#68726d]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -70,14 +70,14 @@ export function AddExceptionModal({
 
         <div className="h-px bg-border mb-5" />
 
-        <p className="text-xs font-semibold tracking-wide text-muted-foreground mb-3">SELECT CATEGORY</p>
+        <p className="text-xs font-semibold tracking-wide text-[#68726d] mb-3">SELECT CATEGORY</p>
         <div className="flex items-center gap-6 mb-5">
           {CATEGORY_META.map((c) => (
             <label key={c.value} className="flex items-center gap-2 cursor-pointer">
               <span
                 className={cn(
                   "w-[18px] h-[18px] rounded-full border flex items-center justify-center",
-                  category === c.value ? "border-primary" : "border-border"
+                  category === c.value ? "border-primary" : "border-black/[0.06]"
                 )}
                 onClick={() => setCategory(c.value)}
               >
@@ -94,7 +94,7 @@ export function AddExceptionModal({
         </div>
 
         <Select onValueChange={addItem}>
-          <SelectTrigger className="h-11 w-full rounded-xl mb-4">
+          <SelectTrigger className="h-11 w-full rounded-[14px] mb-4">
             <SelectValue placeholder={meta.placeholder} />
           </SelectTrigger>
           <SelectContent>
@@ -106,13 +106,13 @@ export function AddExceptionModal({
           </SelectContent>
         </Select>
 
-        <div className="rounded-xl bg-muted/40 p-4 mb-6 min-h-[70px]">
-          <p className="text-[11px] font-semibold tracking-wide text-muted-foreground mb-2">
+        <div className="rounded-[14px] bg-[#f9faf9]/40 p-4 mb-6 min-h-[70px]">
+          <p className="text-[11px] font-semibold tracking-wide text-[#68726d] mb-2">
             SELECTED ITEMS ({totalSelected})
           </p>
           <div className="flex flex-wrap gap-2">
             {totalSelected === 0 && (
-              <span className="text-xs text-muted-foreground">No exceptions added yet.</span>
+              <span className="text-xs text-[#68726d]">No exceptions added yet.</span>
             )}
             {(["department", "role", "location"] as ExceptionCategory[]).flatMap((cat) =>
               draft[cat].map((item) => (
@@ -131,11 +131,11 @@ export function AddExceptionModal({
         </div>
 
         <div className="flex items-center justify-end gap-3">
-          <Button variant="outline" className="rounded-xl h-11 px-6" onClick={onClose}>
+          <Button className="bg-white border border-black/[0.06] text-[#0b100e] hover:bg-[#f9faf9] rounded-[14px] h-11 px-6 font-semibold text-sm transition-colors" onClick={onClose}>
             Back
           </Button>
           <Button
-            className="rounded-xl h-11 px-7"
+            className="rounded-[14px] h-11 px-7"
             onClick={() => {
               onSave(draft);
               onClose();

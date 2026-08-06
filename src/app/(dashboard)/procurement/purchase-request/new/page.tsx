@@ -74,18 +74,18 @@ function SelectDropdown({
       <button
         type="button" id={id}
         onClick={() => !disabled && setOpen(v => !v)}
-        className={`w-full h-11 px-3 rounded-lg border border-border bg-muted/30 text-sm flex items-center justify-between transition-colors ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:border-primary/60 focus:outline-none"}`}
+        className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between transition-colors ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:border-[#087f70]/60 focus:outline-none"}`}
       >
-        <span className={selected ? "text-foreground" : "text-muted-foreground"}>
+        <span className={selected ? "text-[#0b100e]" : "text-[#68726d]"}>
           {selected?.label || placeholder}
         </span>
-        {!disabled && <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />}
+        {!disabled && <ChevronDown className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />}
       </button>
       {open && (
-        <div className="absolute left-0 right-0 z-50 bg-white border border-border rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
+        <div className="absolute left-0 right-0 z-50 bg-white border border-black/[0.06] rounded-[12px] shadow-lg mt-1 max-h-52 overflow-y-auto">
           {options.map(o => (
             <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors ${value === o.value ? "text-primary font-medium" : "text-foreground"}`}>
+              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors ${value === o.value ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
               {o.label}
             </button>
           ))}
@@ -158,24 +158,24 @@ function CategoryDropdown({
   return (
     <div className="relative" ref={ref}>
       <button type="button" onClick={() => setOpen(v => !v)}
-        className="w-full h-11 px-3 rounded-lg border border-border bg-muted/30 text-sm flex items-center justify-between cursor-pointer hover:border-primary/60 focus:outline-none transition-colors">
-        <span className={value ? "text-foreground" : "text-muted-foreground"}>
+        className="w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between cursor-pointer hover:border-[#087f70]/60 focus:outline-none transition-colors">
+        <span className={value ? "text-[#0b100e]" : "text-[#68726d]"}>
           {value ? selectedName || "Selected" : "Select category..."}
         </span>
-        <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 z-50 bg-white border border-border rounded-xl shadow-xl mt-1 overflow-hidden">
+        <div className="absolute left-0 right-0 z-50 bg-white border border-black/[0.06] rounded-[12px] shadow-xl mt-1 overflow-hidden">
           {/* Search bar — always visible */}
-          <div className="p-2 border-b border-border">
+          <div className="p-2 border-b border-black/[0.06]">
             <div className="relative">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#68726d]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <input ref={searchRef} value={search} onChange={e => { setSearch(e.target.value); setExpandedId(null); }}
                 placeholder="Search categories..."
-                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-border focus:outline-none focus:border-primary transition-colors bg-white" />
+                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-black/[0.06] focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
               {search && (
-                <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#68726d] hover:text-[#0b100e]">
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -184,21 +184,21 @@ function CategoryDropdown({
 
           {isLoading ? (
             <div className="flex items-center justify-center py-6">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              <Loader2 className="w-4 h-4 animate-spin text-[#68726d]" />
             </div>
           ) : q ? (
             /* ── Search results (flat) ── */
             <div className="max-h-56 overflow-y-auto py-1">
               {searchResults.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-muted-foreground text-center">
-                  <span className="block font-medium text-foreground">No matches for &quot;{search}&quot;</span>
+                <div className="px-4 py-3 text-sm text-[#68726d] text-center">
+                  <span className="block font-medium text-[#0b100e]">No matches for &quot;{search}&quot;</span>
                 </div>
               ) : (
                 searchResults.map(r => (
                   <button key={r.id} type="button" onClick={() => handleSelectResult(r.id, r.name)}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors flex items-baseline gap-2 ${value === r.id ? "text-primary font-medium" : "text-foreground"}`}>
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors flex items-baseline gap-2 ${value === r.id ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
                     <span>{r.name}</span>
-                    {r.parentName && <span className="text-xs text-muted-foreground font-normal">in {r.parentName}</span>}
+                    {r.parentName && <span className="text-xs text-[#68726d] font-normal">in {r.parentName}</span>}
                   </button>
                 ))
               )}
@@ -207,7 +207,7 @@ function CategoryDropdown({
             /* ── Accordion browse (no search) ── */
             <div className="max-h-56 overflow-y-auto py-1">
               {rawCategories.length === 0 ? (
-                <p className="text-sm text-muted-foreground px-4 py-3">No categories yet</p>
+                <p className="text-sm text-[#68726d] px-4 py-3">No categories yet</p>
               ) : (
                 rawCategories.map(cat => {
                   const isExpanded = expandedId === cat.categoryId;
@@ -217,22 +217,22 @@ function CategoryDropdown({
                     <div key={cat.categoryId}>
                       <div className="flex items-center">
                         <button type="button" onClick={() => handleSelectParent(cat.categoryId, cat.name)}
-                          className={`flex-1 text-left px-4 py-2.5 text-sm font-medium hover:bg-muted/40 transition-colors ${isSelected ? "text-primary" : "text-foreground"}`}>
+                          className={`flex-1 text-left px-4 py-2.5 text-sm font-medium hover:bg-[#f9faf9] transition-colors ${isSelected ? "text-[#087f70]" : "text-[#0b100e]"}`}>
                           {cat.name}
-                          {isSelected && <span className="ml-2 text-xs font-normal text-muted-foreground">(selected)</span>}
+                          {isSelected && <span className="ml-2 text-xs font-normal text-[#68726d]">(selected)</span>}
                         </button>
                         <button type="button" onClick={() => setExpandedId(isExpanded ? null : cat.categoryId)}
-                          className={`w-9 h-9 flex items-center justify-center mr-1 rounded-lg transition-colors ${isExpanded ? "text-primary bg-primary/5" : "text-muted-foreground hover:bg-muted/40"}`}
+                          className={`w-9 h-9 flex items-center justify-center mr-1 rounded-lg transition-colors ${isExpanded ? "text-[#087f70] bg-[#f0faf8]" : "text-[#68726d] hover:bg-[#f9faf9]"}`}
                           title={`${subs.length} subcategory${subs.length !== 1 ? "s" : ""}`}>
                           <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                         </button>
                       </div>
 
                       {isExpanded && (
-                        <div className="bg-muted/10 border-t border-b border-border/40">
+                        <div className="bg-[#f9faf9] border-t border-b border-border/40">
                           {subs.map(sub => (
                             <button key={sub.categoryId} type="button" onClick={() => handleSelectSub(sub.categoryId, sub.name)}
-                              className={`w-full text-left pl-7 pr-4 py-2 text-sm flex items-center gap-2 hover:bg-muted/40 transition-colors ${value === sub.categoryId ? "text-primary font-medium" : "text-foreground"}`}>
+                              className={`w-full text-left pl-7 pr-4 py-2 text-sm flex items-center gap-2 hover:bg-[#f9faf9] transition-colors ${value === sub.categoryId ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
                               <span className="w-1 h-1 rounded-full bg-muted-foreground/50 shrink-0" />
                               {sub.name}
                             </button>
@@ -313,26 +313,26 @@ function LineItemModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-white z-10 shrink-0 rounded-t-2xl">
-          <h3 className="text-base font-bold text-foreground">{initial ? "Edit Line Item" : "Add Line Item"}</h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
-            <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] bg-white z-10 shrink-0 rounded-t-2xl">
+          <h3 className="text-base font-bold text-[#0b100e]">{initial ? "Edit Line Item" : "Add Line Item"}</h3>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+            <X className="w-4 h-4 text-[#68726d]" />
           </button>
         </div>
 
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
           {/* Name */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Item Name <span className="text-red-500">*</span></label>
+            <label className="text-sm font-medium text-[#0b100e]">Item Name <span className="text-[#d33d44]">*</span></label>
             <input type="text" value={form.name} onChange={e => set("name", e.target.value)}
               placeholder="e.g. Dell XPS Laptop"
-              className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+              className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
           </div>
 
           {/* Category */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Category</label>
+            <label className="text-sm font-medium text-[#0b100e]">Category</label>
             <CategoryDropdown
               value={form.categoryId}
               onChange={(id, name) => setForm(p => ({ ...p, categoryId: id, categoryName: name }))}
@@ -342,56 +342,56 @@ function LineItemModal({
           {/* Qty + Unit Price */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Quantity <span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium text-[#0b100e]">Quantity <span className="text-[#d33d44]">*</span></label>
               <input type="number" min={1} value={form.quantity || ""}
                 onChange={e => set("quantity", Number(e.target.value))} placeholder="0"
-                className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+                className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Unit Price</label>
+              <label className="text-sm font-medium text-[#0b100e]">Unit Price</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">
                   {currencySymbol}
                 </span>
                 <input type="number" min={0} value={form.unitPrice ?? ""}
                   onChange={e => set("unitPrice", e.target.value === "" ? undefined : Number(e.target.value))} placeholder="0.00"
-                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors bg-white" />
+                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
               </div>
             </div>
           </div>
 
           {/* Unit of Measure */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Unit of Measure</label>
+            <label className="text-sm font-medium text-[#0b100e]">Unit of Measure</label>
             <input type="text" value={form.unitOfMeasure} onChange={e => set("unitOfMeasure", e.target.value)}
               placeholder="unit / box / kg"
-              className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+              className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
           </div>
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+            <label className="text-sm font-medium text-[#0b100e]">Description <span className="text-[#68726d] font-normal">(optional)</span></label>
             <textarea value={form.description}
               onChange={e => set("description", e.target.value)}
               placeholder="Brief description of this item"
               rows={3}
-              className="w-full px-3 py-2.5 rounded-lg border border-border text-sm resize-none focus:outline-none focus:border-primary transition-colors" />
+              className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors" />
           </div>
 
           {/* Subtotal preview */}
           {subtotal > 0 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-muted/30 rounded-xl">
-              <span className="text-sm text-muted-foreground">Line Subtotal</span>
-              <span className="text-sm font-semibold text-foreground">
+            <div className="flex items-center justify-between px-4 py-3 bg-[#f9faf9] rounded-[12px]">
+              <span className="text-sm text-[#68726d]">Line Subtotal</span>
+              <span className="text-sm font-semibold text-[#0b100e]">
                 {currencySymbol}{subtotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-border bg-white z-10 shrink-0 rounded-b-2xl">
+        <div className="px-6 py-4 border-t border-black/[0.06] bg-white z-10 shrink-0 rounded-b-2xl">
           <button type="button" onClick={handleSave} disabled={loading || !(form.name || "").trim() || !form.categoryId || form.quantity <= 0}
-            className="w-full h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {initial ? "Save Changes" : "Add Item"}
           </button>
@@ -411,14 +411,14 @@ function StepIndicator({ step }: { step: 1 | 2 }) {
         const active = step === s;
         return (
           <div key={s} className="flex items-center gap-3">
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${done ? "bg-emerald-50 text-emerald-600" : active ? "bg-primary/10 text-primary" : "bg-muted/40 text-muted-foreground"}`}>
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${done ? "bg-[#f0faf8] text-[#087f70]" : active ? "bg-[#f0faf8] text-[#087f70]" : "bg-[#f9faf9] text-[#68726d]"}`}>
               {done ? <CheckCircle2 className="w-4 h-4" /> : (
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${active ? "bg-primary text-white" : "bg-muted-foreground/30 text-muted-foreground"}`}>{s}</span>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${active ? "bg-[#087f70] text-white" : "bg-muted-foreground/30 text-[#68726d]"}`}>{s}</span>
               )}
-              {s === 1 ? "Request Details" : "Add Items"}
+              <span className="hidden sm:inline">{s === 1 ? "Request Details" : "Add Items"}</span>
             </div>
             {i === 0 && (
-              <div className={`w-8 h-px ${step > 1 ? "bg-primary" : "bg-border"}`} />
+              <div className={`w-8 h-px ${step > 1 ? "bg-[#087f70]" : "bg-border"}`} />
             )}
           </div>
         );
@@ -668,28 +668,28 @@ export default function NewPurchaseRequestPage() {
       {step === 1 && (
         <div className="max-w-5xl mx-auto space-y-5">
           {/* Title + stepper */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold text-foreground">New Purchase Request</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Fill in the details and add line items</p>
+              <h1 className="text-xl font-bold text-[#0b100e]">New Purchase Request</h1>
+              <p className="text-sm text-[#68726d] mt-0.5">Fill in the details and add line items</p>
             </div>
             <StepIndicator step={step} />
           </div>
 
           {/* Request Details card */}
-          <div className="bg-white rounded-2xl border border-border p-6 space-y-5">
-            <h2 className="text-base font-semibold text-foreground">Request Details</h2>
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-6 space-y-5">
+            <h2 className="text-base font-semibold text-[#0b100e]">Request Details</h2>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Request Title <span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium text-[#0b100e]">Request Title <span className="text-[#d33d44]">*</span></label>
               <input type="text" value={title} onChange={e => setTitle(e.target.value)}
                 placeholder="e.g. Engineering Laptops Q3 2026"
-                className="w-full h-11 px-3 rounded-lg border border-border text-sm focus:outline-none focus:border-primary transition-colors" />
+                className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
             </div>
 
-            <div className="grid grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Priority <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium text-[#0b100e]">Priority <span className="text-[#d33d44]">*</span></label>
                 <SelectDropdown
                   value={priority}
                   onChange={(v) => setPriority(isPRPriority(v) ? v : "")}
@@ -698,14 +698,14 @@ export default function NewPurchaseRequestPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Currency <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium text-[#0b100e]">Currency <span className="text-[#d33d44]">*</span></label>
                 <SelectDropdown value={currency} onChange={setCurrency} options={currencyOptions} placeholder="Select currency" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Expected Date <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium text-[#0b100e]">Expected Date <span className="text-[#d33d44]">*</span></label>
                 <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                   <PopoverTrigger asChild>
-                    <button type="button" className={`w-full h-11 px-3 rounded-lg border border-border text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-primary cursor-pointer ${!neededByDate ? "text-muted-foreground" : "text-foreground"}`}>
+                    <button type="button" className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] cursor-pointer ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}>
                       {neededByDate ? format(new Date(neededByDate), "PPP") : "Pick a date"}
                       <CalendarIcon className="w-4 h-4 ml-2 opacity-50" />
                     </button>
@@ -729,28 +729,28 @@ export default function NewPurchaseRequestPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Department <span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium text-[#0b100e]">Department <span className="text-[#d33d44]">*</span></label>
               {canChangeDept ? (
                 <SelectDropdown value={departmentId} onChange={setDepartmentOverride} options={departments} placeholder="Select department" />
               ) : (
-                <div className="w-full h-11 px-3 rounded-lg border border-border bg-muted/30 flex items-center justify-between text-sm text-foreground">
-                  <span>{selectedDeptName || <span className="text-muted-foreground italic">No department assigned</span>}</span>
-                  <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">Your department</span>
+                <div className="w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] flex items-center justify-between text-sm text-[#0b100e]">
+                  <span>{selectedDeptName || <span className="text-[#68726d] italic">No department assigned</span>}</span>
+                  <span className="text-xs text-[#68726d] bg-[#f9faf9] px-2 py-0.5 rounded-full">Your department</span>
                 </div>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <label className="text-sm font-medium text-[#0b100e]">Description <span className="text-[#68726d] font-normal">(optional)</span></label>
               <textarea value={description} onChange={e => setDescription(e.target.value)}
                 placeholder="Provide context for this request..."
                 rows={3}
-                className="w-full px-3 py-2.5 rounded-lg border border-border text-sm resize-none focus:outline-none focus:border-primary transition-colors" />
+                className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors" />
             </div>
 
             <div className="pt-1 flex justify-end">
               <button type="button" onClick={handleSaveHeader} disabled={headerSaving}
-                className="h-11 px-8 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
+                className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
                 {headerSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save & Continue
               </button>
@@ -766,10 +766,10 @@ export default function NewPurchaseRequestPage() {
         <div className="flex flex-col h-full max-w-5xl mx-auto">
 
           {/* Sticky page header */}
-          <div className="flex items-center justify-between py-4 shrink-0">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 shrink-0">
             <div>
-              <h1 className="text-xl font-bold text-foreground">New Purchase Request</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Fill in the details and add line items</p>
+              <h1 className="text-xl font-bold text-[#0b100e]">New Purchase Request</h1>
+              <p className="text-sm text-[#68726d] mt-0.5">Fill in the details and add line items</p>
             </div>
             <StepIndicator step={step} />
           </div>
@@ -778,14 +778,14 @@ export default function NewPurchaseRequestPage() {
           <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pb-4 pr-2">
 
             {/* Read-only request summary */}
-            <div className="bg-white rounded-2xl border border-border p-5">
+            <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-foreground">Request Details</h2>
-                <div className="flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full font-medium">
+                <h2 className="text-base font-semibold text-[#0b100e]">Request Details</h2>
+                <div className="flex items-center gap-1.5 text-xs bg-[#f0faf8] text-[#087f70] px-3 py-1 rounded-full font-medium">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Saved as draft
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
                   { label: "Title", value: title },
                   { label: "Priority", value: PRIORITIES.find(p => p.value === priority)?.label || priority },
@@ -794,33 +794,33 @@ export default function NewPurchaseRequestPage() {
                   { label: "Department", value: selectedDeptName || "—" },
                 ].map(({ label, value }) => (
                   <div key={label}>
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                    <p className="text-sm font-medium text-foreground mt-0.5">{value}</p>
+                    <p className="text-xs text-[#68726d]">{label}</p>
+                    <p className="text-sm font-medium text-[#0b100e] mt-0.5">{value}</p>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Line Items Card */}
-            <div className="bg-white rounded-2xl border border-border overflow-hidden">
-              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-                <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
+              <div className="px-5 py-4 border-b border-black/[0.06] flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-base font-semibold text-[#0b100e] flex items-center gap-2">
                   Request Items
-                  <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold text-foreground px-1.5">
+                  <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold text-[#0b100e] px-1.5">
                     {savedLineItems.length}
                   </span>
                 </h2>
                 <button type="button" onClick={() => { setEditingItem(null); setPanelOpen(true); }}
-                  className="flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
+                  className="flex items-center gap-1 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors">
                   <Plus className="w-4 h-4" /> Add Items
                 </button>
               </div>
 
               {savedLineItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <p className="text-sm text-muted-foreground">No items yet. Click &quot;Add Item&quot; to get started.</p>
+                  <p className="text-sm text-[#68726d]">No items yet. Click &quot;Add Item&quot; to get started.</p>
                   <button type="button" onClick={() => { setEditingItem(null); setPanelOpen(true); }}
-                    className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
+                    className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#087f70] text-[#087f70] text-sm font-medium hover:bg-[#f0faf8] transition-colors">
                     <Plus className="w-4 h-4" /> Add first item
                   </button>
                 </div>
@@ -828,9 +828,9 @@ export default function NewPurchaseRequestPage() {
                 <>
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-border/60 bg-muted/5">
+                      <tr className="border-b border-border/60 bg-[#f9faf9]">
                         {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal", ""].map(h => (
-                          <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                          <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-[#68726d] uppercase tracking-wide">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -838,33 +838,33 @@ export default function NewPurchaseRequestPage() {
                       {savedLineItems.map((item, i) => {
                         const catName = getCategoryName(item.categoryId);
                         return (
-                          <tr key={item.purchaseRequestLineItemId || (item as any).id || i} className="border-b border-border/40 last:border-0 hover:bg-muted/10 transition-colors">
-                            <td className="px-5 py-3.5 font-semibold text-foreground">{item.name}</td>
-                            <td className="px-5 py-3.5 text-muted-foreground max-w-[180px] truncate">{item.description || "—"}</td>
+                          <tr key={item.purchaseRequestLineItemId || (item as any).id || i} className="border-b border-border/40 last:border-0 hover:bg-[#f9faf9] transition-colors">
+                            <td className="px-5 py-3.5 font-semibold text-[#0b100e]">{item.name}</td>
+                            <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
                             <td className="px-5 py-3.5">
                               {catName
                                 ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{catName}</span>
-                                : <span className="text-muted-foreground">—</span>
+                                : <span className="text-[#68726d]">—</span>
                               }
                             </td>
-                            <td className="px-5 py-3.5 text-foreground">{item.quantity}</td>
-                            <td className="px-5 py-3.5 text-foreground">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3.5 font-medium text-foreground">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                            <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
+                            <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                            <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-1">
                                 <div className="relative group">
                                   <button type="button" onClick={() => openEditModal(item, i)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors">
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
                                     <Pencil className="w-3.5 h-3.5" />
                                   </button>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-foreground text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
+                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
                                 </div>
                                 <div className="relative group">
                                   <button type="button" onClick={() => setItemToDelete({ item, index: i })}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-500 transition-colors">
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors">
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-foreground text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
+                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
                                 </div>
                               </div>
                             </td>
@@ -876,7 +876,7 @@ export default function NewPurchaseRequestPage() {
 
                   <div className="px-5 py-3 border-t border-border/40">
                     <button type="button" onClick={() => { setEditingItem(null); setPanelOpen(true); }}
-                      className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
+                      className="flex items-center gap-1.5 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors">
                       <Plus className="w-4 h-4" /> Add Items
                     </button>
                   </div>
@@ -884,16 +884,16 @@ export default function NewPurchaseRequestPage() {
                   <div className="flex justify-end px-5 py-4 border-t border-border/60">
                     <div className="space-y-1.5 min-w-[220px]">
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Subtotal</span>
+                        <span className="text-[#68726d]">Subtotal</span>
                         <span className="font-medium">{currencySymbol}{totals.subtotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Tax</span>
+                        <span className="text-[#68726d]">Tax</span>
                         <span className="font-medium">{currencySymbol}{totals.tax.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex justify-between text-sm border-t border-border/60 pt-1.5">
-                        <span className="font-semibold text-foreground">Total</span>
-                        <span className="font-bold text-foreground">{currencySymbol}{totals.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                        <span className="font-semibold text-[#0b100e]">Total</span>
+                        <span className="font-bold text-[#0b100e]">{currencySymbol}{totals.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
                       </div>
                     </div>
                   </div>
@@ -903,7 +903,7 @@ export default function NewPurchaseRequestPage() {
           </div>
 
           {/* Sticky Submit footer */}
-          <div className="shrink-0 border-t border-border bg-white py-4 flex items-center justify-end">
+          <div className="shrink-0 border-t border-black/[0.06] bg-white py-4 flex items-center justify-end">
             <button type="button" disabled={savedLineItems.length === 0 || submitPR.isPending}
               onClick={async () => {
                 if (!purchaseRequestId) return;
@@ -915,7 +915,7 @@ export default function NewPurchaseRequestPage() {
                   toast.error(getApiErrorMessage(err, "Failed to submit"));
                 }
               }}
-              className="h-11 px-8 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
+              className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
               {submitPR.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
               Submit Request
             </button>
@@ -929,13 +929,13 @@ export default function NewPurchaseRequestPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Item?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove <span className="font-semibold text-foreground">{itemToDelete?.item.name}</span> from the request? This action cannot be undone.
+              Are you sure you want to remove <span className="font-semibold text-[#0b100e]">{itemToDelete?.item.name}</span> from the request? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteLineItem.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDeleteItem} disabled={deleteLineItem.isPending}
-              className="bg-red-600 hover:bg-red-700 text-white">
+              className="bg-[#b83038] hover:bg-red-700 text-white">
               {deleteLineItem.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Remove
             </AlertDialogAction>

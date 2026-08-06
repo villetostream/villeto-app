@@ -61,11 +61,11 @@ export function StepApproval({ approverIds, requiresApproval, onChange }: Props)
   return (
     <div>
       <h2 className="text-xl font-bold text-foreground mb-1">Approver(s)</h2>
-      <p className="text-sm text-muted-foreground mb-2">
+      <p className="text-sm text-[#68726d] mb-2">
         Select who must approve this policy before it becomes active.
       </p>
       {!requiresApproval && (
-        <p className="text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-6">
+        <p className="text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 rounded-[14px] px-4 py-2.5 mb-6">
           Policy approval is currently disabled. Enable &quot;Policy requires approval&quot; in the Configure step first.
         </p>
       )}
@@ -78,17 +78,17 @@ export function StepApproval({ approverIds, requiresApproval, onChange }: Props)
               {selectedUsers.map((u) => (
                 <div
                   key={u.userId}
-                  className="h-12 rounded-xl border border-border bg-white px-4 flex items-center justify-between"
+                  className="h-12 rounded-[14px] border border-black/[0.06] bg-white px-4 flex items-center justify-between"
                 >
                   <div>
                     <span className="text-sm font-medium text-foreground">{getLabel(u)}</span>
                     {getSub(u) && (
-                      <span className="text-xs text-muted-foreground ml-2">({getSub(u)})</span>
+                      <span className="text-xs text-[#68726d] ml-2">({getSub(u)})</span>
                     )}
                   </div>
                   <button
                     onClick={() => toggle(u.userId)}
-                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    className="text-[#68726d] hover:text-destructive transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -112,24 +112,24 @@ export function StepApproval({ approverIds, requiresApproval, onChange }: Props)
             </button>
 
             {open && (
-              <div className="absolute z-30 left-0 top-10 w-80 rounded-xl border border-border bg-white shadow-lg overflow-hidden">
-                <div className="p-2 border-b border-border">
+              <div className="absolute z-30 left-0 top-10 w-80 rounded-[14px] border border-black/[0.06] bg-white shadow-lg overflow-hidden">
+                <div className="p-2 border-b border-black/[0.06]">
                   <input
                     autoFocus
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search managers and above…"
-                    className="w-full h-9 px-3 rounded-lg border border-border text-sm bg-muted/30 focus:outline-none focus:border-primary"
+                    className="w-full h-9 px-3 rounded-[12px] border border-black/[0.06] text-sm bg-[#f9faf9]/30 focus:outline-none focus:border-primary"
                   />
                 </div>
 
                 <div className="max-h-56 overflow-y-auto p-1">
                   {usersQ.isLoading ? (
                     <div className="flex justify-center py-6">
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      <Loader2 className="w-4 h-4 animate-spin text-[#68726d]" />
                     </div>
                   ) : filtered.length === 0 ? (
-                    <p className="text-xs text-center text-muted-foreground py-4">
+                    <p className="text-xs text-center text-[#68726d] py-4">
                       {search ? "No matching users" : "No eligible approvers found"}
                     </p>
                   ) : (
@@ -140,18 +140,18 @@ export function StepApproval({ approverIds, requiresApproval, onChange }: Props)
                           key={u.userId}
                           type="button"
                           onClick={() => { toggle(u.userId); setSearch(""); }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-muted/40 transition-colors"
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[12px] hover:bg-[#f9faf9]/40 transition-colors"
                         >
                           <span className={cn(
                             "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
-                            isSelected ? "bg-primary border-primary" : "border-border"
+                            isSelected ? "bg-primary border-primary" : "border-black/[0.06]"
                           )}>
                             {isSelected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
                           </span>
                           <span className="text-left">
                             <span className="block text-sm font-medium text-foreground">{getLabel(u)}</span>
                             {getSub(u) && (
-                              <span className="block text-xs text-muted-foreground">{getSub(u)}</span>
+                              <span className="block text-xs text-[#68726d]">{getSub(u)}</span>
                             )}
                           </span>
                         </button>
@@ -160,8 +160,8 @@ export function StepApproval({ approverIds, requiresApproval, onChange }: Props)
                   )}
                 </div>
 
-                <div className="border-t border-border px-3 py-2">
-                  <p className="text-[10px] text-muted-foreground">
+                <div className="border-t border-black/[0.06] px-3 py-2">
+                  <p className="text-[10px] text-[#68726d]">
                     Showing active users at Manager level and above only.
                   </p>
                 </div>

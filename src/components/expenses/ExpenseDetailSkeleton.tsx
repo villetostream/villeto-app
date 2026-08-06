@@ -17,15 +17,15 @@ export function ExpenseDetailSkeleton() {
         {/* Left Column - Expense Details */}
         <div className="lg:col-span-2 space-y-6">
           {/* Preview Items Section */}
-          <div className="bg-white border border-border rounded-lg">
+          <div className="bg-white border border-black/[0.06] rounded-[14px]">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
+            <div className="flex items-center justify-between p-4 border-b border-black/[0.06]">
               <Skeleton className="h-5 w-32" />
               <Skeleton className="h-5 w-24" />
             </div>
 
             {/* Table Header */}
-            <div className="bg-muted/30 p-3 flex gap-4">
+            <div className="bg-[#f9faf9] p-3 flex gap-4">
               <Skeleton className="h-4 w-32" />
               <Skeleton className="h-4 w-24" />
               <Skeleton className="h-4 w-24" />
@@ -35,7 +35,7 @@ export function ExpenseDetailSkeleton() {
 
             {/* Table Rows */}
             {[1, 2, 3].map((i) => (
-              <div key={i} className="border-t border-border p-3 flex gap-4 items-center">
+              <div key={i} className="border-t border-black/[0.06] p-3 flex gap-4 items-center">
                 <div className="flex-1">
                   <Skeleton className="h-4 w-32 mb-2" />
                   <Skeleton className="h-3 w-48" />
@@ -51,7 +51,7 @@ export function ExpenseDetailSkeleton() {
           {/* CO's Note Skeleton */}
           <div className="space-y-4">
             <Skeleton className="h-6 w-32" />
-            <div className="bg-[#7FE3DB]/10 rounded-lg p-4">
+            <div className="bg-[#f0faf8] rounded-[14px] p-4">
               <Skeleton className="h-4 w-full mb-2" />
               <Skeleton className="h-4 w-3/4" />
             </div>

@@ -36,9 +36,9 @@ function StatusBadge({ status }: { status: string }) {
     active: "bg-success/10 text-success",
     pending: "bg-pending/10 text-pending",
     draft: "bg-draft/10 text-draft",
-    inactive: "bg-muted/60 text-muted-foreground",
+    inactive: "bg-[#f9faf9]/60 text-[#68726d]",
   };
-  const cls = map[status?.toLowerCase()] ?? "bg-muted/60 text-muted-foreground";
+  const cls = map[status?.toLowerCase()] ?? "bg-[#f9faf9]/60 text-[#68726d]";
   return (
     <span className={`inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold capitalize ${cls}`}>
       {status ?? "—"}
@@ -102,8 +102,8 @@ export function ProcurementPolicySection({
         header: "Policy Name",
         cell: ({ row }) => (
           <div>
-            <p className="text-sm font-bold text-foreground">{row.original.name}</p>
-            <p className="text-xs text-muted-foreground">Priority {row.original.priority}</p>
+            <p className="text-sm font-bold text-[#0b100e]">{row.original.name}</p>
+            <p className="text-xs text-[#68726d]">Priority {row.original.priority}</p>
           </div>
         ),
       },
@@ -125,7 +125,7 @@ export function ProcurementPolicySection({
         accessorKey: "createdAt",
         header: "Created",
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground tabular-nums">
+          <span className="text-sm text-[#68726d] tabular-nums">
             {formatDate(row.original.createdAt)}
           </span>
         ),
@@ -142,16 +142,16 @@ export function ProcurementPolicySection({
           <div className="flex items-center justify-end gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer">
+                <button className="w-8 h-8 flex items-center justify-center rounded-[8px] text-[#68726d] hover:text-[#0b100e] hover:bg-[#f9faf9] transition-colors cursor-pointer">
                   <MoreHorizontal className="w-5 h-5" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-border shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
+              <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
                 <DropdownMenuItem
                   onClick={() => setDetailPolicy(row.original)}
-                  className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
+                  className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9] transition-colors cursor-pointer"
                 >
-                  <Eye className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} />
+                  <Eye className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
                   View Details
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -186,26 +186,26 @@ export function ProcurementPolicySection({
       </div>
 
       {/* Main card */}
-      <div className="bg-card rounded-[1.25rem] border border-border shadow-sm overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-6 py-5 shrink-0 flex-wrap gap-3">
-          <h2 className="text-sm font-bold text-foreground">Procurement Policies</h2>
-          <div className="flex items-center gap-2">
+      <div className="bg-white rounded-[1.25rem] border border-black/[0.06] shadow-sm overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between px-4 md:px-6 py-4 shrink-0 flex-wrap gap-3">
+          <h2 className="text-sm font-bold text-[#0b100e]">Procurement Policies</h2>
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#68726d]" />
               <input
                 placeholder="Search policies…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-10 pl-9 pr-4 rounded-xl border border-border bg-white text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors w-[200px]"
+                className="h-10 pl-9 pr-4 rounded-[14px] border border-black/[0.06] bg-white text-sm placeholder:text-[#68726d] focus:outline-none focus:border-primary transition-colors w-[200px]"
               />
             </div>
-            <button className="h-10 px-4 rounded-xl border border-border bg-white text-sm text-muted-foreground flex items-center gap-1.5 hover:bg-muted/30 transition-colors">
+            <button className="h-10 px-4 rounded-[14px] border border-black/[0.06] bg-white text-sm text-[#68726d] flex items-center gap-1.5 hover:bg-[#f9faf9]/30 transition-colors">
               <SlidersHorizontal className="w-4 h-4" /> Filter <ChevronDown className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => refetch()}
               disabled={isRefetching}
-              className="h-10 w-10 rounded-xl border border-border bg-white flex items-center justify-center text-muted-foreground hover:bg-muted/30 transition-colors"
+              className="h-10 w-10 rounded-[14px] border border-black/[0.06] bg-white flex items-center justify-center text-[#68726d] hover:bg-[#f9faf9]/30 transition-colors"
             >
               {isRefetching ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -217,39 +217,41 @@ export function ProcurementPolicySection({
         </div>
 
         {isLoading ? (
-          <div className="border-t border-border flex justify-center items-center py-20">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          <div className="border-t border-black/[0.06] flex justify-center items-center py-20">
+            <Loader2 className="w-6 h-6 animate-spin text-[#68726d]" />
           </div>
         ) : policies.length === 0 ? (
-          <div className="border-t border-border flex justify-center items-center py-10 px-6">
-            <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-border bg-primary/[0.02] py-10 px-8 flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-2xl bg-primary/[0.06] flex items-center justify-center mb-7">
-                <FileText className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+          <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
+            <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-[#087f70]/[0.02] py-10 px-8 flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-[24px] bg-[#087f70]/[0.06] flex items-center justify-center mb-7">
+                <FileText className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
               </div>
-              <h2 className="text-xl font-bold text-foreground mb-2">No Procurement Policies Yet</h2>
-              <p className="text-sm text-muted-foreground max-w-xs leading-relaxed mb-9">
+              <h2 className="text-xl font-bold text-[#0b100e] mb-2">No Procurement Policies Yet</h2>
+              <p className="text-sm text-[#68726d] max-w-xs leading-relaxed mb-9">
                 Create your first procurement policy to define how your organisation handles purchasing requests, vendor assignments, and purchase orders.
               </p>
               {canCreate && (
-                <Button onClick={onCreateClick} className="h-12 px-7 rounded-full text-sm font-semibold gap-2">
+                <button onClick={onCreateClick} className="h-12 px-7 rounded-full bg-[#087f70] text-white hover:opacity-90 transition-opacity text-sm font-semibold flex items-center gap-2">
                   <FileText className="w-4 h-4" strokeWidth={2} />
                   Create First Policy
-                </Button>
+                </button>
               )}
             </div>
           </div>
         ) : (
-          <div className="flex-1 border-t border-border overflow-hidden flex flex-col">
+          <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
             <DataTable
               data={filteredPolicies}
               columns={columns}
               height="auto"
               emptyState={
-                <EmptyState
-                  icon={<Search className="w-6 h-6" />}
-                  title="No policies found"
-                  description="Try adjusting your search query."
-                />
+                <div className="w-full flex justify-center flex-col items-center pb-10">
+                  <EmptyState
+                    icon={<Search className="w-6 h-6" />}
+                    title="No policies found"
+                    description="Try adjusting your search query."
+                  />
+                </div>
               }
               onRowClick={(row) => setDetailPolicy(row)}
               paginationProps={{ ...tableProps.paginationProps, total: filteredPolicies.length }}

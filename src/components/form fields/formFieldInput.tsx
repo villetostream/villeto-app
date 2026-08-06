@@ -65,17 +65,17 @@ const FormFieldInput = <T extends FieldValues = FieldValues>({
       control={control}
       name={name}
       render={({ field }) => (
-        <FormItem>
-          <FormLabel className="normal-case!">{label}</FormLabel>
+        <FormItem className="space-y-2.5">
+          <FormLabel className="text-[13px] font-semibold !normal-case text-[#202723]">{label}</FormLabel>
           <FormControl>
             <div className="relative">
               {prefixIcon && (
-                <div className="absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#84908a] [&>svg]:size-[18px] [&>svg]:stroke-[1.7]">
                   {prefixIcon}
                 </div>
               )}
               <Input
-                className={`w-full text-left font-normal rounded-lg h-12 border border-gray-200 ${prefixIcon ? "pl-12" : "pl-4"} pr-4 ${showPasswordToggle && type === "password" ? "pr-10" : ""} ${disabled ? "opacity-60 cursor-not-allowed bg-muted/40" : ""}`}
+                className={`h-[56px] w-full rounded-[10px] border-black/[0.1] bg-white text-[14px] shadow-[0_4px_16px_rgba(14,28,23,0.04)] placeholder:text-[#98a09c] focus-visible:border-[#0ea894] focus-visible:ring-[#0ea894]/15 ${prefixIcon ? "pl-12" : "pl-4"} pr-4 ${showPasswordToggle && type === "password" ? "pr-10" : ""} ${disabled ? "opacity-60 cursor-not-allowed bg-muted/40" : ""}`}
                 type={inputType}
                 placeholder={placeholder}
                 inputMode={inputMode}

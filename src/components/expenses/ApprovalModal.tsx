@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle } from "lucide-react";
 
@@ -32,15 +31,10 @@ export function ApprovalModal({
 
   const handleApprove = async () => {
     setIsLoading(true);
-    // Simulate API call with short delay
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setIsLoading(false);
     onApprove(approvalNote);
-
-    // Show success toast
     setShowSuccessToast(true);
-
-    // Auto-hide modal and reset after showing toast
     setTimeout(() => {
       handleClose();
     }, 12000);
@@ -55,71 +49,55 @@ export function ApprovalModal({
   return (
     <>
       <Dialog open={open && !showSuccessToast} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md rounded-lg">
+        <DialogContent className="sm:max-w-md rounded-[14px] border border-black/[0.08]">
           <>
             <DialogHeader>
-              <DialogTitle>Approve Expense</DialogTitle>
+              <DialogTitle className="text-[18px] font-bold text-[#0b100e]">Approve Expense</DialogTitle>
             </DialogHeader>
-            <div className="space-y-6">
+            <div className="space-y-5">
               {/* Expense Summary */}
-              <div className="bg-primary/5 rounded-lg p-4 border border-primary/10">
-                <p className="text-sm text-muted-foreground mb-1">
-                  Expense Title
-                </p>
-                <p className="text-base font-semibold text-foreground mb-4">
-                  {expenseTitle}
-                </p>
-                <p className="text-sm text-muted-foreground mb-1">
-                  Amount to Approve
-                </p>
-                <p className="text-2xl font-bold text-primary">
-                  {expenseAmount}
-                </p>
+              <div className="bg-[#f0faf8] rounded-[10px] p-4 border border-[#e7f6f2]">
+                <p className="text-[11px] font-medium text-[#84908a] mb-0.5">Expense Title</p>
+                <p className="text-[13px] font-semibold text-[#0b100e] mb-3">{expenseTitle}</p>
+                <p className="text-[11px] font-medium text-[#84908a] mb-0.5">Amount to Approve</p>
+                <p className="text-[22px] font-bold text-[#087f70]">{expenseAmount}</p>
               </div>
 
               {/* Approval Message */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">
-                  You are about to approve this expense. Once approved, it will
-                  move to the next stage of processing or payment.
-                </p>
-              </div>
+              <p className="text-[13px] text-[#68726d] leading-relaxed">
+                You are about to approve this expense. Once approved, it will move to the next stage of processing or payment.
+              </p>
 
               {/* Approval Note */}
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-foreground">
-                    Add Approval Note
-                  </label>
-                  <span className="text-xs text-muted-foreground">
-                    (optional)
-                  </span>
+                  <label className="text-[13px] font-semibold text-[#0b100e]">Add Approval Note</label>
+                  <span className="text-[11px] text-[#84908a]">(optional)</span>
                 </div>
                 <Textarea
                   placeholder="Write your approval note here...."
                   value={approvalNote}
                   onChange={(e) => setApprovalNote(e.target.value)}
-                  className="min-h-[120px] resize-none"
+                  className="min-h-[100px] resize-none rounded-[8px] border-black/[0.08] text-[13px] placeholder:text-[#84908a] focus-visible:ring-[#087f70] focus-visible:border-[#087f70]"
                 />
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3 pt-4">
-                <Button
+              <div className="flex gap-3">
+                <button
                   onClick={handleClose}
-                  variant="outline"
-                  className="flex-1"
                   disabled={isLoading}
+                  className="flex-1 h-10 rounded-[8px] border border-black/[0.08] text-[#68726d] font-semibold text-[13px] hover:bg-[#f9faf9] transition-colors disabled:opacity-50"
                 >
                   Cancel
-                </Button>
-                <Button
+                </button>
+                <button
                   onClick={handleApprove}
-                  className="flex-1 bg-primary hover:bg-primary/90"
                   disabled={isLoading}
+                  className="flex-1 h-10 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm"
                 >
                   {isLoading ? "Processing..." : "Approve"}
-                </Button>
+                </button>
               </div>
             </div>
           </>
@@ -129,22 +107,18 @@ export function ApprovalModal({
       {/* Success Toast */}
       {showSuccessToast && (
         <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-5">
-          <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-6 max-w-sm">
-            <div className="flex items-start gap-4">
+          <div className="bg-white border border-black/[0.08] rounded-[12px] shadow-[0_4px_24px_rgba(0,0,0,0.10)] p-5 max-w-sm">
+            <div className="flex items-start gap-3">
               <div className="relative shrink-0">
-                <div className="absolute inset-0 bg-primary/20 rounded-full animate-pulse"></div>
-                <div className="relative flex items-center justify-center w-12 h-12 bg-primary rounded-full">
-                  <CheckCircle className="w-6 h-6 text-white" />
+                <div className="absolute inset-0 bg-[#087f70]/20 rounded-full animate-pulse"></div>
+                <div className="relative flex items-center justify-center w-10 h-10 bg-[#087f70] rounded-full">
+                  <CheckCircle className="w-5 h-5 text-white" />
                 </div>
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-foreground">
-                  Expense Approved Successfully
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  The expense has been approved and the requester has been
-                  notified. You can view this approval in the expense audit
-                  trail.
+                <h3 className="font-semibold text-[14px] text-[#0b100e]">Expense Approved Successfully</h3>
+                <p className="text-[12px] text-[#68726d] mt-1 leading-relaxed">
+                  The expense has been approved and the requester has been notified.
                 </p>
               </div>
             </div>

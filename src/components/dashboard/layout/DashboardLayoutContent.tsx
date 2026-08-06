@@ -160,7 +160,7 @@ export default function DashboardLayoutContent({
             <UserSection />
           </header>
 
-          <main className="flex-1 overflow-y-auto p-3 sm:p-5 bg-white">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-5 bg-white scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
             {children}
           </main>
         </div>

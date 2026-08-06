@@ -136,60 +136,65 @@ export default function EmployeePreviewTable({
         <>
             <div className="flex flex-col h-full space-y-4">
                 {/* Header */}
-                <div className="flex justify-between items-center flex-shrink-0">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 flex-shrink-0">
                     <div>
-                        <h2 className="text-xl font-semibold">Preview</h2>
-                        <p className="text-sm text-gray-500">
+                        <h2 className="text-[16px] font-semibold text-[#0b100e]">Preview Directory</h2>
+                        <p className="text-[13px] text-[#66706b] mt-0.5">
                             {totalItems} employee(s) loaded — review before saving
                         </p>
                     </div>
-                    <Button variant="outline" onClick={onUploadDifferent} disabled={isSaving}>
+                    <Button
+                        variant="outline"
+                        onClick={onUploadDifferent}
+                        disabled={isSaving}
+                        className="h-[42px] rounded-[10px] border-black/[0.1] text-[#303834] hover:bg-[#f5f7f6] text-[13px] font-semibold w-full sm:w-auto"
+                    >
                         Upload a different file
                     </Button>
                 </div>
 
                 {/* Table */}
-                <div className="border rounded-lg flex-1 overflow-hidden relative">
-                    <div className="absolute inset-0 overflow-auto">
-                        <Table>
-                            <TableHeader className="bg-gray-50 sticky top-0 z-10 shadow-sm">
-                                <TableRow>
-                                    <TableHead className="font-semibold">employee_external_id</TableHead>
-                                    <TableHead className="font-semibold">first_name</TableHead>
-                                    <TableHead className="font-semibold">last_name</TableHead>
-                                    <TableHead className="font-semibold">email</TableHead>
-                                    <TableHead className="font-semibold">job_title</TableHead>
-                                    <TableHead className="font-semibold">department_name</TableHead>
-                                    <TableHead className="font-semibold">department_external_id</TableHead>
-                                    <TableHead className="font-semibold">manager_id</TableHead>
-                                    <TableHead className="font-semibold">role_name</TableHead>
-                                    <TableHead className="w-[50px]"></TableHead>
+                <div className="border border-black/[0.08] rounded-[12px] flex-1 overflow-hidden relative bg-white">
+                    <div className="absolute inset-0 overflow-auto w-full">
+                        <Table className="min-w-max w-full">
+                            <TableHeader className="bg-[#f9faf9] sticky top-0 z-10 shadow-[0_1px_0_rgba(0,0,0,0.06)]">
+                                <TableRow className="hover:bg-transparent border-none">
+                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">employee_external_id</TableHead>
+                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">first_name</TableHead>
+                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">last_name</TableHead>
+                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">email</TableHead>
+                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">job_title</TableHead>
+                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">department_name</TableHead>
+                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">department_external_id</TableHead>
+                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">manager_id</TableHead>
+                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">role_name</TableHead>
+                                    <TableHead className="w-[50px] h-10"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {paginatedData.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={9} className="text-center text-gray-400 py-12">
+                                        <TableCell colSpan={10} className="text-center text-[#84908a] text-[13px] py-12">
                                             No employees to preview.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     paginatedData.map((employee) => (
-                                        <TableRow key={employee.id}>
-                                            <TableCell>{employee.employee_external_id || "—"}</TableCell>
-                                            <TableCell className="font-medium">{employee.first_name || "—"}</TableCell>
-                                            <TableCell className="font-medium">{employee.last_name || "—"}</TableCell>
-                                            <TableCell className="text-gray-500">{employee.email || "—"}</TableCell>
-                                            <TableCell>{employee.job_title || "—"}</TableCell>
-                                            <TableCell>{employee.department_name || "—"}</TableCell>
-                                            <TableCell>{employee.department_external_id || "—"}</TableCell>
-                                            <TableCell>{employee.manager_id || "—"}</TableCell>
-                                            <TableCell>{employee.role_name || "—"}</TableCell>
+                                        <TableRow key={employee.id} className="border-b border-black/[0.04] hover:bg-[#f5f7f6] transition-colors text-[13px]">
+                                            <TableCell className="text-[#66706b]">{employee.employee_external_id || "—"}</TableCell>
+                                            <TableCell className="font-semibold text-[#0b100e]">{employee.first_name || "—"}</TableCell>
+                                            <TableCell className="font-semibold text-[#0b100e]">{employee.last_name || "—"}</TableCell>
+                                            <TableCell className="text-[#66706b]">{employee.email || "—"}</TableCell>
+                                            <TableCell className="text-[#0b100e]">{employee.job_title || "—"}</TableCell>
+                                            <TableCell className="text-[#0b100e]">{employee.department_name || "—"}</TableCell>
+                                            <TableCell className="text-[#66706b]">{employee.department_external_id || "—"}</TableCell>
+                                            <TableCell className="text-[#66706b]">{employee.manager_id || "—"}</TableCell>
+                                            <TableCell className="text-[#0b100e]">{employee.role_name || "—"}</TableCell>
                                             <TableCell>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                    className="h-8 w-8 text-[#84908a] hover:text-red-500 hover:bg-red-50 rounded-[8px] transition-colors"
                                                     onClick={() => handleDeleteClick(employee.id, `${employee.first_name} ${employee.last_name}`.trim() || employee.email)}
                                                     disabled={isSaving}
                                                 >
@@ -204,11 +209,11 @@ export default function EmployeePreviewTable({
                     </div>
                 </div>
 
-                {/* Pagination — same style as DataTable */}
+                {/* Pagination */}
                 {totalItems > 0 && (
-                    <div className="flex md:flex-row items-center justify-between bg-gray-50 py-2 px-4 border-t w-full flex-shrink-0">
-                        <div className="flex items-center gap-2 w-full sm:w-auto mb-2 md:mb-0">
-                            <span className="text-sm text-gray-700 whitespace-nowrap">
+                    <div className="flex flex-col md:flex-row items-center justify-between bg-[#f9faf9] py-3 px-4 border border-black/[0.08] rounded-[12px] w-full flex-shrink-0 gap-4">
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <span className="text-[12px] text-[#66706b] font-medium whitespace-nowrap">
                                 {totalItems > 0 ? (
                                     <>
                                         Showing {startIndex + 1}-{endIndex} of {totalItems} entries
@@ -224,12 +229,12 @@ export default function EmployeePreviewTable({
                                     paginationProps.setPage(1);
                                 }}
                             >
-                                <SelectTrigger className="w-fit min-w-[80px]">
+                                <SelectTrigger className="w-fit min-w-[70px] h-8 rounded-[8px] text-[12px] border-black/[0.1] bg-white">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {PAGE_SIZE_OPTIONS.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
+                                        <SelectItem key={option.value} value={option.value} className="text-[12px]">
                                             {option.label}
                                         </SelectItem>
                                     ))}
@@ -237,7 +242,7 @@ export default function EmployeePreviewTable({
                             </Select>
                         </div>
 
-                        <div className="flex w-full md:w-auto justify-end gap-2">
+                        <div className="flex w-full md:w-auto justify-center md:justify-end">
                             <Pagination>
                                 <PaginationContent>
                                     <PaginationItem>
@@ -347,10 +352,14 @@ export default function EmployeePreviewTable({
                 )}
 
                 {/* Action Buttons */}
-                <div className="flex justify-end gap-3 pt-2 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2 flex-shrink-0">
                     <Button
                         variant={saveOnlyMode ? "default" : "outline"}
-                        className={saveOnlyMode ? "bg-primary hover:bg-primary/90 text-white min-w-[160px]" : "border-primary text-primary hover:bg-primary/5 hover:text-primary min-w-[160px]"}
+                        className={`h-[46px] rounded-[10px] text-[13px] font-semibold w-full sm:w-auto sm:min-w-[160px] ${
+                            saveOnlyMode
+                                ? "bg-[#0ea894] hover:bg-[#0c9785] text-white shadow-[0_8px_20px_-10px_rgba(14,168,148,0.7)] hover:translate-y-[-1px] transition-all"
+                                : "border-[#0ea894]/40 text-[#087f70] hover:bg-[#e7f6f2] hover:border-[#0ea894]/60 transition-all"
+                        }`}
                         onClick={onSaveToDirectory}
                         disabled={isSaving || data.length === 0}
                         data-tour="save-to-directory-button"
@@ -359,7 +368,7 @@ export default function EmployeePreviewTable({
                     </Button>
                     {!saveOnlyMode && (
                         <Button
-                            className="bg-primary hover:bg-primary/90 min-w-[160px]"
+                            className="h-[46px] rounded-[10px] bg-[#0ea894] hover:bg-[#0c9785] text-white text-[13px] font-semibold px-6 shadow-[0_8px_20px_-10px_rgba(14,168,148,0.7)] hover:translate-y-[-1px] transition-all disabled:opacity-50 disabled:shadow-none disabled:translate-y-0 w-full sm:w-auto sm:min-w-[160px]"
                             onClick={onSaveAndInviteAll}
                             disabled={isSaving || data.length === 0}
                         >
@@ -371,29 +380,29 @@ export default function EmployeePreviewTable({
 
             {/* Delete confirmation modal */}
             <Dialog open={deleteModal.open} onOpenChange={(open) => !open && setDeleteModal({ open: false, id: "", name: "" })}>
-                <DialogContent className="sm:max-w-[400px] p-6 bg-white rounded-lg">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-semibold text-gray-900">Remove Employee</DialogTitle>
-                        <DialogDescription className="text-sm text-gray-500 mt-2">
-                            Remove <span className="font-medium text-gray-700">{deleteModal.name}</span> from the preview list? This does not delete them from the system.
+                <DialogContent className="sm:max-w-[400px] p-6 bg-white rounded-2xl border-none shadow-xl gap-0">
+                    <DialogHeader className="mb-5 text-left">
+                        <DialogTitle className="text-[18px] font-semibold text-[#0b100e]">Remove Employee</DialogTitle>
+                        <DialogDescription className="text-[13px] text-[#66706b] mt-2">
+                            Remove <span className="font-semibold text-[#0b100e]">{deleteModal.name}</span> from the preview list? This does not delete them from the system.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="flex gap-3 mt-4">
+                    <div className="flex flex-col-reverse sm:flex-row gap-3">
                         <Button
                             variant="outline"
                             onClick={() => setDeleteModal({ open: false, id: "", name: "" })}
-                            className="flex-1"
+                            className="flex-1 h-[44px] rounded-[10px] border-black/[0.1] text-[#303834] hover:bg-[#f5f7f6] text-[13px] font-semibold"
                         >
                             Cancel
                         </Button>
                         <Button
                             variant="destructive"
                             onClick={handleConfirmDelete}
-                            className="flex-1"
+                            className="flex-1 h-[44px] rounded-[10px] bg-red-500 hover:bg-red-600 text-white text-[13px] font-semibold shadow-[0_8px_20px_-10px_rgba(239,68,68,0.7)] hover:translate-y-[-1px] transition-all"
                         >
                             Remove
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
         </>

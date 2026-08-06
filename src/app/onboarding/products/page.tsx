@@ -80,71 +80,66 @@ export default function ChooseProducts() {
     const isAnyProductSelected = villetoProducts.some(product => product.selected);
 
     return (
-        <div className="flex-1 ">
+        <div className="flex h-full flex-col py-8">
 
             {/* Header */}
-            <div className="text-left mb-10 ">
-                <div className="w-24 h-24 bg-primary-light rounded-full flex items-center justify-center mb-10">
-                    <HugeiconsIcon icon={ProductLoadingIcon} className="size-14 text-primary" />
+            <div className="mb-7 text-left">
+                <div className="mb-5 flex size-11 items-center justify-center rounded-[10px] bg-[#e7f6f2]">
+                    <HugeiconsIcon icon={ProductLoadingIcon} className="size-6 text-[#087f70]" />
                 </div>
-                <OnboardingTitle title={"Choose your Villeto Product"} subtitle={"Villeto offers a wide array of products to choose from."} />
+                <OnboardingTitle title="Choose your Villeto products" subtitle="Select the tools your team plans to use. You can change these later." />
 
             </div>
 
             {/* Products Grid */}
-            <div className="space-y-4 mb-12">
+            <div className="mb-8 space-y-2.5">
                 {products.map((product) => {
                     const Icon = product.icon;
                     const isSelected = isProductSelected(product.id);
 
                     return (
-                        <Card
+                        <button
+                            type="button"
                             key={product.id}
-                            className={`p-5 cursor-pointer transition-all duration-200 hover:shadow-md border ${isSelected
-                                ? 'border-primary bg-primary/5'
-                                : 'border-gray-300 hover:border-villeto-primary/30'
-                                }`}
+                            className={`flex w-full cursor-pointer items-center justify-between rounded-[10px] border p-4 text-left transition-all duration-200 ${
+                                isSelected
+                                    ? 'border-[#0ea894]/40 bg-[#f0faf8] shadow-[0_4px_16px_rgba(14,168,148,0.08)]'
+                                    : 'border-black/[0.08] bg-white shadow-[0_4px_16px_rgba(14,28,23,0.04)] hover:border-[#0ea894]/30'
+                            }`}
                             onClick={() => toggleProduct(product.id)}
                         >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4">
-                                    <div className={`w-11 h-11 rounded-full ${product.bgColor} flex items-center justify-center`}>
-                                        <HugeiconsIcon icon={Icon} className={`w-6 h-6 ${product.color}`} />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-medium  text-base tracking-[0%] leading-[100%] mb-2">
-                                            {product.name}
-                                        </h3>
-                                        <p className="text-muted-foreground text-[13px] font-normal tracking-[0%] leading-[100%]">
-                                            {product.description}
-                                        </p>
-                                    </div>
+                            <div className="flex items-center gap-4">
+                                <div className={`flex size-10 shrink-0 items-center justify-center rounded-[8px] ${
+                                    isSelected ? 'bg-[#e7f6f2]' : 'bg-[#f5f7f6]'
+                                }`}>
+                                    <HugeiconsIcon icon={Icon} className={`size-5 ${isSelected ? 'text-[#087f70]' : 'text-[#84908a]'}`} />
                                 </div>
-                                <div className="flex items-center">
-                                    <Checkbox
-                                        checked={isSelected}
-                                        onChange={() => toggleProduct(product.id)}
-                                        className="w-5 h-5"
-                                    />
+                                <div>
+                                    <p className={`text-[13px] font-semibold ${
+                                        isSelected ? 'text-[#0b100e]' : 'text-[#303834]'
+                                    }`}>{product.name}</p>
+                                    <p className="mt-0.5 text-[12px] text-[#84908a]">{product.description}</p>
                                 </div>
                             </div>
-                        </Card>
+                            <div className={`flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                                isSelected ? 'border-[#0ea894] bg-[#0ea894]' : 'border-black/[0.15] bg-white'
+                            }`}>
+                                {isSelected && <svg className="size-2.5 text-white" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                            </div>
+                        </button>
                     );
                 })}
             </div>
 
             {/* Continue Button */}
-            <div className="flex justify-end">
+            <div className="flex justify-end border-t border-black/[0.07] pt-5">
                 <Button
                     onClick={handleContinue}
-                    disabled={loading ?? !isAnyProductSelected}
-                    size="md"
-                    className="!px-12  font-medium flex items-center space-x-2  disabled:cursor-not-allowed"
+                    disabled={loading || !isAnyProductSelected}
+                    className="h-[54px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all sm:w-auto disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none"
                 >
-                    <span>{loading ? "Creating..." : "Continue"}</span>
-                    {loading ? <Loader2 className="aize-5 animate-spin" /> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>}
+                    <span>{loading ? "Saving..." : "Continue"}</span>
+                    {loading ? <Loader2 className="size-4 animate-spin" /> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>}
                 </Button>
             </div>
         </div>

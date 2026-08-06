@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -13,9 +13,7 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSubButton,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -73,26 +71,22 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   const isTourActive = useTourStore((s) => s.isTourActive);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const isExpanded = state === "expanded";
 
   // ── Force sidebar open for the entire duration of the tour ──
   useEffect(() => {
-    if (isTourActive) {
-      setOpen(true);
-    }
+    if (isTourActive) setOpen(true);
   }, [isTourActive, state, setOpen]);
 
   const [syncedLocation, setSyncedLocation] = useState(location);
   if (location !== syncedLocation) {
     setSyncedLocation(location);
-    if (location.startsWith("/expenses")) {
+    if (location.startsWith("/expenses"))
       setExpandedMenus(prev => prev.includes("Expenses") ? prev : [...prev, "Expenses"]);
-    }
-    if (location.startsWith("/procurement")) {
+    if (location.startsWith("/procurement"))
       setExpandedMenus(prev => prev.includes("Procurement") ? prev : [...prev, "Procurement"]);
-    }
-    if (location.startsWith("/settings")) {
+    if (location.startsWith("/settings"))
       setExpandedMenus(prev => prev.includes("Settings") ? prev : [...prev, "Settings"]);
-    }
   }
 
   const { data: companyData, isLoading: isQueryLoading } = useQuery({
@@ -117,7 +111,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
       }
     },
     enabled: !!user?.userId,
-    staleTime: STALE_TIMES.SESSION, // company branding is session-level data
+    staleTime: STALE_TIMES.SESSION,
   });
 
   const businessLogo = companyData?.logoUrl ?? user?.company?.logoUrl ?? null;
@@ -126,27 +120,18 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
 
   const toggleMenu = (label: string) => {
     setExpandedMenus((prev) =>
-      prev.includes(label)
-        ? prev.filter((item) => item !== label)
-        : [...prev, label],
+      prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label]
     );
   };
 
   const isActive = (href: string) => {
-    // Strip query parameters for active state matching
     const basePath = href.split("?")[0];
-    if (basePath === "/dashboard") {
-      return location === basePath;
-    }
+    if (basePath === "/dashboard") return location === basePath;
 
     if (location === "/settings/personal-settings") {
       const activeTab = searchParams.get("tab");
-      if (basePath === "/settings/company-settings") {
-        return activeTab === "company-profile";
-      }
-      if (basePath === "/settings/personal-settings") {
-        return activeTab === "my-profile" || !activeTab;
-      }
+      if (basePath === "/settings/company-settings") return activeTab === "company-profile";
+      if (basePath === "/settings/personal-settings") return activeTab === "my-profile" || !activeTab;
     }
 
     if (basePath === "/expenses") {
@@ -154,24 +139,20 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
         location.startsWith("/expenses/reimbursements") ||
         location.startsWith("/expenses/card-transactions") ||
         location.startsWith("/expenses/travel")
-      ) {
-        return false;
-      }
+      ) return false;
       return location.startsWith(basePath);
     }
 
     return location.startsWith(basePath);
   };
 
-  // A nav item (or sub-item) is visible if its permissions list is empty
-  // (always visible) OR the user satisfies at least one of the listed gates.
   const hasNavPermission = (permissions: NavItem["permissions"]): boolean => {
     if (!permissions || permissions.length === 0) return true;
     return permissions.some(p => can(p.resource, p.action));
   };
 
   const canViewCompanyExpenses =
-    can('expense.report', 'read_company') || can('expense.report', 'read_department');
+    can("expense.report", "read_company") || can("expense.report", "read_department");
 
   // ── Badge Counts ──
   const canApprovePR = can("procurement.purchase_request", "approve");
@@ -195,7 +176,6 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
     { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 }
   );
   const prPartialPOCount = (prPartialConversionData as unknown as number) ?? 0;
-
   const totalPRActionCount = prAwaitingCount + prReadyForPOCount + prPartialPOCount;
 
   const canApprovePO = canPOApprove(can);
@@ -212,55 +192,43 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   const canApproveExpense = can("expense.report", "approve");
   const expScope = can("expense.report", "read_company") ? "company" : can("expense.report", "read_department") ? "team" : null;
   const { data: expensesData } = useCompanyExpenses(1, 100, (expScope || "company") as any, undefined, undefined, !!expScope && canApproveExpense);
-  
-  const totalExpenseActionCount = canApproveExpense && expensesData?.reports 
-    ? expensesData.reports.filter(e => e.status === "pending").length 
+  const totalExpenseActionCount = canApproveExpense && expensesData?.reports
+    ? expensesData.reports.filter(e => e.status === "pending").length
     : 0;
 
   const filterItems = (items: NavItem[]): NavItem[] => {
     return items
       .map((item) => {
         const currentItem = { ...item };
-
-        // Append default tab query param for Expenses based on user capability
         if (currentItem.href === "/expenses") {
           currentItem.href = canViewCompanyExpenses
             ? "/expenses?tab=company-expenses"
             : "/expenses?tab=personal-expenses";
           if (totalExpenseActionCount > 0) currentItem.badge = totalExpenseActionCount.toString();
         }
-
         if (currentItem.href === "/procurement/purchase-request") {
           const totalProcurement = totalPRActionCount + totalPOActionCount;
           if (totalProcurement > 0) currentItem.badge = totalProcurement.toString();
         }
-
         if (currentItem.subItems) {
           const filteredSubs = currentItem.subItems
             .map((sub) => {
               const currentSub = { ...sub };
               if (currentSub.label === "All Expenses") {
-                if (!canViewCompanyExpenses) {
-                  currentSub.label = "My Expenses";
-                }
+                if (!canViewCompanyExpenses) currentSub.label = "My Expenses";
                 currentSub.href = canViewCompanyExpenses
                   ? "/expenses?tab=company-expenses"
                   : "/expenses?tab=personal-expenses";
                 if (totalExpenseActionCount > 0) currentSub.badge = totalExpenseActionCount.toString();
               }
-              if (currentSub.label === "Purchase Requests" && totalPRActionCount > 0) {
+              if (currentSub.label === "Purchase Requests" && totalPRActionCount > 0)
                 currentSub.badge = totalPRActionCount.toString();
-              }
-              if (currentSub.label === "Purchase Orders" && totalPOActionCount > 0) {
+              if (currentSub.label === "Purchase Orders" && totalPOActionCount > 0)
                 currentSub.badge = totalPOActionCount.toString();
-              }
               return currentSub;
             })
             .filter((sub) => hasNavPermission(sub.permissions));
-
-          // Show the parent if it has its own permission OR at least one visible sub
-          if (!hasNavPermission(currentItem.permissions) && filteredSubs.length === 0)
-            return null;
+          if (!hasNavPermission(currentItem.permissions) && filteredSubs.length === 0) return null;
           currentItem.subItems = filteredSubs;
           return currentItem;
         } else {
@@ -270,206 +238,213 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
       })
       .filter(Boolean) as NavItem[];
   };
+
   const filteredNavigationItems = filterItems(navigationItems);
+
+  // Render the logo in expanded mode
   const renderLogo = () => {
-    if (loading) return <Skeleton className="w-full h-full rounded-full" />;
+    if (loading) return <Skeleton className="w-full h-full rounded-[6px]" />;
     if (businessLogo)
       return (
         <Image
           src={businessLogo}
           alt="Business Logo"
-          width={36}
-          height={36}
-          className="w-full h-full object-contain"
-          unoptimized={
-            businessLogo.startsWith("data:") || businessLogo.startsWith("http")
-          }
+          width={32}
+          height={32}
+          className="w-full h-full object-contain rounded-[6px]"
+          unoptimized={businessLogo.startsWith("data:") || businessLogo.startsWith("http")}
         />
       );
     return (
-      <div className="w-full h-full rounded-full bg-dashboard-accent/10 flex items-center justify-center shrink-0">
-        <span className="text-sm font-semibold text-dashboard-accent">
+      <div className="w-full h-full rounded-[6px] bg-[#e7f6f2] flex items-center justify-center shrink-0">
+        <span className="text-[13px] font-bold text-[#087f70]">
           {businessName?.charAt(0).toUpperCase() || "B"}
         </span>
       </div>
     );
   };
+
   const renderCollapsedLogo = () => {
-    if (loading) return <Skeleton className="w-10 h-10 rounded-full" />;
+    if (loading) return <Skeleton className="w-8 h-8 rounded-[6px]" />;
     if (businessLogo)
       return (
         <Image
           src={businessLogo}
           alt={businessName || "Business Logo"}
-          width={40}
-          height={40}
-          className="w-10 h-10 object-contain rounded-full"
-          unoptimized={
-            businessLogo.startsWith("data:") || businessLogo.startsWith("http")
-          }
+          width={32}
+          height={32}
+          className="w-8 h-8 object-contain rounded-[6px]"
+          unoptimized={businessLogo.startsWith("data:") || businessLogo.startsWith("http")}
         />
       );
     return (
-      <div className="w-10 h-10 rounded-full bg-dashboard-accent/10 flex items-center justify-center shrink-0">
-        <span className="text-lg font-semibold text-dashboard-accent">
+      <div className="w-8 h-8 rounded-[6px] bg-[#e7f6f2] flex items-center justify-center shrink-0">
+        <span className="text-[13px] font-bold text-[#087f70]">
           {businessName?.charAt(0).toUpperCase() || "B"}
         </span>
       </div>
     );
   };
+
+  const renderBadge = (badge: string | undefined, collapsed = false) => {
+    if (!badge) return null;
+    return (
+      <span
+        className={cn(
+          "flex items-center justify-center rounded-full bg-red-500 text-white font-bold leading-none",
+          collapsed
+            ? "absolute -top-1 -right-1 min-w-[14px] h-[14px] px-[3px] text-[8px]"
+            : "ml-auto min-w-[18px] h-[18px] px-1.5 text-[10px] group-data-[collapsible=icon]:hidden"
+        )}
+      >
+        {Number(badge) > 99 ? "99+" : badge}
+      </span>
+    );
+  };
+
   const renderMenuItem = (item: NavItem) => {
     const hasExpandable = item.subItems && item.subItems.length > 0;
+
     if (hasExpandable) {
       const isOpen = expandedMenus.includes(item.label);
       const isGroupActive = item.subItems?.some(sub => sub.href && isActive(sub.href)) || isActive(item.href);
+
       return (
         <SidebarMenuItem key={item.label}>
-          <Collapsible
-            open={isOpen}
-            onOpenChange={() => toggleMenu(item.label)}
-          >
+          <Collapsible open={isOpen} onOpenChange={() => toggleMenu(item.label)}>
             <CollapsibleTrigger asChild>
-              <SidebarMenuButton
-                tooltip={item.label}
-                isActive={isGroupActive}
-                className="font-normal text-sm text-[#7F7F7F] data-[active=true]:text-primary data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium"
-              >
-                <span className="relative shrink-0 [&>svg]:size-5 [&>svg]:shrink-0">
-                  {item.icon}
-                  {item.badge && (
-                    <span className="absolute -top-1.5 -right-1.5 hidden group-data-[collapsible=icon]:flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full bg-red-500 text-white text-[8px] font-bold leading-none">
-                      {Number(item.badge) > 99 ? "99+" : item.badge}
-                    </span>
-                  )}
-                </span>
-                <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
-                {item.badge && (
-                  <span className="ml-auto mr-1 bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
-                    {item.badge}
-                  </span>
+              <button
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-[13px] transition-colors duration-150",
+                  isGroupActive
+                    ? "bg-[#f0faf8] text-[#087f70] font-semibold"
+                    : "text-[#68726d] hover:bg-[#f5f7f6] hover:text-[#0b100e]",
+                  !isExpanded && "justify-center px-2"
                 )}
-                <ChevronRight
+              >
+                <span className={cn("relative shrink-0 flex items-center justify-center [&>svg]:size-[18px] [&>svg]:shrink-0", isGroupActive ? "[&>svg]:text-[#087f70]" : "[&>svg]:text-[#84908a]")}>
+                  {item.icon}
+                  {isExpanded && renderBadge(item.badge)}
+                  {!isExpanded && renderBadge(item.badge, true)}
+                </span>
+                <span className="flex-1 text-left group-data-[collapsible=icon]:hidden">{item.label}</span>
+                <ChevronDown
                   className={cn(
-                    "ml-auto h-4 w-4 transition-transform duration-200 group-data-[collapsible=icon]:hidden",
-                    isOpen && "rotate-90",
+                    "size-3.5 shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden",
+                    isOpen && "rotate-180"
                   )}
                 />
-              </SidebarMenuButton>
+              </button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="mt-1 space-y-1 pl-8 group-data-[collapsible=icon]:hidden">
-              {item.subItems?.map((sub) => {
-                if (sub.comingSoon) {
+
+            <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
+              <div className="ml-5 mt-1 space-y-0.5 border-l border-black/[0.07] pl-3">
+                {item.subItems?.map((sub) => {
+                  if (sub.comingSoon) {
+                    return (
+                      <span
+                        key={sub.label}
+                        className="flex items-center justify-between w-full px-2.5 py-1.5 rounded-[7px] text-[12px] text-[#84908a] opacity-60 cursor-not-allowed"
+                      >
+                        <span>{sub.label}</span>
+                        <span className="ml-auto bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full text-[9px] font-semibold whitespace-nowrap">
+                          Soon
+                        </span>
+                      </span>
+                    );
+                  }
+                  const subActive = isActive(sub.href!);
                   return (
-                    <span
+                    <Link
                       key={sub.label}
-                      className="flex items-center justify-between w-full px-2 py-1.5 text-xs opacity-50 cursor-not-allowed"
+                      href={sub.href!}
+                      className={cn(
+                        "flex items-center justify-between w-full px-2.5 py-1.5 rounded-[7px] text-[12px] transition-colors",
+                        subActive
+                          ? "bg-[#f0faf8] text-[#087f70] font-semibold"
+                          : "text-[#68726d] hover:bg-[#f5f7f6] hover:text-[#0b100e]"
+                      )}
                     >
                       <span>{sub.label}</span>
-                      <span className="ml-auto bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[9px] font-semibold whitespace-nowrap">
-                        Coming Soon
-                      </span>
-                    </span>
-                  );
-                }
-                return (
-                  <SidebarMenuSubButton
-                    key={sub.label}
-                    asChild
-                    isActive={isActive(sub.href!)}
-                    className={cn(
-                      "text-xs",
-                      isActive(sub.href!) &&
-                        "bg-sidebar-accent/20 font-medium text-primary",
-                    )}
-                  >
-                    <Link href={sub.href!} className="flex items-center justify-between w-full">
-                      <span>{sub.label}</span>
-                      {sub.badge && (
-                          <span className="ml-auto bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[18px] text-center whitespace-nowrap">
-                              {sub.badge}
-                          </span>
-                      )}
+                      {renderBadge(sub.badge)}
                       {sub.imageUrl === "user-avatar" && (
-                          (user as unknown as { profilePicture?: string })?.profilePicture ? (
-                              <Image src={(user as unknown as { profilePicture: string }).profilePicture} alt="Avatar" width={20} height={20} className="ml-auto w-5 h-5 rounded-full object-cover" />
-                          ) : (
-                              <div className="ml-auto w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-medium text-gray-600 capitalize">
-                                  {user?.firstName?.[0] || user?.email?.[0] || "U"}
-                              </div>
-                          )
+                        (user as unknown as { profilePicture?: string })?.profilePicture ? (
+                          <Image src={(user as unknown as { profilePicture: string }).profilePicture} alt="Avatar" width={18} height={18} className="ml-auto w-[18px] h-[18px] rounded-full object-cover" />
+                        ) : (
+                          <div className="ml-auto w-[18px] h-[18px] rounded-full bg-[#e7f6f2] flex items-center justify-center text-[9px] font-semibold text-[#087f70] capitalize">
+                            {user?.firstName?.[0] || user?.email?.[0] || "U"}
+                          </div>
+                        )
                       )}
                     </Link>
-                  </SidebarMenuSubButton>
-                );
-              })}
+                  );
+                })}
+              </div>
             </CollapsibleContent>
           </Collapsible>
         </SidebarMenuItem>
       );
     }
+
     if (!item.href) return null;
-    // Coming Soon items: render as span, not link
+
     if (item.comingSoon) {
       return (
         <SidebarMenuItem key={item.label}>
-          <SidebarMenuButton
-            tooltip={item.label}
-            className="opacity-50 cursor-not-allowed hover:bg-transparent hover:text-[#7F7F7F]"
+          <span
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-[13px] text-[#84908a] opacity-50 cursor-not-allowed",
+              !isExpanded && "justify-center px-2"
+            )}
           >
-            <span className="shrink-0 [&>svg]:size-5 [&>svg]:shrink-0">{item.icon}</span>
-            <span className="group-data-[collapsible=icon]:hidden flex-1">{item.label}</span>
-            <span className="ml-auto bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-semibold group-data-[collapsible=icon]:hidden whitespace-nowrap">
-              Coming Soon
+            <span className="shrink-0 flex items-center justify-center [&>svg]:size-[18px] [&>svg]:text-[#84908a]">{item.icon}</span>
+            <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
+            <span className="ml-auto bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full text-[9px] font-semibold group-data-[collapsible=icon]:hidden whitespace-nowrap">
+              Soon
             </span>
-          </SidebarMenuButton>
+          </span>
         </SidebarMenuItem>
       );
     }
+
+    const active = isActive(item.href);
     return (
       <SidebarMenuItem key={item.label}>
-        <SidebarMenuButton
-          asChild
-          isActive={isActive(item.href)}
-          tooltip={item.label}
-          className="font-normal text-sm text-[#7F7F7F] data-[active=true]:text-primary data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium"
+        <Link
+          href={item.href}
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-[13px] transition-colors duration-150",
+            active
+              ? "bg-[#f0faf8] text-[#087f70] font-semibold"
+              : "text-[#68726d] hover:bg-[#f5f7f6] hover:text-[#0b100e]",
+            !isExpanded && "justify-center px-2"
+          )}
         >
-          <Link href={item.href}>
-            <span className="relative shrink-0 [&>svg]:size-5 [&>svg]:shrink-0">
-              {item.icon}
-              {item.badge && (
-                <span className="absolute -top-1.5 -right-1.5 hidden group-data-[collapsible=icon]:flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full bg-red-500 text-white text-[8px] font-bold leading-none">
-                  {Number(item.badge) > 99 ? "99+" : item.badge}
-                </span>
-              )}
-            </span>
-            <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
-            {item.badge && (
-              <span className="ml-auto bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
-                {item.badge}
-              </span>
-            )}
-          </Link>
-        </SidebarMenuButton>
+          <span className={cn("relative shrink-0 flex items-center justify-center [&>svg]:size-[18px] [&>svg]:shrink-0", active ? "[&>svg]:text-[#087f70]" : "[&>svg]:text-[#84908a]")}>
+            {item.icon}
+            {!isExpanded && renderBadge(item.badge, true)}
+          </span>
+          <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
+          {isExpanded && renderBadge(item.badge)}
+        </Link>
       </SidebarMenuItem>
     );
   };
+
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader className="w-full border-b border-sidebar-border px-0! py-0! space-y-0">
+    <Sidebar collapsible="icon" className="border-r border-black/[0.07] bg-white">
+      {/* ── Header: Logo + Toggle ── */}
+      <SidebarHeader className="border-b border-black/[0.07] px-0! py-0! space-y-0">
         <div className="flex flex-col">
-          {/* Villeto Logo + Toggle - Fixed height h-16 (64px) to match main header border line */}
           <div
             className={cn(
-              "flex items-center h-16 border-b border-sidebar-border transition-all duration-300",
-              state === "expanded" ? "justify-between px-4" : "justify-center",
+              "flex items-center h-16 border-b border-black/[0.07] transition-all duration-300",
+              isExpanded ? "justify-between px-4" : "justify-center"
             )}
           >
-            {state === "expanded" ? (
+            {isExpanded ? (
               <>
-                <Link
-                  href="/dashboard"
-                  className="flex items-center cursor-pointer hover:opacity-80 transition-opacity"
-                >
+                <Link href="/dashboard" className="flex items-center hover:opacity-80 transition-opacity">
                   <Image
                     src="/images/villeto-logo.png"
                     alt="Villeto Logo"
@@ -479,86 +454,83 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
                     priority
                   />
                 </Link>
-                {/* Hide collapse trigger while tour is active */}
-                {!isTourActive && <SidebarTrigger className="shrink-0 cursor-pointer" />}
+                {!isTourActive && <SidebarTrigger className="shrink-0 cursor-pointer text-[#84908a] hover:text-[#0b100e]" />}
               </>
             ) : (
-              /* Hide collapse trigger while tour is active */
-              !isTourActive && <SidebarTrigger className="shrink-0 cursor-pointer" />
+              !isTourActive && <SidebarTrigger className="shrink-0 cursor-pointer text-[#84908a] hover:text-[#0b100e]" />
             )}
           </div>
-          {/* Company Selector - placed below the primary header alignment line */}
-          <div
-            className={cn(
-              "flex items-center transition-all duration-300 px-3 py-1",
-              state === "expanded" ? "" : "justify-center",
-            )}
-          >
-            {state === "expanded" ? (
-              <div className="w-full flex items-center bg-muted rounded-lg px-3 my-1 gap-3 h-10">
-                <div className=" flex items-center justify-center shrink-0 w-6 h-6 overflow-hidden">
+
+          {/* ── Company Selector ── */}
+          <div className={cn("px-3 py-2", !isExpanded && "flex justify-center")}>
+            {isExpanded ? (
+              <div className="flex items-center gap-2.5 rounded-[9px] border border-black/[0.08] bg-[#f9faf9] px-3 py-2 w-full">
+                <div className="flex-shrink-0 w-7 h-7 overflow-hidden rounded-[6px]">
                   {renderLogo()}
                 </div>
-                <span className="flex-1 text-sm font-medium text-dashboard-text-primary truncate">
-                  {loading ? (
-                    <Skeleton className="h-5 w-40" />
-                  ) : (
-                    businessName || "Business Name"
-                  )}
+                <span className="flex-1 text-[13px] font-semibold text-[#0b100e] truncate">
+                  {loading ? <Skeleton className="h-4 w-28" /> : (businessName || "Business Name")}
                 </span>
-                <ChevronRight className="w-4 h-4 text-gray-500 shrink-0" />
+                <ChevronRight className="size-3.5 text-[#84908a] shrink-0" />
               </div>
             ) : (
-              <div className="flex items-center justify-center w-6 h-6 my-2">
+              <div className="w-8 h-8">
                 {renderCollapsedLogo()}
               </div>
             )}
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent className="py-4">
-        <SidebarMenu className="space-y-1 px-3">
-          {isAuthLoading ? (
-            Array.from({ length: 6 }).map((_, i) => (
-              <SidebarMenuItem key={i}>
-                <div className="flex items-center gap-3 px-2.5 py-2.5 w-full rounded-md mt-0.5">
-                  <Skeleton className="w-5 h-5 rounded-md shrink-0" />
-                  <Skeleton className="h-4 w-28 rounded-md group-data-[collapsible=icon]:hidden" />
-                </div>
-              </SidebarMenuItem>
-            ))
-          ) : (
-            filteredNavigationItems.map((item) => renderMenuItem(item))
-          )}
-        </SidebarMenu>
+
+      {/* ── Nav Content ── */}
+      <SidebarContent className="py-3 px-2 overflow-y-auto scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
+        {isAuthLoading ? (
+          <div className="space-y-1 px-1">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-2.5 px-2.5 py-2 rounded-[8px]">
+                <Skeleton className="w-[18px] h-[18px] rounded-[5px] shrink-0" />
+                <Skeleton className="h-3.5 w-24 rounded-md group-data-[collapsible=icon]:hidden" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <SidebarMenu className="space-y-0.5">
+            {filteredNavigationItems.map((item) => renderMenuItem(item))}
+          </SidebarMenu>
+        )}
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border px-3 py-2">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={() => setShowLogoutModal(true)}
-              tooltip="Log Out"
-              className="font-normal text-sm text-[#7F7F7F] hover:text-destructive hover:bg-sidebar-accent"
-            >
-              <Logout className="size-5 shrink-0" />
-              <span className="group-data-[collapsible=icon]:hidden">Log Out</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+
+      {/* ── Footer: Logout ── */}
+      <SidebarFooter className="border-t border-black/[0.07] px-2 py-3">
+        <button
+          onClick={() => setShowLogoutModal(true)}
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-[13px] text-[#68726d] transition-colors hover:bg-red-50 hover:text-red-600",
+            !isExpanded && "justify-center px-2"
+          )}
+        >
+          <Logout className="size-[18px] shrink-0" />
+          <span className="group-data-[collapsible=icon]:hidden">Log Out</span>
+        </button>
       </SidebarFooter>
 
+      {/* ── Logout Confirmation ── */}
       <AlertDialog open={showLogoutModal} onOpenChange={setShowLogoutModal}>
-        <AlertDialogContent className="z-[9999]">
+        <AlertDialogContent className="z-[9999] rounded-[14px]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to log out?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-[16px] font-semibold text-[#0b100e]">
+              Are you sure you want to log out?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[13px] text-[#68726d]">
               Any unsaved changes may be lost. You will need to log in again to access the dashboard.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-[8px] border border-black/[0.08] text-[13px] text-[#0b100e]">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-500 hover:bg-red-600 text-white"
+              className="rounded-[8px] bg-red-500 hover:bg-red-600 text-white text-[13px]"
               onClick={() => {
                 logout();
                 router.push("/login");

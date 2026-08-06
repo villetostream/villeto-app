@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Flag } from "lucide-react";
 
@@ -36,15 +35,10 @@ export function FlagExpenseModal({
       return;
     }
     setIsLoading(true);
-    // Simulate API call with short delay
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setIsLoading(false);
     onFlag(flagReason);
-
-    // Show success toast
     setShowSuccessToast(true);
-
-    // Auto-hide modal and reset after showing toast
     setTimeout(() => {
       handleClose();
     }, 4000);
@@ -59,66 +53,55 @@ export function FlagExpenseModal({
   return (
     <>
       <Dialog open={open && !showSuccessToast} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md rounded-lg">
+        <DialogContent className="sm:max-w-md rounded-[14px] border border-black/[0.08]">
           <>
             <DialogHeader>
-              <DialogTitle>Flag Expense</DialogTitle>
+              <DialogTitle className="text-[18px] font-bold text-[#0b100e]">Flag Expense</DialogTitle>
             </DialogHeader>
-            <div className="space-y-6">
+            <div className="space-y-5">
               {/* Expense Summary */}
-              <div className="bg-orange-50 rounded-lg p-4 border border-orange-100">
-                <p className="text-sm text-muted-foreground mb-1">
-                  Expense Title
-                </p>
-                <p className="text-base font-semibold text-foreground mb-4">
-                  {expenseTitle}
-                </p>
-                <p className="text-sm text-muted-foreground mb-1">Amount</p>
-                <p className="text-2xl font-bold text-orange-600">
-                  {expenseAmount}
-                </p>
+              <div className="bg-[#fff9e6] rounded-[10px] p-4 border border-[#ffe099]">
+                <p className="text-[11px] font-medium text-[#84908a] mb-0.5">Expense Title</p>
+                <p className="text-[13px] font-semibold text-[#0b100e] mb-3">{expenseTitle}</p>
+                <p className="text-[11px] font-medium text-[#84908a] mb-0.5">Amount</p>
+                <p className="text-[22px] font-bold text-[#b27b00]">{expenseAmount}</p>
               </div>
 
               {/* Flag Message */}
-              <div className="space-y-2">
-                <div className="flex items-start gap-2">
-                  <Flag className="w-5 h-5 text-orange-600 mt-0.5 shrink-0" />
-                  <p className="text-sm font-medium text-foreground">
-                    You are ensuring this expense needs further attention. Please provide a reason.
-                  </p>
-                </div>
+              <div className="flex items-start gap-2.5">
+                <Flag className="w-4 h-4 text-[#b27b00] mt-0.5 shrink-0" />
+                <p className="text-[13px] text-[#68726d]">
+                  You are flagging this expense for further attention. Please provide a clear reason.
+                </p>
               </div>
 
               {/* Flag Reason */}
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-foreground">
-                  Reason for Flagging
-                </label>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#0b100e]">Reason for Flagging</label>
                 <Textarea
                   placeholder="Explain why this expense is being flagged..."
                   value={flagReason}
                   onChange={(e) => setFlagReason(e.target.value)}
-                  className="min-h-[120px] resize-none focus-visible:ring-orange-500"
+                  className="min-h-[100px] resize-none rounded-[8px] border-black/[0.08] text-[13px] placeholder:text-[#84908a] focus-visible:ring-[#b27b00] focus-visible:border-[#b27b00]"
                 />
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3 pt-4">
-                <Button
+              <div className="flex gap-3">
+                <button
                   onClick={handleClose}
-                  variant="outline"
-                  className="flex-1"
                   disabled={isLoading}
+                  className="flex-1 h-10 rounded-[8px] border border-black/[0.08] text-[#68726d] font-semibold text-[13px] hover:bg-[#f9faf9] transition-colors disabled:opacity-50"
                 >
                   Cancel
-                </Button>
-                <Button
+                </button>
+                <button
                   onClick={handleFlag}
-                  className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
                   disabled={isLoading}
+                  className="flex-1 h-10 rounded-[8px] bg-[#b27b00] text-white font-semibold text-[13px] hover:bg-[#966800] transition-colors disabled:opacity-50 shadow-sm"
                 >
                   {isLoading ? "Processing..." : "Flag Issue"}
-                </Button>
+                </button>
               </div>
             </div>
           </>
@@ -128,19 +111,17 @@ export function FlagExpenseModal({
       {/* Success Toast */}
       {showSuccessToast && (
         <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-5">
-          <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-6 max-w-sm">
-            <div className="flex items-start gap-4">
+          <div className="bg-white border border-black/[0.08] rounded-[12px] shadow-[0_4px_24px_rgba(0,0,0,0.10)] p-5 max-w-sm">
+            <div className="flex items-start gap-3">
               <div className="relative shrink-0">
-                <div className="absolute inset-0 bg-orange-100 rounded-full animate-pulse"></div>
-                <div className="relative flex items-center justify-center w-12 h-12 bg-orange-600 rounded-full">
-                  <Flag className="w-6 h-6 text-white" />
+                <div className="absolute inset-0 bg-[#b27b00]/20 rounded-full animate-pulse"></div>
+                <div className="relative flex items-center justify-center w-10 h-10 bg-[#b27b00] rounded-full">
+                  <Flag className="w-5 h-5 text-white" />
                 </div>
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-foreground">
-                  Expense Flagged
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1">
+                <h3 className="font-semibold text-[14px] text-[#0b100e]">Expense Flagged</h3>
+                <p className="text-[12px] text-[#68726d] mt-1">
                   The expense has been flagged for further review.
                 </p>
               </div>

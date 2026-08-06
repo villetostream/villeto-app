@@ -73,21 +73,21 @@ function AddProcurementCategoryForm({
         <div className="p-8">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">
+              <h2 className="text-lg font-semibold text-[#0b100e]">
                 {parentCategory ? "Add Subcategory" : "New Category"}
               </h2>
               {parentCategory && (
-                <p className="text-sm text-muted-foreground mt-0.5">Under <span className="font-medium text-foreground">{parentCategory.name}</span></p>
+                <p className="text-sm text-[#68726d] mt-0.5">Under <span className="font-medium text-[#0b100e]">{parentCategory.name}</span></p>
               )}
             </div>
-            <button onClick={() => { setName(""); onClose(); }} className="w-8 h-8 rounded-full bg-muted/40 hover:bg-muted/70 flex items-center justify-center transition-colors">
-              <X className="w-4 h-4 text-muted-foreground" />
+            <button onClick={() => { setName(""); onClose(); }} className="w-8 h-8 rounded-full bg-[#f9faf9] hover:bg-[#f9faf9] flex items-center justify-center transition-colors">
+              <X className="w-4 h-4 text-[#68726d]" />
             </button>
           </div>
           <div className="space-y-5">
             <div>
-              <label className="text-sm font-medium text-foreground block mb-1.5">
-                {parentCategory ? "Subcategory Name" : "Category Name"} <span className="text-red-500">*</span>
+              <label className="text-sm font-medium text-[#0b100e] block mb-1.5">
+                {parentCategory ? "Subcategory Name" : "Category Name"} <span className="text-[#d33d44]">*</span>
               </label>
               <input
                 autoFocus
@@ -95,17 +95,17 @@ function AddProcurementCategoryForm({
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleSubmit(); if (e.key === "Escape") { setName(""); onClose(); } }}
                 placeholder={parentCategory ? "e.g. Laptop Stands" : "e.g. IT Equipment"}
-                className="w-full h-11 px-3.5 rounded-xl border border-border text-sm focus:outline-none focus:border-primary transition-colors bg-white"
+                className="w-full h-11 px-3.5 rounded-[12px] border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors bg-white"
               />
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={() => { setName(""); onClose(); }}
-                className="flex-1 h-11 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-muted/30 transition-colors">
+                className="flex-1 h-11 rounded-[12px] border border-black/[0.06] text-sm font-semibold text-[#0b100e] hover:bg-[#f9faf9] transition-colors">
                 Cancel
               </button>
               <button onClick={handleSubmit}
                 disabled={createCategory.isPending || !name.trim()}
-                className="flex-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2">
+                className="flex-1 h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2">
                 {createCategory.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 {parentCategory ? "Add Subcategory" : "Create Category"}
               </button>
@@ -192,13 +192,13 @@ export default function ProcurementCategoriesPage() {
     <div className="flex flex-col gap-4" style={{ height: "calc(100vh - 7rem)" }}>
       {/* Description + Stats strip */}
       <div className="flex items-center justify-between flex-wrap gap-3 shrink-0">
-        <p className="text-sm text-muted-foreground">Manage categories and subcategories for purchase requests.</p>
+        <p className="text-sm text-[#68726d]">Manage categories and subcategories for purchase requests.</p>
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-border text-xs font-medium text-muted-foreground">
-            <FolderOpen className="w-3.5 h-3.5 text-primary" />
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-black/[0.06] text-xs font-medium text-[#68726d]">
+            <FolderOpen className="w-3.5 h-3.5 text-[#087f70]" />
             {rawCategories.length} Categories
           </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-border text-xs font-medium text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-black/[0.06] text-xs font-medium text-[#68726d]">
             <Tag className="w-3.5 h-3.5 text-teal-500" />
             {totalSubs} Subcategories
           </span>
@@ -206,26 +206,26 @@ export default function ProcurementCategoriesPage() {
       </div>
 
       {/* ── Split panel (fills remaining height) ── */}
-      <div className="flex-1 bg-card rounded-[1.25rem] border border-border shadow-sm flex overflow-hidden min-h-0">
+      <div className="flex-1 bg-card rounded-[1.25rem] border border-black/[0.06] shadow-sm flex flex-col md:flex-row overflow-hidden min-h-0">
 
         {/* ── LEFT: Category list ── */}
-        <div className="w-72 shrink-0 border-r border-border flex flex-col bg-muted/20">
+        <div className="w-full md:w-72 h-[45%] md:h-auto shrink-0 border-b md:border-b-0 md:border-r border-black/[0.06] flex flex-col bg-[#f9faf9]">
           {/* Search + Sort */}
-          <div className="p-4 border-b border-border space-y-2">
+          <div className="p-4 border-b border-black/[0.06] space-y-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#68726d]" />
               <input
                 placeholder="Search..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full h-9 pl-8 pr-3 rounded-xl border border-border bg-white text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
+                className="w-full h-9 pl-8 pr-3 rounded-[12px] border border-black/[0.06] bg-white text-sm placeholder:text-[#68726d] focus:outline-none focus:border-[#087f70] transition-colors"
               />
             </div>
             {/* Sort control */}
             <div className="relative">
               <button
                 onClick={() => setSortOpen(v => !v)}
-                className="w-full h-8 px-3 rounded-xl border border-border bg-white text-xs font-medium text-muted-foreground hover:text-foreground hover:border-border/80 flex items-center gap-2 transition-colors"
+                className="w-full h-8 px-3 rounded-[12px] border border-black/[0.06] bg-white text-xs font-medium text-[#68726d] hover:text-[#0b100e] hover:border-border/80 flex items-center gap-2 transition-colors"
               >
                 <ArrowUpDown className="w-3 h-3 shrink-0" />
                 <span className="flex-1 text-left">
@@ -233,7 +233,7 @@ export default function ProcurementCategoriesPage() {
                 </span>
               </button>
               {sortOpen && (
-                <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-border rounded-xl shadow-lg overflow-hidden">
+                <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-black/[0.06] rounded-[12px] shadow-lg overflow-hidden">
                   {([
                     { key: "az", label: "A → Z" },
                     { key: "za", label: "Z → A" },
@@ -243,10 +243,10 @@ export default function ProcurementCategoriesPage() {
                     <button
                       key={opt.key}
                       onClick={() => { setSortBy(opt.key); setSortOpen(false); }}
-                      className="w-full text-left px-4 py-2.5 text-xs font-medium flex items-center justify-between hover:bg-muted/40 transition-colors"
+                      className="w-full text-left px-4 py-2.5 text-xs font-medium flex items-center justify-between hover:bg-[#f9faf9] transition-colors"
                     >
-                      <span className={sortBy === opt.key ? "text-primary" : "text-foreground"}>{opt.label}</span>
-                      {sortBy === opt.key && <Check className="w-3 h-3 text-primary" />}
+                      <span className={sortBy === opt.key ? "text-[#087f70]" : "text-[#0b100e]"}>{opt.label}</span>
+                      {sortBy === opt.key && <Check className="w-3 h-3 text-[#087f70]" />}
                     </button>
                   ))}
                 </div>
@@ -258,11 +258,11 @@ export default function ProcurementCategoriesPage() {
           <div className="flex-1 overflow-y-auto py-2">
             {isLoading ? (
               <div className="flex items-center justify-center py-10">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                <Loader2 className="w-5 h-5 animate-spin text-[#68726d]" />
               </div>
             ) : filteredCategories.length === 0 ? (
               <div className="text-center py-10 px-4">
-                <p className="text-sm text-muted-foreground">{search ? "No matches found." : "No categories yet."}</p>
+                <p className="text-sm text-[#68726d]">{search ? "No matches found." : "No categories yet."}</p>
               </div>
             ) : (
               filteredCategories.map((cat) => {
@@ -274,21 +274,21 @@ export default function ProcurementCategoriesPage() {
                     onClick={() => setSelectedId(cat.categoryId)}
                     className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-all group relative ${
                       isActive
-                        ? "bg-primary/[0.07] border-r-[3px] border-primary"
-                        : "hover:bg-muted/40 border-r-[3px] border-transparent"
+                        ? "bg-primary/[0.07] border-r-[3px] border-[#087f70]"
+                        : "hover:bg-[#f9faf9] border-r-[3px] border-transparent"
                     }`}
                   >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold ${isActive ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold ${isActive ? "bg-[#087f70] text-white" : "bg-[#f5f7f6] text-[#68726d]"}`}>
                       {cat.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${isActive ? "text-primary" : "text-foreground"}`}>{cat.name}</p>
-                      <p className="text-xs text-muted-foreground">{subCount} subcategor{subCount === 1 ? "y" : "ies"}</p>
+                      <p className={`text-sm font-medium truncate ${isActive ? "text-[#087f70]" : "text-[#0b100e]"}`}>{cat.name}</p>
+                      <p className="text-xs text-[#68726d]">{subCount} subcategor{subCount === 1 ? "y" : "ies"}</p>
                     </div>
                     {/* Delete parent — shows on hover */}
                     <button
                       onClick={(e) => { e.stopPropagation(); setCategoryToDelete({ id: cat.categoryId, name: cat.name }); }}
-                      className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all shrink-0"
+                      className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md text-[#68726d] hover:text-destructive hover:bg-destructive/10 transition-all shrink-0"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -299,10 +299,10 @@ export default function ProcurementCategoriesPage() {
           </div>
 
           {/* Add category */}
-          <div className="p-3 border-t border-border">
+          <div className="p-3 border-t border-black/[0.06]">
             <button
               onClick={() => { setParentForAdd(null); setIsAddOpen(true); }}
-              className="w-full h-9 rounded-xl border border-dashed border-border text-sm font-medium text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 flex items-center justify-center gap-2 transition-all"
+              className="w-full h-9 rounded-[12px] border border-dashed border-black/[0.06] text-sm font-medium text-[#68726d] hover:text-[#087f70] hover:border-[#087f70]/60 hover:bg-[#f0faf8] flex items-center justify-center gap-2 transition-all"
             >
               <Plus className="w-4 h-4" /> Add Category
             </button>
@@ -313,31 +313,31 @@ export default function ProcurementCategoriesPage() {
         <div className="flex-1 flex flex-col min-w-0">
           {!selectedCategory ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-8 py-12">
-              <div className="w-16 h-16 rounded-2xl bg-muted/40 flex items-center justify-center mb-4">
-                <FolderOpen className="w-7 h-7 text-muted-foreground/50" strokeWidth={1.5} />
+              <div className="w-16 h-16 rounded-[14px] bg-[#f9faf9] flex items-center justify-center mb-4">
+                <FolderOpen className="w-7 h-7 text-[#84908a]" strokeWidth={1.5} />
               </div>
-              <p className="text-sm font-medium text-muted-foreground">Select a category to view its subcategories</p>
+              <p className="text-sm font-medium text-[#68726d]">Select a category to view its subcategories</p>
             </div>
           ) : (
             <>
               {/* Right panel header */}
-              <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-4 shrink-0">
+              <div className="px-6 py-4 border-b border-black/[0.06] flex items-center justify-between gap-4 shrink-0">
                 <div>
-                  <h2 className="text-base font-semibold text-foreground">{selectedCategory.name}</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <h2 className="text-base font-semibold text-[#0b100e]">{selectedCategory.name}</h2>
+                  <p className="text-xs text-[#68726d] mt-0.5">
                     {(selectedCategory.children || []).length} subcategor{(selectedCategory.children || []).length === 1 ? "y" : "ies"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => refetch()}
-                    className="h-8 w-8 rounded-lg border border-border bg-white flex items-center justify-center text-muted-foreground hover:bg-muted/30 transition-colors"
+                    className="h-8 w-8 rounded-lg border border-black/[0.06] bg-white flex items-center justify-center text-[#68726d] hover:bg-[#f9faf9] transition-colors"
                   >
                     <RefreshCcw className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => { setParentForAdd({ id: selectedCategory.categoryId, name: selectedCategory.name }); setIsAddOpen(true); }}
-                    className="h-8 px-4 rounded-lg bg-primary text-white text-xs font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5"
+                    className="h-8 px-4 rounded-lg bg-[#087f70] text-white text-xs font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5"
                   >
                     <Plus className="w-3.5 h-3.5" /> Add Subcategory
                   </button>
@@ -348,14 +348,14 @@ export default function ProcurementCategoriesPage() {
               <div className="flex-1 overflow-y-auto">
                 {(selectedCategory.children || []).length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-                    <div className="w-12 h-12 rounded-xl bg-muted/40 flex items-center justify-center mb-3">
-                      <Tag className="w-5 h-5 text-muted-foreground/50" strokeWidth={1.5} />
+                    <div className="w-12 h-12 rounded-[12px] bg-[#f9faf9] flex items-center justify-center mb-3">
+                      <Tag className="w-5 h-5 text-[#84908a]" strokeWidth={1.5} />
                     </div>
-                    <p className="text-sm font-medium text-foreground mb-1">No subcategories</p>
-                    <p className="text-xs text-muted-foreground mb-5">Add subcategories to help teams classify purchase items more precisely.</p>
+                    <p className="text-sm font-medium text-[#0b100e] mb-1">No subcategories</p>
+                    <p className="text-xs text-[#68726d] mb-5">Add subcategories to help teams classify purchase items more precisely.</p>
                     <button
                       onClick={() => { setParentForAdd({ id: selectedCategory.categoryId, name: selectedCategory.name }); setIsAddOpen(true); }}
-                      className="h-9 px-5 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2"
+                      className="h-9 px-5 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2"
                     >
                       <Plus className="w-4 h-4" /> Add Subcategory
                     </button>
@@ -363,16 +363,16 @@ export default function ProcurementCategoriesPage() {
                 ) : (
                   <div className="divide-y divide-border">
                     {(selectedCategory.children || []).map((sub, i) => (
-                      <div key={sub.categoryId || i} className="flex items-center justify-between px-6 py-3.5 group hover:bg-muted/20 transition-colors">
+                      <div key={sub.categoryId || i} className="flex items-center justify-between px-6 py-3.5 group hover:bg-[#f9faf9] transition-colors">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-7 h-7 rounded-lg bg-muted/60 flex items-center justify-center shrink-0">
-                            <Tag className="w-3.5 h-3.5 text-muted-foreground" />
+                          <div className="w-7 h-7 rounded-lg bg-[#f9faf9] flex items-center justify-center shrink-0">
+                            <Tag className="w-3.5 h-3.5 text-[#68726d]" />
                           </div>
-                          <span className="text-sm font-medium text-foreground truncate">{sub.name}</span>
+                          <span className="text-sm font-medium text-[#0b100e] truncate">{sub.name}</span>
                         </div>
                         <button
                           onClick={() => setCategoryToDelete({ id: sub.categoryId, name: sub.name })}
-                          className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-all shrink-0 ml-4"
+                          className="h-7 w-7 rounded-lg flex items-center justify-center text-[#68726d] opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-all shrink-0 ml-4"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -394,16 +394,16 @@ export default function ProcurementCategoriesPage() {
       />
 
       <AlertDialog open={categoryToDelete !== null} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
-        <AlertDialogContent className="rounded-2xl border-none shadow-xl">
+        <AlertDialogContent className="rounded-[14px] border-none shadow-xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete &quot;{categoryToDelete?.name}&quot;?</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-muted-foreground">
+            <AlertDialogDescription className="text-sm text-[#68726d]">
               This will permanently delete this item. If it is a parent category, its subcategories may also be removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-2">
-            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeDelete} className="rounded-xl bg-destructive hover:bg-destructive/90 text-white">
+            <AlertDialogCancel className="rounded-[12px]">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDelete} className="rounded-[12px] bg-destructive hover:bg-destructive/90 text-white">
               {deleteCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Delete
             </AlertDialogAction>

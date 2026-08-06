@@ -1,8 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { Loader2, Mail } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
 import { useVerifyOtpApi } from "@/queries/pre-onboarding/verify-otp";
@@ -11,13 +10,13 @@ import { toast } from "sonner";
 import { OnboardingSidebar } from "@/components/onboarding/_shared/OnboardingSidebar";
 
 const OTP_LENGTH = 6;
-const RESEND_TIMER_SECONDS = 5 * 60; // 5 minutes
+const RESEND_TIMER_SECONDS = 5 * 60;
 
 export default function VerifyOtp() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const emailParam = searchParams.get("email");
-    
+
     const onboarding = useOnboardingStore();
     const verifyOtp = useVerifyOtpApi();
     const loading = verifyOtp.isPending;
@@ -27,17 +26,14 @@ export default function VerifyOtp() {
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
     const isExistingUser = onboarding.isExistingUser;
-    const _stoppedAtStep = onboarding.stoppedAtStep;
     const email = onboarding.contactEmail || emailParam || "";
 
-    // Sync email from URL to store if missing
     useEffect(() => {
         if (emailParam && !onboarding.contactEmail) {
             onboarding.setContactEmail(emailParam);
         }
     }, [emailParam, onboarding.contactEmail, onboarding]);
 
-    // Resend countdown timer
     useEffect(() => {
         if (resendTimer <= 0) return;
         const interval = setInterval(() => {
@@ -53,9 +49,9 @@ export default function VerifyOtp() {
     };
 
     const handleChange = (index: number, value: string) => {
-        if (!/^\d*$/.test(value)) return; // Only digits
+        if (!/^\d*$/.test(value)) return;
         const newOtp = [...otp];
-        newOtp[index] = value.slice(-1); // Take only last char
+        newOtp[index] = value.slice(-1);
         setOtp(newOtp);
         if (value && index < OTP_LENGTH - 1) {
             inputRefs.current[index + 1]?.focus();
@@ -66,22 +62,17 @@ export default function VerifyOtp() {
         if (e.key === "Backspace" && !otp[index] && index > 0) {
             inputRefs.current[index - 1]?.focus();
         }
-        if (e.key === "Enter") {
-            handleProceed();
-        }
+        if (e.key === "Enter") handleProceed();
     };
 
     const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
         e.preventDefault();
         const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, OTP_LENGTH);
         const newOtp = [...otp];
-        pasted.split("").forEach((char, i) => {
-            newOtp[i] = char;
-        });
+        pasted.split("").forEach((char, i) => { newOtp[i] = char; });
         setOtp(newOtp);
         const nextEmpty = newOtp.findIndex((v) => !v);
-        const focusIndex = nextEmpty === -1 ? OTP_LENGTH - 1 : nextEmpty;
-        inputRefs.current[focusIndex]?.focus();
+        inputRefs.current[nextEmpty === -1 ? OTP_LENGTH - 1 : nextEmpty]?.focus();
     };
 
     const handleProceed = async () => {
@@ -90,21 +81,14 @@ export default function VerifyOtp() {
             toast.error("Please enter the complete OTP");
             return;
         }
-
         try {
-            const response = await verifyOtp.mutateAsync({
-                email,
-                otp: otpString,
-            });
-
+            const response = await verifyOtp.mutateAsync({ email, otp: otpString });
             const onboardingData = response.data;
 
             if (isExistingUser && onboardingData) {
-                // Existing user — navigate to where they stopped
                 const step = onboardingData.step;
                 const company = onboardingData.company;
 
-                // Store the data
                 onboarding.setOnboardingId(onboardingData.onboardingId);
                 onboarding.setPreOnboarding({
                     contactEmail: company.contactEmail,
@@ -118,24 +102,23 @@ export default function VerifyOtp() {
                     website: company?.websiteUrl ?? "",
                 });
 
-                // Navigate based on step
+                if ((onboardingData as any).onboardingStatus === "COMPLETED") {
+                    onboarding.reset();
+                    toast.success("Your onboarding is already complete! Please log in to your account.");
+                    router.push("/login");
+                    return;
+                }
+
                 if (step === 1) {
-                    if (company.websiteUrl) {
-                        router.push("/onboarding/leadership");
-                    } else {
-                        router.push("/onboarding/business");
-                    }
+                    router.push(company.websiteUrl ? "/onboarding/leadership" : "/onboarding/business");
                 } else if (step === 2) {
                     router.push("/onboarding/financial");
                 } else if (step === 3) {
                     router.push("/onboarding/products");
                 } else if (step === 4) {
-                    onboarding.reset();
-                    toast.success("Your onboarding is already complete! Please log in to your account.");
-                    router.push("/login");
+                    router.push("/onboarding/review");
                 }
             } else {
-                // New user — store the onboardingId and go to welcome page
                 if (onboardingData?.onboardingId) {
                     onboarding.setOnboardingId(onboardingData.onboardingId);
                 }
@@ -147,146 +130,131 @@ export default function VerifyOtp() {
     };
 
     const confirmAccount = useConfirmationOnboardingApi();
-    const _loadingResend = confirmAccount.isPending;
+    const loadingResend = confirmAccount.isPending;
 
     const handleResend = async () => {
         if (resendTimer > 0) return;
-        
         try {
             const data = await confirmAccount.mutateAsync({ email });
-            
             if (data) {
-                // Ensure store is updated with fresh data
-                const step = data.data.step;
-                onboarding.setStoppedAtStep(step);
+                onboarding.setStoppedAtStep(data.data.step);
                 onboarding.setOnboardingId(data.data.onboardingId);
-                if (data.data.status) {
-                     onboarding.setIsExistingUser(true);
-                }
-
+                if (data.data.status) onboarding.setIsExistingUser(true);
                 setResendTimer(RESEND_TIMER_SECONDS);
                 toast.success("OTP resent to your email");
             }
-        } catch (_error) {
-             toast.error("Failed to resend OTP. Please try again.");
+        } catch {
+            toast.error("Failed to resend OTP. Please try again.");
         }
     };
 
+    const isComplete = otp.join("").length === OTP_LENGTH;
+
     return (
-        <div className="fixed inset-0 z-50 flex p-5 gap-5 bg-background h-screen overflow-hidden">
+        <div className="fixed inset-0 z-50 flex bg-[#0b100e]">
             <OnboardingSidebar />
-            <div className="flex-1 p-8 px-[5.43777%] w-full h-full bg-white overflow-y-auto relative rounded-lg">
-                {/* Email badge in top-right */}
-                <div className="flex justify-end mb-12">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-full text-sm text-gray-700">
-                        <svg
-                            className="h-5 w-5 text-gray-500"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+
+            {/* Right panel */}
+            <div className="flex flex-1 flex-col overflow-y-auto bg-white lg:rounded-l-none">
+                {/* Mobile: top spacing, Desktop: vertically centred */}
+                <div className="flex flex-1 flex-col items-start justify-center px-8 py-12 sm:px-12 lg:px-16 xl:px-20">
+                    <div className="w-full max-w-[440px]">
+
+                        {/* Email chip */}
+                        {email && (
+                            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-[#f6f8f7] px-3.5 py-2 text-[12px] font-medium text-[#3d4740]">
+                                <Mail className="size-3.5 text-[#737d78]" />
+                                {email}
+                            </div>
+                        )}
+
+                        {/* Heading */}
+                        <h1 className="text-[clamp(1.75rem,3.5vw,2.4rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-[#0b100e]">
+                            {isExistingUser
+                                ? "Continue where\nyou left off."
+                                : "Check your\nemail."}
+                        </h1>
+                        <p className="mt-3 text-[13px] leading-6 text-[#68726d]">
+                            We sent a 6-digit code to{" "}
+                            <span className="font-semibold text-[#0b100e]">{email || "your email"}</span>.
+                            Enter it below to continue.
+                        </p>
+
+                        {/* OTP inputs */}
+                        <div className="mt-9">
+                            <label className="mb-3 block text-[11px] font-semibold uppercase tracking-[0.1em] text-[#9aa49e]">
+                                Verification code
+                            </label>
+                            <div className="flex items-center gap-2">
+                                {otp.map((digit, index) => (
+                                    <React.Fragment key={index}>
+                                        {index === 3 && (
+                                            <span className="shrink-0 text-[18px] font-light text-[#c2c9c5] select-none">–</span>
+                                        )}
+                                        <input
+                                            ref={(el) => { inputRefs.current[index] = el; }}
+                                            type="text"
+                                            inputMode="numeric"
+                                            maxLength={1}
+                                            value={digit}
+                                            autoFocus={index === 0}
+                                            onChange={(e) => handleChange(index, e.target.value)}
+                                            onKeyDown={(e) => handleKeyDown(index, e)}
+                                            onPaste={index === 0 ? handlePaste : undefined}
+                                            className={[
+                                                "h-[58px] w-full rounded-[10px] border text-center text-[22px] font-semibold outline-none transition-all duration-150",
+                                                "shadow-[0_2px_8px_rgba(14,28,23,0.05)]",
+                                                digit
+                                                    ? "border-[#0ea894] bg-[#e7f6f2]/50 text-[#0b100e]"
+                                                    : "border-black/[0.1] bg-white text-[#0b100e]",
+                                                "focus:border-[#0ea894] focus:ring-4 focus:ring-[#0ea894]/10",
+                                            ].join(" ")}
+                                        />
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* CTA */}
+                        <button
+                            type="button"
+                            onClick={handleProceed}
+                            disabled={loading || !isComplete}
+                            className={[
+                                "mt-7 flex h-[52px] w-full items-center justify-center gap-2 rounded-[10px] text-[14px] font-semibold text-white transition-all duration-150",
+                                isComplete && !loading
+                                    ? "bg-[#0ea894] hover:bg-[#0c9785] active:scale-[0.99] shadow-[0_8px_20px_rgba(14,168,148,0.25)]"
+                                    : "cursor-not-allowed bg-[#0ea894]/35",
+                            ].join(" ")}
                         >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                            />
-                        </svg>
-                        {email}
-                    </div>
-                </div>
+                            {loading ? (
+                                <>
+                                    <Loader2 className="size-4 animate-spin" />
+                                    Verifying…
+                                </>
+                            ) : (
+                                "Verify & continue"
+                            )}
+                        </button>
 
-                <div className="flex flex-col items-start justify-center max-w-lg">
-                    {/* Icon */}
-                    <div className="mb-6">
-                        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                            <svg
-                                className="h-8 w-8 text-primary"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                                />
-                            </svg>
-                        </div>
-                    </div>
-
-                    {/* Title & subtitle */}
-                    <h1 className="text-2xl md:text-3xl font-bold text-black mb-2 leading-tight">
-                        {isExistingUser
-                            ? "Continue from where you left off"
-                            : "Enter Your Verification Code"}
-                    </h1>
-                    <p className="text-base text-muted-foreground mb-6">
-                        Enter the OTP code we sent to your corporate email address
-                    </p>
-
-                    {/* Stopped at step badge (existing users only) */}
-                    {/* {isExistingUser && (
-                        <div className="flex items-center gap-2 px-4 py-3 bg-primary/5 border border-primary/20 rounded-lg mb-6 w-full">
-                            <Info className="h-4 w-4 text-primary flex-shrink-0" />
-                            <span className="text-sm text-gray-700">
-                                You stopped at {ONBOARDING_STEPS.find((s: { id: number; title: string }) => s.id === (stoppedAtStep || 1))?.title}
-                            </span>
-                        </div>
-                    )} */}
-
-                    {/* OTP Input boxes */}
-                    <div className="flex items-center gap-2 mb-6">
-                        {otp.map((digit, index) => (
-                            <React.Fragment key={index}>
-                                {index === 3 && (
-                                    <span className="text-2xl text-gray-400 mx-1">-</span>
-                                )}
-                                <input
-                                    ref={(el) => { inputRefs.current[index] = el; }}
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength={1}
-                                    value={digit}
-                                    onChange={(e) => handleChange(index, e.target.value)}
-                                    onKeyDown={(e) => handleKeyDown(index, e)}
-                                    onPaste={index === 0 ? handlePaste : undefined}
-                                    className="w-12 h-14 text-center text-xl font-semibold border-2 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none transition-all"
-                                />
-                            </React.Fragment>
-                        ))}
-                    </div>
-
-                    {/* Proceed Button */}
-                    <Button
-                        onClick={handleProceed}
-                        variant={"hero"}
-                        disabled={loading || otp.join("").length !== OTP_LENGTH}
-                        className="text-lg font-medium min-w-[250px] w-full max-w-md mb-4"
-                    >
-                        {loading ? "Verifying..." : "Proceed"}
-                        {loading ? (
-                            <Loader2 className="ml-2 h-5 w-5 animate-spin" />
-                        ) : (
-                            <ArrowRight className="ml-2 h-5 w-5" />
-                        )}
-                    </Button>
-
-                    {/* Resend timer */}
-                    <div className="text-sm text-center w-full max-w-md">
-                        {resendTimer > 0 ? (
-                            <span className="text-primary">
-                                I didn&apos;t receive a code. Resend in {formatTime(resendTimer)}
-                            </span>
-                        ) : (
-                            <button
-                                onClick={handleResend}
-                                className="text-primary hover:underline cursor-pointer"
-                            >
-                                I didn&apos;t receive a code. Resend now
-                            </button>
-                        )}
+                        {/* Resend */}
+                        <p className="mt-5 text-center text-[12px] text-[#9aa49e]">
+                            Didn&apos;t receive it?{" "}
+                            {resendTimer > 0 ? (
+                                <span className="font-medium text-[#68726d]">
+                                    Resend in <span className="font-semibold text-[#0b100e]">{formatTime(resendTimer)}</span>
+                                </span>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={handleResend}
+                                    disabled={loadingResend}
+                                    className="font-semibold text-[#0ea894] hover:underline disabled:opacity-50"
+                                >
+                                    {loadingResend ? "Sending…" : "Resend code"}
+                                </button>
+                            )}
+                        </p>
                     </div>
                 </div>
             </div>

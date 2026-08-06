@@ -40,6 +40,10 @@ interface AddBeneficialOwnerModalProps {
     mode?: "beneficial" | "officer";
     editingPerson?: EditingPerson | null;
     isOwner?: boolean;
+    hideSelfOption?: boolean;
+    globalIsOwnershipCapped?: boolean | null;
+    totalAllocated?: number;
+    isFirstOwner?: boolean;
 }
 
 export const AddBeneficialOwnerModal = ({
@@ -48,7 +52,11 @@ export const AddBeneficialOwnerModal = ({
     onAdd,
     mode = "beneficial",
     editingPerson,
-    isOwner
+    isOwner,
+    hideSelfOption,
+    globalIsOwnershipCapped,
+    totalAllocated = 0,
+    isFirstOwner
 }: AddBeneficialOwnerModalProps) => {
     const schema = getFormSchema(mode, isOwner);
     const isBeneficialOwner = mode === "beneficial" || isOwner;
@@ -58,6 +66,7 @@ export const AddBeneficialOwnerModal = ({
 
     const form = useForm({
         resolver: zodResolver(schema),
+        mode: "onChange",
         defaultValues: {
             firstName: "",
             lastName: "",
@@ -66,16 +75,26 @@ export const AddBeneficialOwnerModal = ({
             ownershipPercentage: undefined,
         }
     });
-    const { handleSubmit, formState: { errors: _errors }, setValue, reset, control } = form;
+    const { handleSubmit, formState: { isValid }, setValue, reset, control } = form;
 
     // "I'm also a beneficiary owner" checkbox state
     const [isSelf, setIsSelf] = useState(false);
 
     // compliance checkbox — tracks whether ownership is capped at 25%
-    const [complianceChecked, setComplianceChecked] = useState(true);
+    const [complianceChecked, setComplianceChecked] = useState(
+        globalIsOwnershipCapped !== null && globalIsOwnershipCapped !== undefined ? globalIsOwnershipCapped : true
+    );
+
+    useEffect(() => {
+        if (globalIsOwnershipCapped !== null && globalIsOwnershipCapped !== undefined) {
+            setComplianceChecked(globalIsOwnershipCapped);
+        }
+    }, [globalIsOwnershipCapped]);
 
     const ownershipValue = useWatch({ control, name: "ownershipPercentage" });
-    const maxOwnership = complianceChecked ? 25 : 100;
+    const currentOwnerPercentage = editingPerson?.ownershipPercentage ?? 0;
+    const availablePercentage = Math.max(0, 100 - totalAllocated + currentOwnerPercentage);
+    const maxOwnership = Math.min(complianceChecked ? 25 : 100, availablePercentage);
 
     // When the "I'm also" checkbox is toggled ON, populate from current user or onboarding state
     const handleIsSelfChange = (checked: boolean) => {
@@ -102,8 +121,8 @@ export const AddBeneficialOwnerModal = ({
 
     useEffect(() => {
         const timeoutId = window.setTimeout(() => {
-            setIsSelf(false);
             if (editingPerson) {
+                setIsSelf(editingPerson.id === "self");
                 reset({
                     firstName: editingPerson.firstName || "",
                     lastName: editingPerson.lastName || "",
@@ -112,6 +131,7 @@ export const AddBeneficialOwnerModal = ({
                     ownershipPercentage: editingPerson.ownershipPercentage || undefined,
                 });
             } else {
+                setIsSelf(false);
                 reset({
                     firstName: "",
                     lastName: "",
@@ -138,7 +158,8 @@ export const AddBeneficialOwnerModal = ({
             email: data.email,
             ownershipPercentage: Number(data.ownershipPercentage ?? 0),
             isSelf,
-        });
+            isOwnershipCapped: complianceChecked,
+        } as any);
         reset();
         setIsSelf(false);
     };
@@ -163,51 +184,53 @@ export const AddBeneficialOwnerModal = ({
     };
 
     const isEditing = !!editingPerson;
+    const isEditingSelf = editingPerson?.id === "self";
 
     const sliderValue = React.useMemo(() => [ownershipValue ?? 0], [ownershipValue]);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleCancel(); }}>
-            <DialogContent className="sm:min-w-[600px] p-0 rounded-lg">
-                <DialogHeader className="flex flex-row items-center justify-between space-y-0 p-6 pb-7 border-b border-b-muted">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-14 h-14 bg-muted/80 rounded-full flex items-center justify-center">
-                            <HugeiconsIcon icon={UserAdd01FreeIcons} className="size-8 text-foreground" />
-                        </div>
-                        <div>
-                            <DialogTitle className="text-xl leading-[100%] font-semibold">
-                                {isEditing ? 'Edit' : 'Add'} {isBeneficialOwner ? 'Beneficial Owner' : 'Controlling Officer'}
-                            </DialogTitle>
-                            <p className="text-sm text-muted-foreground">
-                                {isBeneficialOwner
-                                    ? "Add beneficial owner by email address and assign role"
-                                    : "Add company officer by email address and assign position"
-                                }
-                            </p>
-                        </div>
+            <DialogContent className="sm:min-w-[580px] gap-0 rounded-[16px] p-0 shadow-[0_24px_60px_rgba(14,28,23,0.18)]">
+                <DialogHeader className="flex flex-row items-center gap-3.5 border-b border-black/[0.07] px-6 py-5 space-y-0">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-[10px] bg-[#e7f6f2]">
+                        <HugeiconsIcon icon={UserAdd01FreeIcons} className="size-6 text-[#087f70]" />
+                    </div>
+                    <div>
+                        <DialogTitle className="text-[16px] font-semibold leading-tight text-[#0b100e]">
+                            {isEditing ? 'Edit' : 'Add'} {isBeneficialOwner ? 'Beneficial Owner' : 'Controlling Officer'}
+                        </DialogTitle>
+                        <p className="mt-0.5 text-[12px] text-[#68726d]">
+                            {isBeneficialOwner
+                                ? "Add beneficial owner by email address and assign ownership"
+                                : "Add company officer by email address and assign position"
+                            }
+                        </p>
                     </div>
                 </DialogHeader>
 
                 <Form {...form}>
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 p-5 pt-4">
+                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 px-6 py-5">
 
                         {/* ── "I'm also a beneficiary owner" checkbox ── */}
-                        {isBeneficialOwner && !isEditing && (
-                            <div className={`flex items-start gap-3.5 p-4 rounded-xl border ${
-                                isSelf ? "bg-primary/5 border-primary/30" : "bg-muted/30 border-muted-foreground/20"
-                            }`}>
+                        {isBeneficialOwner && (!isEditing || isEditingSelf) && !hideSelfOption && (
+                            <div className={`flex cursor-pointer items-start gap-3 rounded-[10px] border p-3.5 transition-colors ${
+                                isSelf ? "border-[#0ea894]/30 bg-[#f0faf8]" : "border-black/[0.08] bg-[#f9faf9]"
+                            }`} onClick={() => handleIsSelfChange(!isSelf)}>
                                 <Checkbox
                                     id="is-self"
                                     checked={isSelf}
                                     onCheckedChange={handleIsSelfChange}
-                                    className="mt-0.5 shrink-0 cursor-pointer"
+                                    className="mt-0.5 shrink-0"
+                                    onClick={e => e.stopPropagation()}
                                 />
-                                <div className="space-y-0.5">
-                                    <Label htmlFor="is-self" className="text-sm font-semibold text-foreground cursor-pointer">
-                                        I&apos;m also a beneficiary owner
+                                <div>
+                                    <Label htmlFor="is-self" className="cursor-pointer text-[13px] font-semibold text-[#0b100e]">
+                                        {isEditingSelf ? "I am the beneficial owner" : "I'm also a beneficiary owner"}
                                     </Label>
-                                    <p className="text-xs text-muted-foreground">
-                                        This will auto-fill your details but you can add more owners.
+                                    <p className="mt-0.5 text-[12px] text-[#68726d]">
+                                        {isEditingSelf
+                                            ? "Untick this to save as a different person instead of yourself."
+                                            : "This will auto-fill your details."}
                                     </p>
                                 </div>
                             </div>
@@ -259,16 +282,12 @@ export const AddBeneficialOwnerModal = ({
                                 placeholder="Enter email address"
                                 label="Email Address"
                                 disabled={isSelf}
-                                prefixIcon={
-                                    <HugeiconsIcon icon={MailAtSign01Icon} className="size-4 text-muted-foreground" />
-                                }
+                                prefixIcon={<HugeiconsIcon icon={MailAtSign01Icon} />}
                             />
                             {!isBeneficialOwner && (
-                                <div className="flex gap-2 items-center">
-                                    <HugeiconsIcon icon={InformationCircleIcon} className="size-5 text-primary" />
-                                    <p className="text-xs text-black font-normal leading-[100%]">
-                                        This email will be used to login to the company dashboard
-                                    </p>
+                                <div className="flex items-center gap-2 rounded-[8px] border border-[#c3ece7] bg-[#f0faf8] px-3 py-2.5">
+                                    <HugeiconsIcon icon={InformationCircleIcon} className="size-4 shrink-0 text-[#087f70]" />
+                                    <p className="text-[12px] text-[#68726d]">This email will be used to login to the company dashboard</p>
                                 </div>
                             )}
                         </>
@@ -276,12 +295,14 @@ export const AddBeneficialOwnerModal = ({
                         {/* Ownership Percentage */}
                         {isBeneficialOwner && (
                             <>
-                                <div className="space-y-4">
+                                <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-sm font-medium">
+                                        <Label className="text-[13px] font-semibold text-[#202723]">
                                             Percentage Ownership<span className="text-destructive">*</span>
                                         </Label>
-                                        <span className={`font-semibold ${(ownershipValue ?? 0) > maxOwnership ? 'text-destructive' : 'text-primary'}`}>
+                                        <span className={`text-[13px] font-semibold ${
+                                            (ownershipValue ?? 0) > maxOwnership ? 'text-destructive' : 'text-[#0ea894]'
+                                        }`}>
                                             {ownershipValue ?? 0}%
                                             {(ownershipValue ?? 0) > maxOwnership && ` (Max ${maxOwnership}%)`}
                                         </span>
@@ -298,15 +319,18 @@ export const AddBeneficialOwnerModal = ({
                                     {(ownershipValue ?? 0) > maxOwnership && (
                                         <p className="text-destructive text-xs flex items-center gap-1">
                                             <AlertCircle className="h-3 w-3" />
-                                            Ownership cannot exceed {maxOwnership}% to maintain compliance
+                                            {complianceChecked && availablePercentage >= 25
+                                                ? "Ownership cannot exceed 25% to maintain compliance"
+                                                : `Ownership cannot exceed ${maxOwnership}% based on remaining allocation`}
                                         </p>
                                     )}
                                 </div>
 
                                 {/* Compliance Checkbox */}
+                                {(globalIsOwnershipCapped === null || isFirstOwner) && (
                                 <div
-                                    className={`flex items-start space-x-3 p-4 rounded-lg cursor-pointer select-none transition-colors ${
-                                        complianceChecked ? "bg-primary-light/20" : "bg-amber-50"
+                                    className={`flex cursor-pointer items-start gap-3 rounded-[10px] border p-3.5 transition-colors ${
+                                        complianceChecked ? "border-[#c3ece7] bg-[#f0faf8]" : "border-amber-200 bg-amber-50"
                                     }`}
                                     onClick={() => handleComplianceChange(!complianceChecked)}
                                 >
@@ -317,42 +341,39 @@ export const AddBeneficialOwnerModal = ({
                                         className="mt-0.5"
                                         onClick={e => e.stopPropagation()}
                                     />
-                                    <div className="space-y-1">
-                                        <Label htmlFor="compliance" className="text-sm font-medium text-black cursor-pointer">
+                                    <div>
+                                        <Label htmlFor="compliance" className="cursor-pointer text-[13px] font-semibold text-[#0b100e]">
                                             No Single Owner holds 25% or more
                                         </Label>
-                                        <p className="text-xs text-black">
+                                        <p className="mt-0.5 text-[12px] text-[#68726d]">
                                             {complianceChecked
                                                 ? "Checked — ownership is capped at 25% for compliance"
                                                 : "Unchecked — ownership can go up to 100%"}
                                         </p>
                                     </div>
                                 </div>
+                                )}
                             </>
                         )}
 
                         {/* Action Buttons */}
-                        <div className="flex justify-between pt-6 gap-5">
-                            <Button
+                        <div className="flex gap-3 border-t border-black/[0.07] pt-5">
+                            <button
                                 type="button"
-                                variant="ghostNavy"
                                 onClick={handleCancel}
-                                size="md"
-                                className="flex items-center gap-2 flex-1"
+                                className="flex flex-1 items-center justify-center gap-2 h-[52px] rounded-[10px] border border-black/[0.1] bg-white text-[13px] font-semibold text-[#303834] shadow-[0_4px_16px_rgba(14,28,23,0.04)] transition-colors hover:bg-[#f5f7f6]"
                             >
-                                Cancel
-                                <X className="h-4 w-4" />
-                            </Button>
+                                Cancel <X className="size-3.5" strokeWidth={2} />
+                            </button>
 
-                            <Button
+                            <button
                                 type="submit"
-                                size="md"
-                                disabled={isBeneficialOwner && (ownershipValue ?? 0) > maxOwnership}
-                                className="flex items-center gap-2 flex-1"
+                                disabled={!isValid || (isBeneficialOwner && (ownershipValue ?? 0) > maxOwnership)}
+                                className="flex flex-1 items-center justify-center gap-2 h-[52px] rounded-[10px] bg-[#0ea894] text-[13px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] transition-all hover:translate-y-[-1px] hover:bg-[#0c9785] disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none"
                             >
-                                {isEditing ? 'Update' : 'Add'} {isBeneficialOwner ? 'Owner' : 'Controlling Officer'}
-                                <Plus className="h-4 w-4" />
-                            </Button>
+                                {isEditing ? 'Update' : 'Add'} {isBeneficialOwner ? 'Owner' : 'Officer'}
+                                <Plus className="size-3.5" strokeWidth={2} />
+                            </button>
                         </div>
                     </form>
                 </Form>

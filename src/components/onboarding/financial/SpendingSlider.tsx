@@ -21,45 +21,45 @@ export const SpendingSlider = () => {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5 select-none">
             <div className="flex justify-between items-center">
                 <div>
-                    <h3 className="text-lg font-normal leading-[100%] tracking-[0%] text-black">
-                        What&apos;s your team&apos;s expected monthly spend?
-                        <span className="text-red-500">*</span>
+                    <h3 className="text-[13px] font-semibold text-[#202723]">
+                        What&apos;s your team&apos;s expected monthly spend?<span className="text-destructive">*</span>
                     </h3>
                 </div>
-                <div className="text-primary text-lg font-bold leading-[100%] tracking-[0%]">
+                <div className="text-[13px] font-semibold text-[#0ea894]">
                     {displayLabel}
                 </div>
             </div>
 
             {/* Custom slider */}
-            <div className="relative">
+            <div className="relative pt-2 pb-1">
                 {/* Track */}
-                <div className="h-0.5 bg-gray-400 rounded-full relative">
+                <div className="h-1 bg-[#e7ece9] rounded-full relative">
                     {/* Active track */}
                     <div
-                        className="h-1 bg-primary rounded-full transition-all duration-300"
+                        className="h-1 bg-[#0ea894] rounded-full transition-all duration-300"
                         style={{ width: `${(monthlySpend / 3) * 100}%` }}
                     />
 
                     {/* Slider thumb */}
                     <div
-                        className="absolute top-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full border-4 border-primary shadow-lg cursor-pointer transition-all duration-300"
-                        style={{ left: `calc(${(monthlySpend / 3) * 100}% - 12px)` }}
+                        className="absolute top-1/2 -translate-y-1/2 w-[22px] h-[22px] bg-white rounded-full border-[3px] border-[#0ea894] shadow-[0_2px_8px_rgba(14,28,23,0.12)] cursor-grab active:cursor-grabbing transition-all duration-300"
+                        style={{ left: `calc(${(monthlySpend / 3) * 100}% - 11px)` }}
                     />
                 </div>
 
                 {/* Range labels */}
-                <div className="flex justify-between mt-4 text-sm text-villeto-gray">
+                <div className="flex justify-between mt-5">
                     {spendingRanges.map((range) => (
                         <button
                             key={range.value}
+                            type="button"
                             onClick={() => setMonthlySpend(range.value, range.label)}
                             className={cn(
-                                "transition-colors duration-200",
-                                monthlySpend === range.value ? "text-primary font-medium" : "hover:text-primary/80"
+                                "text-[12px] transition-colors duration-200",
+                                monthlySpend === range.value ? "text-[#0ea894] font-semibold" : "text-[#68726d] hover:text-[#0b100e]"
                             )}
                         >
                             {range.label}

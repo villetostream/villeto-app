@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { AddBeneficialOwnerModal } from "@/components/onboarding/AddBeneficialOwner";
 import OnboardingTitle from "@/components/onboarding/_shared/OnboardingTitle";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
-import { useAuthStore } from "@/stores/auth-stores";
+
 import { LeaderShipPayload, useUpdateOnboardingLeadersApi } from "@/queries/onboarding/update-leadership";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -41,15 +41,13 @@ interface ComplianceNoticeProps {
 
 export function ComplianceNotice({ title, description }: ComplianceNoticeProps) {
     return (
-        <Card className="bg-primary/15 border-primary p-5">
-            <div className="flex items-start gap-3.5">
-                <Info className="h-5 w-5 text-primary flex-shrink-0" />
-                <div>
-                    <p className="text-base font-semibold leading-[100%] tracking-[0%] text-black mb-2">{title}</p>
-                    <p className="text-xs font-normal leading-[100%] tracking-[0%] text-black">{description}</p>
-                </div>
+        <div className="flex items-start gap-3.5 rounded-[10px] border border-[#c3ece7] bg-[#f0faf8] px-4 py-3.5">
+            <Info className="mt-0.5 size-[18px] shrink-0 text-[#087f70]" strokeWidth={1.8} />
+            <div>
+                <p className="text-[13px] font-semibold leading-snug text-[#0b100e]">{title}</p>
+                <p className="mt-1 text-[12px] leading-5 text-[#68726d]">{description}</p>
             </div>
-        </Card>
+        </div>
     );
 }
 
@@ -61,11 +59,11 @@ interface EmptyStateProps {
 
 export function EmptyState({ imageSrc, imageAlt, message }: EmptyStateProps) {
     return (
-        <div className="text-center space-y-10">
-            <div className="flex justify-center">
-                <Image src={imageSrc} alt={imageAlt} width={192} height={192} className="w-48 h-48" />
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6 text-center">
+            <div className="flex size-14 items-center justify-center rounded-full bg-[#e7f6f2]">
+                <Info className="size-6 text-[#087f70]" strokeWidth={1.5} />
             </div>
-            <p className="text-muted-foreground text-base tracking-[0%] leading-[100%]">{message}</p>
+            <p className="text-[13px] leading-5 text-[#68726d]">{message}</p>
         </div>
     );
 }
@@ -89,50 +87,40 @@ interface OwnerCardProps {
 
 export function OwnerCard({ owner, onEdit, onDelete, type, showIcons = true, isSelfCard = false }: OwnerCardProps) {
     return (
-        <Card className={`p-4 ${isSelfCard ? "border-primary/40 bg-primary/5" : ""}`}>
-            <div className="flex items-center justify-between gap-5">
-                <div className="flex items-center gap-4 flex-1">
-                    {/* Avatar */}
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-orange-500 rounded-full flex items-center justify-center">
-                        <span className="text-white font-semibold text-lg">
-                            {owner.firstName.split('')[0] + owner.lastName.split('')[0]}
-                        </span>
-                    </div>
-
-                    {/* Owner Info */}
-                    <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1 flex-wrap">
-                            <span className="font-semibold font-base">{owner.firstName} {owner.lastName}</span>
-                            {isSelfCard && (
-                                <span className="text-[10px] font-semibold bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                                    You
-                                </span>
-                            )}
-                            {type === "beneficial" && (
-                                <span className="text-sm flex-auto">
-                                    {owner.ownershipPercentage}%
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">{owner.email}</p>
-                    </div>
+        <div className={`flex items-center justify-between gap-4 rounded-[10px] border p-3.5 shadow-[0_4px_16px_rgba(14,28,23,0.04)] ${
+            isSelfCard ? "border-[#0ea894]/30 bg-[#f0faf8]" : "border-black/[0.08] bg-white"
+        }`}>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+                {/* Avatar */}
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#0ea894] text-[11px] font-semibold text-[#07100d]">
+                    {owner.firstName[0]}{owner.lastName[0]}
                 </div>
-
-                {/* Actions */}
-                {showIcons && (<div className="flex items-center gap-2 shrink-0">
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(owner.id)}>
-                        <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onDelete(owner.id)}
-                    >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                </div>)}
+                {/* Owner Info */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[13px] font-semibold text-[#0b100e]">{owner.firstName} {owner.lastName}</span>
+                        {isSelfCard && (
+                            <span className="rounded-full bg-[#e7f6f2] px-2 py-0.5 text-[10px] font-semibold text-[#087f70]">You</span>
+                        )}
+                        {type === "beneficial" && (
+                            <span className="text-[12px] font-semibold text-[#0ea894]">{owner.ownershipPercentage}%</span>
+                        )}
+                    </div>
+                    <p className="mt-0.5 truncate text-[12px] text-[#84908a]">{owner.email}</p>
+                </div>
             </div>
-        </Card>
+            {/* Actions */}
+            {showIcons && (
+                <div className="flex items-center gap-1 shrink-0">
+                    <button type="button" onClick={() => onEdit(owner.id)} className="flex size-8 items-center justify-center rounded-[8px] text-[#84908a] transition-colors hover:bg-[#f5f7f6] hover:text-[#0b100e]">
+                        <Pencil className="size-3.5" strokeWidth={1.8} />
+                    </button>
+                    <button type="button" onClick={() => onDelete(owner.id)} className="flex size-8 items-center justify-center rounded-[8px] text-[#84908a] transition-colors hover:bg-red-50 hover:text-red-500">
+                        <Trash2 className="size-3.5" strokeWidth={1.8} />
+                    </button>
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -157,11 +145,11 @@ export function ActionButtons({
 }: ActionButtonsProps) {
     if (layout === "equal") {
         return (
-            <div className="flex items-center pt-8 w-full gap-4 mt-auto">
+            <div className="flex items-center pt-6 w-full gap-4 mt-auto border-t border-black/[0.07]">
                 <Button
                     variant="outline"
                     onClick={onAdd}
-                    className="flex items-center gap-2 flex-1"
+                    className="flex flex-1 items-center gap-2 h-[54px] rounded-[10px] border-black/[0.1] text-[14px] font-semibold"
                     disabled={loading}
                 >
                     {addButtonText}
@@ -170,7 +158,7 @@ export function ActionButtons({
 
                 <Button
                     onClick={onContinue}
-                    className={`flex items-center gap-2 flex-1 ${!hasOwners ? 'opacity-50' : ''}`}
+                    className={`flex flex-1 items-center gap-2 h-[54px] rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all ${!hasOwners ? 'opacity-50' : ''}`}
                     disabled={!loading && !hasOwners}
                 >
                     {hasOwners ? continueButtonText : "Next Step"}
@@ -183,10 +171,10 @@ export function ActionButtons({
     // If no owners, show single Add button at the bottom right with primary styling
     if (!hasOwners) {
         return (
-            <div className="flex justify-end pt-8 mt-auto w-full">
+            <div className="flex justify-end pt-6 mt-auto w-full border-t border-black/[0.07]">
                 <Button
                     onClick={onAdd}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 h-[54px] rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all"
                     disabled={loading}
                 >
                     {addButtonText} <Plus className="h-4 w-4" />
@@ -196,11 +184,11 @@ export function ActionButtons({
     }
 
     return (
-        <div className="flex justify-between items-center pt-8 mt-auto gap-5 w-full">
+        <div className="flex justify-between items-center pt-6 mt-auto gap-5 w-full border-t border-black/[0.07]">
             <Button
                 variant="outline"
                 onClick={onAdd}
-                className="flex items-center gap-2 flex-1"
+                className="flex items-center gap-2 flex-1 h-[54px] rounded-[10px] border-black/[0.1] text-[14px] font-semibold"
                 disabled={loading}
             >
                 {addButtonText}
@@ -209,7 +197,7 @@ export function ActionButtons({
 
             <Button
                 onClick={onContinue}
-                className="flex items-center gap-2 flex-1"
+                className="flex items-center gap-2 flex-1 h-[54px] rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all"
                 disabled={loading}
             >
                 {continueButtonText}
@@ -219,19 +207,11 @@ export function ActionButtons({
     );
 }
 
-// ─── Self-owner state ──────────────────────────────────────────────────────────
-interface SelfOwner {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    role: string;
-    ownershipPercentage: number;
-}
+// Removed SelfOwner state and interface
 
 export default function Leadership() {
     const router = useRouter();
-    const { userProfiles, updateUserProfiles, selfOwner, setSelfOwner } = useOnboardingStore();
+    const { userProfiles, updateUserProfiles, selfOwner, setSelfOwner, isOwnershipCapped, setIsOwnershipCapped } = useOnboardingStore();
     useHydrateOnboardingData();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -246,18 +226,27 @@ export default function Leadership() {
 
     const updateOnboarding = useUpdateOnboardingLeadersApi();
     const loading = updateOnboarding.isPending;
-
     const isUserAnOwner = !!selfOwner;
+    const hasOwners = isUserAnOwner || businessOwners.length > 0;
+
+    const firstOwnerId = selfOwner ? "self" : businessOwners[0]?.id;
+    const isFirstOwner = (!hasOwners) || (editingSelf && firstOwnerId === "self") || (editingPerson?.id === firstOwnerId);
 
     // Total ownership across self + all business owners
     const totalOwnership =
         (selfOwner?.ownershipPercentage ?? 0) +
         businessOwners.reduce((sum, o) => sum + (o.ownershipPercentage ?? 0), 0);
 
-    const handleAddPerson = (person: Omit<BeneficialOwner, "id"> | Omit<Officer, "id"> & { isSelf: boolean }) => {
-        const personWithSelf = person as typeof person & { isSelf: boolean };
+    const handleAddPerson = (person: Omit<BeneficialOwner, "id"> | Omit<Officer, "id"> & { isSelf: boolean; isOwnershipCapped?: boolean }) => {
+        const personWithSelf = person as typeof person & { isSelf: boolean; isOwnershipCapped?: boolean };
 
-        if (personWithSelf.isSelf || editingSelf) {
+        if (personWithSelf.isOwnershipCapped !== undefined) {
+            if (isOwnershipCapped === null || isFirstOwner) {
+                setIsOwnershipCapped(personWithSelf.isOwnershipCapped);
+            }
+        }
+
+        if (personWithSelf.isSelf) {
             // Store the current user as the self-owner in the persistent store
             setSelfOwner({
                 firstName: person.firstName,
@@ -265,24 +254,35 @@ export default function Leadership() {
                 email: person.email,
                 ownershipPercentage: Number((person as BeneficialOwner).ownershipPercentage ?? 0),
             });
-            // If they were also in userProfiles as a regular owner/officer, remove them to prevent duplicates
-            updateUserProfiles(userProfiles.filter(p => p.email?.toLowerCase() !== person.email?.toLowerCase()));
-        } else if (editingPerson) {
-            // Editing an existing external owner
-            const updatedProfiles = userProfiles.map(p =>
-                p.id === editingPerson.id
-                    ? { ...p, ...person, avatar: `${person.firstName[0]}${person.lastName[0]}` }
-                    : p
-            );
-            updateUserProfiles(updatedProfiles);
+            // Remove from userProfiles if they were there (e.g. transitioning from regular to self)
+            updateUserProfiles(userProfiles.filter(p => p.email?.toLowerCase() !== person.email?.toLowerCase() && p.id !== editingPerson?.id));
         } else {
-            // Adding a new external owner
-            const newPerson = {
-                ...person,
-                id: `person-${++newPersonIdRef.current}`,
-                avatar: `${person.firstName[0]}${person.lastName[0]}`,
-            };
-            updateUserProfiles([...userProfiles, newPerson]);
+            if (editingSelf) {
+                // Transitioning from self to regular
+                setSelfOwner(null);
+                const newPerson = {
+                    ...person,
+                    id: `person-${++newPersonIdRef.current}`,
+                    avatar: `${person.firstName[0]}${person.lastName[0]}`,
+                };
+                updateUserProfiles([...userProfiles, newPerson]);
+            } else if (editingPerson) {
+                // Editing an existing external owner
+                const updatedProfiles = userProfiles.map(p =>
+                    p.id === editingPerson.id
+                        ? { ...p, ...person, avatar: `${person.firstName[0]}${person.lastName[0]}` }
+                        : p
+                );
+                updateUserProfiles(updatedProfiles);
+            } else {
+                // Adding a new external owner
+                const newPerson = {
+                    ...person,
+                    id: `person-${++newPersonIdRef.current}`,
+                    avatar: `${person.firstName[0]}${person.lastName[0]}`,
+                };
+                updateUserProfiles([...userProfiles, newPerson]);
+            }
         }
 
         setIsModalOpen(false);
@@ -304,10 +304,20 @@ export default function Leadership() {
     };
 
     const handleDeletePerson = (id: string) => {
+        let remainingBusinessOwners = businessOwners;
+        let remainingSelfOwner = selfOwner;
+
         if (id === "self") {
             setSelfOwner(null);
+            remainingSelfOwner = null;
         } else {
-            updateUserProfiles(userProfiles.filter(profile => profile.id !== id));
+            const updated = userProfiles.filter(profile => profile.id !== id);
+            updateUserProfiles(updated);
+            remainingBusinessOwners = updated.filter(p => p.ownershipPercentage !== undefined) as BeneficialOwner[];
+        }
+
+        if (remainingBusinessOwners.length === 0 && !remainingSelfOwner) {
+            setIsOwnershipCapped(null);
         }
     };
 
@@ -357,23 +367,20 @@ export default function Leadership() {
         }
     };
 
-    // Page has valid data to proceed if: user is an owner, OR there's at least one external owner
-    const hasOwners = isUserAnOwner || businessOwners.length > 0;
-
     return (
-        <div className="h-full flex-col flex">
+        <div className="flex h-full flex-col py-8">
             <div className="text-left space-y-4">
-                <div className=" size-24 flex items-center justify-center bg-primary-light rounded-full mb-10">
-                    <HugeiconsIcon icon={UserGroup03FreeIcons} className="size-16 text-primary" />
+                <div className="mb-5 flex size-11 items-center justify-center rounded-[10px] bg-[#e7f6f2]">
+                    <HugeiconsIcon icon={UserGroup03FreeIcons} className="size-6 text-[#087f70]" />
                 </div>
 
                 <OnboardingTitle
-                    title="Beneficial Owner"
-                    subtitle="Enter details of owner(s) of the company."
+                    title="Leadership and ownership"
+                    subtitle="Add beneficial owners and the officers responsible for your company."
                 />
             </div>
 
-            <div className="mt-7 h-full flex-col flex">
+            <div className="mt-6 flex min-h-0 flex-1 flex-col">
                 <ComplianceNotice
                     title="No Single Owner holds 25% or more"
                     description="We ask for this to stay compliant with financial regulations"
@@ -381,49 +388,51 @@ export default function Leadership() {
 
                 {/* Ownership total indicator */}
                 {hasOwners && (
-                    <div className={`mt-4 flex items-center justify-between text-sm px-1 ${totalOwnership > 100 ? "text-destructive" : "text-muted-foreground"}`}>
+                    <div className={`mt-4 flex items-center justify-between px-1 text-[13px] ${totalOwnership > 100 ? "text-destructive" : "text-[#68726d]"}`}>
                         <span>Total ownership allocated</span>
-                        <span className={`font-semibold ${totalOwnership === 100 ? "text-emerald-600" : totalOwnership > 100 ? "text-destructive" : ""}`}>
+                        <span className={`font-semibold ${totalOwnership === 100 ? "text-[#0ea894]" : totalOwnership > 100 ? "text-destructive" : "text-[#0b100e]"}`}>
                             {totalOwnership}% / 100%
                         </span>
                     </div>
                 )}
 
                 {/* Owner cards */}
-                {!hasOwners ? (
-                    <EmptyState
-                        imageSrc="/images/leadership.png"
-                        imageAlt="Add beneficial owners"
-                        message={"No beneficial owner has been added yet, click button below to add."}
-                    />
-                ) : (
-                    <div className="space-y-4 mt-5">
-                        {/* Self card (if user marked themselves as owner) */}
-                        {selfOwner && (
-                            <OwnerCard
-                                key="self"
-                                owner={{ ...selfOwner, id: "self", role: "Owner" }}
-                                onEdit={handleEditPerson}
-                                onDelete={handleDeletePerson}
-                                type="beneficial"
-                                showIcons
-                                isSelfCard
-                            />
-                        )}
+                <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-2 pb-2 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
+                    {!hasOwners ? (
+                        <EmptyState
+                            imageSrc="/images/leadership.png"
+                            imageAlt="Add beneficial owners"
+                            message={"No beneficial owner has been added yet, click button below to add."}
+                        />
+                    ) : (
+                        <div className="space-y-3">
+                            {/* Self card (if user marked themselves as owner) */}
+                            {selfOwner && (
+                                <OwnerCard
+                                    key="self"
+                                    owner={{ ...selfOwner, id: "self", role: "Owner" }}
+                                    onEdit={handleEditPerson}
+                                    onDelete={handleDeletePerson}
+                                    type="beneficial"
+                                    showIcons
+                                    isSelfCard
+                                />
+                            )}
 
-                        {/* External beneficial owners */}
-                        {businessOwners.map((person) => (
-                            <OwnerCard
-                                key={person.id}
-                                owner={person}
-                                onEdit={handleEditPerson}
-                                onDelete={handleDeletePerson}
-                                type="beneficial"
-                                showIcons
-                            />
-                        ))}
-                    </div>
-                )}
+                            {/* External beneficial owners */}
+                            {businessOwners.map((person) => (
+                                <OwnerCard
+                                    key={person.id}
+                                    owner={person}
+                                    onEdit={handleEditPerson}
+                                    onDelete={handleDeletePerson}
+                                    type="beneficial"
+                                    showIcons
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
 
                 <ActionButtons
                     onAdd={() => setIsModalOpen(true)}
@@ -445,6 +454,10 @@ export default function Leadership() {
                     onAdd={handleAddPerson}
                     mode="beneficial"
                     isOwner={true}
+                    hideSelfOption={!!selfOwner && !editingSelf}
+                    globalIsOwnershipCapped={isOwnershipCapped}
+                    totalAllocated={totalOwnership}
+                    isFirstOwner={isFirstOwner}
                     editingPerson={
                         editingSelf && selfOwner
                             ? { ...selfOwner, id: "self" }

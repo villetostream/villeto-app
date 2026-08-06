@@ -22,12 +22,12 @@ export function ChatFAB() {
       aria-label="Open messages"
       className={[
         "fixed bottom-6 right-6 z-50",
-        "w-12 h-12 rounded-full shadow-lg",
+        "w-12 h-12 rounded-full shadow-[0_8px_24px_rgba(14,168,148,0.35)]",
         "flex items-center justify-center",
-        "transition-colors duration-200",
+        "transition-all duration-200",
         isOpen
-          ? "bg-primary text-primary-foreground"
-          : "bg-primary text-primary-foreground hover:opacity-90",
+          ? "bg-[#0ea894] text-white"
+          : "bg-[#0ea894] text-white hover:bg-[#0c9785]",
       ].join(" ")}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}

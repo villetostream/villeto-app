@@ -68,19 +68,19 @@ export function ChatConversationPanel({ conversation, onBack }: Props) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-black/[0.06] flex-shrink-0 bg-[#f9faf9]">
         <button
           onClick={onBack}
-          className="text-gray-400 hover:text-gray-700 transition-colors"
+          className="text-[#84908a] hover:text-[#303834] transition-colors p-1"
           aria-label="Back"
         >
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 truncate">
+          <p className="text-[14px] font-semibold text-[#0b100e] truncate">
             {conversation.participantName}
           </p>
-          <p className="text-[11px] text-gray-500 truncate">
+          <p className="text-[12px] text-[#84908a] truncate">
             {isVendor ? "Vendor" : conversation.participantRole}
             {conversation.participantCode ? ` • ${conversation.participantCode}` : ""}
             {isVendor && conversation.thread ? ` — ${conversation.thread.label}` : ""}
@@ -88,15 +88,15 @@ export function ChatConversationPanel({ conversation, onBack }: Props) {
         </div>
         <button
           onClick={() => closeConversation(conversation.id)}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-[#84908a] hover:text-[#303834] transition-colors p-1"
           aria-label="Close conversation"
         >
-          <X size={16} />
+          <X size={18} />
         </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+      <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent pr-2">
         {isEmpty && !isVendor && (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-sm text-gray-400">
@@ -109,11 +109,11 @@ export function ChatConversationPanel({ conversation, onBack }: Props) {
           <div key={group.label} className="flex flex-col gap-3">
             {/* Date separator */}
             <div className="flex items-center gap-2 my-1">
-              <div className="flex-1 h-px bg-gray-100" />
-              <span className="text-[11px] text-gray-400 font-medium px-2">
+              <div className="flex-1 h-px bg-black/[0.04]" />
+              <span className="text-[11px] text-[#84908a] font-medium px-2 uppercase tracking-wide">
                 {group.label}
               </span>
-              <div className="flex-1 h-px bg-gray-100" />
+              <div className="flex-1 h-px bg-black/[0.04]" />
             </div>
 
             {group.messages.map((msg, i) => {
@@ -143,10 +143,10 @@ export function ChatConversationPanel({ conversation, onBack }: Props) {
       {/* Vendor: thread picker (shown when empty, before first message) */}
       {isVendor && isEmpty && !hasThread && conversation.availableThreads && (
         <div className="px-4 pb-3 flex-shrink-0">
-          <p className="text-xs font-semibold text-gray-700 mb-1.5">
+          <p className="text-[12px] font-semibold text-[#0b100e] mb-1.5">
             Attach this message to
           </p>
-          <p className="text-[11px] text-gray-500 mb-2">
+          <p className="text-[11px] text-[#84908a] mb-2">
             Select a thread to help properly classify messages
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -200,12 +200,12 @@ export function ChatConversationPanel({ conversation, onBack }: Props) {
       )}
 
       {/* Input area */}
-      <div className="px-4 pb-4 pt-2 flex-shrink-0">
-        <div className="flex items-end gap-2 border border-gray-200 rounded-xl px-3 py-2 bg-white focus-within:border-primary transition-colors">
+      <div className="px-4 pb-4 pt-2 flex-shrink-0 border-t border-black/[0.04]">
+        <div className="flex items-end gap-2 border border-black/[0.1] rounded-[12px] px-3 py-2 bg-white focus-within:border-[#0ea894] transition-colors shadow-sm">
           {/* Attachment button */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="text-gray-400 hover:text-primary transition-colors flex-shrink-0 mb-0.5"
+            className="text-[#84908a] hover:text-[#0ea894] transition-colors flex-shrink-0 mb-0.5 p-1"
             aria-label="Add attachment"
             type="button"
           >
@@ -223,7 +223,7 @@ export function ChatConversationPanel({ conversation, onBack }: Props) {
           {/* Text input */}
           <textarea
             ref={textareaRef}
-            className="flex-1 resize-none text-sm text-gray-800 placeholder:text-gray-400 outline-none bg-transparent max-h-24 min-h-[20px]"
+            className="flex-1 resize-none text-[13px] text-[#0b100e] placeholder:text-[#84908a] outline-none bg-transparent max-h-24 min-h-[20px] py-1"
             placeholder="Type here..."
             rows={1}
             value={text}
@@ -241,10 +241,10 @@ export function ChatConversationPanel({ conversation, onBack }: Props) {
             onClick={handleSend}
             disabled={!text.trim() && pendingAttachments.length === 0}
             className={cn(
-              "flex-shrink-0 mb-0.5 transition-colors",
+              "flex-shrink-0 mb-0.5 transition-colors p-1",
               text.trim() || pendingAttachments.length > 0
-                ? "text-primary"
-                : "text-gray-300"
+                ? "text-[#0ea894]"
+                : "text-black/[0.15]"
             )}
             aria-label="Send message"
             type="button"
@@ -272,10 +272,10 @@ function ThreadChip({
     <button
       onClick={onSelect}
       className={cn(
-        "px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all",
+        "px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all",
         selected
-          ? "bg-primary border-primary text-primary-foreground"
-          : "border-gray-200 text-gray-600 hover:border-primary hover:text-primary"
+          ? "bg-[#0ea894] border-[#0ea894] text-white"
+          : "border-black/[0.08] text-[#66706b] hover:border-[#0ea894] hover:text-[#0ea894] bg-white"
       )}
     >
       {thread.label}

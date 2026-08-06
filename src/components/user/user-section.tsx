@@ -14,6 +14,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Upload04Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -128,11 +129,11 @@ function MiniCal({ year, month, selectedFrom, selectedTo, hoverDate, onSelectDay
               className={cn(
                 "h-8 flex items-center justify-center cursor-pointer text-[13px] transition-colors relative",
                 // Range fill
-                inRange && "bg-primary/10",
+                inRange && "bg-[#f0faf8]",
                 // Start cap
-                start && "bg-primary/10 rounded-l-full",
+                start && "bg-[#f0faf8] rounded-l-full",
                 // End cap
-                end   && "bg-primary/10 rounded-r-full",
+                end   && "bg-[#f0faf8] rounded-r-full",
                 // Single selection (same day)
                 start && end && "rounded-full",
               )}
@@ -142,9 +143,9 @@ function MiniCal({ year, month, selectedFrom, selectedTo, hoverDate, onSelectDay
             >
               <span className={cn(
                 "w-7 h-7 flex items-center justify-center rounded-full font-medium transition-all",
-                (start || end) && "bg-primary text-primary-foreground shadow-md shadow-primary/30 font-semibold",
-                !start && !end && today && "text-primary font-bold",
-                !start && !end && !today && "text-foreground hover:bg-muted",
+                (start || end) && "bg-[#087f70] text-white shadow-md shadow-[#087f70]/30 font-semibold",
+                !start && !end && today && "text-[#087f70] font-bold",
+                !start && !end && !today && "text-[#0b100e] hover:bg-[#f5f7f6]",
               )}>
                 {d.getDate()}
               </span>
@@ -265,43 +266,43 @@ function DateRangePicker({ fromDate, toDate, onApply, onClear }: DateRangePicker
       <button
         onClick={handleToggleOpen}
         className={cn(
-          "flex items-center gap-2 h-9 pl-3.5 pr-3 rounded-xl border text-sm font-medium transition-all",
-          "bg-white hover:bg-muted/30",
-          open ? "border-primary/50 shadow-sm shadow-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground hover:border-border/80",
+          "flex items-center gap-2 h-9 pl-3 pr-2.5 rounded-[9px] border text-[13px] font-medium transition-all",
+          "bg-white hover:bg-[#f5f7f6]",
+          open ? "border-[#087f70] shadow-sm text-[#0b100e]" : "border-black/[0.08] text-[#68726d] hover:text-[#0b100e]",
         )}
       >
-        <CalendarIcon className={cn("w-4 h-4 shrink-0", hasRange ? "text-primary" : "text-muted-foreground")} />
-        <span className={cn("whitespace-nowrap", hasRange && "text-foreground")}>{label}</span>
-        <div className="flex items-center gap-1 ml-1">
+        <CalendarIcon className={cn("w-4 h-4 shrink-0", hasRange ? "text-[#087f70]" : "text-[#84908a]")} />
+        <span className={cn("whitespace-nowrap hidden sm:inline", hasRange && "text-[#0b100e]")}>{label}</span>
+        <div className="flex items-center gap-1 ml-0.5">
           {hasRange && (
             <span
               onClick={(e) => { e.stopPropagation(); handleClear(); }}
-              className="w-4 h-4 rounded-full bg-muted flex items-center justify-center hover:bg-muted-foreground/20 transition-colors cursor-pointer"
+              className="w-4 h-4 rounded-full bg-[#f0faf8] flex items-center justify-center hover:bg-[#e7f6f2] transition-colors cursor-pointer"
             >
-              <X className="w-2.5 h-2.5 text-muted-foreground" />
+              <X className="w-2.5 h-2.5 text-[#087f70]" />
             </span>
           )}
-          <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform duration-200", open && "rotate-180")} />
+          <ChevronDown className={cn("w-3.5 h-3.5 text-[#84908a] transition-transform duration-200", open && "rotate-180")} />
         </div>
       </button>
 
       {/* Panel */}
       {open && (
-        <div className="absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl border border-border shadow-[0_8px_40px_rgba(0,0,0,0.12)] overflow-hidden">
-          <div className="flex">
+        <div className="fixed sm:absolute inset-x-2 top-16 sm:inset-auto sm:top-full sm:right-0 sm:mt-2 z-[100] bg-white rounded-[14px] border border-black/[0.08] shadow-[0_8px_40px_rgba(0,0,0,0.12)] overflow-hidden max-h-[85vh] sm:max-h-none sm:max-w-none flex flex-col">
+          <div className="flex flex-col sm:flex-row overflow-y-auto min-h-0">
 
             {/* ── Left sidebar: presets ── */}
-            <div className="w-44 bg-muted/30 border-r border-border/60 p-4 flex flex-col gap-1">
-              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">Quick Select</p>
+            <div className="w-full sm:w-44 bg-[#f9faf9] border-b sm:border-b-0 sm:border-r border-black/[0.06] p-4 flex flex-col gap-1">
+              <p className="text-[10px] font-bold text-[#84908a] uppercase tracking-widest mb-2 px-1">Quick Select</p>
               {PRESETS.map(p => (
                 <button
                   key={p.label}
                   onClick={() => handlePreset(p)}
                   className={cn(
-                    "w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                    "w-full text-left px-3 py-2 rounded-[8px] text-[13px] font-medium transition-all",
                     activePreset === p.label
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-foreground/80 hover:bg-white hover:text-foreground hover:shadow-sm",
+                      ? "bg-[#f0faf8] text-[#087f70] font-semibold shadow-sm"
+                      : "text-[#68726d] hover:bg-white hover:text-[#0b100e] hover:shadow-sm",
                   )}
                 >
                   {p.label}
@@ -312,37 +313,37 @@ function DateRangePicker({ fromDate, toDate, onApply, onClear }: DateRangePicker
             {/* ── Right: calendars + footer ── */}
             <div className="flex flex-col">
               {/* Draft selection summary */}
-              <div className="flex items-center gap-3 px-6 pt-5 pb-4 border-b border-border/50">
+              <div className="flex items-center gap-3 px-6 pt-5 pb-4 border-b border-black/[0.06]">
                 <div className={cn(
-                  "flex-1 rounded-xl border px-4 py-2.5 text-sm transition-colors",
-                  draftFrom ? "border-primary/30 bg-primary/[0.03]" : "border-border bg-muted/30",
+                  "flex-1 rounded-[10px] border px-4 py-2.5 text-[13px] transition-colors",
+                  draftFrom ? "border-[#087f70]/30 bg-[#f0faf8]" : "border-black/[0.08] bg-[#f9faf9]",
                 )}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-0.5">From</p>
-                  <p className={cn("font-semibold", draftFrom ? "text-foreground" : "text-muted-foreground/60")}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#84908a] mb-0.5">From</p>
+                  <p className={cn("font-semibold", draftFrom ? "text-[#0b100e]" : "text-[#84908a]")}>
                     {draftFrom ? format(draftFrom, "MMM d, yyyy") : "Start date"}
                   </p>
                 </div>
-                <div className="text-muted-foreground/40">→</div>
+                <div className="text-black/[0.1]">→</div>
                 <div className={cn(
-                  "flex-1 rounded-xl border px-4 py-2.5 text-sm transition-colors",
-                  draftTo ? "border-primary/30 bg-primary/[0.03]" : "border-border bg-muted/30",
+                  "flex-1 rounded-[10px] border px-4 py-2.5 text-[13px] transition-colors",
+                  draftTo ? "border-[#087f70]/30 bg-[#f0faf8]" : "border-black/[0.08] bg-[#f9faf9]",
                 )}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-0.5">To</p>
-                  <p className={cn("font-semibold", draftTo ? "text-foreground" : "text-muted-foreground/60")}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#84908a] mb-0.5">To</p>
+                  <p className={cn("font-semibold", draftTo ? "text-[#0b100e]" : "text-[#84908a]")}>
                     {draftTo ? format(draftTo, "MMM d, yyyy") : "End date"}
                   </p>
                 </div>
               </div>
 
               {/* Dual calendars */}
-              <div className="flex gap-6 px-6 py-5">
+              <div className="flex flex-col sm:flex-row gap-6 px-4 sm:px-6 py-5 overflow-x-auto">
                 <MiniCal
                   year={leftYear} month={leftMonth}
                   selectedFrom={draftFrom} selectedTo={draftTo} hoverDate={hoverDate}
                   onSelectDay={handleDayClick} onHoverDay={setHoverDate}
                   onPrev={goPrev}
                 />
-                <div className="w-px bg-border/50 self-stretch" />
+                <div className="hidden sm:block w-px bg-black/[0.06] self-stretch" />
                 <MiniCal
                   year={rightYear} month={rightMonth}
                   selectedFrom={draftFrom} selectedTo={draftTo} hoverDate={hoverDate}
@@ -352,17 +353,17 @@ function DateRangePicker({ fromDate, toDate, onApply, onClear }: DateRangePicker
               </div>
 
               {/* Footer actions */}
-              <div className="flex items-center justify-between px-6 pb-5 pt-1 border-t border-border/50 gap-3">
+              <div className="flex items-center justify-between px-6 pb-5 pt-1 border-t border-black/[0.06] gap-3">
                 <button
                   onClick={handleClear}
-                  className="h-9 px-5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors"
+                  className="h-9 px-5 rounded-[8px] border border-black/[0.08] text-[13px] font-medium text-[#68726d] hover:bg-[#f5f7f6] hover:text-[#0b100e] transition-colors"
                 >
                   Clear
                 </button>
                 <button
                   onClick={handleApply}
                   disabled={!draftFrom}
-                  className="h-9 px-7 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-primary/20"
+                  className="h-9 px-7 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                 >
                   Apply Filter
                 </button>
@@ -663,7 +664,7 @@ export function UserSection() {
         {customBackHandler || isBackButtonPage ? (
           <Button
             variant="ghost"
-            className="flex items-center gap-2 px-0 text-xl hover:bg-transparent hover:text-primary h-auto! py-1! has-[>svg]:px-0!"
+            className="flex items-center gap-2 px-0 text-[18px] hover:bg-transparent hover:text-[#087f70] text-[#68726d] h-auto! py-1! has-[>svg]:px-0!"
             onClick={() => {
               // A page-registered handler always knows its own exact "one
               // level back" (e.g. the previous step of a wizard) better than
@@ -675,11 +676,11 @@ export function UserSection() {
               handleBack();
             }}
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-base">Back</span>
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-[18px] font-semibold">Back</span>
           </Button>
         ) : (
-          <h1 className="text-2xl font-bold">{currentSectionLabel}</h1>
+          <h1 className="text-[18px] font-semibold text-[#0b100e]">{currentSectionLabel}</h1>
         )}
         {/* For personal-only users on /expenses, mount the CTA here so it
             registers into the header action store (no inline heading needed) */}
@@ -689,7 +690,7 @@ export function UserSection() {
       </div>
 
       {/* ── Right ── */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         {/* Date range picker — expenses list & procurement list pages */}
         {(isExpensesListPage || isProcurementListPage) && (
           <DateRangePicker
@@ -700,25 +701,25 @@ export function UserSection() {
           />
         )}
 
-        {/* Bot */}
-        <Button variant="ghost" size="icon" className="relative h-4 w-4">
-          <Bot className="h-5 w-5" />
-          <div className="absolute -top-1 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+        {/* Bot - hidden on very small screens */}
+        <Button variant="ghost" size="icon" className="relative h-9 w-9 text-[#68726d] hover:bg-[#f5f7f6] hover:text-[#0b100e] rounded-[8px] hidden xs:flex">
+          <Bot className="h-[18px] w-[18px]" />
+          <div className="absolute top-[7px] right-[7px] w-2 h-2 bg-[#0ea894] rounded-full animate-pulse border-2 border-white" />
         </Button>
 
         {/* Bell */}
         <Popover open={isNotifOpen} onOpenChange={setIsNotifOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative w-4 h-4 outline-none">
-              <Bell className="w-5 h-5" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 text-[#68726d] hover:bg-[#f5f7f6] hover:text-[#0b100e] rounded-[8px] outline-none">
+              <Bell className="w-[18px] h-[18px]" />
               {unreadCount > 0 && (
-                <span className="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-destructive text-white text-[10px] font-bold leading-none shadow-sm">
+                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold leading-none shadow-sm border border-white">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" sideOffset={8} className="w-[420px] p-0 rounded-xl overflow-hidden shadow-2xl border-border">
+          <PopoverContent align="end" sideOffset={8} className="w-[420px] p-0 rounded-xl overflow-hidden shadow-2xl border-black/[0.08]">
             <Notification onClose={() => setIsNotifOpen(false)} />
           </PopoverContent>
         </Popover>
@@ -733,20 +734,20 @@ export function UserSection() {
                   <DropdownMenuTrigger asChild>
                     <button
                       data-tour={headerAction.secondaryAction.dataTourId}
-                      className="h-10 px-5 rounded-full border border-primary text-primary bg-transparent hover:bg-primary/5 text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap">
+                      className="h-9 px-4 rounded-[8px] border border-[#087f70] text-[#087f70] bg-transparent hover:bg-[#f0faf8] text-[13px] font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap">
                       {headerAction.secondaryAction.iconName === "upload" ? (
                         <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
                       ) : (
                         <PlusCircle className="w-4 h-4" strokeWidth={2} />
                       )}
                       {headerAction.secondaryAction.label}
-                      <ChevronDown className="w-4 h-4" />
+                      <ChevronDown className="w-3.5 h-3.5" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuContent align="end" className="w-56 rounded-[12px] border-black/[0.08] p-1 shadow-lg">
                     {headerAction.secondaryAction.items.map((item, i) => (
-                      <DropdownMenuItem key={i} className="cursor-pointer py-2.5 flex items-center gap-2" onClick={item.onClick}>
-                        <PlusCircle className="h-4 w-4 text-primary shrink-0" />
+                      <DropdownMenuItem key={i} className="cursor-pointer py-2 px-3 text-[13px] rounded-[6px] flex items-center gap-2.5 focus:bg-[#f5f7f6] focus:text-[#0b100e]" onClick={item.onClick}>
+                        <PlusCircle className="h-4 w-4 text-[#087f70] shrink-0" />
                         <span>{item.label}</span>
                       </DropdownMenuItem>
                     ))}
@@ -756,7 +757,7 @@ export function UserSection() {
                 <button
                   onClick={headerAction.secondaryAction.onClick}
                   data-tour={headerAction.secondaryAction.dataTourId}
-                  className="h-10 px-5 rounded-full border border-primary text-primary bg-transparent hover:bg-primary/5 text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+                  className="h-9 px-4 rounded-[8px] border border-[#087f70] text-[#087f70] bg-transparent hover:bg-[#f0faf8] text-[13px] font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   {headerAction.secondaryAction.iconName === "upload" ? (
                     <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
@@ -775,42 +776,90 @@ export function UserSection() {
                   <button
                     data-tour={headerAction.dataTourId}
                     onClick={() => {
-                      // Notify setup guide that invite button was clicked
-                      // so it can dismiss overlay and show dropdown arrow
                       window.dispatchEvent(new CustomEvent("villeto:invite-button-clicked"));
                     }}
-                    className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap">
+                    className="h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold flex items-center gap-2 hover:bg-[#076b5e] transition-colors cursor-pointer whitespace-nowrap">
                     {headerAction.iconName === "upload" ? (
                       <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
                     ) : (
                       <PlusCircle className="w-4 h-4" strokeWidth={2} />
                     )}
                     {headerAction.label}
-                    <ChevronDown className="w-4 h-4" />
+                    <ChevronDown className="w-3.5 h-3.5" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60" data-tour="invite-dropdown-menu">
-                  {headerAction.items.map((item, i) => (
-                    <DropdownMenuItem key={i} className="cursor-pointer py-2.5 flex items-center gap-2" onClick={item.onClick}>
-                      <PlusCircle className="h-4 w-4 text-primary shrink-0" />
-                      <span>{item.label}</span>
-                    </DropdownMenuItem>
-                  ))}
+                <DropdownMenuContent align="end" className="w-56 rounded-[12px] border-black/[0.08] p-1 shadow-lg" data-tour="invite-dropdown-menu">
+                  {headerAction.items.map((item, i) => {
+                    const menuItem = (
+                      <DropdownMenuItem 
+                        key={i} 
+                        className={`cursor-pointer py-2 px-3 text-[13px] rounded-[6px] flex items-center gap-2.5 focus:bg-[#f5f7f6] focus:text-[#0b100e] ${item.disabled ? 'opacity-50' : ''}`} 
+                        onClick={item.disabled ? (e) => e.preventDefault() : item.onClick}
+                        disabled={item.disabled}
+                      >
+                        <PlusCircle className="h-4 w-4 text-[#087f70] shrink-0" />
+                        <span>{item.label}</span>
+                      </DropdownMenuItem>
+                    );
+
+                    if (item.tooltip) {
+                      return (
+                        <TooltipProvider key={i}>
+                          <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <div className="w-full">
+                                {menuItem}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" align="center" className="max-w-[280px]">
+                              <p className="text-sm font-medium">{item.tooltip}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      );
+                    }
+
+                    return menuItem;
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <button
-                onClick={headerAction.onClick}
-                data-tour={headerAction.dataTourId}
-                className="h-10 px-5 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap"
-              >
-                {headerAction.iconName === "upload" ? (
-                  <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
-                ) : (
-                  <PlusCircle className="w-4 h-4" strokeWidth={2} />
-                )}
-                {headerAction.label}
-              </button>
+              (() => {
+                const mainBtn = (
+                  <button
+                    onClick={headerAction.disabled ? undefined : headerAction.onClick}
+                    disabled={headerAction.disabled}
+                    data-tour={headerAction.dataTourId}
+                    className={`h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold flex items-center gap-2 transition-colors whitespace-nowrap ${headerAction.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#076b5e] cursor-pointer'}`}
+                  >
+                    {headerAction.iconName === "upload" ? (
+                      <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
+                    ) : (
+                      <PlusCircle className="w-4 h-4" strokeWidth={2} />
+                    )}
+                    {headerAction.label}
+                  </button>
+                );
+
+                if (headerAction.tooltip) {
+                  return (
+                    <TooltipProvider>
+                      <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>
+                          <div className="inline-block">
+                            {mainBtn}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="end" className="max-w-[280px]">
+                          <p className="text-sm font-medium">{headerAction.tooltip}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                }
+
+                return mainBtn;
+              })()
             )}
           </div>
         )}

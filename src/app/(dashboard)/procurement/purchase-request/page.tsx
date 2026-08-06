@@ -28,18 +28,18 @@ import { toast } from "sonner";
 
 export function PRStatusBadge({ status, approvalStatus, isOwnRequest }: { status: string; approvalStatus?: string | null; isOwnRequest?: boolean }) {
   const displayKey = getPRDisplayStatus(status, approvalStatus, isOwnRequest);
-  const cfg = PR_STATUS_CFG[displayKey] || PR_STATUS_CFG[status] || { label: status, className: "text-muted-foreground bg-muted/40" };
+  const cfg = PR_STATUS_CFG[displayKey] || PR_STATUS_CFG[status] || { label: status, className: "text-[#68726d] bg-[#f9faf9]" };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${cfg.className}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${cfg.className}`}>
       {cfg.label}
     </span>
   );
 }
 
 function PRPriorityBadge({ priority }: { priority: string }) {
-  const cfg = PR_PRIORITY_CFG[priority] || { label: priority, className: "text-muted-foreground bg-muted/40" };
+  const cfg = PR_PRIORITY_CFG[priority] || { label: priority, className: "text-[#68726d] bg-[#f9faf9]" };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium ${cfg.className}`}>
       {cfg.label}
     </span>
   );
@@ -80,39 +80,39 @@ function RejectModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
+      <div className="relative bg-white rounded-[14px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] w-full max-w-md mx-4 p-6 space-y-5">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors"
+          className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors"
         >
-          <X className="w-4 h-4 text-muted-foreground" />
+          <X className="w-4 h-4 text-[#68726d]" />
         </button>
 
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-            <XCircle className="w-5 h-5 text-red-500" />
+          <div className="w-10 h-10 rounded-[10px] bg-[#fff5f5] flex items-center justify-center shrink-0">
+            <XCircle className="w-5 h-5 text-[#d33d44]" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-foreground">Reject Request</h3>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <h3 className="text-[15px] font-bold text-[#0b100e]">Reject Request</h3>
+            <p className="text-[13px] text-[#68726d] mt-0.5">
               Provide a reason so the requester knows what to address.
             </p>
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-foreground">
-            Reason <span className="text-red-500">*</span>
+          <label className="text-[12px] font-semibold text-[#0b100e]">
+            Reason <span className="text-[#d33d44]">*</span>
           </label>
           <textarea
             value={reason}
             onChange={e => setReason(e.target.value)}
             placeholder="e.g. Budget not approved for this quarter…"
             rows={4}
-            className="w-full rounded-xl border border-border px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400/40 focus:border-red-400 transition-all"
+            className="w-full rounded-[10px] border border-black/[0.1] px-3.5 py-2.5 text-[13px] text-[#0b100e] resize-none focus:outline-none focus:ring-2 focus:ring-[#d33d44]/20 focus:border-[#d33d44]/50 transition-all bg-[#f9faf9] placeholder:text-[#84908a]"
           />
           {reason.trim().length > 0 && reason.trim().length < 10 && (
-            <p className="text-xs text-red-500 flex items-center gap-1">
+            <p className="text-[12px] text-[#d33d44] flex items-center gap-1">
               <AlertCircle className="w-3 h-3" /> Please provide at least 10 characters.
             </p>
           )}
@@ -121,14 +121,14 @@ function RejectModal({
         <div className="flex gap-3 pt-1">
           <button
             onClick={onClose}
-            className="flex-1 h-10 rounded-xl border border-border text-sm font-medium hover:bg-muted/40 transition-colors"
+            className="flex-1 h-10 rounded-[8px] border border-black/[0.12] text-[13px] font-medium text-[#68726d] hover:bg-[#f9faf9] transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())}
             disabled={reason.trim().length < 10 || isPending}
-            className="flex-1 h-10 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 h-10 rounded-[8px] bg-[#d33d44] text-white text-[13px] font-semibold hover:bg-[#b83038] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Rejection"}
           </button>
@@ -176,7 +176,7 @@ function PRActionMenu({
     return (
       <button
         onClick={onView}
-        className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors"
+        className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[#68726d] hover:bg-[#f9faf9] transition-colors"
         title="View"
       >
         <Eye className="w-4 h-4" />
@@ -188,36 +188,36 @@ function PRActionMenu({
     <div className="relative" ref={menuRef}>
       <button
         onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
-        className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+        className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[#68726d] hover:bg-[#f0faf8] hover:text-[#087f70] transition-colors"
         title="Actions"
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-9 z-50 bg-white border border-border rounded-xl shadow-xl w-44 overflow-hidden py-1">
+        <div className="absolute right-0 top-9 z-50 bg-white border border-black/[0.08] rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] w-44 overflow-hidden py-1">
           <button
             onClick={e => { e.stopPropagation(); setOpen(false); onView(); }}
-            className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted/40 transition-colors"
+            className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#0b100e] hover:bg-[#f9faf9] transition-colors"
           >
-            <Eye className="w-3.5 h-3.5 text-muted-foreground" />
+            <Eye className="w-3.5 h-3.5 text-[#84908a]" />
             View Details
           </button>
           {showApprove && (
             <>
-              <div className="border-t border-border/60 my-1" />
+              <div className="border-t border-black/[0.06] my-1" />
               <button
                 onClick={e => { e.stopPropagation(); setOpen(false); onApprove(); }}
-                className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors font-medium"
+                className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#087f70] hover:bg-[#f0faf8] transition-colors font-semibold"
               >
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                <CheckCircle className="w-3.5 h-3.5 text-[#087f70]" />
                 Approve
               </button>
               <button
                 onClick={e => { e.stopPropagation(); setOpen(false); onReject(); }}
-                className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
+                className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#d33d44] hover:bg-[#fff5f5] transition-colors font-semibold"
               >
-                <XCircle className="w-3.5 h-3.5 text-red-500" />
+                <XCircle className="w-3.5 h-3.5 text-[#d33d44]" />
                 Reject
               </button>
             </>
@@ -396,6 +396,8 @@ function PRTable({
     search:   debouncedSearch || undefined,
     requiresMyApproval:   requiresMyApproval   || undefined,
     requiresMyConversion: requiresMyConversion || undefined,
+    page,
+    limit: perPage,
   });
 
   // ── Badge count queries (lightweight — reads meta.totalCount only) ──────────
@@ -450,9 +452,11 @@ function PRTable({
 
   const requests = useMemo<PurchaseRequest[]>(() => data?.data || [], [data?.data]);
   const meta        = data?.meta;
-  const totalCount  = meta?.totalCount  || requests.length;
-  const totalPages  = meta?.totalPages  || Math.ceil(totalCount / perPage);
+  const totalCount  = meta?.totalCount  ?? requests.length;
+  const totalPages  = meta?.totalPages  ?? Math.ceil(totalCount / perPage);
 
+  // With server-side pagination the API returns only the current page's records;
+  // client-side slicing is only applied as a fallback when meta is absent.
   const paginated = useMemo(() => {
     if (meta) return requests;
     return requests.slice((page - 1) * perPage, page * perPage);
@@ -486,16 +490,16 @@ function PRTable({
         isPending={isRejecting}
       />
 
-      <div className="bg-white rounded-2xl border border-border overflow-hidden">
+      <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
         {/* Status tabs + filters */}
-        <div className="flex items-center justify-between px-5 py-4 gap-8">
+        <div className="flex items-center justify-between px-5 py-4 gap-4 flex-wrap">
           <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
 
-          <div className="relative flex flex-1 items-center max-w-[55%]">
+          <div className="relative flex flex-1 items-center min-w-0">
             {canScrollLeft && (
               <button
                 onClick={() => scroll("left")}
-                className="absolute left-0 z-10 -ml-2 p-1.5 bg-white border border-gray-200 shadow-sm rounded-full text-foreground hover:bg-gray-50 flex items-center justify-center transition-all"
+                className="absolute left-0 z-10 -ml-1 p-1 bg-white border border-black/[0.08] shadow-sm rounded-full text-[#0b100e] hover:bg-[#f9faf9] flex items-center justify-center transition-all"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -511,12 +515,12 @@ function PRTable({
               }}
             >
               <Tabs value={activeTab} onValueChange={v => { setActiveTab(v); setPage(1); }}>
-                <TabsList className="bg-muted/60 p-[3px] border border-border/40 flex shrink-0">
+                <TabsList className="bg-[#f5f7f6] p-1 h-9 rounded-[8px] border border-black/[0.06] flex shrink-0">
                   {statusTabs.map(tab => (
                     <TabsTrigger
                       key={tab.key}
                       value={tab.key}
-                      className="px-4 py-1.5 text-xs font-semibold rounded-md whitespace-nowrap shrink-0 data-[state=active]:text-primary flex items-center"
+                      className="px-3 py-1 text-[12px] font-semibold rounded-[6px] whitespace-nowrap shrink-0 data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] flex items-center"
                     >
                       {tab.label}
                       {tab.key === "awaiting_approval" && (
@@ -536,40 +540,42 @@ function PRTable({
             {canScrollRight && (
               <button
                 onClick={() => scroll("right")}
-                className="absolute right-0 z-10 -mr-2 p-1.5 bg-white border border-gray-200 shadow-sm rounded-full text-foreground hover:bg-gray-50 flex items-center justify-center transition-all"
+                className="absolute right-0 z-10 -mr-1 p-1 bg-white border border-black/[0.08] shadow-sm rounded-full text-[#0b100e] hover:bg-[#f9faf9] flex items-center justify-center transition-all"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#84908a]" />
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search requests..."
-                className="pl-9 pr-4 h-9 rounded-lg border border-border text-sm w-52 focus:outline-none focus:border-primary transition-colors bg-white"
+                className="pl-9 pr-4 h-9 rounded-[8px] border border-black/[0.12] text-[13px] w-48 focus:outline-none focus:border-[#087f70] transition-colors bg-[#f9faf9] placeholder:text-[#84908a] text-[#0b100e]"
               />
             </div>
 
             <div className="relative">
               <button
                 onClick={() => setPriorityOpen(v => !v)}
-                className="flex items-center gap-2 h-9 px-3 rounded-lg border border-border text-sm bg-white hover:bg-muted/40 transition-colors whitespace-nowrap"
+                className="flex items-center gap-2 h-9 px-3 rounded-[8px] border border-black/[0.12] text-[13px] text-[#0b100e] bg-white hover:bg-[#f9faf9] transition-colors whitespace-nowrap"
               >
                 {selectedPriorityLabel}
-                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${priorityOpen ? "rotate-180" : ""}`} />
+                <ChevronDown className={`w-3.5 h-3.5 text-[#84908a] transition-transform ${priorityOpen ? "rotate-180" : ""}`} />
               </button>
               {priorityOpen && (
-                <div className="absolute right-0 top-10 z-50 bg-white border border-border rounded-xl shadow-lg w-40 overflow-hidden">
+                <div className="absolute right-0 top-10 z-50 bg-white border border-black/[0.08] rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] w-40 overflow-hidden">
                   {PRIORITY_OPTIONS.map(p => (
                     <button
                       key={p.value}
                       onClick={() => { setPriority(p.value); setPriorityOpen(false); }}
-                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-muted/40 transition-colors flex items-center justify-between ${priority === p.value ? "text-primary font-medium" : "text-foreground"}`}
+                      className={`w-full text-left px-4 py-2.5 text-[13px] hover:bg-[#f9faf9] transition-colors flex items-center justify-between ${
+                        priority === p.value ? "text-[#087f70] font-semibold" : "text-[#0b100e]"
+                      }`}
                     >
                       {p.label}
                       {priority === p.value && <Check className="w-3.5 h-3.5" />}
@@ -579,36 +585,36 @@ function PRTable({
               )}
             </div>
 
-            <button className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
+            <button className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#087f70]/30 text-[#087f70] text-[13px] font-semibold hover:bg-[#f0faf8] transition-colors">
               <Download className="w-4 h-4" /> Export
             </button>
           </div>
         </div>
 
-        <div className="border-b border-border" />
+        <div className="border-b border-black/[0.06]" />
 
         {/* Table body */}
         {isError ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <p className="text-sm text-muted-foreground">Failed to load purchase requests.</p>
+            <p className="text-[13px] text-[#68726d]">Failed to load purchase requests.</p>
             <button
               onClick={() => refetch()}
-              className="flex items-center gap-2 h-9 px-4 rounded-lg border border-border text-sm hover:bg-muted/40 transition-colors"
+              className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-black/[0.12] text-[13px] text-[#0b100e] hover:bg-[#f9faf9] transition-colors"
             >
               <RefreshCw className="w-4 h-4" /> Retry
             </button>
           </div>
         ) : isLoading ? (
-          <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="text-sm">Loading purchase requests...</span>
+          <div className="flex items-center justify-center py-16 gap-2 text-[#68726d]">
+            <Loader2 className="w-5 h-5 animate-spin text-[#087f70]" />
+            <span className="text-[13px]">Loading purchase requests...</span>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border/60 bg-muted/5">
+              <tr className="border-b border-black/[0.06] bg-[#f9faf9]">
                 {columns.map(h => (
-                  <th key={h} className="px-5 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <th key={h} className="px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest">
                     {h}
                   </th>
                 ))}
@@ -627,7 +633,7 @@ function PRTable({
                       {scope === "own" && (
                         <button
                           onClick={() => router.push("/procurement/purchase-request/new")}
-                          className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:opacity-90 transition-opacity mt-4 mb-10"
+                          className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors mt-4 mb-10"
                         >
                           <Plus className="w-4 h-4" /> Create your first request
                         </button>
@@ -643,17 +649,17 @@ function PRTable({
                   <tr
                     key={pr.purchaseRequestId}
                     onClick={() => router.push(`/procurement/purchase-request/${pr.purchaseRequestId}?outerTab=${scope}&innerTab=${activeTab}`)}
-                    className={`border-b border-border/40 hover:bg-muted/20 cursor-pointer transition-colors group ${
-                      needsAction ? "border-l-4 border-l-primary bg-amber-50/30 hover:bg-amber-50/50" : ""
+                    className={`border-b border-black/[0.06] last:border-0 hover:bg-[#f9faf9] cursor-pointer transition-colors group ${
+                      needsAction ? "border-l-4 border-l-[#087f70] bg-[#f0faf8]/40 hover:bg-[#f0faf8]/60" : ""
                     }`}
                   >
-                    <td className="px-5 py-4 font-semibold text-foreground font-mono text-xs">{pr.requestNumber}</td>
+                    <td className="px-5 py-4 font-semibold text-[#0b100e] font-mono text-[12px]">{pr.requestNumber}</td>
                     <td className="px-5 py-4">
                       <div>
-                        <p className="font-medium text-foreground">{pr.title}</p>
-                        {pr.description && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px]">{pr.description}</p>}
+                        <p className="font-semibold text-[13px] text-[#0b100e]">{pr.title}</p>
+                        {pr.description && <p className="text-[12px] text-[#68726d] mt-0.5 truncate max-w-[200px]">{pr.description}</p>}
                         {pendingOtherApprover && (
-                          <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-muted-foreground/70 font-medium">
+                          <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-[#84908a] font-medium">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
                             Pending another approver
                           </span>
@@ -662,14 +668,14 @@ function PRTable({
                     </td>
 
                     {showRequester && (
-                      <td className="px-5 py-4 text-muted-foreground text-sm">
-                        {getRequesterName(pr) || <span className="text-xs text-muted-foreground/50">—</span>}
+                      <td className="px-5 py-4 text-[13px] text-[#68726d]">
+                        {getRequesterName(pr) || <span className="text-[#84908a]">—</span>}
                       </td>
                     )}
 
-                    <td className="px-5 py-4 text-muted-foreground text-sm">{getDeptName(pr)}</td>
+                    <td className="px-5 py-4 text-[13px] text-[#68726d]">{getDeptName(pr)}</td>
                     <td className="px-5 py-4"><PRPriorityBadge priority={pr.priority} /></td>
-                    <td className="px-5 py-4 text-muted-foreground text-sm whitespace-nowrap">{formatDate(pr.neededByDate)}</td>
+                    <td className="px-5 py-4 text-[13px] text-[#68726d] whitespace-nowrap">{formatDate(pr.neededByDate)}</td>
                     <td className="px-5 py-4"><PRStatusBadge status={pr.status} approvalStatus={pr.approvalStatus} isOwnRequest={scope === "own"} /></td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                       <PRActionMenu
@@ -753,9 +759,15 @@ function PurchaseRequestPage() {
   return (
     <div className="space-y-4">
       <Tabs value={outerTab} onValueChange={setOuterTab}>
-        <TabsList>
+        <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
           {tabs.map(t => (
-            <TabsTrigger key={t.key} value={t.key}>{t.label}</TabsTrigger>
+            <TabsTrigger
+              key={t.key}
+              value={t.key}
+              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
+            >
+              {t.label}
+            </TabsTrigger>
           ))}
         </TabsList>
 

@@ -223,33 +223,33 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
   return (
     <div>
       <h2 className="text-xl font-bold text-foreground mb-1">Review &amp; Simulate</h2>
-      <p className="text-sm text-muted-foreground mb-6">
+      <p className="text-sm text-[#68726d] mb-6">
         Review your policy configuration and run the simulator to preview how rules will behave.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5 items-start">
 
         {/* ── Policy summary ────────────────────────────────────────── */}
-        <div className="rounded-3xl border border-border bg-white p-6 space-y-4">
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+        <div className="rounded-3xl border border-black/[0.06] bg-white p-6 space-y-4">
+          <h3 className="text-xs font-bold text-[#68726d] uppercase tracking-widest">
             {groupLabel} — Policy Summary
           </h3>
 
           {/* Name & description */}
-          <div className="rounded-2xl border border-border p-4">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Name &amp; Description</p>
+          <div className="rounded-[24px] border border-black/[0.06] p-4">
+            <p className="text-[10px] font-semibold text-[#68726d] uppercase tracking-wide mb-2">Name &amp; Description</p>
             <p className="text-sm font-bold text-foreground">{draft.name || "Untitled Policy"}</p>
-            <p className="text-xs text-muted-foreground mt-1">{draft.description || "No description provided."}</p>
+            <p className="text-xs text-[#68726d] mt-1">{draft.description || "No description provided."}</p>
           </div>
 
           {/* Scope */}
-          <div className="rounded-2xl border border-border p-4">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Scope</p>
+          <div className="rounded-[24px] border border-black/[0.06] p-4">
+            <p className="text-[10px] font-semibold text-[#68726d] uppercase tracking-wide mb-2">Scope</p>
             <p className="text-sm text-foreground">
               {draft.scopeType === "company" ? "Entire Company" : "Specific scope"}
             </p>
             {draft.scopeType === "specific" && (
-              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+              <div className="mt-2 space-y-1 text-xs text-[#68726d]">
                 {draft.categoryIds.length > 0 && <p>{draft.categoryIds.length} categor{draft.categoryIds.length === 1 ? "y" : "ies"} selected</p>}
                 {draft.departmentIds.length > 0 && <p>{draft.departmentIds.length} department{draft.departmentIds.length === 1 ? "" : "s"} selected</p>}
                 {draft.roleIds.length > 0 && <p>{draft.roleIds.length} role{draft.roleIds.length === 1 ? "" : "s"} selected</p>}
@@ -259,10 +259,10 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
           </div>
 
           {/* Rules */}
-          <div className="rounded-2xl border border-border p-4">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-3">Enforcement Rules</p>
+          <div className="rounded-[24px] border border-black/[0.06] p-4">
+            <p className="text-[10px] font-semibold text-[#68726d] uppercase tracking-wide mb-3">Enforcement Rules</p>
             {draft.rules.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No rules configured.</p>
+              <p className="text-xs text-[#68726d]">No rules configured.</p>
             ) : (
               <div className="space-y-3">
                 {draft.rules.map((r, i) => {
@@ -277,7 +277,7 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
                         <p className="text-foreground font-medium leading-snug">
                           {r.criteriaLabel || cond?.label || r.condition}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-xs text-[#68726d] mt-0.5">
                           <span className="font-semibold">Then:</span>{" "}
                           <span className={cn(
                             "font-medium",
@@ -295,28 +295,28 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
           </div>
 
           {/* Schedule & settings */}
-          <div className="rounded-2xl border border-border p-4">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-3">Settings</p>
+          <div className="rounded-[24px] border border-black/[0.06] p-4">
+            <p className="text-[10px] font-semibold text-[#68726d] uppercase tracking-wide mb-3">Settings</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               <div>
-                <p className="text-muted-foreground">Effective from</p>
+                <p className="text-[#68726d]">Effective from</p>
                 <p className="text-foreground font-medium">{formatDate(draft.effectiveAt)}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Expires on</p>
+                <p className="text-[#68726d]">Expires on</p>
                 <p className="text-foreground font-medium">{formatDate(draft.expiresAt)}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Priority</p>
+                <p className="text-[#68726d]">Priority</p>
                 <p className="text-foreground font-medium">{draft.priority}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Requires approval</p>
+                <p className="text-[#68726d]">Requires approval</p>
                 <p className="text-foreground font-medium">{draft.requiresApproval ? `Yes (${draft.approvalMode})` : "No"}</p>
               </div>
               {draft.approverIds.length > 0 && (
                 <div className="col-span-2">
-                  <p className="text-muted-foreground">Approvers</p>
+                  <p className="text-[#68726d]">Approvers</p>
                   <p className="text-foreground font-medium">{draft.approverIds.length} approver{draft.approverIds.length !== 1 ? "s" : ""} selected</p>
                 </div>
               )}
@@ -325,16 +325,16 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
         </div>
 
         {/* ── Adaptive Simulator ────────────────────────────────────── */}
-        <div className="rounded-2xl border-x-[2px] border-b-[2px] border-t-[4px] border-primary bg-white p-5 lg:sticky lg:top-4 shadow-sm">
+        <div className="rounded-[24px] border-x-[2px] border-b-[2px] border-t-[4px] border-primary bg-white p-5 lg:sticky lg:top-4 shadow-sm">
           <p className="text-sm font-bold text-foreground mb-0.5">Policy Simulator</p>
-          <p className="text-xs text-muted-foreground mb-4">
+          <p className="text-xs text-[#68726d] mb-4">
             Enter scenario values to preview how your rules will respond.
           </p>
 
           {draft.rules.length === 0 ? (
             <div className="flex flex-col items-center py-6 text-center">
-              <Info className="w-8 h-8 text-muted-foreground mb-2" strokeWidth={1.5} />
-              <p className="text-xs text-muted-foreground">Add at least one rule to run a simulation.</p>
+              <Info className="w-8 h-8 text-[#68726d] mb-2" strokeWidth={1.5} />
+              <p className="text-xs text-[#68726d]">Add at least one rule to run a simulation.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -343,21 +343,21 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
               {fields.needsAmount && (
                 <div className="grid grid-cols-[1fr_100px] gap-2">
                   <div>
-                    <label className="block text-[11px] text-muted-foreground mb-1">Amount</label>
+                    <label className="block text-[11px] text-[#68726d] mb-1">Amount</label>
                     <Input
                       type="number"
                       min={0}
                       value={simAmount}
                       onChange={(e) => setSimAmount(e.target.value)}
-                      className="h-10 rounded-xl text-sm"
+                      className="h-10 rounded-[14px] text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-muted-foreground mb-1">Currency</label>
+                    <label className="block text-[11px] text-[#68726d] mb-1">Currency</label>
                     <select
                       value={simCurrency}
                       onChange={(e) => setSimCurrency(e.target.value)}
-                      className="h-10 w-full rounded-xl border border-border text-sm px-2 bg-white focus:outline-none focus:border-primary"
+                      className="h-10 w-full rounded-[14px] border border-black/[0.06] text-sm px-2 bg-white focus:outline-none focus:border-primary"
                     >
                       {["NGN", "USD", "GBP", "EUR", "KES", "GHS"].map((c) => (
                         <option key={c} value={c}>{c}</option>
@@ -370,16 +370,16 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
               {/* Vendor */}
               {fields.needsVendor && (
                 <div>
-                  <label className="block text-[11px] text-muted-foreground mb-1">
+                  <label className="block text-[11px] text-[#68726d] mb-1">
                     Select vendor
                     {allAllowedVendorIds.length > 0 && (
-                      <span className="ml-1 text-muted-foreground">
+                      <span className="ml-1 text-[#68726d]">
                         ({allAllowedVendorIds.length} allowed in rules)
                       </span>
                     )}
                   </label>
                   <Select value={simVendorId || "none"} onValueChange={(v) => setSimVendorId(v === "none" ? "" : v)}>
-                    <SelectTrigger className="h-10 rounded-xl text-sm">
+                    <SelectTrigger className="h-10 rounded-[14px] text-sm">
                       <SelectValue placeholder="No vendor selected" />
                     </SelectTrigger>
                     <SelectContent>
@@ -398,16 +398,16 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
               {/* Role */}
               {fields.needsRole && (
                 <div>
-                  <label className="block text-[11px] text-muted-foreground mb-1">
+                  <label className="block text-[11px] text-[#68726d] mb-1">
                     Requester role
                     {allAllowedRoleIds.length > 0 && (
-                      <span className="ml-1 text-muted-foreground">
+                      <span className="ml-1 text-[#68726d]">
                         ({allAllowedRoleIds.length} targeted in rules)
                       </span>
                     )}
                   </label>
                   <Select value={simRoleId || "none"} onValueChange={(v) => setSimRoleId(v === "none" ? "" : v)}>
-                    <SelectTrigger className="h-10 rounded-xl text-sm">
+                    <SelectTrigger className="h-10 rounded-[14px] text-sm">
                       <SelectValue placeholder="No role selected" />
                     </SelectTrigger>
                     <SelectContent>
@@ -425,7 +425,7 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
 
               {/* Contract */}
               {fields.needsContract && (
-                <div className="flex items-center justify-between rounded-xl border border-border px-4 py-2.5">
+                <div className="flex items-center justify-between rounded-[14px] border border-black/[0.06] px-4 py-2.5">
                   <label className="text-xs font-medium text-foreground">Active contract exists</label>
                   <Switch checked={simHasContract} onCheckedChange={setSimHasContract} />
                 </div>
@@ -433,7 +433,7 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
 
               {/* Justification */}
               {fields.needsJustification && (
-                <div className="flex items-center justify-between rounded-xl border border-border px-4 py-2.5">
+                <div className="flex items-center justify-between rounded-[14px] border border-black/[0.06] px-4 py-2.5">
                   <label className="text-xs font-medium text-foreground">Business justification provided</label>
                   <Switch checked={simHasJustification} onCheckedChange={setSimHasJustification} />
                 </div>
@@ -441,7 +441,7 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
 
               {/* Attachments */}
               {fields.needsAttachments && (
-                <div className="flex items-center justify-between rounded-xl border border-border px-4 py-2.5">
+                <div className="flex items-center justify-between rounded-[14px] border border-black/[0.06] px-4 py-2.5">
                   <label className="text-xs font-medium text-foreground">Required documents attached</label>
                   <Switch checked={simHasAttachments} onCheckedChange={setSimHasAttachments} />
                 </div>
@@ -450,20 +450,20 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
               {/* Quotes */}
               {fields.needsQuotes && (
                 <div>
-                  <label className="block text-[11px] text-muted-foreground mb-1">Vendor quotes provided</label>
+                  <label className="block text-[11px] text-[#68726d] mb-1">Vendor quotes provided</label>
                   <Input
                     type="number"
                     min={0}
                     value={simQuotes}
                     onChange={(e) => setSimQuotes(e.target.value)}
-                    className="h-10 rounded-xl text-sm"
+                    className="h-10 rounded-[14px] text-sm"
                   />
                 </div>
               )}
 
               {/* Accounting */}
               {fields.needsAccounting && (
-                <div className="flex items-center justify-between rounded-xl border border-border px-4 py-2.5">
+                <div className="flex items-center justify-between rounded-[14px] border border-black/[0.06] px-4 py-2.5">
                   <label className="text-xs font-medium text-foreground">Accounting / budget resolved</label>
                   <Switch checked={simAccountingOk} onCheckedChange={setSimAccountingOk} />
                 </div>
@@ -472,33 +472,33 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
               {/* PR count */}
               {fields.needsPrCount && (
                 <div>
-                  <label className="block text-[11px] text-muted-foreground mb-1">PRs submitted this period</label>
+                  <label className="block text-[11px] text-[#68726d] mb-1">PRs submitted this period</label>
                   <Input
                     type="number"
                     min={0}
                     value={simPrCount}
                     onChange={(e) => setSimPrCount(e.target.value)}
-                    className="h-10 rounded-xl text-sm"
+                    className="h-10 rounded-[14px] text-sm"
                   />
                 </div>
               )}
 
               {/* PR paused */}
               {fields.needsPrPause && (
-                <div className="flex items-center justify-between rounded-xl border border-border px-4 py-2.5">
+                <div className="flex items-center justify-between rounded-[14px] border border-black/[0.06] px-4 py-2.5">
                   <label className="text-xs font-medium text-foreground">PR creation currently paused</label>
                   <Switch checked={simPrPaused} onCheckedChange={setSimPrPaused} />
                 </div>
               )}
 
-              <Button onClick={runSim} className="w-full h-11 rounded-xl">
+              <Button onClick={runSim} className="w-full h-11 rounded-[14px]">
                 <PlayCircle className="w-4 h-4 mr-1.5" /> Run Simulation
               </Button>
 
               {/* Results */}
               {results && (
                 <div className={cn(
-                  "rounded-xl border p-4 space-y-3",
+                  "rounded-[14px] border p-4 space-y-3",
                   hardBlocked
                     ? "border-destructive/30 bg-destructive/5"
                     : anyTriggered
@@ -527,8 +527,8 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
                   <div className="space-y-2">
                     {results.map((r, i) => (
                       <div key={r.rule.id} className={cn(
-                        "flex gap-2.5 text-xs rounded-lg px-3 py-2",
-                        r.triggered ? "bg-white border border-destructive/20" : "bg-white border border-border"
+                        "flex gap-2.5 text-xs rounded-[12px] px-3 py-2",
+                        r.triggered ? "bg-white border border-destructive/20" : "bg-white border border-black/[0.06]"
                       )}>
                         {r.triggered ? (
                           <XCircle className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
@@ -537,14 +537,14 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
                         )}
                         <div>
                           <span className="font-semibold text-foreground">Rule {i + 1}:</span>{" "}
-                          <span className="text-muted-foreground">{r.reason}</span>
+                          <span className="text-[#68726d]">{r.reason}</span>
                         </div>
                       </div>
                     ))}
                   </div>
 
                   {hardBlocked && (
-                    <div className="flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2">
+                    <div className="flex items-start gap-2 rounded-[12px] bg-destructive/10 px-3 py-2">
                       <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
                       <p className="text-[11px] text-destructive font-medium">
                         One or more hard blocks are active. This transaction would be stopped from proceeding.

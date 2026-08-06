@@ -1,3 +1,5 @@
-import PageLoading from '@/components/ui/page-loading';  
-  
-export default PageLoading; 
+import PreOnboardingLoading from "@/components/onboarding/_shared/PreOnboardingLoading";
+
+export default function Loading() {
+  return <PreOnboardingLoading />;
+}

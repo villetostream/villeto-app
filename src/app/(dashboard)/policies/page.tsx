@@ -39,6 +39,7 @@ import { useGetExpenseCategoriesApi } from "@/queries/companies/get-expense-cate
 import { useDeleteCategoryApi } from "@/queries/companies/delete-category";
 import { useGetPoliciesApi } from "@/queries/companies/get-policies";
 import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
+import { useDeleteExpensePolicyDraft } from "@/queries/companies/expense-policy-drafts";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useQueryClient } from "@tanstack/react-query";
@@ -76,6 +77,7 @@ interface Policy {
   status: PolicyStatus;
   approvers: string[];
   approversRaw: unknown[];
+  approverIds?: string[];
   dailyLimit: string;
   receiptRequired: boolean;
   archivedOn?: string;
@@ -121,7 +123,7 @@ function StatusBadge({ status }: { status: string }) {
     inactive: "bg-slate-100 text-slate-500",
   };
   return (
-    <span className={`inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold capitalize ${map[status.toLowerCase()] ?? "bg-muted text-muted-foreground"}`}>
+    <span className={`inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold capitalize ${map[status.toLowerCase()] ?? "bg-[#f9faf9] text-[#68726d]"}`}>
       {status}
     </span>
   );
@@ -139,30 +141,62 @@ function formatUser(userObj: unknown, fallbackStr?: string) {
 
 /* ─── Expense Category Action Menu ───────────────────────────────────────────── */
 
-function ActionMenu({ onView, onCreatePolicy, onDelete }: { onView: () => void; onCreatePolicy: () => void; onDelete: () => void; }) {
+function ActionMenu({
+  onView,
+  onCreatePolicy,
+  onEdit,
+  onDelete,
+  onArchive,
+  onDeleteDraft,
+}: {
+  onView?: () => void;
+  onCreatePolicy?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onArchive?: () => void;
+  onDeleteDraft?: () => void;
+}) {
   const canDelete = useAuthStore(s => s.can)('expense.category', 'manage');
   const canCreatePolicy = useAuthStore(s => s.can)('policy', 'create');
+  const canArchivePolicy = useAuthStore(s => s.can)('policy', 'deactivate');
 
   return (
     <div className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted/60 transition-colors cursor-pointer">
+          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-[#f9faf9]/60 transition-colors cursor-pointer">
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-border shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
-          <DropdownMenuItem onClick={onView} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors border-b border-border/50 cursor-pointer">
-            <Eye className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> View Details
-          </DropdownMenuItem>
-          {canCreatePolicy && (
-            <DropdownMenuItem onClick={onCreatePolicy} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors border-b border-border/50 cursor-pointer">
-              <Shield className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Create policy
+        <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
+          {onView && (
+            <DropdownMenuItem onClick={onView} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer">
+              <Eye className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} /> View Details
             </DropdownMenuItem>
           )}
-          {canDelete && (
-            <DropdownMenuItem onClick={onDelete} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer text-destructive">
-              <Trash2 className="w-[17px] h-[17px] text-destructive shrink-0" strokeWidth={1.5} /> Delete
+          {onCreatePolicy && canCreatePolicy && (
+            <DropdownMenuItem onClick={onCreatePolicy} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer">
+              <Shield className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} /> Create policy
+            </DropdownMenuItem>
+          )}
+          {onEdit && (
+            <DropdownMenuItem onClick={onEdit} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer">
+              <Pencil className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} /> Edit
+            </DropdownMenuItem>
+          )}
+          {onArchive && canArchivePolicy && (
+            <DropdownMenuItem onClick={onArchive} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer">
+              <Archive className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} /> Archive Policy
+            </DropdownMenuItem>
+          )}
+          {onDeleteDraft && (
+            <DropdownMenuItem onClick={onDeleteDraft} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer text-destructive">
+              <Trash2 className="w-[17px] h-[17px] text-destructive shrink-0" strokeWidth={1.5} /> Delete Draft
+            </DropdownMenuItem>
+          )}
+          {onDelete && canDelete && (
+            <DropdownMenuItem onClick={onDelete} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer text-destructive">
+              <Trash2 className="w-[17px] h-[17px] text-destructive shrink-0" strokeWidth={1.5} /> Delete Category
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
@@ -187,18 +221,18 @@ function ExpenseCategoryDetailsModal({
         <div className="p-10">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-semibold text-foreground">Category Details</h2>
-            <button onClick={onClose} className="w-10 h-10 rounded-full bg-muted/40 hover:bg-muted/80 flex items-center justify-center transition-all border border-border/50">
-              <X className="w-5 h-5 text-muted-foreground" />
+            <button onClick={onClose} className="w-10 h-10 rounded-full bg-[#f9faf9]/40 hover:bg-[#f9faf9]/80 flex items-center justify-center transition-all border border-black/[0.06]/50">
+              <X className="w-5 h-5 text-[#68726d]" />
             </button>
           </div>
           <div className="h-px bg-border w-full my-6 opacity-60" />
           {isLoading ? (
-            <div className="flex items-center justify-center py-16 text-sm text-muted-foreground gap-2">
+            <div className="flex items-center justify-center py-16 text-sm text-[#68726d] gap-2">
               <RefreshCcw className="w-4 h-4 animate-spin" />
               Loading category details...
             </div>
           ) : category ? (
-            <div className="rounded-[1.5rem] border border-border/60 bg-muted/10 p-7 space-y-6">
+            <div className="rounded-[1.5rem] border border-black/[0.06]/60 bg-[#f9faf9]/10 p-7 space-y-6">
               <div className="grid grid-cols-2 gap-y-6">
                 <div>
                   <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Category Name</p>
@@ -210,7 +244,7 @@ function ExpenseCategoryDetailsModal({
                     className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                       category.isPolicyAttached
                         ? "bg-success/10 text-success"
-                        : "bg-muted text-muted-foreground"
+                        : "bg-[#f9faf9] text-[#68726d]"
                     }`}
                   >
                     {category.isPolicyAttached ? "Policy Attached" : "No Policy"}
@@ -221,7 +255,7 @@ function ExpenseCategoryDetailsModal({
               <div>
                 <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Description</p>
                 <p className="text-sm text-foreground/80 leading-relaxed">
-                  {category.description ?? <span className="italic text-muted-foreground">No description provided</span>}
+                  {category.description ?? <span className="italic text-[#68726d]">No description provided</span>}
                 </p>
               </div>
               <div className="h-px bg-border/60" />
@@ -267,9 +301,10 @@ function ExpenseCategoryDetailsModal({
 
 /* ─── Policy Details Modal ───────────────────────────────────────────────────── */
 
-function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
+function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft }: {
   policy: Policy | null; onClose: () => void;
   onEdit: (p: Policy) => void; onArchive: (p: Policy) => void;
+  onDeleteDraft: (draftId: string) => void;
 }) {
   const canDeactivate = useAuthStore(s => s.can)('policy', 'deactivate');
   const canUpdate = useAuthStore(s => s.can)('policy', 'update');
@@ -354,18 +389,29 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-lg font-bold text-foreground leading-tight">
+                <h2 className="text-lg font-bold text-[#0b100e] leading-tight">
                   {capitalizeName(policyName)}
                 </h2>
-                <StatusBadge status={policyStatus} />
+                <div className="flex items-center gap-1.5">
+                  <StatusBadge status={policyStatus} />
+                  {policyStatus === "draft" && canUpdate && (
+                    <button
+                      onClick={() => onDeleteDraft(policy.id || (policy as any).policyId)}
+                      className="ml-1 p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
+                      title="Delete Draft"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">v{policyVersion}</p>
+              <p className="text-xs text-[#68726d] mt-0.5">v{policyVersion}</p>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-muted/40 hover:bg-muted/70 flex items-center justify-center transition-colors shrink-0 mt-0.5"
+              className="w-8 h-8 rounded-full bg-[#f9faf9]/40 hover:bg-[#f9faf9]/70 flex items-center justify-center transition-colors shrink-0 mt-0.5"
             >
-              <X className="w-4 h-4 text-muted-foreground" />
+              <X className="w-4 h-4 text-[#68726d]" />
             </button>
           </div>
           <div className="h-px bg-border w-full mt-5 mb-4 opacity-60" />
@@ -379,23 +425,23 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
           <style>{`div::-webkit-scrollbar{display:none}`}</style>
 
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-sm text-muted-foreground">
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-sm text-[#68726d]">
               <Loader2 className="w-6 h-6 animate-spin text-primary/60" />
               <p>Loading policy details…</p>
             </div>
           ) : (
             <>
               {/* APPLIES TO */}
-              <div className="rounded-2xl border border-border/70 p-4">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.12em] mb-2.5">
+              <div className="rounded-[24px] border border-black/[0.06]/70 p-4">
+                <p className="text-[10px] font-bold text-[#68726d] uppercase tracking-[0.12em] mb-2.5">
                   Applies To
                 </p>
-                <p className="text-sm text-foreground/80 leading-relaxed">{getScopeText()}</p>
+                <p className="text-sm text-[#0b100e]/80 leading-relaxed">{getScopeText()}</p>
               </div>
 
               {/* EXPENSE CATEGORY */}
-              <div className="rounded-2xl border border-border/70 p-4">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.12em] mb-2.5">
+              <div className="rounded-[24px] border border-black/[0.06]/70 p-4">
+                <p className="text-[10px] font-bold text-[#68726d] uppercase tracking-[0.12em] mb-2.5">
                   Expense Category
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -409,20 +455,20 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
                       return (
                       <span
                         key={i}
-                        className="px-3 py-1 rounded-full border border-border/60 bg-muted/30 text-foreground/70 text-xs font-medium"
+                        className="px-3 py-1 rounded-full border border-black/[0.06]/60 bg-[#f9faf9]/30 text-foreground/70 text-xs font-medium"
                       >
                         {label}
                       </span>
                     );})
                   ) : (
-                    <p className="text-sm text-muted-foreground italic">No specific categories attached.</p>
+                    <p className="text-sm text-[#68726d] italic">No specific categories attached.</p>
                   )}
                 </div>
               </div>
 
               {/* ENFORCEMENT RULES */}
-              <div className="rounded-2xl border border-border/70 p-4">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.12em] mb-2.5">
+              <div className="rounded-[24px] border border-black/[0.06]/70 p-4">
+                <p className="text-[10px] font-bold text-[#68726d] uppercase tracking-[0.12em] mb-2.5">
                   Enforcement Rules
                 </p>
                 <div className="space-y-2">
@@ -438,11 +484,11 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
                           ? `For transactions above ${pickString(r, "currency") || "NGN"} ${Number(r.receiptAmountThreshold || r.threshold).toLocaleString()}`
                           : "Required for all transactions";
                       return (
-                        <div key={i} className="rounded-xl border border-border/60 p-3.5">
+                        <div key={i} className="rounded-[14px] border border-black/[0.06] p-3.5">
                           <div className="flex items-center gap-2 mb-1">
-                            <p className="text-sm font-semibold text-foreground">
+                            <span className="text-sm font-semibold text-[#0b100e]">
                               {isLimit ? "Spend Limit" : "Receipts requirement"}
-                            </p>
+                            </span>
                             <span
                               className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                                 isBlock
@@ -453,12 +499,12 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
                               {enforcement}
                             </span>
                           </div>
-                          <p className="text-xs text-muted-foreground">{description}</p>
+                          <p className="text-xs text-[#68726d]">{description}</p>
                         </div>
                       );
                     })
                   ) : (
-                    <p className="text-sm text-muted-foreground italic text-center py-3">
+                    <p className="text-sm text-[#68726d] italic text-center py-3">
                       No enforcement rules configured.
                     </p>
                   )}
@@ -474,28 +520,28 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
             <div className="flex justify-between gap-4">
               {/* Created by */}
               <div>
-                <p className="text-[11px] text-muted-foreground mb-1.5">Created by</p>
-                <p className="text-sm font-semibold text-foreground leading-tight">
+                <p className="text-[11px] text-[#68726d] mb-1.5">Created by</p>
+                <p className="text-sm font-semibold text-[#0b100e] leading-tight">
                   {formatUser(fullPolicy?.createdBy, policy.createdBy)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{formatDate(createdAt, policy.date)}</p>
+                <p className="text-xs text-[#68726d] mt-0.5">{formatDate(createdAt, policy.date)}</p>
               </div>
               {/* Approved by */}
               {approvers.length > 0 && (
                 <div className="text-right">
-                  <p className="text-[11px] text-muted-foreground mb-1.5">Approved by</p>
+                  <p className="text-[11px] text-[#68726d] mb-1.5">Approved by</p>
                   <div className="space-y-2">
                     {approvers.map((a: unknown, i: number) => {
                       const roleLabel = formatUserRole(a);
                       return (
                         <div key={i}>
-                          <p className="text-sm font-semibold text-foreground leading-tight">
+                          <p className="text-sm font-semibold text-[#0b100e] leading-tight">
                             {formatUser(a)}
                             {roleLabel && (
-                              <span className="text-muted-foreground font-normal"> ({roleLabel})</span>
+                              <span className="text-[#68726d] font-normal"> ({roleLabel})</span>
                             )}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{formatDate(createdAt, policy.date)}</p>
+                          <p className="text-xs text-[#68726d] mt-0.5">{formatDate(createdAt, policy.date)}</p>
                         </div>
                       );
                     })}
@@ -511,7 +557,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
           {canDeactivate && (
             <button
               onClick={() => { onArchive(policy); onClose(); }}
-              className="flex-1 h-11 rounded-full border border-primary text-primary text-sm font-semibold hover:bg-primary/5 transition-colors"
+              className="flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
             >
               Move to Archive
             </button>
@@ -519,7 +565,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive }: {
           {canUpdate && (
             <button
               onClick={() => { onEdit(policy); onClose(); }}
-              className="flex-1 h-11 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+              className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
             >
               Edit
             </button>
@@ -543,12 +589,12 @@ function ReviewPolicyModal({ policy, onClose, onApprove, onReject }: {
         <div className="p-10">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-semibold text-foreground">Review Policy</h2>
-            <button onClick={onClose} className="w-10 h-10 rounded-full bg-muted/40 hover:bg-muted/80 flex items-center justify-center transition-all border border-border/50">
-              <X className="w-5 h-5 text-muted-foreground" />
+            <button onClick={onClose} className="w-10 h-10 rounded-full bg-[#f9faf9]/40 hover:bg-[#f9faf9]/80 flex items-center justify-center transition-all border border-black/[0.06]/50">
+              <X className="w-5 h-5 text-[#68726d]" />
             </button>
           </div>
           <div className="h-px bg-border w-full my-6 opacity-60" />
-          <div className="rounded-[1.5rem] border border-border/60 bg-muted/10 p-7 space-y-6">
+          <div className="rounded-[1.5rem] border border-black/[0.06]/60 bg-[#f9faf9]/10 p-7 space-y-6">
             <div className="grid grid-cols-2 gap-y-6">
               <div>
                 <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Policy Name</p>
@@ -579,7 +625,7 @@ function ReviewPolicyModal({ policy, onClose, onApprove, onReject }: {
                       <UserCircle className="w-4 h-4 text-primary opacity-60" />{name}
                     </div>
                   );
-                }) : <p className="text-sm text-muted-foreground italic">None assigned</p>}
+                }) : <p className="text-sm text-[#68726d] italic">None assigned</p>}
               </div>
             </div>
           </div>
@@ -642,6 +688,8 @@ function PoliciesPage() {
   const [isCategoryDetailsLoading, setIsCategoryDetailsLoading] = useState(false);
   const [search, setSearch]                 = useState("");
   const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
 
   const can = useAuthStore(s => s.can);
   const canReadExpenseCategories = can('expense.category', 'read') || can('expense.category', 'manage');
@@ -662,18 +710,24 @@ function PoliciesPage() {
     }));
   }, [expCatApi.data?.data]);
 
-  const policiesApi = useGetPoliciesApi({ enabled: canReadPolicies });
   const queryClient = useQueryClient();
 
   // Pagination state for the policies table
   const policyTableProps = useDataTable({
     initialPage: 1,
-    initialPageSize: 5,
+    initialPageSize: 20,
     totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
-    manualPagination: false,
+    manualPagination: true,
   });
+
+  const policiesApi = useGetPoliciesApi({ 
+    page: policyTableProps.page, 
+    limit: policyTableProps.pageSize, 
+    excludeDrafts: false 
+  }, { enabled: canReadPolicies });
+
 
   const expenseTableProps = useDataTable({
     initialPage: 1,
@@ -738,6 +792,7 @@ function PoliciesPage() {
             : pickString(a, "email") || 'User';
         }),
         approversRaw: asArray(p.approvers),
+        approverIds: asArray(p.approverIds).map(String),
         dailyLimit: getString(rules.find((r) => getString(r.type) === "spend_limit")?.amount) || "0",
         receiptRequired: !!rules.find((r) => getString(r.type) === "receipt_requirement")?.amount,
         archivedOn: p.deletedAt ? new Date(getString(p.deletedAt)).toLocaleDateString() : undefined,
@@ -745,10 +800,22 @@ function PoliciesPage() {
     });
   }, [policiesApi.data?.data, liveExpenseCategories]);
 
+  useEffect(() => {
+    if (policiesApi.data?.meta?.totalCount !== undefined) {
+      policyTableProps.setTotalItems(policiesApi.data.meta.totalCount);
+    } else if (policiesApi.data?.data) {
+      policyTableProps.setTotalItems(policiesApi.data.data.length);
+    }
+  }, [policiesApi.data, policyTableProps.setTotalItems]);
+
   // Register dynamic header CTA button
   const { setAction, clearAction } = useHeaderActionStore();
 
   useEffect(() => {
+    if (procurementView === "create") {
+      clearAction();
+      return;
+    }
     if (policyType === "procurement") {
       if (canCreatePolicy) {
         setAction({
@@ -779,7 +846,7 @@ function PoliciesPage() {
     }
     // Cleanup on unmount
     return () => clearAction();
-  }, [activeTab, policyType, setAction, clearAction, canCreatePolicy, canManageCategories]);
+  }, [activeTab, policyType, procurementView, setAction, clearAction, canCreatePolicy, canManageCategories]);
 
   /* derived */
   const activePolicies   = useMemo(() => policies.filter(p => !p.archivedOn), [policies]);
@@ -835,6 +902,23 @@ function PoliciesPage() {
     }
   };
 
+  const deleteDraftMutation = useDeleteExpensePolicyDraft();
+  
+  const executeDeleteDraft = async () => {
+    if (!draftToDelete) return;
+    try {
+      await deleteDraftMutation.mutateAsync(draftToDelete);
+      toast.success("Draft deleted successfully");
+      if (detailPolicy?.id === draftToDelete || (detailPolicy as any)?.policyId === draftToDelete) {
+        setDetailPolicy(null);
+      }
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to delete draft"));
+    } finally {
+      setDraftToDelete(null);
+    }
+  };
+
   /* handlers */
   const handleCreated = (_data: CreatedPolicyData) => {
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
@@ -843,24 +927,30 @@ function PoliciesPage() {
   };
 
   const handleEdit = useCallback((policy: Policy) => {
-    setEditingPolicyId(policy.id);
+    if (policy.status === "draft") {
+      setEditingDraftId(policy.id || (policy as any).policyId);
+      setEditingPolicyId(null);
+    } else {
+      setEditingPolicyId(policy.id || (policy as any).policyId);
+      setEditingDraftId(null);
+    }
     setIsCreatePolicyOpen(true);
   }, []);
   const handleArchive = useCallback((_policy: Policy) => toast.info("Archive policy API not integrated yet."), []);
 
-  const handleReviewAction = async (policy: Policy, action: "activate" | "deactivate") => {
+  const handleReviewAction = async (policy: Policy, action: "approve" | "reject") => {
     try {
       await axios.patch(API_KEYS.EXPENSE.POLICY_ACTION(policy.id, action));
-      toast.success(`Policy ${action === "activate" ? "approved" : "rejected"} successfully`);
+      toast.success(`Policy ${action === "approve" ? "approved" : "rejected"} successfully`);
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
       setReviewPolicy(null);
     } catch (error: unknown) {
-      toast.error(getApiErrorMessage(error, `Failed to ${action === "activate" ? "approve" : "reject"} policy`));
+      toast.error(getApiErrorMessage(error, `Failed to ${action === "approve" ? "approve" : "reject"} policy`));
     }
   };
 
-  const handleApprove = (policy: Policy) => handleReviewAction(policy, "activate");
-  const handleReject  = (policy: Policy) => handleReviewAction(policy, "deactivate");
+  const handleApprove = (policy: Policy) => handleReviewAction(policy, "approve");
+  const handleReject  = (policy: Policy) => handleReviewAction(policy, "reject");
 
   /**
    * Re-validates approver status against fresh server data before opening
@@ -892,10 +982,10 @@ function PoliciesPage() {
 
   const lastUpdated = `Last updated: ${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}`;
   const statCards = [
-    { title: "Approved Policies", value: approvedCount,            icon: ShieldCheck, bg: "#418341" },
-    { title: "Drafted Policies",  value: draftedCount,             icon: FileText,    bg: "#384A57" },
-    { title: "Pending Policies",  value: pendingCount,             icon: Clock,       bg: "#D97706" },
-    { title: "Expense Category",  value: liveExpenseCategories.length, icon: Tag,         bg: "#38B2AC" },
+    { title: "Approved Policies",  value: approvedCount,               icon: ShieldCheck, accent: "#087f70" },
+    { title: "Drafted Policies",   value: draftedCount,                icon: FileText,    accent: "#68726d" },
+    { title: "Pending Policies",   value: pendingCount,                icon: Clock,       accent: "#d97706" },
+    { title: "Expense Category",   value: liveExpenseCategories.length, icon: Tag,         accent: "#0b100e" },
   ];
 
   /* DataTable columns for Policy tab */
@@ -906,7 +996,7 @@ function PoliciesPage() {
       cell: ({ row }) => (
         <div>
           <p className="text-sm font-bold text-foreground">{capitalizeName(row.original.name)}</p>
-          <p className="text-xs text-muted-foreground">v{row.original.version}</p>
+          <p className="text-xs text-[#68726d]">v{row.original.version}</p>
         </div>
       ),
     },
@@ -917,7 +1007,7 @@ function PoliciesPage() {
       cell: ({ row }) => (
          <div>
            <p className="text-sm font-semibold text-foreground">{row.original.createdBy}</p>
-           <p className="text-xs text-muted-foreground tabular-nums">{row.original.date}</p>
+           <p className="text-xs text-[#68726d] tabular-nums">{row.original.date}</p>
          </div>
       ),
     },
@@ -934,48 +1024,36 @@ function PoliciesPage() {
         const isApprover = policy.approversRaw.some((rawApprover) => {
           const a = asRecord(rawApprover);
           return pickString(a, "userId") === user?.userId;
-        });
+        }) || (policy as any).approverIds?.includes(user?.userId);
+        
         const { can } = useAuthStore.getState();
         const canUpdate = can('policy', 'update');
         const canDeactivate = can('policy', 'deactivate');
         
+        const showReviewOnly = policy.status === "inactive" && isApprover;
+
         return (
           <div className="flex items-center justify-end gap-2">
-            {policy.status === "inactive" && isApprover && (
+            {showReviewOnly ? (
               <button
                 onClick={() => handleOpenReview(policy)}
-                className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
+                className="h-8 px-4 rounded-[12px] bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
               >
                 Review
               </button>
+            ) : (
+              <ActionMenu
+                onView={() => setDetailPolicy(policy)}
+                onEdit={canUpdate ? () => handleEdit(policy) : undefined}
+                onArchive={policy.status !== "draft" && canDeactivate ? () => handleArchive(policy) : undefined}
+                onDeleteDraft={policy.status === "draft" && canUpdate ? () => setDraftToDelete(policy.id || (policy as any).policyId) : undefined}
+              />
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer">
-                  <MoreHorizontal className="w-5 h-5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-border shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
-                <DropdownMenuItem onClick={() => setDetailPolicy(policy)} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/50">
-                  <Eye className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> View Details
-                </DropdownMenuItem>
-                {canUpdate && (
-                  <DropdownMenuItem onClick={() => handleEdit(policy)} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/50">
-                    <Pencil className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Edit Policy
-                  </DropdownMenuItem>
-                )}
-                {canDeactivate && (
-                  <DropdownMenuItem onClick={() => handleArchive(policy)} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors cursor-pointer">
-                    <Archive className="w-[17px] h-[17px] text-muted-foreground shrink-0" strokeWidth={1.5} /> Archive Policy
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         );
       },
     },
-  ], [handleOpenReview, user?.userId, handleEdit, handleArchive]);
+  ], [handleOpenReview, user?.userId, handleEdit]);
 
   /* DataTable columns for Archived tab */
   const archivedColumns = useMemo<ColumnDef<Policy>[]>(() => [
@@ -985,7 +1063,7 @@ function PoliciesPage() {
       cell: ({ row }) => (
         <div>
           <p className="text-sm font-bold text-foreground">{capitalizeName(row.original.name)}</p>
-          <p className="text-xs text-muted-foreground">v{row.original.version}</p>
+          <p className="text-xs text-[#68726d]">v{row.original.version}</p>
         </div>
       ),
     },
@@ -1001,7 +1079,7 @@ function PoliciesPage() {
       cell: ({ row }) => (
          <div>
            <p className="text-sm font-semibold text-foreground">{row.original.createdBy}</p>
-           <p className="text-xs text-muted-foreground tabular-nums">{row.original.date}</p>
+           <p className="text-xs text-[#68726d] tabular-nums">{row.original.date}</p>
          </div>
       )
     },
@@ -1017,7 +1095,7 @@ function PoliciesPage() {
         <div className="text-right">
           <button
             onClick={() => setDetailPolicy(row.original)}
-            className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors ml-auto cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center rounded-[8px] text-[#68726d] hover:text-foreground hover:bg-[#f9faf9]/60 transition-colors ml-auto cursor-pointer"
           >
             <Eye className="w-5 h-5" strokeWidth={1.5} />
           </button>
@@ -1045,7 +1123,7 @@ function PoliciesPage() {
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="max-w-[280px] cursor-default">
-                <span className="text-muted-foreground block truncate">
+                <span className="text-[#68726d] block truncate">
                   {row.original.description || "—"}
                 </span>
               </div>
@@ -1077,7 +1155,7 @@ function PoliciesPage() {
           className={`inline-flex items-center px-4 py-1 rounded-full text-xs font-semibold ${
             row.original.isPolicyAttached
               ? "bg-success/10 text-success"
-              : "bg-muted text-muted-foreground"
+              : "bg-[#f9faf9] text-[#68726d]"
           }`}
         >
           {row.original.isPolicyAttached ? "Policy Attached" : "No Policy"}
@@ -1100,13 +1178,13 @@ function PoliciesPage() {
   ], [handleViewCategory]);
 
   const policyTypeToggle = (
-    <div className="sticky top-0 z-40 bg-background pt-2 pb-4 -mx-6 px-6 flex items-center justify-between flex-wrap gap-3 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-12 before:bg-background">
-      <div className="flex bg-muted rounded-xl p-1 w-fit">
+    <div className="sticky -top-3 sm:-top-5 -mt-3 sm:-mt-5 pt-3 sm:pt-5 pb-4 bg-white z-40 flex items-center justify-between flex-wrap gap-3">
+      <div className="flex bg-black/[0.04] rounded-[14px] p-1 w-fit border border-black/[0.06] shadow-sm">
         <button
           data-tour="expenses-policy-type-tab"
           onClick={() => switchPolicyType("expense")}
-          className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-            policyType === "expense" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          className={`py-1.5 px-4 text-sm rounded-[12px] transition-all whitespace-nowrap ${
+            policyType === "expense" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
           }`}
         >
           Expenses Policy
@@ -1114,8 +1192,8 @@ function PoliciesPage() {
         <button
           data-tour="procurement-policy-type-tab"
           onClick={() => switchPolicyType("procurement")}
-          className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-            policyType === "procurement" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          className={`py-1.5 px-4 text-sm rounded-[12px] transition-all whitespace-nowrap ${
+            policyType === "procurement" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
           }`}
         >
           Procurement Policy
@@ -1126,8 +1204,8 @@ function PoliciesPage() {
 
   if (policyType === "procurement" && procurementView === "create") {
     return (
-      <div className="h-full flex flex-col p-6 bg-background">
-        <div className="bg-card rounded-[1.25rem] flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="h-full flex flex-col">
+        <div className="bg-white rounded-[1.25rem] flex-1 flex flex-col min-h-0 overflow-hidden">
           <ProcurementPolicyWizard
             onCancel={() => setProcurementView("list")}
             onComplete={() => setProcurementView("list")}
@@ -1138,7 +1216,7 @@ function PoliciesPage() {
   }
 
   return (
-    <div className="bg-background min-h-screen p-6 space-y-6">
+    <div className="space-y-6 h-full">
       <>
       {policyTypeToggle}
 
@@ -1150,35 +1228,31 @@ function PoliciesPage() {
       ) : (
       <>
       {/* ── Stat cards ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {statCards.map((s) => (
           <StatsCard
             key={s.title}
             title={s.title}
             value={s.value}
-            icon={
-              <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white shrink-0"
-                style={{ backgroundColor: s.bg }}>
-                <s.icon className="w-5 h-5" />
-              </div>
-            }
-            subtitle={<span className="text-xs leading-[125%]">{lastUpdated}</span>}
+            accentColor={s.accent}
+            icon={<s.icon className="w-4 h-4" strokeWidth={2} style={{ color: s.accent }} />}
+            subtitle={<span className="text-[11px]">{lastUpdated}</span>}
           />
         ))}
       </div>
 
       {/* ── Main card ── */}
-      <div className="bg-card rounded-[1.25rem] border border-border shadow-sm overflow-hidden flex flex-col">
+      <div className="bg-white rounded-[1.25rem] border border-black/[0.06] shadow-sm overflow-hidden flex flex-col">
 
         {/* Tab row */}
         <div className="flex items-center justify-between px-6 py-5 shrink-0 flex-wrap gap-3">
           {/* Pill tabs */}
-          <div className="flex bg-muted rounded-xl p-1">
+          <div className="flex bg-[#f9faf9] rounded-[14px] p-1">
             <button
               data-tour="policies-tab"
               onClick={() => { switchTab("policies"); setSearch(""); }}
-              className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                activeTab === "policies" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              className={`py-1.5 px-4 text-sm rounded-[12px] transition-all whitespace-nowrap ${
+                activeTab === "policies" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
               }`}
             >
               Policies
@@ -1187,8 +1261,8 @@ function PoliciesPage() {
               <button
                 data-tour="expense-category-tab"
                 onClick={() => { switchTab("expense"); setSearch(""); }}
-                className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                  activeTab === "expense" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                className={`py-1.5 px-4 text-sm rounded-[12px] transition-all whitespace-nowrap ${
+                  activeTab === "expense" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
                 }`}
               >
                 Expense Category
@@ -1196,8 +1270,8 @@ function PoliciesPage() {
             )}
             <button
               onClick={() => { switchTab("archived"); setSearch(""); }}
-              className={`py-1.5 px-4 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                activeTab === "archived" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              className={`py-1.5 px-4 text-sm rounded-[12px] transition-all whitespace-nowrap ${
+                activeTab === "archived" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
               }`}
             >
               Archived
@@ -1207,18 +1281,18 @@ function PoliciesPage() {
           {/* Search + Filter + Refresh */}
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#68726d]" />
               <input
                 placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-10 pl-9 pr-4 rounded-xl border border-border bg-white text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors w-[200px]"
+                className="h-10 pl-9 pr-4 rounded-[14px] border border-black/[0.06] bg-white text-sm placeholder:text-[#68726d] focus:outline-none focus:border-primary transition-colors w-[200px]"
               />
             </div>
-            <button className="h-10 px-4 rounded-xl border border-border bg-white text-sm text-muted-foreground flex items-center gap-1.5 hover:bg-muted/30 transition-colors">
+            <button className="h-10 px-4 rounded-[14px] border border-black/[0.06] bg-white text-sm text-[#68726d] flex items-center gap-1.5 hover:bg-[#f9faf9]/30 transition-colors">
               <SlidersHorizontal className="w-4 h-4" /> Filter <ChevronDown className="w-3.5 h-3.5" />
             </button>
-            <button className="h-10 w-10 rounded-xl border border-border bg-white flex items-center justify-center text-muted-foreground hover:bg-muted/30 transition-colors">
+            <button className="h-10 w-10 rounded-[14px] border border-black/[0.06] bg-white flex items-center justify-center text-[#68726d] hover:bg-[#f9faf9]/30 transition-colors">
               <RefreshCcw className="w-4 h-4" />
             </button>
           </div>
@@ -1228,26 +1302,26 @@ function PoliciesPage() {
         {activeTab === "policies" && (
           <>
             {policiesApi.isLoading ? (
-              <div className="border-t border-border flex justify-center items-center py-20 px-6">
-                <div className="flex flex-col items-center gap-4 text-muted-foreground">
+              <div className="border-t border-black/[0.06] flex justify-center items-center py-20 px-6">
+                <div className="flex flex-col items-center gap-4 text-[#68726d]">
                   <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
                   <p className="text-sm font-medium">Fetching policies...</p>
                 </div>
               </div>
             ) : activePolicies.length === 0 ? (
-              <div className="border-t border-border flex justify-center items-center py-10 px-6">
-                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-border bg-primary/[0.02] py-10 px-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-primary/[0.06] flex items-center justify-center mb-7">
-                    <ShieldCheck className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+              <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
+                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-[#087f70]/[0.02] py-10 px-8 flex flex-col items-center text-center">
+                  <div className="w-16 h-16 rounded-[24px] bg-[#087f70]/[0.06] flex items-center justify-center mb-7">
+                    <ShieldCheck className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
                   </div>
-                  <h2 className="text-xl font-bold text-foreground mb-2">No policies created yet</h2>
-                  <p className="text-sm text-muted-foreground max-w-xs leading-relaxed mb-9">
+                  <h2 className="text-xl font-bold text-[#0b100e] mb-2">No policies created yet</h2>
+                  <p className="text-sm text-[#68726d] max-w-xs leading-relaxed mb-9">
                     Policies help you automate expense approvals and enforce spending limits.
                   </p>
                   {canCreatePolicy && (
                     <button
                       onClick={() => setIsCreatePolicyOpen(true)}
-                      className="h-12 px-7 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
+                      className="h-12 px-7 rounded-full bg-[#087f70] text-white text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
                     >
                       <PlusCircle className="w-4 h-4" strokeWidth={2} />
                       Create First Policy
@@ -1256,7 +1330,7 @@ function PoliciesPage() {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 border-t border-border overflow-hidden flex flex-col">
+              <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
                 <DataTable
                   data={filteredPolicies}
                   columns={policyColumns}
@@ -1280,26 +1354,26 @@ function PoliciesPage() {
         {activeTab === "expense" && (
           <>
             {expCatApi.isLoading ? (
-              <div className="border-t border-border flex justify-center items-center py-20 px-6">
-                <div className="flex flex-col items-center gap-4 text-muted-foreground">
+              <div className="border-t border-black/[0.06] flex justify-center items-center py-20 px-6">
+                <div className="flex flex-col items-center gap-4 text-[#68726d]">
                   <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
                   <p className="text-sm font-medium">Fetching categories...</p>
                 </div>
               </div>
             ) : liveExpenseCategories.length === 0 ? (
-              <div className="border-t border-border flex justify-center items-center py-10 px-6">
-                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-border bg-primary/[0.02] py-10 px-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-primary/[0.06] flex items-center justify-center mb-7">
-                    <Tag className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+              <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
+                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-[#087f70]/[0.02] py-10 px-8 flex flex-col items-center text-center">
+                  <div className="w-16 h-16 rounded-[24px] bg-[#087f70]/[0.06] flex items-center justify-center mb-7">
+                    <Tag className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
                   </div>
-                  <h2 className="text-xl font-bold text-foreground mb-2">No expense categories</h2>
-                  <p className="text-sm text-muted-foreground max-w-xs leading-relaxed mb-9">
+                  <h2 className="text-xl font-bold text-[#0b100e] mb-2">No expense categories</h2>
+                  <p className="text-sm text-[#68726d] max-w-xs leading-relaxed mb-9">
                     Expense categories help you organize and control spending across your company.
                   </p>
                   {canManageCategories && (
                     <button
                       onClick={() => setIsAddCategoryOpen(true)}
-                      className="h-12 px-7 rounded-full bg-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
+                      className="h-12 px-7 rounded-full bg-[#087f70] text-white text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
                     >
                       <PlusCircle className="w-4 h-4" strokeWidth={2} />
                       Create First Category
@@ -1308,7 +1382,7 @@ function PoliciesPage() {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 border-t border-border overflow-hidden flex flex-col">
+              <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
                 <DataTable
                   data={filteredCategories}
                   columns={columns}
@@ -1332,19 +1406,19 @@ function PoliciesPage() {
         {activeTab === "archived" && (
           <>
             {archivedPolicies.length === 0 ? (
-              <div className="border-t border-border flex justify-center items-center py-10 px-6">
-                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-border bg-primary/[0.02] py-10 px-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-primary/[0.06] flex items-center justify-center mb-7">
-                    <Archive className="w-7 h-7 text-muted-foreground" strokeWidth={1.5} />
+              <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
+                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-primary/[0.02] py-10 px-8 flex flex-col items-center text-center">
+                  <div className="w-16 h-16 rounded-[24px] bg-primary/[0.06] flex items-center justify-center mb-7">
+                    <Archive className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
                   </div>
                   <h2 className="text-xl font-bold text-foreground mb-2">No archived policies</h2>
-                  <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+                  <p className="text-sm text-[#68726d] max-w-xs leading-relaxed">
                     Policies that you archive will appear here for future reference.
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="flex-1 border-t border-border overflow-hidden flex flex-col">
+              <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
                 <DataTable
                   data={archivedPolicies}
                   columns={archivedColumns}
@@ -1373,14 +1447,18 @@ function PoliciesPage() {
         open={isCreatePolicyOpen}
         onOpenChange={(open) => {
           setIsCreatePolicyOpen(open);
-          if (!open) setEditingPolicyId(null);
+          if (!open) {
+            setEditingPolicyId(null);
+            setEditingDraftId(null);
+          }
         }}
         onSuccess={handleCreated}
         policyId={editingPolicyId}
+        initialDraftId={editingDraftId}
       />
 
       <AlertDialog open={categoryToDelete !== null} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
-        <AlertDialogContent className="rounded-xl border-none">
+        <AlertDialogContent className="rounded-[14px] border-none">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Expense Category?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1391,6 +1469,24 @@ function PoliciesPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={executeDeleteCategory} className="bg-red-500 hover:bg-red-600 text-white">
               {deleteCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={draftToDelete !== null} onOpenChange={(open) => !open && setDraftToDelete(null)}>
+        <AlertDialogContent className="rounded-[14px] border-none">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Draft Policy?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this drafted policy. This action cannot be undone. 
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDeleteDraft} className="bg-red-500 hover:bg-red-600 text-white">
+              {deleteDraftMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1414,6 +1510,7 @@ function PoliciesPage() {
         onClose={() => setDetailPolicy(null)}
         onEdit={(p) => { handleEdit(p); setDetailPolicy(null); }}
         onArchive={(p) => { handleArchive(p); setDetailPolicy(null); }}
+        onDeleteDraft={(draftId) => setDraftToDelete(draftId)}
       />
       <ReviewPolicyModal
         policy={reviewPolicy}

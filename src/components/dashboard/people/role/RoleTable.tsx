@@ -9,12 +9,14 @@ import { toStringFilterRecord, unwrapFilterKeys } from '../user-table-utils';
 const RoleTable = () => {
 
     const router = useRouter();
-    const depts = useGetAllRolesApi();
+    const tableprops = useTableData();
+    const depts = useGetAllRolesApi(
+        { page: tableprops.page, limit: tableprops.pageSize },
+    );
     const roles = useMemo(
         () => (depts?.data?.data ?? []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")),
         [depts.data?.data],
     );
-    const tableprops = useTableData(roles);
 
     const filteredRoles = useMemo(() => {
         let result = roles;
@@ -38,15 +40,16 @@ const RoleTable = () => {
     }, [roles, tableprops.globalSearch, tableprops.filterBy]);
 
     useEffect(() => {
-        tableprops.setTotalItems(filteredRoles.length);
-    }, [filteredRoles.length, tableprops.setTotalItems]);
+        const total = depts.data?.meta?.totalCount ?? filteredRoles.length;
+        tableprops.setTotalItems(total);
+    }, [depts.data?.meta?.totalCount, filteredRoles.length, tableprops.setTotalItems]);
 
     return (
         <DataTable
             data={filteredRoles}
             isLoading={depts.isLoading}
             columns={columns}
-            paginationProps={{ ...tableprops.paginationProps, total: filteredRoles.length }}
+            paginationProps={{ ...tableprops.paginationProps, total: depts.data?.meta?.totalCount ?? filteredRoles.length }}
             enableRowSelection={false}
             enableColumnVisibility={true}
             selectedDataIds={tableprops.selectedDataIds}
@@ -86,13 +89,13 @@ const RoleTable = () => {
 
 export default RoleTable;
 
-export const useTableData = (data: Role[]) => {
+export const useTableData = () => {
     return useDataTable({
         initialPage: 1,
-        initialPageSize: 10,
-        totalItems: data.length,
+        initialPageSize: 20,
+        totalItems: 0,
         manualSorting: false,
         manualFiltering: false,
-        manualPagination: false,
+        manualPagination: true,
     });
 };

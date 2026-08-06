@@ -61,7 +61,7 @@ function MultiSelect({
 
   return (
     <div>
-      <label className="block text-[11px] text-muted-foreground mb-1.5">{label}</label>
+      <label className="block text-[11px] text-[#68726d] mb-1.5">{label}</label>
 
       {selectedItems.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
@@ -83,30 +83,30 @@ function MultiSelect({
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="w-full h-11 rounded-xl border border-border bg-white px-3 flex items-center justify-between text-sm text-muted-foreground hover:border-primary/40 transition-colors"
+          className="w-full h-11 rounded-[14px] border border-black/[0.06] bg-white px-3 flex items-center justify-between text-sm text-[#68726d] hover:border-primary/40 transition-colors"
         >
           <span>{selected.length > 0 ? `${selected.length} selected` : placeholder}</span>
           <ChevronsUpDown className="w-4 h-4 shrink-0" />
         </button>
 
         {open && (
-          <div className="absolute z-40 left-0 right-0 top-12 rounded-xl border border-border bg-white shadow-lg overflow-hidden">
-            <div className="p-2 border-b border-border">
+          <div className="absolute z-40 left-0 right-0 top-12 rounded-[14px] border border-black/[0.06] bg-white shadow-lg overflow-hidden">
+            <div className="p-2 border-b border-black/[0.06]">
               <input
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search…"
-                className="w-full h-8 px-3 rounded-lg border border-border text-sm bg-muted/30 focus:outline-none focus:border-primary"
+                className="w-full h-8 px-3 rounded-[12px] border border-black/[0.06] text-sm bg-[#f9faf9]/30 focus:outline-none focus:border-primary"
               />
             </div>
             <div className="max-h-44 overflow-y-auto p-1">
               {isLoading ? (
                 <div className="flex items-center justify-center py-5">
-                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <Loader2 className="w-4 h-4 animate-spin text-[#68726d]" />
                 </div>
               ) : filtered.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">No results</p>
+                <p className="text-xs text-[#68726d] text-center py-4">No results</p>
               ) : (
                 filtered.map((item) => {
                   const id = getId(item);
@@ -116,11 +116,11 @@ function MultiSelect({
                       key={id}
                       type="button"
                       onClick={() => { onToggle(id); setSearch(""); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-muted/40 transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-[12px] text-sm text-foreground hover:bg-[#f9faf9]/40 transition-colors"
                     >
                       <span className={cn(
                         "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
-                        isSelected ? "bg-primary border-primary" : "border-border"
+                        isSelected ? "bg-primary border-primary" : "border-black/[0.06]"
                       )}>
                         {isSelected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
                       </span>
@@ -160,12 +160,12 @@ function TagInput({
 
   return (
     <div>
-      <label className="block text-[11px] text-muted-foreground mb-1.5">{label}</label>
+      <label className="block text-[11px] text-[#68726d] mb-1.5">{label}</label>
 
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {values.map((v) => (
-            <span key={v} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-border bg-muted/40 text-xs font-medium text-foreground">
+            <span key={v} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-black/[0.06] bg-[#f9faf9]/40 text-xs font-medium text-foreground">
               {v}
               <button type="button" onClick={() => onChange(values.filter((x) => x !== v))}>
                 <X className="w-3 h-3" />
@@ -181,13 +181,13 @@ function TagInput({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
           placeholder='e.g. invoice, statement_of_work'
-          className="h-11 rounded-xl flex-1"
+          className="h-11 rounded-[14px] flex-1"
         />
-        <Button type="button" variant="outline" onClick={add} className="h-11 rounded-xl px-4 shrink-0">
+        <Button type="button" className="bg-white border border-black/[0.06] text-[#0b100e] hover:bg-[#f9faf9] rounded-[14px] h-11 px-4 shrink-0 font-semibold text-sm transition-colors" onClick={add}>
           Add
         </Button>
       </div>
-      <p className="text-[10px] text-muted-foreground mt-1">Press Enter or click Add after each type.</p>
+      <p className="text-[10px] text-[#68726d] mt-1">Press Enter or click Add after each type.</p>
     </div>
   );
 }
@@ -256,7 +256,7 @@ function RuleCard({
   };
 
   return (
-    <div className="rounded-2xl border border-border bg-white p-5">
+    <div className="rounded-[24px] border border-black/[0.06] bg-white p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-5 gap-3">
         {editingName ? (
@@ -273,7 +273,7 @@ function RuleCard({
             <h3 className="text-sm font-bold text-foreground">
               {rule.criteriaLabel || "New Rule — select a condition below"}
             </h3>
-            <Pencil className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+            <Pencil className="w-3.5 h-3.5 text-[#68726d] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
           </button>
         )}
         {canDelete && (
@@ -287,12 +287,12 @@ function RuleCard({
       <p className="text-xs font-semibold text-foreground mb-3">Condition (IF)</p>
       <div className="space-y-4 mb-5">
         <div>
-          <label className="block text-[11px] text-muted-foreground mb-1.5">When this matches…</label>
+          <label className="block text-[11px] text-[#68726d] mb-1.5">When this matches…</label>
           <Select
             value={rule.condition || undefined}
             onValueChange={(v) => onConditionChange(v as PolicyRule["condition"])}
           >
-            <SelectTrigger className="h-11 w-full rounded-xl">
+            <SelectTrigger className="h-11 w-full rounded-[14px]">
               <SelectValue placeholder="Select a condition" />
             </SelectTrigger>
             <SelectContent side="bottom">
@@ -304,7 +304,7 @@ function RuleCard({
             </SelectContent>
           </Select>
           {condDef && (
-            <p className="text-[11px] text-muted-foreground mt-1.5">{condDef.description}</p>
+            <p className="text-[11px] text-[#68726d] mt-1.5">{condDef.description}</p>
           )}
         </div>
 
@@ -312,23 +312,23 @@ function RuleCard({
         {fieldType === "amount_currency" && (
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] text-muted-foreground mb-1.5">Amount</label>
+              <label className="block text-[11px] text-[#68726d] mb-1.5">Amount</label>
               <Input
                 type="number"
                 min={0}
                 value={rule.amount ?? ""}
                 onChange={(e) => update({ amount: e.target.value ? Number(e.target.value) : undefined })}
                 placeholder="0"
-                className="h-11 rounded-xl"
+                className="h-11 rounded-[14px]"
               />
             </div>
             <div>
-              <label className="block text-[11px] text-muted-foreground mb-1.5">Currency</label>
+              <label className="block text-[11px] text-[#68726d] mb-1.5">Currency</label>
               <Select
                 value={rule.currency ?? "NGN"}
                 onValueChange={(v) => update({ currency: v })}
               >
-                <SelectTrigger className="h-11 rounded-xl">
+                <SelectTrigger className="h-11 rounded-[14px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent side="bottom">
@@ -343,7 +343,7 @@ function RuleCard({
 
         {fieldType === "min_quotes" && (
           <div className="max-w-xs">
-            <label className="block text-[11px] text-muted-foreground mb-1.5">Minimum quotes required</label>
+            <label className="block text-[11px] text-[#68726d] mb-1.5">Minimum quotes required</label>
             <Input
               type="number"
               min={1}
@@ -351,7 +351,7 @@ function RuleCard({
               value={rule.minimumQuotes ?? ""}
               onChange={(e) => update({ minimumQuotes: e.target.value ? Number(e.target.value) : undefined })}
               placeholder="e.g. 3"
-              className="h-11 rounded-xl"
+              className="h-11 rounded-[14px]"
             />
           </div>
         )}
@@ -399,23 +399,23 @@ function RuleCard({
         {fieldType === "pr_count" && (
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] text-muted-foreground mb-1.5">Maximum PRs allowed</label>
+              <label className="block text-[11px] text-[#68726d] mb-1.5">Maximum PRs allowed</label>
               <Input
                 type="number"
                 min={1}
                 value={rule.maxCount ?? ""}
                 onChange={(e) => update({ maxCount: e.target.value ? Number(e.target.value) : undefined })}
                 placeholder="e.g. 10"
-                className="h-11 rounded-xl"
+                className="h-11 rounded-[14px]"
               />
             </div>
             <div>
-              <label className="block text-[11px] text-muted-foreground mb-1.5">Time period</label>
+              <label className="block text-[11px] text-[#68726d] mb-1.5">Time period</label>
               <Select
                 value={rule.timeUnit ?? "monthly"}
                 onValueChange={(v) => update({ timeUnit: v as PolicyRule["timeUnit"] })}
               >
-                <SelectTrigger className="h-11 rounded-xl">
+                <SelectTrigger className="h-11 rounded-[14px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent side="bottom">
@@ -435,20 +435,20 @@ function RuleCard({
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="w-full h-auto min-h-11 rounded-xl border border-border px-4 py-2.5 flex items-center justify-between text-left hover:border-primary/40 transition-colors"
+            className="w-full h-auto min-h-11 rounded-[14px] border border-black/[0.06] px-4 py-2.5 flex items-center justify-between text-left hover:border-primary/40 transition-colors"
             disabled={!rule.condition}
           >
             {selectedAction ? (
               <span>
                 <span className="block text-sm font-semibold text-foreground">{selectedAction.label}</span>
-                <span className="block text-xs text-muted-foreground">{selectedAction.description}</span>
+                <span className="block text-xs text-[#68726d]">{selectedAction.description}</span>
               </span>
             ) : (
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-[#68726d]">
                 {rule.condition ? "Select enforcement action" : "Select a condition first"}
               </span>
             )}
-            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 ml-2" />
+            <ChevronDown className="w-4 h-4 text-[#68726d] shrink-0 ml-2" />
           </button>
         </PopoverTrigger>
         <PopoverContent 
@@ -465,7 +465,7 @@ function RuleCard({
                 update({ enforcementAction: a.value });
                 setActionOpen(false);
               }}
-              className="w-full flex flex-col items-start gap-1 py-3 px-4 cursor-pointer rounded-xl border border-border bg-white hover:border-primary hover:bg-muted/10 transition-colors focus:outline-none focus:border-primary text-left"
+              className="w-full flex flex-col items-start gap-1 py-3 px-4 cursor-pointer rounded-[14px] border border-black/[0.06] bg-white hover:border-primary hover:bg-[#f9faf9]/10 transition-colors focus:outline-none focus:border-primary text-left"
             >
               <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 {a.label}
@@ -476,7 +476,7 @@ function RuleCard({
                   {a.severity === "hard" ? "Hard block" : "Soft"}
                 </span>
               </span>
-              <span className="text-xs text-muted-foreground leading-relaxed">{a.description}</span>
+              <span className="text-xs text-[#68726d] leading-relaxed">{a.description}</span>
             </button>
           ))}
         </PopoverContent>
@@ -518,7 +518,7 @@ export function StepRules({
   if (!policyGroup) {
     return (
       <div className="flex flex-col items-center py-16 text-center">
-        <p className="text-sm text-muted-foreground">Select a policy group first to configure rules.</p>
+        <p className="text-sm text-[#68726d]">Select a policy group first to configure rules.</p>
       </div>
     );
   }
@@ -526,18 +526,18 @@ export function StepRules({
   return (
     <div>
       <h2 className="text-xl font-bold text-foreground mb-1">Configure Rules &amp; Enforcement</h2>
-      <p className="text-sm text-muted-foreground mb-6">
+      <p className="text-sm text-[#68726d] mb-6">
         Define the conditions that trigger this policy and what action to take. Each rule is evaluated independently.
       </p>
 
       {rules.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border bg-muted/20 py-14 flex flex-col items-center text-center">
-          <div className="w-12 h-12 rounded-full bg-white border border-border flex items-center justify-center mb-4 text-muted-foreground">
+        <div className="rounded-[24px] border border-dashed border-black/[0.06] bg-[#f9faf9]/20 py-14 flex flex-col items-center text-center">
+          <div className="w-12 h-12 rounded-full bg-white border border-black/[0.06] flex items-center justify-center mb-4 text-[#68726d]">
             <Pencil className="w-5 h-5" strokeWidth={1.5} />
           </div>
           <h3 className="text-base font-bold text-foreground mb-1">No rules yet</h3>
-          <p className="text-sm text-muted-foreground mb-5">Add at least one rule to define when this policy fires.</p>
-          <Button onClick={addRule} variant="outlinePrimary" className="rounded-xl h-10 px-5">
+          <p className="text-sm text-[#68726d] mb-5">Add at least one rule to define when this policy fires.</p>
+          <Button onClick={addRule} variant="outlinePrimary" className="rounded-[14px] h-10 px-5">
             <PlusCircle className="w-4 h-4 mr-1.5" /> Add Rule
           </Button>
         </div>
@@ -557,7 +557,7 @@ export function StepRules({
               vendorsLoading={vendorsQ.isLoading}
             />
           ))}
-          <Button onClick={addRule} variant="outlinePrimary" className="rounded-xl h-10 px-5">
+          <Button onClick={addRule} variant="outlinePrimary" className="rounded-[14px] h-10 px-5">
             <PlusCircle className="w-4 h-4 mr-1.5" /> Add Rule
           </Button>
         </div>

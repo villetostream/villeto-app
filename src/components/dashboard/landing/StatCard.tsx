@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Card } from "@/components/ui/card";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 interface StatsCardProps {
   title: string;
@@ -8,6 +8,7 @@ interface StatsCardProps {
   trend?: "up" | "down" | "neutral";
   icon?: ReactNode;
   isLoading?: boolean;
+  accentColor?: string;
 }
 
 export const StatsCard = ({
@@ -17,39 +18,45 @@ export const StatsCard = ({
   trend,
   icon,
   isLoading,
+  accentColor = "#0ea894",
 }: StatsCardProps) => {
+  const TrendIcon =
+    trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
+  const trendColor =
+    trend === "up"
+      ? "text-[#0ea894]"
+      : trend === "down"
+      ? "text-red-500"
+      : "text-[#84908a]";
+
   return (
-    <Card className="p-1 border border-muted gap-1">
-      <div className="flex items-center justify-between border border-muted rounded-lg">
-        <div className="p-3 pb-[.6rem] space-y-1">
-          <div className="flex items-center justify-between">
-            <p className="text-xs leading-[125%] text-foreground font-normal">
-              {title}
-            </p>
-          </div>
-          {isLoading ? (
-            <div className="h-8 w-16 bg-gray-200 animate-pulse rounded my-1" />
-          ) : (
-            <p className="text-xl leading-[150%] font-bold">{value}</p>
-          )}
-        </div>
-        {icon}
-      </div>
-      {subtitle && (
-        <div className="p-2.5 px-3 border border-muted rounded">
-          <p
-            className={`mt-auto text-[.8rem] leading-[100%] ${
-              trend === "up"
-                ? "text-success"
-                : trend === "down"
-                ? "text-destructive"
-                : "text-muted-foreground"
-            }`}
+    <div className="flex flex-col gap-3 rounded-[12px] border border-black/[0.08] bg-white p-5 shadow-[0_4px_16px_rgba(14,28,23,0.04)]">
+      <div className="flex items-start justify-between">
+        <p className="text-[12px] font-medium text-[#68726d]">{title}</p>
+        {icon && (
+          <div
+            className="flex size-10 shrink-0 items-center justify-center rounded-[10px]"
+            style={{ backgroundColor: `${accentColor}15` }}
           >
-            {subtitle}
-          </p>
+            {icon}
+          </div>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="h-7 w-24 animate-pulse rounded-[6px] bg-[#f0f2f1]" />
+      ) : (
+        <p className="text-[22px] font-bold leading-none tracking-tight text-[#0b100e]">
+          {value}
+        </p>
+      )}
+
+      {subtitle && (
+        <div className={`flex items-center gap-1.5 text-[11px] ${trendColor}`}>
+          <TrendIcon className="size-3 shrink-0" strokeWidth={2.5} />
+          <span>{subtitle}</span>
         </div>
       )}
-    </Card>
+    </div>
   );
 };

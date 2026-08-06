@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
@@ -49,49 +50,49 @@ const STATUS_CONFIG: Record<
 > = {
   active: {
     label: "Active",
-    classes: "text-emerald-600 bg-emerald-50 border border-emerald-100",
+    classes: "text-[#087f70] bg-[#f0faf8] border border-[#e7f6f2]",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
   deactivated: {
     label: "Deactivated",
-    classes: "text-gray-600 bg-gray-50 border border-gray-200",
+    classes: "text-[#68726d] bg-[#f9faf9] border border-black/[0.08]",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
   approved: {
     label: "Approved",
-    classes: "text-emerald-600 bg-emerald-50 border border-emerald-100",
+    classes: "text-[#087f70] bg-[#f0faf8] border border-[#e7f6f2]",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
   pending: {
     label: "Pending",
-    classes: "text-amber-500 bg-amber-50 border border-amber-100",
+    classes: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
   flagged: {
     label: "Flagged",
-    classes: "text-orange-500 bg-orange-50 border border-orange-100",
+    classes: "text-[#d33d44] bg-[#fdf2f2] border border-[#fbd5d5]",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
   invited: {
     label: "Invited",
-    classes: "text-gray-500 bg-gray-100 border border-gray-200",
+    classes: "text-[#68726d] bg-[#f9faf9] border border-black/[0.08]",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
   onboarding: {
     label: "Onboarding",
-    classes: "text-blue-500 bg-blue-50 border border-blue-100",
+    classes: "text-[#0066cc] bg-[#f0f6ff] border border-[#d6e7ff]",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
   rejected: {
     label: "Rejected",
-    classes: "text-red-500 bg-red-50 border border-red-100",
+    classes: "text-[#d33d44] bg-[#fdf2f2] border border-[#fbd5d5]",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
@@ -136,15 +137,15 @@ function ActionMenu({ vendor, onAction }: { vendor: Vendor; onAction: (v: Vendor
     <div className="relative" ref={ref}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors cursor-pointer"
+        className="w-8 h-8 rounded-[8px] flex items-center justify-center text-[#84908a] hover:bg-[#f5f7f6] hover:text-[#0b100e] transition-colors cursor-pointer border border-transparent hover:border-black/[0.08]"
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
       {open && (
-        <div className="absolute right-0 top-9 z-50 bg-white border border-border rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.10)] w-48 overflow-hidden">
+        <div className="absolute right-0 top-9 z-50 bg-white border border-black/[0.08] rounded-[12px] shadow-[0_4px_24px_rgba(0,0,0,0.10)] w-48 overflow-hidden p-1">
           <button
             onClick={() => { onAction(vendor, cfg.actionLabel); setOpen(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted/40 transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2 text-[13px] text-[#0b100e] hover:bg-[#f5f7f6] rounded-[6px] transition-colors"
           >
             {cfg.actionIcon}
             {cfg.actionLabel}
@@ -156,7 +157,7 @@ function ActionMenu({ vendor, onAction }: { vendor: Vendor; onAction: (v: Vendor
                 onAction(vendor, "Resend Invitation"); 
                 setOpen(false); 
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted/40 transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2 text-[13px] text-[#0b100e] hover:bg-[#f5f7f6] rounded-[6px] transition-colors"
             >
               <Mail className="w-4 h-4" />
               Resend Invitation
@@ -302,8 +303,8 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[480px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
+      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[480px] border border-black/[0.08]">
         {success ? (
           /* ── Success state ── */
           <div className="p-10 flex flex-col items-center text-center">
@@ -318,118 +319,118 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
                 </svg>
               </div>
             </div>
-            <h2 className="text-xl font-bold text-foreground mb-2">Vendor Invite Sent</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed mb-8">
+            <h2 className="text-[18px] font-bold text-[#0b100e] mb-2">Vendor Invite Sent</h2>
+            <p className="text-[13px] text-[#68726d] leading-relaxed mb-8">
               The vendor has received an onboarding link and can now begin verification.
             </p>
             <button
               onClick={onClose}
-              className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity"
+              className="w-full h-10 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors"
             >
               Close
             </button>
           </div>
         ) : (
           /* ── Form state ── */
-          <div className="p-8">
+          <div className="p-6">
             <div className="flex items-start justify-between mb-1">
               <div>
-                <h2 className="text-xl font-bold text-foreground">Invite Vendor</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">Provide basic vendor information and invite them.</p>
+                <h2 className="text-[18px] font-bold text-[#0b100e]">Invite Vendor</h2>
+                <p className="text-[13px] text-[#68726d] mt-0.5">Provide basic vendor information and invite them.</p>
               </div>
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-full bg-muted/40 hover:bg-muted/80 flex items-center justify-center transition-colors border border-border/50 ml-4 shrink-0"
+                className="w-8 h-8 rounded-[8px] bg-[#f9faf9] hover:bg-[#f5f7f6] flex items-center justify-center transition-colors border border-black/[0.08] ml-4 shrink-0"
               >
-                <X className="w-4 h-4 text-muted-foreground" />
+                <X className="w-4 h-4 text-[#68726d]" />
               </button>
             </div>
 
-            <div className="w-full h-px bg-border/60 my-5" />
+            <div className="w-full h-px bg-black/[0.08] my-5" />
 
-            <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2 pb-2">
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 pb-2">
               {/* Legal Name */}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Legal Name</label>
+                <label className="text-[13px] font-semibold text-[#0b100e]">Legal Name</label>
                 <input
                   type="text"
                   value={legalName}
                   onChange={(e) => { setLegalName(e.target.value); setErrors(err => ({ ...err, legalName: "" })); }}
                   placeholder="e.g. Acme Supplies Limited"
-                  className={`w-full h-12 px-4 rounded-xl border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors ${
-                    errors.legalName ? "border-destructive" : "border-border"
+                  className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
+                    errors.legalName ? "border-[#d33d44]" : "border-black/[0.08]"
                   }`}
                 />
-                {errors.legalName && <p className="text-xs text-destructive">{errors.legalName}</p>}
+                {errors.legalName && <p className="text-[11px] text-[#d33d44]">{errors.legalName}</p>}
               </div>
 
               {/* Email */}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Email address</label>
+                <label className="text-[13px] font-semibold text-[#0b100e]">Email address</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setErrors(err => ({ ...err, email: "" })); }}
                   placeholder="e.g. vendor@acme.com"
-                  className={`w-full h-12 px-4 rounded-xl border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors ${
-                    errors.email ? "border-destructive" : "border-border"
+                  className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
+                    errors.email ? "border-[#d33d44]" : "border-black/[0.08]"
                   }`}
                 />
-                {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+                {errors.email && <p className="text-[11px] text-[#d33d44]">{errors.email}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 {/* First Name */}
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground">First Name</label>
+                  <label className="text-[13px] font-semibold text-[#0b100e]">First Name</label>
                   <input
                     type="text"
                     value={contactFirstName}
                     onChange={(e) => { setContactFirstName(e.target.value); setErrors(err => ({ ...err, contactFirstName: "" })); }}
                     placeholder="e.g. Jane"
-                    className={`w-full h-12 px-4 rounded-xl border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors ${
-                      errors.contactFirstName ? "border-destructive" : "border-border"
+                    className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
+                      errors.contactFirstName ? "border-[#d33d44]" : "border-black/[0.08]"
                     }`}
                   />
-                  {errors.contactFirstName && <p className="text-xs text-destructive">{errors.contactFirstName}</p>}
+                  {errors.contactFirstName && <p className="text-[11px] text-[#d33d44]">{errors.contactFirstName}</p>}
                 </div>
 
                 {/* Last Name */}
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground">Last Name</label>
+                  <label className="text-[13px] font-semibold text-[#0b100e]">Last Name</label>
                   <input
                     type="text"
                     value={contactLastName}
                     onChange={(e) => { setContactLastName(e.target.value); setErrors(err => ({ ...err, contactLastName: "" })); }}
                     placeholder="e.g. Doe"
-                    className={`w-full h-12 px-4 rounded-xl border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors ${
-                      errors.contactLastName ? "border-destructive" : "border-border"
+                    className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
+                      errors.contactLastName ? "border-[#d33d44]" : "border-black/[0.08]"
                     }`}
                   />
-                  {errors.contactLastName && <p className="text-xs text-destructive">{errors.contactLastName}</p>}
+                  {errors.contactLastName && <p className="text-[11px] text-[#d33d44]">{errors.contactLastName}</p>}
                 </div>
               </div>
 
               {/* Country */}
               <div className="space-y-1.5" ref={countryRef}>
-                <label className="text-sm font-medium text-foreground">Country</label>
+                <label className="text-[13px] font-semibold text-[#0b100e]">Country</label>
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() => setCountryOpen(v => !v)}
-                    className={`w-full h-12 px-4 rounded-xl border text-sm text-left flex items-center justify-between transition-colors border-border hover:border-border/80 text-foreground`}
+                    className={`w-full h-10 px-3 rounded-[8px] border text-[13px] text-left flex items-center justify-between transition-colors border-black/[0.08] hover:border-black/[0.12] text-[#0b100e] bg-white`}
                   >
                     {country}
-                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${countryOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown className={`w-4 h-4 text-[#84908a] transition-transform ${countryOpen ? "rotate-180" : ""}`} />
                   </button>
                   {countryOpen && (
-                    <div className="absolute left-0 right-0 top-13 z-50 bg-white border border-border rounded-xl shadow-lg overflow-y-auto max-h-64 mt-1">
+                    <div className="absolute left-0 right-0 top-11 z-50 bg-white border border-black/[0.08] rounded-[10px] shadow-lg overflow-y-auto max-h-64 mt-1 p-1">
                       {SUPPORTED_COUNTRIES.map((c) => (
                         <button
                           key={c.name}
                           type="button"
                           onClick={() => handleCountryChange(c)}
-                          className="w-full text-left px-4 py-3 text-sm text-foreground hover:bg-muted/40 transition-colors border-b last:border-0 border-border/50"
+                          className="w-full text-left px-3 py-2 text-[13px] text-[#0b100e] hover:bg-[#f5f7f6] rounded-[6px] transition-colors"
                         >
                           {c.name} ({c.code})
                         </button>
@@ -441,28 +442,28 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
 
               {/* Phone */}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Phone Number</label>
+                <label className="text-[13px] font-semibold text-[#0b100e]">Phone Number</label>
                 <input
                   type="text"
                   value={phone}
                   onChange={(e) => { setPhone(e.target.value); setErrors(err => ({ ...err, phone: "" })); }}
                   placeholder="e.g. +2348000000000"
-                  className={`w-full h-12 px-4 rounded-xl border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors ${
-                    errors.phone ? "border-destructive" : "border-border"
+                  className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
+                    errors.phone ? "border-[#d33d44]" : "border-black/[0.08]"
                   }`}
                 />
-                {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+                {errors.phone && <p className="text-[11px] text-[#d33d44]">{errors.phone}</p>}
               </div>
 
               {/* Description */}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Description (Optional)</label>
+                <label className="text-[13px] font-semibold text-[#0b100e]">Description (Optional)</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g. Primary stationery vendor"
                   rows={3}
-                  className="w-full p-4 rounded-xl border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors resize-none"
+                  className="w-full p-3 rounded-[8px] border border-black/[0.08] text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors resize-none"
                 />
               </div>
             </div>
@@ -470,7 +471,7 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="mt-8 w-full h-12 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md shadow-primary/20"
+              className="mt-6 w-full h-10 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
             >
               {loading ? (
                 <>
@@ -538,52 +539,54 @@ function VendorTable({
     );
   }
 
+  const portalTarget =
+    typeof window !== "undefined" ? document.getElementById("tab-actions") : null;
+
+  const searchBar = (
+    <div className="flex sm:flex-row flex-col items-center gap-2">
+      <div className="relative w-full sm:w-64">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search vendors..."
+          className="w-full h-9 pl-9 pr-4 rounded-[8px] border border-black/[0.08] bg-white text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors"
+        />
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4 mt-4">
-      {/* Search + Filter row */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search..."
-            className="w-full h-10 pl-10 pr-4 rounded-xl border border-border bg-white text-sm placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
-          />
-        </div>
-        <button className="h-10 px-4 rounded-xl border border-border bg-white text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors flex items-center gap-2">
-          <SlidersHorizontal className="w-4 h-4" />
-          Filter
-          <ChevronDown className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      {/* Portal search into tab-actions slot (same as People/Policies), fallback inline */}
+      {portalTarget ? createPortal(searchBar, portalTarget) : searchBar}
 
       {/* Table */}
       {filtered.length === 0 ? (
         <VendorEmptyState filtered={vendors.length > 0} />
       ) : (
-        <div className="rounded-xl border border-border overflow-visible">
+        <div className="rounded-[14px] border border-black/[0.08] overflow-hidden bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-muted/30 border-b border-border">
+              <tr className="bg-[#f9faf9] border-b border-black/[0.08]">
                 {["VENDOR NAME", "REG NO.", "EMAIL", "INVITED ON", "STATUS", "LAST UPDATED", "ACTION"].map((h) => (
-                  <th key={h} className="px-4 py-3.5 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-widest whitespace-nowrap">
+                  <th key={h} className="px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap">
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/50">
+            <tbody className="divide-y divide-black/[0.06]">
               {paginatedData.map((v) => (
-                <tr key={v.id} onClick={() => onAction(v, "View Details")} className="hover:bg-muted/20 transition-colors cursor-pointer">
-                  <td className="px-4 py-4 font-semibold text-foreground">{v.vendorName}</td>
-                  <td className="px-4 py-4 text-muted-foreground">{v.regNo}</td>
-                  <td className="px-4 py-4 text-muted-foreground">{v.email}</td>
-                  <td className="px-4 py-4 text-muted-foreground whitespace-nowrap">{v.invitedOn}</td>
-                  <td className="px-4 py-4"><StatusBadge status={v.status} /></td>
-                  <td className="px-4 py-4 text-muted-foreground whitespace-nowrap">{v.lastUpdated}</td>
-                  <td className="px-4 py-4">
+                <tr key={v.id} onClick={() => onAction(v, "View Details")} className="hover:bg-[#f5f7f6] transition-colors cursor-pointer group">
+                  <td className="px-5 py-4 font-semibold text-[#0b100e]">{v.vendorName}</td>
+                  <td className="px-5 py-4 text-[#68726d]">{v.regNo}</td>
+                  <td className="px-5 py-4 text-[#68726d]">{v.email}</td>
+                  <td className="px-5 py-4 text-[#68726d] whitespace-nowrap">{v.invitedOn}</td>
+                  <td className="px-5 py-4"><StatusBadge status={v.status} /></td>
+                  <td className="px-5 py-4 text-[#68726d] whitespace-nowrap">{v.lastUpdated}</td>
+                  <td className="px-5 py-4">
                     <ActionMenu vendor={v} onAction={onAction} />
                   </td>
                 </tr>
@@ -592,26 +595,26 @@ function VendorTable({
           </table>
 
           {/* Pagination row */}
-          <div className="px-4 py-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground bg-muted/10">
+          <div className="px-5 py-3 border-t border-black/[0.08] flex items-center justify-between text-[13px] text-[#68726d] bg-[#f9faf9]">
             <span>Showing {paginatedData.length} entries on page {currentPage} of {totalPages}</span>
             <div className="flex items-center gap-1">
               <button
                 disabled={currentPage <= 1}
                 onClick={() => onPageChange(currentPage - 1)}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${
-                  currentPage <= 1 ? "opacity-50 cursor-not-allowed" : "hover:bg-muted/60 text-muted-foreground"
+                className={`px-3 py-1.5 rounded-[8px] transition-colors border border-transparent ${
+                  currentPage <= 1 ? "opacity-50 cursor-not-allowed" : "hover:bg-white hover:border-black/[0.08] hover:text-[#0b100e]"
                 }`}
               >
                 Previous
               </button>
-              <button className="px-3 py-1.5 rounded-lg transition-colors bg-primary text-primary-foreground font-semibold">
+              <button className="px-3 py-1.5 rounded-[8px] transition-colors bg-[#087f70] text-white font-semibold">
                 {currentPage}
               </button>
               <button
                 disabled={currentPage >= totalPages}
                 onClick={() => onPageChange(currentPage + 1)}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${
-                  currentPage >= totalPages ? "opacity-50 cursor-not-allowed" : "hover:bg-muted/60 text-muted-foreground"
+                className={`px-3 py-1.5 rounded-[8px] transition-colors border border-transparent ${
+                  currentPage >= totalPages ? "opacity-50 cursor-not-allowed" : "hover:bg-white hover:border-black/[0.08] hover:text-[#0b100e]"
                 }`}
               >
                 Next
@@ -771,26 +774,30 @@ function VendorPage() {
     {
       title: "Total Vendors",
       value: stats.total.toString(),
-      icon: <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white shrink-0 bg-[#384A57]"><Users className="w-4 h-4" /></div>,
-      subtitle: <span className="text-xs leading-[125%]">All vendors added</span>,
+      accent: "#0b100e",
+      icon: Users,
+      subtitle: <span className="text-[11px] text-[#68726d]">All vendors added</span>,
     },
     {
       title: "Approved Vendors",
       value: stats.verified.toString(),
-      icon: <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white shrink-0 bg-[#5A67D8]"><BadgeCheck className="w-4 h-4" /></div>,
-      subtitle: <span className="text-xs leading-[125%]">Vendors fully approved</span>,
+      accent: "#087f70",
+      icon: BadgeCheck,
+      subtitle: <span className="text-[11px] text-[#68726d]">Vendors fully approved</span>,
     },
     {
       title: "Approval Pending",
       value: stats.pending.toString(),
-      icon: <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white shrink-0 bg-[#F45B69]"><Clock className="w-4 h-4" /></div>,
-      subtitle: <span className="text-xs leading-[125%]">Vendors who submitted onboarding</span>,
+      accent: "#f0b132",
+      icon: Clock,
+      subtitle: <span className="text-[11px] text-[#68726d]">Vendors who submitted onboarding</span>,
     },
     {
       title: "Rejected Vendors",
       value: stats.rejected.toString(),
-      icon: <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white shrink-0 bg-[#38B2AC]"><XCircle className="w-4 h-4" /></div>,
-      subtitle: <span className="text-xs leading-[125%]">Total number of vendors rejected</span>,
+      accent: "#d33d44",
+      icon: XCircle,
+      subtitle: <span className="text-[11px] text-[#68726d]">Total number of vendors rejected</span>,
     },
   ];
 
@@ -799,14 +806,15 @@ function VendorPage() {
       <InviteVendorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} onSuccess={() => fetchVendors()} />
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {statCards.map((s) => (
           <StatsCard
             key={s.title}
             isLoading={isLoading}
             title={s.title}
             value={s.value}
-            icon={s.icon}
+            accentColor={s.accent}
+            icon={<s.icon className="w-4 h-4" style={{ color: s.accent }} />}
             subtitle={s.subtitle}
           />
         ))}
@@ -814,13 +822,18 @@ function VendorPage() {
 
       {/* Tabs + Table */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-muted/50 p-1 h-auto rounded-lg">
-          <TabsTrigger value="all"          className="data-[state=active]:bg-background rounded-md px-5">All Vendors</TabsTrigger>
-          <TabsTrigger value="verified"     className="data-[state=active]:bg-background rounded-md px-5">Approved</TabsTrigger>
-          <TabsTrigger value="invited"      className="data-[state=active]:bg-background rounded-md px-5">Invited</TabsTrigger>
-          <TabsTrigger value="under_review" className="data-[state=active]:bg-background rounded-md px-5">Pending</TabsTrigger>
-          <TabsTrigger value="rejected"     className="data-[state=active]:bg-background rounded-md px-5">Rejected</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex">
+            <TabsTrigger value="all"          className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">All Vendors</TabsTrigger>
+            <TabsTrigger value="verified"     className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">Approved</TabsTrigger>
+            <TabsTrigger value="invited"      className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">Invited</TabsTrigger>
+            <TabsTrigger value="under_review" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">Pending</TabsTrigger>
+            <TabsTrigger value="rejected"     className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">Rejected</TabsTrigger>
+          </TabsList>
+
+          {/* Search bar portals here */}
+          <div id="tab-actions" className="flex items-center gap-2" />
+        </div>
 
         {["all", "verified", "invited", "under_review", "rejected"].map((tab) => (
           <TabsContent key={tab} value={tab}>
