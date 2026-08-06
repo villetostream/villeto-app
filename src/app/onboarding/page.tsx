@@ -1,37 +1,8 @@
 "use client";
 
-
-
 import { useRouter } from "next/navigation";
 import { ArrowRight, Building2, Clock3, Landmark, ShieldCheck, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 const setupItems = [
