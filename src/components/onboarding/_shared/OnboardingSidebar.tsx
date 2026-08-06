@@ -1,8 +1,9 @@
-"use client"
+"use client";
 
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { Check, ShieldCheck } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
 import { Check, ShieldCheck } from "lucide-react";
 
