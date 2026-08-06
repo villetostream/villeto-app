@@ -101,7 +101,7 @@ export function ProcurementPolicyWizard({
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
       {/* Stepper */}
-      <div className="shrink-0 z-40 bg-card">
+      <div className="shrink-0 z-40 bg-white">
         <div className="max-w-5xl w-full mx-auto px-6 pt-8 pb-4">
           <Stepper currentStep={step} />
         </div>
@@ -158,19 +158,23 @@ export function ProcurementPolicyWizard({
       </div>
 
       {/* Footer navigation */}
-      <div className="shrink-0 z-10 w-full bg-card">
-        <div className="max-w-5xl w-full mx-auto px-6 py-5 border-t border-border flex items-center justify-end gap-3">
-          <Button variant="outline" className="rounded-xl h-11 px-7" onClick={goBack} disabled={createPolicy.isPending}>
+      <div className="shrink-0 z-10 w-full bg-white">
+        <div className="max-w-5xl w-full mx-auto px-6 py-5 border-t border-black/[0.06] flex items-center justify-end gap-3">
+          <button
+            onClick={goBack}
+            disabled={createPolicy.isPending}
+            className="h-11 px-7 rounded-[14px] border border-black/[0.06] bg-white text-[#0b100e] hover:bg-[#f9faf9] font-semibold text-sm transition-colors disabled:opacity-50"
+          >
             Back
-          </Button>
-          <Button
-            className="rounded-xl h-11 px-7 min-w-[140px]"
+          </button>
+          <button
             onClick={goNext}
             disabled={!canContinue() || createPolicy.isPending}
+            className="h-11 px-7 min-w-[140px] rounded-[14px] bg-[#087f70] text-white hover:opacity-90 font-semibold text-sm transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {createPolicy.isPending ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
                 Creating…
               </>
             ) : step === TOTAL_STEPS ? (
@@ -178,7 +182,7 @@ export function ProcurementPolicyWizard({
             ) : (
               "Continue"
             )}
-          </Button>
+          </button>
         </div>
       </div>
     </div>

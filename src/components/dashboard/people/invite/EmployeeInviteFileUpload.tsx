@@ -24,7 +24,7 @@ export default function EmployeeInviteFileUpload({
 
     const onDrop = useCallback((acceptedFiles: File[], fileRejections: FileRejection[]) => {
         setError(null);
-        
+
         if (fileRejections.length > 0) {
             const rejection = fileRejections[0];
             if (rejection.errors[0]?.code === "file-too-large") {
@@ -45,62 +45,78 @@ export default function EmployeeInviteFileUpload({
         accept,
         maxSize,
         multiple: false,
-        noClick: true // We'll handle click with a button
+        noClick: true
     });
 
     return (
         <div className="w-full">
-            <div className="mb-4 border-b border-gray-200 pb-3">
-                <h1 className="text-2xl font-bold text-gray-900">Upload Your Organization Directory</h1>
-                <p className="text-gray-500 mt-1">
-                    Add your team members to your organization before sending invitations. This separate directory <br /> setup from account activation.
+            {/* Header */}
+            <div className="mb-5 border-b border-black/[0.06] pb-4">
+                <h1 className="text-[20px] font-semibold text-[#0b100e] leading-tight tracking-[-0.02em]">
+                    Upload Your Organisation Directory
+                </h1>
+                <p className="text-[13px] text-[#66706b] mt-1.5 leading-relaxed">
+                    Add your team members to your organisation before sending invitations. Directory setup is separate from account activation.
                 </p>
             </div>
-                        
-            <div className="flex justify-end mb-2">
+
+            {/* Download template */}
+            <div className="flex justify-end mb-3">
                 <a
                     href="/Template.csv"
                     download="Template.csv"
                     data-tour="download-template-link"
-                    className="inline-flex items-center gap-1.5 text-sm text-[#00BFA5] hover:underline font-medium py-2"
+                    className="inline-flex items-center gap-1.5 text-[13px] text-[#087f70] hover:text-[#065f55] font-semibold transition-colors py-1"
                 >
-                    <Download className="h-4 w-4" /> Download a Template
+                    <Download className="h-3.5 w-3.5" />
+                    Download Template
                 </a>
             </div>
+
+            {/* Dropzone */}
             <div
                 {...getRootProps()}
                 data-tour="csv-upload-zone"
                 className={`
-                    border-2 border-dashed rounded-lg py-6 px-6 text-center transition-all duration-200 ease-in-out
-                    flex flex-col items-center justify-center gap-3
-                    ${isDragActive ? "border-primary bg-primary/10" : "border-primary/40 bg-white"}
+                    border-2 border-dashed rounded-[14px] py-10 px-6 text-center transition-all duration-200 ease-in-out
+                    flex flex-col items-center justify-center gap-4
+                    ${isDragActive
+                        ? "border-[#0ea894] bg-[#e7f6f2]/60 shadow-[inset_0_0_0_1px_rgba(14,168,148,0.2)]"
+                        : "border-[#0ea894]/25 bg-[#f9faf9] hover:border-[#0ea894]/50 hover:bg-[#e7f6f2]/20"
+                    }
                 `}
             >
                 <input {...getInputProps()} />
-                
-                <div className="bg-gray-100 p-3 rounded-full">
-                    <UploadCloud className="w-7 h-7 text-gray-500" />
+
+                <div className={`w-14 h-14 rounded-[14px] flex items-center justify-center transition-colors ${isDragActive ? "bg-[#e7f6f2]" : "bg-white border border-black/[0.08]"}`}>
+                    <UploadCloud className={`w-6 h-6 transition-colors ${isDragActive ? "text-[#0ea894]" : "text-[#84908a]"}`} strokeWidth={1.7} />
                 </div>
-                
-                <h3 className="text-lg font-semibold text-gray-900">Upload CSV or Excel File</h3>
-                <p className="text-sm text-gray-500 max-w-sm">
-                    Upload a file with user information to invite multiple users at once
-                </p>
-                
-                <Button 
-                    variant="outline" 
-                    className="mt-4 border-primary text-primary hover:bg-primary/10 min-w-[140px]"
+
+                <div className="space-y-1">
+                    <h3 className="text-[15px] font-semibold text-[#0b100e]">
+                        {isDragActive ? "Drop your file here" : "Upload CSV or Excel File"}
+                    </h3>
+                    <p className="text-[13px] text-[#66706b] max-w-xs">
+                        Drag and drop your file, or click Browse to select it from your computer
+                    </p>
+                </div>
+
+                <Button
+                    variant="outline"
+                    className="h-[42px] rounded-[10px] border-[#0ea894]/40 text-[#087f70] hover:bg-[#e7f6f2] hover:border-[#0ea894]/60 text-[13px] font-semibold px-6 transition-all"
                     onClick={open}
                 >
                     Browse File
                 </Button>
 
+                <p className="text-[11px] text-[#84908a]">CSV, XLS, XLSX up to {Math.round(maxSize / 1024 / 1024)} MB</p>
+
                 {error && (
-                    <p className="text-sm text-red-500 mt-2">{error}</p>
+                    <p className="text-[12px] text-red-500 flex items-center gap-1.5 bg-red-50 rounded-[8px] px-3 py-2 border border-red-200/60">
+                        {error}
+                    </p>
                 )}
             </div>
-            
-          
         </div>
     );
 }

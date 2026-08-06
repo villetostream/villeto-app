@@ -65,6 +65,7 @@ export interface OnboardingState {
     preOnboarding?: z.infer<typeof registrationSchema> | null;
     isExistingUser: boolean;
     stoppedAtStep: number | null;
+    isOwnershipCapped: boolean | null;
 }
 
 interface VilletoState {
@@ -95,6 +96,7 @@ interface VilletoState {
     addConnectedAccount: (account: ConnectedAccount) => void;
     removeConnectedAccount: (id: string) => void;
     setShowConnectModal: (show: boolean) => void;
+    setIsOwnershipCapped: (val: boolean | null) => void;
     reset: () => void;
 }
 
@@ -110,6 +112,7 @@ const initialState: OnboardingState = {
     showConnectModal: false,
     isExistingUser: false,
     stoppedAtStep: null,
+    isOwnershipCapped: null,
     selfOwner: null,
     businessSnapshot: {
         businessName: '',
@@ -145,6 +148,7 @@ export const useOnboardingStore = create<VilletoState & OnboardingState>()(
             setOnboardingId: (id) => set({ onboardingId: id }),
             setContactEmail: (email) => set({ contactEmail: email }),
             setPreOnboarding: (data) => set({ preOnboarding: data }),
+            setIsOwnershipCapped: (val) => set({ isOwnershipCapped: val }),
 
             setMonthlySpend: (spend: number, rangeLabel?: string) => 
                 set((state) => ({ 

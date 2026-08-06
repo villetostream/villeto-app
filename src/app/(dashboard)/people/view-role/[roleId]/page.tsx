@@ -20,37 +20,37 @@ import toast from "react-hot-toast";
 function CapabilityGroupCard({ group, index }: { group: CapabilityGroup; index: number }) {
     const [expanded, setExpanded] = useState(false);
     return (
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="border border-black/[0.08] rounded-[12px] overflow-hidden bg-white">
             <div
                 onClick={() => setExpanded(v => !v)}
-                className="w-full flex items-start justify-between p-4 text-left hover:bg-slate-50 transition-colors cursor-pointer select-none"
+                className="w-full flex items-start justify-between p-4 text-left hover:bg-[#f5f7f6] transition-colors cursor-pointer select-none"
             >
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                     <Checkbox
                         checked={true}
                         disabled
-                        className="mt-0.5 w-4 h-4 border-2 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary shrink-0"
+                        className="mt-0.5 w-4 h-4 border-2 border-[#0ea894] data-[state=checked]:border-[#0ea894] data-[state=checked]:bg-[#0ea894] shrink-0"
                     />
                     <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800">{index}. {group.name}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{group.description}</p>
+                        <p className="text-[13px] font-semibold text-[#0b100e]">{index}. {group.name}</p>
+                        <p className="text-[12px] text-[#66706b] mt-0.5">{group.description}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
-                    <span className="text-xs text-slate-400">{group.permissions.length} permissions</span>
+                    <span className="text-[11px] text-[#84908a]">{group.permissions.length} permissions</span>
                     {expanded
-                        ? <ChevronUp className="w-4 h-4 text-slate-400" />
-                        : <ChevronDown className="w-4 h-4 text-slate-400" />
+                        ? <ChevronUp className="w-4 h-4 text-[#84908a]" />
+                        : <ChevronDown className="w-4 h-4 text-[#84908a]" />
                     }
                 </div>
             </div>
             {expanded && (
-                <div className="border-t border-slate-100 bg-slate-50/60 px-4 pb-4 pt-3">
+                <div className="border-t border-black/[0.05] bg-[#f9faf9] px-4 pb-4 pt-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
                         {group.permissions.map(p => (
                             <div key={p.permissionId} className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
-                                <span className="text-xs text-slate-600">{formatPermissionName(p.name)}</span>
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#0ea894]/60 shrink-0" />
+                                <span className="text-[12px] text-[#66706b]">{formatPermissionName(p.name)}</span>
                             </div>
                         ))}
                     </div>
@@ -72,9 +72,9 @@ function ModuleSection({ moduleName, groups }: { moduleName: string; groups: Cap
                 onClick={() => setOpen(v => !v)}
                 className="flex items-center gap-2 w-full text-left"
             >
-                <span className="text-sm font-bold text-slate-700 uppercase tracking-widest">{label}</span>
-                <div className="flex-1 h-px bg-slate-200" />
-                {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                <span className="text-[11px] font-bold text-[#84908a] uppercase tracking-[0.1em]">{label}</span>
+                <div className="flex-1 h-px bg-black/[0.06]" />
+                {open ? <ChevronUp className="w-4 h-4 text-[#84908a]" /> : <ChevronDown className="w-4 h-4 text-[#84908a]" />}
             </button>
             {open && (
                 <div className="space-y-2">
@@ -112,7 +112,7 @@ function ViewRolePage() {
         return (
             <div className="p-6">
                 <div className="flex items-center justify-center h-64">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0ea894]" />
                 </div>
             </div>
         );
@@ -158,7 +158,7 @@ function ViewRolePage() {
                         <Button
                             variant="destructive"
                             size="sm"
-                            className="gap-2"
+                            className="gap-2 h-9 rounded-[8px] text-[13px] font-semibold"
                             onClick={() => setDeleteModalOpen(true)}
                         >
                             Delete Role
@@ -169,10 +169,10 @@ function ViewRolePage() {
                         <Button
                             variant="outline"
                             size="sm"
-                            className="gap-2 border-primary text-primary hover:bg-primary/5 bg-white"
+                            className="gap-2 h-9 rounded-[8px] border-[#0ea894]/30 text-[#087f70] hover:bg-[#e7f6f2] hover:border-[#0ea894]/50 bg-white text-[13px] font-semibold"
                             onClick={() => router.push(`/people/create-role?id=${roleId}`)}
                         >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-3.5 h-3.5" />
                             Edit Role
                         </Button>
                     </PermissionGuard>
@@ -183,34 +183,34 @@ function ViewRolePage() {
                 {/* Sidebar */}
                 <aside className="space-y-4 md:sticky md:top-24 self-start">
                     {/* Role Card */}
-                    <div className="w-full flex items-center justify-between p-4 border-2 border-primary rounded-xl bg-white">
+                    <div className="w-full flex items-center justify-between p-4 border border-[#0ea894]/25 rounded-[14px] bg-[#e7f6f2]/30">
                         <div>
                             <div className="flex items-center gap-2 mb-1">
-                                <p className="font-semibold text-primary capitalize">{roleName}</p>
+                                <p className="font-semibold text-[#087f70] capitalize">{roleName}</p>
                                 <Badge variant={role.isActive ? "active" : "inactive"} className="text-xs">
                                     {role.isActive ? "Active" : "Inactive"}
                                 </Badge>
                             </div>
-                            <p className="text-sm text-slate-500 first-letter:uppercase">
+                            <p className="text-[13px] text-[#66706b] first-letter:uppercase">
                                 {role.description || "No description provided."}
                             </p>
                             {role.source && (
-                                <p className="text-xs text-slate-400 mt-1 capitalize">
+                                <p className="text-[11px] text-[#84908a] mt-1 capitalize">
                                     {role.isDefault ? "Default" : "Custom"} · {role.source.replace(/_/g, ' ')}
                                 </p>
                             )}
                         </div>
-                        <ChevronRight className="w-5 h-5 text-primary flex-shrink-0" />
+                        <ChevronRight className="w-5 h-5 text-[#0ea894] flex-shrink-0" />
                     </div>
 
                     {/* User Count */}
-                    <div className="border border-slate-200 rounded-xl p-4">
+                    <div className="border border-black/[0.08] rounded-[12px] p-4 bg-white">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-slate-700">Assigned Users</span>
-                            <span className="text-sm font-bold text-primary">{totalUsers}</span>
+                            <span className="text-[13px] font-semibold text-[#0b100e]">Assigned Users</span>
+                            <span className="text-[13px] font-bold text-[#087f70]">{totalUsers}</span>
                         </div>
                         {totalUsers === 0 && (
-                            <p className="text-xs text-slate-400 mt-1">No users assigned to this role yet.</p>
+                            <p className="text-[12px] text-[#84908a] mt-1">No users assigned to this role yet.</p>
                         )}
                     </div>
                 </aside>
@@ -220,8 +220,8 @@ function ViewRolePage() {
                     {/* Section: Capabilities by Module */}
                     <div className="space-y-5">
                         <div className="flex items-center gap-2">
-                            <h2 className="text-lg font-semibold text-slate-800">Capabilities</h2>
-                            <span className="text-xs text-slate-400 font-normal">(grouped by module)</span>
+                            <h2 className="text-[15px] font-semibold text-[#0b100e]">Capabilities</h2>
+                            <span className="text-[11px] text-[#84908a] font-normal">(grouped by module)</span>
                         </div>
 
                         {hasCapabilities ? (
@@ -233,13 +233,13 @@ function ViewRolePage() {
                                 )}
                             </div>
                         ) : (
-                            <div className="border border-dashed border-slate-200 rounded-xl p-8 text-center">
-                                <p className="text-sm text-slate-400">No capability groups assigned to this role.</p>
+                            <div className="border border-dashed border-black/[0.08] rounded-[12px] p-8 text-center">
+                                <p className="text-[13px] text-[#84908a]">No capability groups assigned to this role.</p>
                                 <PermissionGuard resource="role" action="manage">
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="mt-3"
+                                        className="mt-3 border-[#0ea894]/30 text-[#087f70] hover:bg-[#e7f6f2] rounded-[8px] text-[13px] font-semibold"
                                         onClick={() => router.push(`/people/create-role?id=${roleId}`)}
                                     >
                                         Assign Capabilities
@@ -253,13 +253,13 @@ function ViewRolePage() {
                     {hasDirectPermissions && (
                         <div className="space-y-5">
                             <div className="flex items-center gap-2">
-                                <h2 className="text-lg font-semibold text-slate-800">Direct Permissions</h2>
-                                <span className="text-xs text-slate-400 font-normal">(individually assigned)</span>
+                                <h2 className="text-[15px] font-semibold text-[#0b100e]">Direct Permissions</h2>
+                                <span className="text-[11px] text-[#84908a] font-normal">(individually assigned)</span>
                             </div>
-                            <div className="border border-slate-200 rounded-xl p-5 space-y-6">
+                            <div className="border border-black/[0.08] rounded-[12px] p-5 space-y-6 bg-white">
                                 {permissionGroups.map(group => (
                                     <div key={group.resource} className="space-y-3">
-                                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                        <h3 className="text-[11px] font-bold text-[#84908a] uppercase tracking-[0.1em]">
                                             {formatPermissionName(group.resource)}
                                         </h3>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-8">
@@ -268,9 +268,9 @@ function ViewRolePage() {
                                                     <Checkbox
                                                         checked
                                                         disabled
-                                                        className="w-4 h-4 border-2 border-primary data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+                                                        className="w-4 h-4 border-2 border-[#0ea894] data-[state=checked]:border-[#0ea894] data-[state=checked]:bg-[#0ea894]"
                                                     />
-                                                    <label className="text-sm text-slate-600">
+                                                    <label className="text-[13px] text-[#66706b]">
                                                         {formatPermissionName(p.name)}
                                                     </label>
                                                 </div>
@@ -283,8 +283,8 @@ function ViewRolePage() {
                     )}
 
                     {!hasCapabilities && !hasDirectPermissions && (
-                        <div className="border border-dashed border-slate-200 rounded-xl p-10 text-center">
-                            <p className="text-slate-400 text-sm">No capabilities or permissions assigned to this role.</p>
+                        <div className="border border-dashed border-black/[0.08] rounded-[12px] p-10 text-center">
+                            <p className="text-[13px] text-[#84908a]">No capabilities or permissions assigned to this role.</p>
                         </div>
                     )}
 

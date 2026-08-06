@@ -13,8 +13,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+
 import { useOnboardingStore } from "@/stores/useVilletoStore";
 import { useStartOnboardingApi } from "@/queries/pre-onboarding/get-started";
+
 import { registrationSchema } from "@/lib/schemas/schemas";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 

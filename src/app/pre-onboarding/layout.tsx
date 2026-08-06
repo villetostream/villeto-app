@@ -8,14 +8,12 @@ export const metadata: Metadata = {
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex min-h-dvh bg-white">
-      <section className="min-h-dvh w-full overflow-y-auto lg:w-[52%] xl:w-[48%]">
+    <main className="flex h-dvh overflow-hidden bg-white">
+      <section className="flex h-dvh w-full flex-col overflow-y-auto lg:w-[52%] xl:w-[48%]">
         {children}
       </section>
-
-      <aside className="relative hidden min-h-dvh flex-1 overflow-hidden bg-[#0b100e] text-white lg:flex">
+      <aside className="relative hidden h-dvh flex-1 overflow-hidden bg-[#0b100e] text-white lg:flex">
         <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
-
         <div className="relative z-10 m-auto w-full max-w-[600px] px-10 py-12 xl:px-14">
           <div className="max-w-[470px]">
             <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#6edbca]">
@@ -29,10 +27,8 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
               Move from request to policy check to controlled payment without losing the context finance needs.
             </p>
           </div>
-
           <div className="relative mt-10 max-w-[520px]">
             <div className="absolute bottom-10 left-[25px] top-10 w-px bg-white/12" />
-
             <div className="relative flex gap-4">
               <span className="z-10 flex size-[50px] shrink-0 items-center justify-center rounded-[10px] border border-white/10 bg-[#131a17] text-[#6edbca]">
                 <FileText className="size-5" strokeWidth={1.7} />
@@ -52,7 +48,6 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
                 </div>
               </div>
             </div>
-
             <div className="relative mt-3 flex gap-4">
               <span className="z-10 flex size-[50px] shrink-0 items-center justify-center rounded-[10px] border border-[#53d3c0]/25 bg-[#12312b] text-[#6edbca]">
                 <ShieldCheck className="size-5" strokeWidth={1.7} />
@@ -67,7 +62,6 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
                 </div>
               </div>
             </div>
-
             <div className="relative mt-3 flex gap-4">
               <span className="z-10 flex size-[50px] shrink-0 items-center justify-center rounded-[10px] border border-white/10 bg-[#131a17] text-[#6edbca]">
                 <CreditCard className="size-5" strokeWidth={1.7} />

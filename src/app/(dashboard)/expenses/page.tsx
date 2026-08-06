@@ -17,6 +17,8 @@ import { ErrorState } from "@/components/ui/error-state";
 import { usePersonalExpenses, useCompanyExpenses, useDraftExpenses, CompanyExpenseReport } from "@/lib/react-query/expenses";
 import { PersonalExpensesSkeleton } from "@/components/expenses/PersonalExpensesSkeleton";
 import { getCompanyColumns } from "@/components/expenses/table/companyColumns";
+import { FileText, Clock, CheckCircle2, Banknote, Search, Plus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/auth-stores";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -253,45 +255,41 @@ export default function Reimbursements() {
 
     const localStats = calculateStats(data);
     return (
-      <div className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <StatsCard isLoading={isLoadingExpenses} title="Total Expenses" value={localStats.totalExpenses.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full" aria-hidden="true"><Image src="/images/svgs/draft.svg" alt="" width={20} height={20} /></div>}
-            subtitle={<span className="text-xs leading-[125%]">All expenses submitted</span>} />
+            accentColor="#0b100e" icon={<FileText className="w-4 h-4 text-[#0b100e]" />}
+            subtitle={<span className="text-[11px] text-[#68726d]">All expenses submitted</span>} />
           <StatsCard isLoading={isLoadingExpenses} title="Pending Approvals" value={localStats.pendingApprovals.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#F45B69] rounded-full text-white" aria-hidden="true"><Image src="/images/receipt-pending.png" alt="" width={20} height={20} /></div>}
-            subtitle={<span className="text-xs leading-[125%]">Awaiting review.</span>} />
+            accentColor="#f0b132" icon={<Clock className="w-4 h-4 text-[#f0b132]" />}
+            subtitle={<span className="text-[11px] text-[#68726d]">Awaiting review.</span>} />
           <StatsCard isLoading={isLoadingExpenses} title="Approved Expenses" value={localStats.approvedExpenses.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#5A67D8] rounded-full" aria-hidden="true"><Image src="/images/svgs/submitted.svg" alt="" width={20} height={20} /></div>}
-            subtitle={<span className="text-xs leading-[125%]">Ready for payment</span>} />
+            accentColor="#087f70" icon={<CheckCircle2 className="w-4 h-4 text-[#087f70]" />}
+            subtitle={<span className="text-[11px] text-[#68726d]">Ready for payment</span>} />
           <StatsCard isLoading={isLoadingExpenses} title="Paid" value={localStats.paidExpenses.toString()}
-            icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white" aria-hidden="true"><Image src="/images/svgs/money.svg" alt="" width={20} height={20} /></div>}
-            subtitle={<span className="text-xs leading-[125%]">Completed transactions</span>} />
+            accentColor="#0ea894" icon={<Banknote className="w-4 h-4 text-[#0ea894]" />}
+            subtitle={<span className="text-[11px] text-[#68726d]">Completed transactions</span>} />
         </div>
         {!authReady || isLoading ? (
           <PersonalExpensesSkeleton showStats={false} />
         ) : error ? (
-          // Previously fell straight through to the empty-state
-          // branch below — a failed request (network drop, 500,
-          // expired session) rendered "No expense has been added",
-          // which tells the user something false about their data.
           <ErrorState error={error} onRetry={refetch} />
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <TabsList>
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="pending" className="flex items-center">
+              <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
+                <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">All</TabsTrigger>
+                <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">
                   Awaiting Approval
                   {pendingCount > 0 && (
-                    <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                    <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#d33d44] text-white text-[10px] font-bold leading-none">
                       {pendingCount > 99 ? "99+" : pendingCount}
                     </span>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="approved">Approved</TabsTrigger>
-                <TabsTrigger value="rejected">Rejected</TabsTrigger>
-                <TabsTrigger value="paid">Paid</TabsTrigger>
+                <TabsTrigger value="approved" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Approved</TabsTrigger>
+                <TabsTrigger value="rejected" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Rejected</TabsTrigger>
+                <TabsTrigger value="paid" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Paid</TabsTrigger>
               </TabsList>
               <div id="tab-actions" className="flex items-center gap-2" />
             </div>
@@ -304,11 +302,13 @@ export default function Reimbursements() {
                   columnsOverride={getCompanyColumns(scope) as ColumnDef<ExpenseTableRow>[]}
                   onFilteredDataChange={onFilterChange}
                   emptyState={
-                    <EmptyState
-                      icon={<span className="text-2xl">📋</span>}
-                      title="No expenses found"
-                      description="Try switching to a different status tab or adjusting your filters."
-                    />
+                    <div className="w-full flex justify-center flex-col items-center pb-10">
+                      <EmptyState
+                        icon={<Search className="w-6 h-6" />}
+                        title="No expenses found"
+                        description="Try switching to a different status tab or adjusting your filters."
+                      />
+                    </div>
                   }
                   scope={scope}
                 />
@@ -321,37 +321,35 @@ export default function Reimbursements() {
   };
 
   const renderPersonalExpenseTab = () => (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <StatsCard isLoading={isLoadingPersonalExpenses || isLoadingDrafts} title="Draft" value={personalStats.draft.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#384A57] rounded-full" aria-hidden="true"><Image src="/images/svgs/draft.svg" alt="" width={20} height={20} /></div>}
-          subtitle={<span className="text-xs leading-[125%]">Manage your saved items</span>} />
+          accentColor="#0b100e" icon={<FileText className="w-4 h-4 text-[#0b100e]" />}
+          subtitle={<span className="text-[11px] text-[#68726d]">Manage your saved items</span>} />
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Approved" value={personalStats.approved.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#418341] rounded-full text-white" aria-hidden="true"><Image src="/images/svgs/check.svg" alt="" width={20} height={20} /></div>}
-          subtitle={<span className="text-xs leading-[125%]">View all items reviewed.</span>} />
+          accentColor="#087f70" icon={<CheckCircle2 className="w-4 h-4 text-[#087f70]" />}
+          subtitle={<span className="text-[11px] text-[#68726d]">View all items reviewed.</span>} />
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Rejected" value={personalStats.rejected.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#F45B69] rounded-full text-white" aria-hidden="true"><Image src="/images/receipt-pending.png" alt="" width={20} height={20} /></div>}
-          subtitle={<span className="text-xs leading-[125%]">View all items Rejected.</span>} />
+          accentColor="#d33d44" icon={<Clock className="w-4 h-4 text-[#d33d44]" />}
+          subtitle={<span className="text-[11px] text-[#68726d]">View all items Rejected.</span>} />
         <StatsCard isLoading={isLoadingPersonalExpenses} title="Paid" value={personalStats.paid.toString()}
-          icon={<div className="p-1 mr-3 flex items-center justify-center bg-[#38B2AC] rounded-full text-white" aria-hidden="true"><Image src="/images/svgs/money.svg" alt="" width={20} height={20} /></div>}
-          subtitle={<span className="text-xs leading-[125%]">Access completed payments.</span>} />
+          accentColor="#0ea894" icon={<Banknote className="w-4 h-4 text-[#0ea894]" />}
+          subtitle={<span className="text-[11px] text-[#68726d]">Access completed payments.</span>} />
       </div>
       {!authReady || isLoadingPersonalExpenses || isLoadingDrafts ? (
         <PersonalExpensesSkeleton showStats={false} />
       ) : personalExpensesError ? (
-        // Same fix as the company/team tab: a fetch failure must not
-        // render the same "you have nothing" copy as a real empty list.
         <ErrorState error={personalExpensesError} onRetry={refetchPersonalExpenses} />
       ) : (
         <Tabs value={personalActiveTab} onValueChange={setPersonalActiveTab}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="pending">Pending Review</TabsTrigger>
-              <TabsTrigger value="approved">Approved</TabsTrigger>
-              <TabsTrigger value="rejected">Rejected</TabsTrigger>
-              <TabsTrigger value="paid">Paid</TabsTrigger>
-              <TabsTrigger value="draft">Draft</TabsTrigger>
+            <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
+              <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">All</TabsTrigger>
+              <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Pending Review</TabsTrigger>
+              <TabsTrigger value="approved" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Approved</TabsTrigger>
+              <TabsTrigger value="rejected" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Rejected</TabsTrigger>
+              <TabsTrigger value="paid" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Paid</TabsTrigger>
+              <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Draft</TabsTrigger>
             </TabsList>
             <div id="tab-actions" className="flex items-center gap-2" />
           </div>
@@ -362,11 +360,19 @@ export default function Reimbursements() {
                 data={personalExpenses as ExpenseTableRow[]}
                 columnsOverride={personalExpenseColumns as ColumnDef<ExpenseTableRow>[]}
                 emptyState={
-                  <EmptyState
-                    icon={<span className="text-2xl">📋</span>}
-                    title="No expenses found"
-                    description="Try switching to a different status tab or adjusting your filters."
-                  />
+                  <div className="w-full flex justify-center flex-col items-center pb-10">
+                    <EmptyState
+                      icon={<Search className="w-6 h-6" />}
+                      title="No expenses found"
+                      description="Try switching to a different status tab or adjusting your filters."
+                    />
+                    <button
+                      onClick={() => router.push("/expenses/new-report")}
+                      className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors mt-4"
+                    >
+                      <Plus className="w-4 h-4" /> Create your first expense
+                    </button>
+                  </div>
                 }
                 page={page}
               />
@@ -391,10 +397,10 @@ export default function Reimbursements() {
         </div>
       ) : (
         <Tabs value={outerTab} onValueChange={handleTabChange}>
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
-            <TabsList>
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex">
               {outerTabs.map(t => (
-                <TabsTrigger key={t.key} value={t.key} className="cursor-pointer">
+                <TabsTrigger key={t.key} value={t.key} className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full cursor-pointer">
                   {t.label}
                 </TabsTrigger>
               ))}

@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle } from "lucide-react";
 
@@ -41,7 +40,6 @@ export function RejectionModal({
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setIsLoading(false);
     onReject(trimmed);
-
     setShowSuccessToast(true);
     setTimeout(() => {
       handleClose();
@@ -57,37 +55,33 @@ export function RejectionModal({
   return (
     <>
       <Dialog open={open && !showSuccessToast} onOpenChange={handleClose}>
-        {/* rounded-2xl matches the app's modal design language */}
-        <DialogContent className="sm:max-w-md rounded-2xl">
+        <DialogContent className="sm:max-w-md rounded-[14px] border border-black/[0.08]">
           <DialogHeader>
-            <DialogTitle className="text-base font-semibold">Reject Expense Report</DialogTitle>
+            <DialogTitle className="text-[18px] font-bold text-[#0b100e]">Reject Expense Report</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5">
+          <div className="space-y-4">
             {/* Expense Summary */}
-            <div className="bg-destructive/5 rounded-xl p-4 border border-destructive/10">
-              <p className="text-xs text-muted-foreground mb-0.5">Report</p>
-              <p className="text-sm font-semibold text-foreground mb-3">{expenseTitle}</p>
-              <p className="text-xs text-muted-foreground mb-0.5">Total Amount</p>
-              <p className="text-2xl font-bold text-destructive">{expenseAmount}</p>
+            <div className="bg-[#fdf2f2] rounded-[10px] p-4 border border-[#fbd5d5]">
+              <p className="text-[11px] font-medium text-[#84908a] mb-0.5">Report</p>
+              <p className="text-[13px] font-semibold text-[#0b100e] mb-3">{expenseTitle}</p>
+              <p className="text-[11px] font-medium text-[#84908a] mb-0.5">Total Amount</p>
+              <p className="text-[22px] font-bold text-[#d33d44]">{expenseAmount}</p>
             </div>
 
             {/* Warning notice */}
-            <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
-              <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-800 leading-relaxed">
-                The submitter will be notified with your rejection reason. Make
-                it clear and actionable so they know what to fix.
+            <div className="flex items-start gap-2.5 bg-[#fff9e6] border border-[#ffe099] rounded-[8px] px-3 py-2.5">
+              <AlertCircle className="w-4 h-4 text-[#b27b00] mt-0.5 shrink-0" />
+              <p className="text-[12px] text-[#b27b00] leading-relaxed">
+                The submitter will be notified with your rejection reason. Make it clear and actionable so they know what to fix.
               </p>
             </div>
 
             {/* Rejection Reason textarea */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-foreground">
-                  Reason for Rejection
-                </label>
-                <span className={`text-xs ${trimmed.length < MIN_REASON_LENGTH ? "text-muted-foreground" : "text-emerald-600"}`}>
+                <label className="text-[13px] font-semibold text-[#0b100e]">Reason for Rejection</label>
+                <span className={`text-[11px] ${trimmed.length < MIN_REASON_LENGTH ? "text-[#84908a]" : "text-[#087f70]"}`}>
                   {trimmed.length < MIN_REASON_LENGTH
                     ? `Min. ${MIN_REASON_LENGTH} characters`
                     : `${trimmed.length} characters`}
@@ -97,28 +91,27 @@ export function RejectionModal({
                 placeholder="Explain why this report is being rejected — be specific so the requester knows what to correct..."
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                className="min-h-[120px] resize-none rounded-xl"
+                className="min-h-[100px] resize-none rounded-[8px] border-black/[0.08] text-[13px] placeholder:text-[#84908a] focus-visible:ring-[#d33d44] focus-visible:border-[#d33d44]"
               />
             </div>
 
             {/* Action Buttons */}
             <div className="flex gap-3">
-              <Button
+              <button
                 onClick={handleClose}
-                variant="outline"
-                className="flex-1 rounded-xl"
                 disabled={isLoading}
+                className="flex-1 h-10 rounded-[8px] border border-black/[0.08] text-[#68726d] font-semibold text-[13px] hover:bg-[#f9faf9] transition-colors disabled:opacity-50"
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 onClick={handleReject}
-                className="flex-1 bg-destructive hover:bg-destructive/90 rounded-xl"
                 disabled={isLoading || !isReasonValid}
                 title={!isReasonValid ? `Please provide at least ${MIN_REASON_LENGTH} characters` : undefined}
+                className="flex-1 h-10 rounded-[8px] bg-[#d33d44] text-white font-semibold text-[13px] hover:bg-[#c33339] transition-colors disabled:opacity-50 shadow-sm"
               >
                 {isLoading ? "Rejecting..." : "Reject Report"}
-              </Button>
+              </button>
             </div>
           </div>
         </DialogContent>
@@ -127,19 +120,18 @@ export function RejectionModal({
       {/* Success Toast */}
       {showSuccessToast && (
         <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-5">
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-lg p-5 max-w-sm">
+          <div className="bg-white border border-black/[0.08] rounded-[12px] shadow-[0_4px_24px_rgba(0,0,0,0.10)] p-5 max-w-sm">
             <div className="flex items-start gap-3">
               <div className="relative shrink-0">
-                <div className="absolute inset-0 bg-destructive/20 rounded-full animate-pulse" />
-                <div className="relative flex items-center justify-center w-10 h-10 bg-destructive rounded-full">
+                <div className="absolute inset-0 bg-[#d33d44]/20 rounded-full animate-pulse" />
+                <div className="relative flex items-center justify-center w-10 h-10 bg-[#d33d44] rounded-full">
                   <AlertCircle className="w-5 h-5 text-white" />
                 </div>
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-sm text-foreground">Report Rejected</h3>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  The report has been rejected and the submitter has been notified
-                  with your reason.
+                <h3 className="font-semibold text-[14px] text-[#0b100e]">Report Rejected</h3>
+                <p className="text-[12px] text-[#68726d] mt-1 leading-relaxed">
+                  The report has been rejected and the submitter has been notified with your reason.
                 </p>
               </div>
             </div>

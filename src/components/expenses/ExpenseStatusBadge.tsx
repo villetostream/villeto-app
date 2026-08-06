@@ -5,46 +5,40 @@ import type { PersonalExpenseStatus } from "@/components/expenses/table/personal
 export type ExpenseStatusContext = "personal" | "manager";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Unified Color Palette (same token, used by both context maps for consistency)
-//   draft              → amber
-//   pending/in-review  → orange
-//   approved           → emerald
-//   paid               → teal
+// Unified Color Palette — design-system tokens
+//   draft              → amber (warm)
+//   pending/in-review  → amber-dark
+//   approved           → teal
+//   paid               → teal (stronger)
 //   rejected/declined  → red
-//   flagged            → purple
+//   flagged            → purple (kept)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Personal (submitter) view — lifecycle tracking language ──────────────────
-// Answer: "Where is MY expense right now?"
 const PERSONAL_STATUS_CFG: Record<string, { label: string; className: string }> = {
-  draft:                { label: "Draft",          className: "text-amber-600 bg-amber-50" },
-  submitted:            { label: "Pending Review",  className: "text-orange-600 bg-orange-50" },
-  pending:              { label: "Pending Review",  className: "text-orange-600 bg-orange-50" },
-  pending_policy_check: { label: "Pending Review",  className: "text-orange-600 bg-orange-50" },
-  approved:             { label: "Approved",        className: "text-emerald-600 bg-emerald-50" },
-  paid:                 { label: "Paid Out",        className: "text-teal-600 bg-teal-50" },
-  declined:             { label: "Rejected",        className: "text-red-500 bg-red-50" },
-  rejected:             { label: "Rejected",        className: "text-red-500 bg-red-50" },
-  flagged:              { label: "Flagged",         className: "text-purple-600 bg-purple-50" },
+  draft:                { label: "Draft",          className: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]" },
+  submitted:            { label: "Pending Review",  className: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]" },
+  pending:              { label: "Pending Review",  className: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]" },
+  pending_policy_check: { label: "Pending Review",  className: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]" },
+  approved:             { label: "Approved",        className: "text-[#087f70] bg-[#f0faf8] border border-[#e7f6f2]" },
+  paid:                 { label: "Paid Out",        className: "text-[#065f55] bg-[#e7f6f2] border border-[#c8ece8]" },
+  declined:             { label: "Rejected",        className: "text-[#d33d44] bg-[#fdf2f2] border border-[#fbd5d5]" },
+  rejected:             { label: "Rejected",        className: "text-[#d33d44] bg-[#fdf2f2] border border-[#fbd5d5]" },
+  flagged:              { label: "Flagged",         className: "text-[#7c3aed] bg-[#f5f3ff] border border-[#ddd6fe]" },
 };
 
-// ─── Manager (team/company) view — action-oriented language ───────────────────
-// Answer: "What do I need to DO with this expense?"
 const APPROVAL_STATUS_CFG: Record<string, { label: string; className: string }> = {
-  // approvalStatus values from API
-  pending_approval:     { label: "Awaiting Approval", className: "text-orange-600 bg-orange-50" },
-  approved:             { label: "Approved",           className: "text-emerald-600 bg-emerald-50" },
-  rejected:             { label: "Rejected",           className: "text-red-500 bg-red-50" },
-  declined:             { label: "Rejected",           className: "text-red-500 bg-red-50" },
-  paid:                 { label: "Paid Out",           className: "text-teal-600 bg-teal-50" },
-  draft:                { label: "Draft",              className: "text-amber-600 bg-amber-50" },
-  // Fallback: when approvalStatus is absent, derive from report.status
-  submitted:            { label: "Awaiting Approval",  className: "text-orange-600 bg-orange-50" },
-  pending:              { label: "Awaiting Approval",  className: "text-orange-600 bg-orange-50" },
-  pending_policy_check: { label: "Awaiting Approval",  className: "text-orange-600 bg-orange-50" },
+  pending_approval:     { label: "Awaiting Approval", className: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]" },
+  approved:             { label: "Approved",           className: "text-[#087f70] bg-[#f0faf8] border border-[#e7f6f2]" },
+  rejected:             { label: "Rejected",           className: "text-[#d33d44] bg-[#fdf2f2] border border-[#fbd5d5]" },
+  declined:             { label: "Rejected",           className: "text-[#d33d44] bg-[#fdf2f2] border border-[#fbd5d5]" },
+  paid:                 { label: "Paid Out",           className: "text-[#065f55] bg-[#e7f6f2] border border-[#c8ece8]" },
+  draft:                { label: "Draft",              className: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]" },
+  submitted:            { label: "Awaiting Approval",  className: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]" },
+  pending:              { label: "Awaiting Approval",  className: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]" },
+  pending_policy_check: { label: "Awaiting Approval",  className: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]" },
 };
 
-const FALLBACK_CFG = { label: "", className: "text-slate-500 bg-slate-100" };
+const FALLBACK_CFG = { label: "", className: "text-[#68726d] bg-[#f9faf9] border border-black/[0.08]" };
 
 // ─── Kept for external call sites ────────────────────────────────────────────
 export function isPendingExpenseStatus(status: string): boolean {
@@ -65,10 +59,6 @@ export function normalizeExpenseReportStatus(rawStatus: string): PersonalExpense
 }
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
-/**
- * context="personal"  → PERSONAL_STATUS_CFG  (submitter sees lifecycle language)
- * context="manager"   → APPROVAL_STATUS_CFG   (approver sees action language)
- */
 export function ExpenseStatusBadge({
   status,
   context = "personal",
@@ -84,7 +74,7 @@ export function ExpenseStatusBadge({
 
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${cfg.className}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${cfg.className}`}
     >
       {cfg.label}
     </span>

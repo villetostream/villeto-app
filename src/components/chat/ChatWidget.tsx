@@ -188,32 +188,32 @@ export function ChatWidget() {
           className={cn(
             "fixed bottom-20 right-6 z-50",
             "w-[360px] h-[580px]",
-            "bg-white rounded-2xl shadow-2xl border border-gray-100",
+            "bg-white rounded-[20px] border border-black/[0.08]",
             "flex flex-col overflow-hidden"
           )}
-          style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.14)" }}
+          style={{ boxShadow: "0 12px 48px rgba(14,28,23,0.12)" }}
         >
           {/* ── Header ── */}
-          <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <Messages2 size={16} className="text-primary" />
+          <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-black/[0.06] flex-shrink-0">
+            <div className="w-9 h-9 rounded-[10px] bg-[#e7f6f2] flex items-center justify-center">
+              <Messages2 size={18} className="text-[#0ea894]" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-semibold text-gray-900">Messages</p>
-              <p className="text-[11px] text-gray-500">Communication centre</p>
+              <p className="text-[15px] font-semibold text-[#0b100e]">Messages</p>
+              <p className="text-[12px] text-[#84908a]">Communication centre</p>
             </div>
             <button
               onClick={handleCloseChat}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-[#84908a] hover:text-[#303834] transition-colors p-1"
               aria-label="Close chat"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
           {/* ── Tabs (always visible on list view) ── */}
           {(panelView.type === "list" || panelView.type === "vendor-inbox") && (
-            <div className="flex border-b border-gray-100 flex-shrink-0">
+            <div className="flex border-b border-black/[0.06] flex-shrink-0">
               <TabButton
                 active={activeTab === "team"}
                 onClick={() => {
@@ -249,8 +249,8 @@ export function ChatWidget() {
                 >
                   {/* Search */}
                   <div className="px-4 py-3 flex-shrink-0">
-                    <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
-                      <SearchNormal1 size={14} className="text-gray-400 flex-shrink-0" />
+                    <div className="flex items-center gap-2 bg-[#f5f7f6] rounded-[10px] px-3 py-2 border border-black/[0.04]">
+                      <SearchNormal1 size={14} className="text-[#84908a] flex-shrink-0" />
                       <input
                         type="text"
                         placeholder={
@@ -258,7 +258,7 @@ export function ChatWidget() {
                             ? "Search employees..."
                             : "Search vendors..."
                         }
-                        className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-400"
+                        className="flex-1 text-[13px] bg-transparent outline-none text-[#0b100e] placeholder:text-[#84908a]"
                         value={activeTab === "team" ? teamSearch : vendorSearch}
                         onChange={(e) =>
                           activeTab === "team"
@@ -270,7 +270,7 @@ export function ChatWidget() {
                   </div>
 
                   {/* List */}
-                  <div className="flex-1 overflow-y-auto px-4 pb-4">
+                  <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent pr-2">
                     {activeTab === "team" ? (
                       <>
                         {filteredTeam.length === 0 && (
@@ -390,10 +390,10 @@ function TabButton({
     <button
       onClick={onClick}
       className={cn(
-        "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold border-b-2 transition-colors",
+        "flex-1 flex items-center justify-center gap-2 py-3 text-[13px] font-semibold border-b-2 transition-all",
         active
-          ? "border-primary text-primary"
-          : "border-transparent text-gray-500 hover:text-gray-700"
+          ? "border-[#0ea894] text-[#087f70] bg-[#f9faf9]"
+          : "border-transparent text-[#84908a] hover:text-[#303834] hover:bg-[#f5f7f6]"
       )}
     >
       {icon}
@@ -414,16 +414,16 @@ function TeamMemberRow({
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-start gap-3 py-2.5 border-b border-gray-50 last:border-0 text-left hover:bg-gray-50 rounded-lg px-2 transition-colors group"
+      className="w-full flex items-start gap-3 py-3 border-b border-black/[0.04] last:border-0 text-left hover:bg-[#f9faf9] rounded-[10px] px-2 transition-colors group"
     >
-      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-        <Profile size={16} className="text-gray-400" />
+      <div className="w-10 h-10 rounded-[10px] bg-[#f5f7f6] flex items-center justify-center flex-shrink-0">
+        <Profile size={18} className="text-[#84908a]" />
       </div>
-      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5 mt-0.5">
         <div className="flex justify-between items-center gap-2">
-          <p className="text-sm font-medium text-gray-900 truncate">{member.name}</p>
+          <p className="text-[13px] font-semibold text-[#0b100e] truncate">{member.name}</p>
           {conversation?.lastMessageAt && (
-             <p className="text-[10px] text-gray-400 whitespace-nowrap">
+             <p className="text-[11px] text-[#84908a] whitespace-nowrap">
                {new Date(conversation.lastMessageAt).toLocaleTimeString("en-GB", {
                  hour: "2-digit",
                  minute: "2-digit",
@@ -431,20 +431,20 @@ function TeamMemberRow({
              </p>
           )}
         </div>
-        <p className="text-[11px] text-gray-400 truncate">{member.role}</p>
+        <p className="text-[12px] text-[#84908a] truncate">{member.role}</p>
         
         {conversation?.lastMessage && (
-          <p className="text-[12px] text-gray-500 truncate mt-0.5">
+          <p className="text-[12px] text-[#66706b] truncate mt-0.5">
              {conversation.lastMessage}
           </p>
         )}
       </div>
       {conversation && conversation.unreadCount > 0 ? (
-        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center flex-shrink-0 mt-1">
+        <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#0ea894] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 mt-1 shadow-sm">
           {conversation.unreadCount}
         </span>
       ) : conversation ? (
-        <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />
+        <span className="w-2 h-2 rounded-full bg-[#0ea894] flex-shrink-0 mt-2" />
       ) : null}
     </button>
   );
@@ -460,17 +460,17 @@ function VendorRow({
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 text-left hover:bg-gray-50 rounded-lg px-1 transition-colors"
+      className="w-full flex items-center gap-3 py-3 border-b border-black/[0.04] last:border-0 text-left hover:bg-[#f9faf9] rounded-[10px] px-2 transition-colors"
     >
-      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-        <Building size={16} className="text-gray-400" />
+      <div className="w-10 h-10 rounded-[10px] bg-[#f5f7f6] flex items-center justify-center flex-shrink-0">
+        <Building size={18} className="text-[#84908a]" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{vendor.name}</p>
-        <p className="text-[11px] text-gray-500">{vendor.code}</p>
+        <p className="text-[13px] font-semibold text-[#0b100e] truncate">{vendor.name}</p>
+        <p className="text-[12px] text-[#84908a]">{vendor.code}</p>
       </div>
       {vendor.unreadCount && vendor.unreadCount > 0 ? (
-        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center flex-shrink-0">
+        <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#0ea894] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 shadow-sm">
           {vendor.unreadCount}
         </span>
       ) : null}
@@ -505,24 +505,24 @@ function VendorInboxPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Sub-header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-black/[0.06] flex-shrink-0 bg-[#f9faf9]">
         <button
           onClick={onBack}
-          className="text-gray-400 hover:text-gray-700 transition-colors"
+          className="text-[#84908a] hover:text-[#303834] transition-colors p-1"
           aria-label="Back"
         >
           ←
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 truncate">
+          <p className="text-[14px] font-semibold text-[#0b100e] truncate">
             {vendor.name}
           </p>
-          <p className="text-[11px] text-gray-500">{vendor.code}</p>
+          <p className="text-[12px] text-[#84908a]">{vendor.code}</p>
         </div>
       </div>
 
       {/* Thread list */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1">
+      <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent pr-2">
         {vendorConvs.map((conv) => (
           <ThreadRow
             key={conv.id}
@@ -548,10 +548,10 @@ function VendorInboxPanel({
       </div>
 
       {/* Start new conversation CTA */}
-      <div className="px-4 pb-4 flex-shrink-0">
+      <div className="px-4 pb-4 flex-shrink-0 pt-2 border-t border-black/[0.04]">
         <button
           onClick={onNewConversation}
-          className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          className="w-full h-[42px] rounded-[10px] bg-[#0ea894] hover:bg-[#0c9785] text-white text-[13px] font-semibold transition-all shadow-[0_4px_14px_-6px_rgba(14,168,148,0.7)] flex items-center justify-center gap-2"
         >
           <Add size={16} />
           Start a new conversation
@@ -579,29 +579,28 @@ function ThreadRow({
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors text-left border border-gray-100 mb-1"
+      className="w-full flex items-start gap-3 p-3 rounded-[12px] hover:bg-[#f9faf9] transition-colors text-left border border-black/[0.06] mb-1.5"
     >
-      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-        <Messages2 size={14} className="text-primary" />
+      <div className="w-9 h-9 rounded-[10px] bg-[#e7f6f2] flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Messages2 size={16} className="text-[#0ea894]" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-gray-900 truncate">{label}</p>
+          <p className="text-[13px] font-semibold text-[#0b100e] truncate">{label}</p>
           {isNew && (
-            <span className="text-[10px] bg-amber-400 text-white font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
+            <span className="text-[10px] bg-[#0ea894] text-white font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
               New
             </span>
           )}
         </div>
         {preview && (
-          <p className="text-[11px] text-gray-500 truncate mt-0.5">{preview}</p>
+          <p className="text-[12px] text-[#66706b] truncate mt-0.5">{preview}</p>
         )}
         {time && (
-          <p className="text-[10px] text-gray-400 mt-0.5">
+          <p className="text-[11px] text-[#84908a] mt-1">
             {new Date(time).toLocaleDateString("en-GB", {
               day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
+              month: "short",
             })},{" "}
             {new Date(time).toLocaleTimeString("en-GB", {
               hour: "2-digit",
@@ -611,7 +610,7 @@ function ThreadRow({
         )}
       </div>
       {unread && unread > 0 ? (
-        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center flex-shrink-0">
+        <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#0ea894] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 shadow-sm mt-1">
           {unread}
         </span>
       ) : null}

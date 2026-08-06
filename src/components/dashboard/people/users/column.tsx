@@ -148,7 +148,7 @@ export const columns = (
                             
                             <div className="h-[1px] bg-[#F2F4F7] my-1 mx-2" />
                             
-                            {isActive ? (
+                            {isActive && (
                                 <PermissionGuard resource="user" action="manage">
                                     <DropdownMenuItem 
                                         className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
@@ -159,19 +159,6 @@ export const columns = (
                                     >
                                         <Lock className="w-5 h-5" />
                                         <span className="font-medium">Deactivate User</span>
-                                    </DropdownMenuItem>
-                                </PermissionGuard>
-                            ) : (
-                                <PermissionGuard resource="user" action="manage">
-                                    <DropdownMenuItem 
-                                        className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#F0FDF4] text-[#0FA68E]"
-                                        onClick={() => {
-                                            if (onToggleStatus) onToggleStatus(data.row.original);
-                                            else logger.log("Activate user:", data.row.original.userId);
-                                        }}
-                                    >
-                                        <UserCheck className="w-5 h-5" />
-                                        <span className="font-medium">Activate User</span>
                                     </DropdownMenuItem>
                                 </PermissionGuard>
                             )}

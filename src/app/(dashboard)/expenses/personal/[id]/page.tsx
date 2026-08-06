@@ -264,7 +264,7 @@ export default function PersonalExpenseDetailPage() {
                             e.stopPropagation();
                             handleExpenseClick(expense);
                           }}
-                          className="text-sm text-primary hover:underline font-medium"
+                          className="text-[13px] text-[#087f70] hover:underline font-semibold"
                         >
                           View
                         </button>
@@ -293,7 +293,7 @@ export default function PersonalExpenseDetailPage() {
             <div className="flex justify-end">
               <Button
                 onClick={handleEditExpenses}
-                className="bg-primary text-white hover:bg-primary/90 px-8"
+                className="bg-[#087f70] text-white hover:bg-[#076b5e] px-8 h-10 rounded-[8px] font-semibold"
               >
                 Edit Expenses
               </Button>

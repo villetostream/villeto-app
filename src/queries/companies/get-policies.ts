@@ -66,19 +66,39 @@ interface GetPoliciesResponse {
   status: number;
   statusCode: number;
   statusText: string;
+  meta?: {
+    totalCount: number;
+    totalPages: number;
+    currentPage: number;
+    limit: number;
+  };
+}
+
+export interface GetPoliciesParams {
+  page?: number;
+  limit?: number;
+  excludeDrafts?: boolean;
 }
 
 /* ─── Hook ───────────────────────────────────────────────────────────────── */
 
 export const useGetPoliciesApi = (
+  params?: GetPoliciesParams,
   options?: Omit<UseQueryOptions<GetPoliciesResponse, Error>, "queryKey" | "queryFn">
 ): UseQueryResult<GetPoliciesResponse, Error> => {
   const axiosInstance = useAxios();
 
   return useQuery<GetPoliciesResponse, Error>({
-    queryKey: [QUERY_KEYS.POLICIES],
+    queryKey: [QUERY_KEYS.POLICIES, params],
     queryFn: async () => {
-      const response = await axiosInstance.get(API_KEYS.EXPENSE.POLICIES);
+      const searchParams = new URLSearchParams();
+      if (params?.page) searchParams.append("page", params.page.toString());
+      if (params?.limit) searchParams.append("limit", params.limit.toString());
+      if (params?.excludeDrafts !== undefined) searchParams.append("excludeDrafts", params.excludeDrafts.toString());
+      
+      const queryString = searchParams.toString();
+      const url = queryString ? `${API_KEYS.EXPENSE.POLICIES}?${queryString}` : API_KEYS.EXPENSE.POLICIES;
+      const response = await axiosInstance.get(url);
       return response.data;
     },
     staleTime: STALE_TIMES.SLOW,

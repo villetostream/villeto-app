@@ -45,13 +45,13 @@ export default function Page() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-white">
+    <div className="flex h-full flex-col bg-white">
       <header className="flex items-center justify-between px-6 py-5 sm:px-10 sm:py-7 xl:px-14">
         <Link href="/" aria-label="Villeto home"><Image src="/images/logo.png" alt="Villeto" width={118} height={36} className="h-9 w-[118px] object-cover" priority /></Link>
         <div className="flex items-center gap-3"><span className="hidden text-[11px] font-medium text-[#737d78] sm:inline">Account setup</span><span className="rounded-full border border-black/[0.08] bg-[#f5f7f6] px-3 py-1.5 text-[10px] font-semibold text-[#303834]">1 of 2</span></div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[590px] flex-1 flex-col justify-center px-6 py-10 sm:px-10 lg:py-14 xl:px-14">
+      <div className="mx-auto flex w-full max-w-[590px] flex-1 min-h-0 flex-col justify-center px-6 py-10 sm:px-10 lg:py-14 xl:px-14">
         <div className="max-w-[470px]">
           <span className="inline-flex items-center gap-2 rounded-full bg-[#e7f6f2] px-3 py-1.5 text-[11px] font-semibold text-[#087f70]"><ShieldCheck className="size-3.5" /> Secure account setup</span>
           <h1 className="mt-6 text-[clamp(2.1rem,4vw,3.25rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-[#0b100e]">Start with your work email.</h1>
@@ -72,6 +72,7 @@ export default function Page() {
 
           <div className="mt-5 flex items-start gap-2 text-[11px] leading-5 text-[#78827d]"><LockKeyhole className="mt-0.5 size-3.5 shrink-0" /><p>We&apos;ll use this email to find or create your Villeto workspace.</p></div>
           <div className="mt-9 border-t border-black/[0.07] pt-6 text-center text-[13px] text-[#69736e]">Already have an account? <Link href="/login" className="font-semibold text-[#087f70] hover:text-[#065f55]">Sign in</Link></div>
+
         </div>
       </div>
       <footer className="px-20 pb-6 text-center text-[9px] leading-4 text-[#9aa29e] sm:px-10 sm:text-left sm:text-[10px] xl:px-14">By continuing, you agree to Villeto&apos;s Terms and Privacy Policy.</footer>

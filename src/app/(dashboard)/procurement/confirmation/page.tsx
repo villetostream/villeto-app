@@ -14,10 +14,10 @@ interface Confirmation {
 
 const CONF_STATUS_CFG: Record<ConfStatus, { label: string; className: string }> = {
   pending:         { label: "Pending",          className: "text-amber-500" },
-  full_delivery:   { label: "Full Delivery",    className: "text-emerald-500" },
+  full_delivery:   { label: "Full Delivery",    className: "text-[#087f70]" },
   partial_delivery:{ label: "Partial Delivery", className: "text-blue-500 bg-blue-50 px-2.5 py-0.5 rounded-full" },
-  confirmed:       { label: "Confirmed",        className: "text-emerald-600" },
-  rejected:        { label: "Rejected",         className: "text-red-500" },
+  confirmed:       { label: "Confirmed",        className: "text-[#087f70]" },
+  rejected:        { label: "Rejected",         className: "text-[#d33d44]" },
   flagged:         { label: "Flagged",          className: "text-orange-500 bg-orange-50 px-2.5 py-0.5 rounded-full" },
 };
 
@@ -59,9 +59,8 @@ export default function ConfirmationPage() {
   const [perPage, setPerPage]     = useState(11);
 
   useEffect(() => {
-    setAction({ label: "Create PO", onClick: () => {} });
     return () => clearAction();
-  }, [setAction, clearAction]);
+  }, [clearAction]);
 
   const filtered = useMemo(() => {
     let list = SEED_CONFS;
@@ -83,13 +82,13 @@ export default function ConfirmationPage() {
   const paginated = filtered.slice((page - 1) * perPage, page * perPage);
 
   return (
-    <div className="bg-white rounded-2xl border border-border overflow-hidden">
+    <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
       <div className="flex items-center justify-between px-5 pt-4 pb-0">
         <div className="flex items-center">
           {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === tab.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                activeTab === tab.key ? "border-[#087f70] text-[#087f70]" : "border-transparent text-[#68726d] hover:text-[#0b100e]"
               }`}>
               {tab.label}
             </button>
@@ -97,36 +96,36 @@ export default function ConfirmationPage() {
         </div>
         <div className="flex items-center gap-3 pb-1">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#68726d]" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
-              className="pl-9 pr-4 h-9 rounded-lg border border-border text-sm w-52 focus:outline-none focus:border-primary bg-white" />
+              className="pl-9 pr-4 h-9 rounded-lg border border-black/[0.06] text-sm w-52 focus:outline-none focus:border-[#087f70] bg-white" />
           </div>
-          <button className="flex items-center gap-2 h-9 px-4 rounded-lg border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
+          <button className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#087f70] text-[#087f70] text-sm font-medium hover:bg-[#f0faf8] transition-colors">
             <Download className="w-4 h-4" /> Export
           </button>
         </div>
       </div>
-      <div className="border-b border-border" />
+      <div className="border-b border-black/[0.06]" />
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border/60">
             {["PO Number", "Vendor", "Delivery Date", "Status", "Action"].map(h => (
-              <th key={h} className="px-5 py-4 text-left text-sm font-semibold text-foreground">{h}</th>
+              <th key={h} className="px-5 py-4 text-left text-sm font-semibold text-[#0b100e]">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {paginated.length === 0 ? (
-            <tr><td colSpan={5} className="px-5 py-16 text-center text-muted-foreground">No confirmations found.</td></tr>
+            <tr><td colSpan={5} className="px-5 py-16 text-center text-[#68726d]">No confirmations found.</td></tr>
           ) : paginated.map(conf => (
-            <tr key={conf.id} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
-              <td className="px-5 py-4 font-semibold text-foreground">{conf.poNumber}</td>
-              <td className="px-5 py-4 text-foreground">{conf.vendor}</td>
-              <td className="px-5 py-4 text-muted-foreground">{conf.deliveryDate}</td>
+            <tr key={conf.id} className="border-b border-border/40 hover:bg-[#f9faf9] transition-colors">
+              <td className="px-5 py-4 font-semibold text-[#0b100e]">{conf.poNumber}</td>
+              <td className="px-5 py-4 text-[#0b100e]">{conf.vendor}</td>
+              <td className="px-5 py-4 text-[#68726d]">{conf.deliveryDate}</td>
               <td className="px-5 py-4"><ConfStatusBadge status={conf.status} /></td>
               <td className="px-5 py-4">
                 <button onClick={() => router.push(`/procurement/confirmation/${conf.id}`)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors">
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-[#68726d] hover:bg-[#f9faf9] transition-colors">
                   <Eye className="w-4 h-4" />
                 </button>
               </td>

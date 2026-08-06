@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Building2, Clock3, Landmark, ShieldCheck, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+
 const setupItems = [
   { icon: Building2, label: "Business profile", detail: "Company and registration details" },
   { icon: UsersRound, label: "Leadership", detail: "Owners and controlling officers" },

@@ -1,5 +1,4 @@
 import { CheckCircle2, AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 interface ExpenseData {
   title: string;
@@ -28,105 +27,99 @@ export function ExpenseDetailCard({
   onFlag,
   canApprove = true,
 }: ExpenseDetailCardProps) {
+  const statusStyles: Record<string, string> = {
+    approved: "text-[#087f70] bg-[#f0faf8] border border-[#e7f6f2]",
+    rejected: "text-[#d33d44] bg-[#fdf2f2] border border-[#fbd5d5]",
+    pending:  "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]",
+    draft:    "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]",
+    submitted:"text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]",
+  };
+
+  const statusLabel: Record<string, string> = {
+    approved:  "Approved",
+    rejected:  "Rejected",
+    pending:   "Pending Review",
+    draft:     "Draft",
+    submitted: "Pending Review",
+  };
+
   return (
     <div className="space-y-4">
       {/* Grid of details */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="detail-card">
-          <p className="detail-label">Expense Title</p>
-          <p className="detail-value">{expense.title}</p>
-        </div>
-        <div className="detail-card">
-          <p className="detail-label">Department</p>
-          <p className="detail-value">{expense.department}</p>
-        </div>
-        <div className="detail-card">
-          <p className="detail-label">Date Submitted</p>
-          <p className="detail-value">{expense.dateSubmitted}</p>
-        </div>
-        <div className="detail-card">
-          <p className="detail-label">Vendor</p>
-          <p className="detail-value">{expense.vendor}</p>
-        </div>
-        <div className="detail-card">
-          <p className="detail-label">Expense Category</p>
-          <p className="detail-value">{expense.category}</p>
-        </div>
-        <div className="detail-card">
-          <p className="detail-label">Total Amount</p>
-          <p className="detail-value">{expense.amount}</p>
-        </div>
-        <div className="detail-card">
-          <p className="detail-label">Policy Compliance</p>
-          <div className="flex items-center gap-1.5">
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: "Expense Title",    value: expense.title },
+          { label: "Department",       value: expense.department },
+          { label: "Date Submitted",   value: expense.dateSubmitted },
+          { label: "Vendor",           value: expense.vendor },
+          { label: "Expense Category", value: expense.category },
+          { label: "Total Amount",     value: expense.amount },
+        ].map(({ label, value }) => (
+          <div key={label} className="border border-black/[0.06] rounded-[10px] p-3 bg-white">
+            <p className="text-[12px] font-medium text-[#84908a] mb-0.5">{label}</p>
+            <p className="text-[13px] font-semibold text-[#0b100e]">{value}</p>
+          </div>
+        ))}
+
+        {/* Policy Compliance */}
+        <div className="border border-black/[0.06] rounded-[10px] p-3 bg-white">
+          <p className="text-[12px] font-medium text-[#84908a] mb-0.5">Policy Compliance</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
             {expense.policyCompliance === "within" ? (
               <>
-                <CheckCircle2 size={16} className="text-success" />
-                <span className="detail-value text-success">Within limit</span>
+                <CheckCircle2 size={14} className="text-[#087f70]" />
+                <span className="text-[13px] font-semibold text-[#087f70]">Within limit</span>
               </>
             ) : (
               <>
-                <AlertTriangle size={16} className="text-destructive" />
-                <span className="detail-value text-destructive">
-                  Exceeded Limit
-                </span>
+                <AlertTriangle size={14} className="text-[#d33d44]" />
+                <span className="text-[13px] font-semibold text-[#d33d44]">Exceeded Limit</span>
               </>
             )}
           </div>
         </div>
-        <div className="detail-card">
-          <p className="detail-label">Status</p>
-          <div className="mt-1">
-            <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                expense.status === "approved"
-                  ? "bg-success/10 text-success"
-                  : expense.status === "rejected"
-                  ? "bg-destructive/10 text-destructive"
-                  : "bg-warning/10 text-warning"
-              }`}
-            >
-              {expense.status === "approved" && <CheckCircle2 size={12} />}
-              {expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
-            </span>
-          </div>
+
+        {/* Status */}
+        <div className="border border-black/[0.06] rounded-[10px] p-3 bg-white">
+          <p className="text-[12px] font-medium text-[#84908a] mb-1">Status</p>
+          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${statusStyles[expense.status] ?? statusStyles.pending}`}>
+            {expense.status === "approved" && <CheckCircle2 size={11} />}
+            {statusLabel[expense.status] ?? expense.status}
+          </span>
         </div>
       </div>
 
       {/* Description */}
-      <div className="detail-card col-span-2">
-        <p className="detail-label">Description</p>
-        <p className="detail-value">{expense.description}</p>
+      <div className="border border-black/[0.06] rounded-[10px] p-3 bg-white">
+        <p className="text-[12px] font-medium text-[#84908a] mb-0.5">Description</p>
+        <p className="text-[13px] font-medium text-[#68726d]">{expense.description}</p>
       </div>
 
-      {/* Action Buttons - Show only when status is pending AND user is authorized */}
+      {/* Action Buttons */}
       {(expense.status === "pending" || expense.status === "draft") && (
-        <div className="flex gap-3 pt-4">
+        <div className="flex gap-2.5 pt-2">
           {canApprove && (
             <>
-              <Button
+              <button
                 onClick={onApprove}
-                className="bg-primary hover:bg-primary/90 text-white flex-1"
-                size="lg"
+                className="flex-1 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors shadow-sm"
               >
                 Approve
-              </Button>
-              <Button
+              </button>
+              <button
                 onClick={onReject}
-                className="bg-destructive/10 hover:bg-destructive/20 text-destructive flex-1"
-                size="lg"
+                className="flex-1 h-9 rounded-[8px] border border-[#d33d44] text-[#d33d44] font-semibold text-[13px] hover:bg-[#fdf2f2] transition-colors"
               >
                 Reject
-              </Button>
+              </button>
             </>
           )}
-          <Button
+          <button
             onClick={onFlag}
-            className="bg-orange-600 hover:bg-orange-700 text-white flex-1"
-            size="lg"
+            className="flex-1 h-9 rounded-[8px] border border-[#b27b00] text-[#b27b00] font-semibold text-[13px] hover:bg-[#fff9e6] transition-colors"
           >
             Flag
-          </Button>
+          </button>
         </div>
       )}
     </div>

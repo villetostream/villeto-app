@@ -3,6 +3,8 @@ import { create } from "zustand";
 export interface HeaderActionItem {
   label: string;
   onClick: () => void;
+  disabled?: boolean;
+  tooltip?: React.ReactNode;
 }
 
 export interface HeaderAction {
@@ -13,6 +15,10 @@ export interface HeaderAction {
   items?: HeaderActionItem[];
   /** Optional icon name to override the default plus circle */
   iconName?: "plus" | "upload";
+  /** Whether the main action is disabled */
+  disabled?: boolean;
+  /** Tooltip to show when disabled or hovered */
+  tooltip?: React.ReactNode;
   /** Optional data-tour attribute value for the tour guide to target */
   dataTourId?: string;
   /** Optional secondary action button shown alongside */

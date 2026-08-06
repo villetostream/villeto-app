@@ -33,16 +33,25 @@ export default function ConfirmationModal({
 }: ConfirmationModalProps) {
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
-      <AlertDialogContent>
+      <AlertDialogContent className="rounded-[14px] p-6 max-w-[400px]">
         <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          <AlertDialogTitle className="text-[18px] font-bold text-[#0b100e]">{title}</AlertDialogTitle>
+          <AlertDialogDescription className="text-[13px] text-[#68726d] leading-relaxed mt-2">{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
+        <AlertDialogFooter className="mt-6 flex gap-3 sm:justify-end">
+          <AlertDialogCancel 
+            onClick={onClose}
+            className="h-10 px-6 rounded-[8px] border border-black/[0.08] bg-white text-[#68726d] font-semibold text-[13px] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors mt-0"
+          >
+            Cancel
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            className={destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined}
+            className={
+              destructive 
+                ? "h-10 px-6 rounded-[8px] bg-[#d33d44] text-white font-semibold text-[13px] hover:bg-[#c33339] transition-colors shadow-sm"
+                : "h-10 px-6 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors shadow-sm"
+            }
           >
             {confirmLabel}
           </AlertDialogAction>

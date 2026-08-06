@@ -158,6 +158,7 @@ export function AllUsersTab() {
                 enableColumnVisibility={true}
                 selectedDataIds={tableprops.selectedDataIds}
                 setSelectedDataIds={tableprops.setSelectedDataIds}
+                onRowClick={(row: any) => handleViewProfile(row.userId)}
                 tableHeader={{
                     actionButton: <></>,
                     isSearchable: true,
@@ -225,12 +226,10 @@ export function AllUsersTab() {
                 <ConfirmDialog 
                     open={!!userToToggle}
                     onOpenChange={(open) => { if (!open) setUserToToggle(null) }}
-                    title={(userToToggle.status ?? "").toLowerCase() === "active" ? "Deactivate User?" : "Activate User?"}
-                    description={(userToToggle.status ?? "").toLowerCase() === "active" 
-                        ? `Are you sure you want to deactivate ${userToToggle.firstName} ${userToToggle.lastName}? They will lose access to Villeto immediately.`
-                        : `Are you sure you want to activate ${userToToggle.firstName} ${userToToggle.lastName}? They will regain access to Villeto.`}
-                    confirmText={(userToToggle.status ?? "").toLowerCase() === "active" ? "Yes, Deactivate" : "Yes, Activate"}
-                    variant={(userToToggle.status ?? "").toLowerCase() === "active" ? "destructive" : "default"}
+                    title="Deactivate User?"
+                    description={`Are you sure you want to deactivate ${userToToggle.firstName} ${userToToggle.lastName}? They will lose access to Villeto immediately.`}
+                    confirmText="Yes, Deactivate"
+                    variant="destructive"
                     onConfirm={confirmToggleStatus}
                 />
             )}

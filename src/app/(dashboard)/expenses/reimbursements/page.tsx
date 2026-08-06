@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, Filter, MoreHorizontal } from "lucide-react";
+import { Search, Filter, MoreHorizontal, FileText, CheckCircle2, XCircle, Banknote, Clock } from "lucide-react";
 import { unsortedReimbursements } from "@/lib/mock-data";
 import { getStatusIcon } from "@/lib/helper";
 import { PageLoader } from "@/components/PageLoader/PageLoader";
@@ -112,31 +112,27 @@ export default function ReimbursementsPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard
             title="Pending Reports"
-            value={pendingCount}
-            icon={
-              <Image src="/images/receipt-pending.png" alt="pending" width={24} height={24} className="w-6 h-6 object-contain" />
-            }
+            value={pendingCount.toString()}
+            accentColor="#0b100e"
+            icon={<FileText className="w-4 h-4 text-[#0b100e]" />}
           />
           <StatsCard
             title="Approved Reports"
-            value={approvedCount}
-            icon={
-              <Image src="/images/svgs/submitted.svg" alt="approved" width={24} height={24} className="w-6 h-6 object-contain" />
-            }
+            value={approvedCount.toString()}
+            accentColor="#087f70"
+            icon={<CheckCircle2 className="w-4 h-4 text-[#087f70]" />}
           />
           <StatsCard
             title="Rejected Reports"
-            value={rejectedCount}
-            icon={
-              <Image src="/images/svgs/draft.svg" alt="rejected" width={24} height={24} className="w-6 h-6 object-contain" />
-            }
+            value={rejectedCount.toString()}
+            accentColor="#d33d44"
+            icon={<Clock className="w-4 h-4 text-[#d33d44]" />}
           />
           <StatsCard
             title="Total Payout"
             value={`$${totalPayout.toLocaleString()}`}
-            icon={
-              <Image src="/images/svgs/money.svg" alt="payout" width={24} height={24} className="w-6 h-6 object-contain" />
-            }
+            accentColor="#0ea894"
+            icon={<Banknote className="w-4 h-4 text-[#0ea894]" />}
           />
         </div>
 
@@ -144,15 +140,15 @@ export default function ReimbursementsPage() {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             {/* Tab pills */}
-            <div className="flex gap-1 bg-muted/40 rounded-lg p-1">
+            <div className="flex gap-1 bg-[#f9faf9] rounded-[8px] p-1 border border-black/[0.06]">
               {tabs.map((t) => (
                 <button
                   key={t.key}
                   onClick={() => setActiveTab(t.key)}
-                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  className={`px-4 py-1.5 rounded-[6px] text-[13px] font-semibold transition-colors ${
                     activeTab === t.key
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-white text-[#0b100e] shadow-sm"
+                      : "text-[#68726d] hover:text-[#0b100e]"
                   }`}
                 >
                   {t.label}
@@ -163,48 +159,48 @@ export default function ReimbursementsPage() {
             {/* Search + filter */}
             <div className="flex items-center gap-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#84908a]" />
                 <Input
                   placeholder="Search by transaction etc"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 h-9 w-60 text-sm"
+                  className="pl-9 h-9 w-60 text-[13px] rounded-[8px] border-black/[0.08]"
                 />
               </div>
-              <Button variant="outline" size="sm" className="h-9 gap-1.5">
-                <Filter className="w-4 h-4" />
+              <button className="h-9 px-4 flex items-center gap-1.5 rounded-[8px] border border-black/[0.08] text-[13px] font-semibold text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
+                <Filter className="w-3.5 h-3.5" />
                 Filter
-              </Button>
+              </button>
             </div>
           </div>
 
           {/* Table */}
-          <div className="bg-background border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-white border border-black/[0.06] rounded-[12px] overflow-hidden">
+            <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
-                <tr className="border-b border-border bg-muted/20">
+                <tr className="bg-[#f9faf9] border-b border-black/[0.06]">
                   <th className="w-10 px-4 py-3">
-                    <input type="checkbox" className="rounded border-border" />
+                    <input type="checkbox" className="rounded border-black/[0.2]" />
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground uppercase text-xs tracking-wide">
+                  <th className="px-4 py-3 font-semibold text-[#84908a] text-[11px] uppercase tracking-wide">
                     Requested By
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground uppercase text-xs tracking-wide">
+                  <th className="px-4 py-3 font-semibold text-[#84908a] text-[11px] uppercase tracking-wide">
                     Department
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground uppercase text-xs tracking-wide">
+                  <th className="px-4 py-3 font-semibold text-[#84908a] text-[11px] uppercase tracking-wide">
                     Category
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground uppercase text-xs tracking-wide">
+                  <th className="px-4 py-3 font-semibold text-[#84908a] text-[11px] uppercase tracking-wide">
                     Amount
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground uppercase text-xs tracking-wide">
+                  <th className="px-4 py-3 font-semibold text-[#84908a] text-[11px] uppercase tracking-wide">
                     Status
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground uppercase text-xs tracking-wide">
+                  <th className="px-4 py-3 font-semibold text-[#84908a] text-[11px] uppercase tracking-wide">
                     Date
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground uppercase text-xs tracking-wide">
+                  <th className="px-4 py-3 font-semibold text-[#84908a] text-[11px] uppercase tracking-wide">
                     Action
                   </th>
                 </tr>
@@ -231,7 +227,7 @@ export default function ReimbursementsPage() {
                     return (
                       <tr
                         key={r.id}
-                        className="border-b border-border last:border-0 hover:bg-muted/10 cursor-pointer transition-colors"
+                        className="border-b border-black/[0.06] last:border-0 hover:bg-[#f9faf9] cursor-pointer transition-colors"
                         onClick={() =>
                           router.push(`/expenses/reimbursements/${r.id}`)
                         }
@@ -242,7 +238,7 @@ export default function ReimbursementsPage() {
                         >
                           <input
                             type="checkbox"
-                            className="rounded border-border"
+                            className="rounded border-black/[0.2]"
                           />
                         </td>
 
@@ -254,28 +250,28 @@ export default function ReimbursementsPage() {
                                 src={r.avatar}
                                 alt={r.employee}
                               />
-                              <AvatarFallback className="text-xs bg-muted">
+                              <AvatarFallback className="text-[11px] font-semibold bg-[#f0faf8] text-[#087f70]">
                                 {initials}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="font-medium text-foreground">
+                            <span className="font-semibold text-[#0b100e] text-[13px]">
                               {r.employee}
                             </span>
                           </div>
                         </td>
 
                         {/* Department */}
-                        <td className="px-4 py-3 text-muted-foreground">
+                        <td className="px-4 py-3 text-[13px] text-[#68726d]">
                           {r.department?.departmentName ?? "—"}
                         </td>
 
                         {/* Category */}
-                        <td className="px-4 py-3 text-muted-foreground">
+                        <td className="px-4 py-3 text-[13px] text-[#68726d]">
                           {r.category}
                         </td>
 
                         {/* Amount */}
-                        <td className="px-4 py-3 font-medium text-foreground">
+                        <td className="px-4 py-3 text-[13px] font-semibold text-[#0b100e]">
                           ${r.amount.toFixed(2)}
                         </td>
 
@@ -291,7 +287,7 @@ export default function ReimbursementsPage() {
                         </td>
 
                         {/* Date */}
-                        <td className="px-4 py-3 text-muted-foreground">
+                        <td className="px-4 py-3 text-[13px] text-[#68726d]">
                           {r.date}
                         </td>
 
@@ -302,13 +298,11 @@ export default function ReimbursementsPage() {
                         >
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
+                              <button
+                                className="h-8 w-8 flex items-center justify-center rounded-[6px] hover:bg-[#f5f7f6] text-[#68726d] transition-colors"
                               >
                                 <MoreHorizontal className="w-4 h-4" />
-                              </Button>
+                              </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem

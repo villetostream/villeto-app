@@ -54,7 +54,7 @@ export function TableHeader({
       : null;
 
   const actionsContent = (
-    <div className="flex sm:flex-row flex-col items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {tableHeader?.actionButton && <div>{tableHeader.actionButton}</div>}
 
       {tableHeader?.isSearchable && (

@@ -19,7 +19,7 @@ export default function CompanySettingsPage() {
 
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
-      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      <Loader2 className="w-6 h-6 animate-spin text-[#087f70]" />
     </div>
   );
 }

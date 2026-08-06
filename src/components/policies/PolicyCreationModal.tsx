@@ -13,6 +13,12 @@ import { useCreatePolicyApi, type CreatePolicyPayload } from "@/queries/companie
 import type { UpdatePolicyPayload } from "@/queries/companies/update-policy";
 import { useUpdatePolicyApi } from "@/queries/companies/update-policy";
 import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
+import {
+  useCreateExpensePolicyDraft,
+  useUpdateExpensePolicyDraft,
+  useGetExpensePolicyDraft,
+  useDeleteExpensePolicyDraft,
+} from "@/queries/companies/expense-policy-drafts";
 import SimpleAddExpenseCategoryDialog from "@/components/policies/SimpleAddExpenseCategoryDialog";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -109,7 +115,7 @@ function PortalDropdown({
     <>
       <div className="fixed inset-0 z-[60]" onClick={onClose} />
       <div
-        className="fixed z-[61] bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden"
+        className="fixed z-[61] bg-white border border-black/[0.06] rounded-[24px] shadow-xl overflow-hidden"
         style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, minWidth: minWidth, maxHeight: pos.maxHeight, overflowY: "auto" }}
       >
         {children}
@@ -129,23 +135,23 @@ function PolicyPeekPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="m-2 mt-1 rounded-xl border border-[#03C3A6]/30 bg-[#03C3A6]/5 p-3">
+    <div className="m-2 mt-1 rounded-[14px] border border-[#087f70]/30 bg-[#087f70]/5 p-3">
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold text-[#03C3A6] uppercase tracking-widest leading-none mb-0.5">Attached policies</p>
-          <p className="text-xs font-semibold text-gray-800 leading-snug truncate">{categoryName}</p>
+          <p className="text-[10px] font-semibold text-[#087f70] uppercase tracking-widest leading-none mb-0.5">Attached policies</p>
+          <p className="text-xs font-semibold text-[#0b100e] leading-snug truncate">{categoryName}</p>
         </div>
         <button type="button" onClick={onClose}
-          className="w-5 h-5 rounded-full bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center transition-colors shrink-0 mt-0.5">
-          <X className="w-2.5 h-2.5 text-gray-500" />
+          className="w-5 h-5 rounded-full bg-white border border-black/[0.06] hover:bg-[#f9faf9] flex items-center justify-center transition-colors shrink-0 mt-0.5">
+          <X className="w-2.5 h-2.5 text-[#68726d]" />
         </button>
       </div>
       {policyNames.length > 0 && (
         <ul className="space-y-1">
           {policyNames.map((name, i) => (
             <li key={i} className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#03C3A6] shrink-0" />
-              <span className="text-xs text-gray-700 font-medium leading-snug">{name}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#087f70] shrink-0" />
+              <span className="text-xs text-[#0b100e] font-medium leading-snug">{name}</span>
             </li>
           ))}
         </ul>
@@ -195,7 +201,7 @@ function DropdownList({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-5 text-sm text-muted-foreground">
+      <div className="flex items-center justify-center gap-2 py-5 text-sm text-[#68726d]">
         <Loader2 className="w-4 h-4 animate-spin" /> Loading…
       </div>
     );
@@ -205,8 +211,8 @@ function DropdownList({
     <div>
       {searchable && (
         <div className="px-2 pt-2 pb-1">
-          <div className="flex items-center gap-2 h-9 px-3 rounded-xl border border-gray-200 bg-gray-50 focus-within:border-[#03C3A6] focus-within:bg-white transition-colors">
-            <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth={2}>
+          <div className="flex items-center gap-2 h-9 px-3 rounded-[14px] border border-black/[0.06] bg-[#f9faf9] focus-within:border-[#087f70] focus-within:bg-white transition-colors">
+            <svg className="w-3.5 h-3.5 text-[#84908a] shrink-0" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth={2}>
               <circle cx="6.5" cy="6.5" r="4.5"/><path strokeLinecap="round" d="M10.5 10.5l3 3"/>
             </svg>
             <input
@@ -214,11 +220,11 @@ function DropdownList({
               value={query}
               onChange={(e) => { setQuery(e.target.value); setTimeout(checkFade, 0); }}
               placeholder="Search…"
-              className="flex-1 text-sm bg-transparent focus:outline-none placeholder:text-gray-400 text-gray-800"
+              className="flex-1 text-sm bg-transparent focus:outline-none placeholder:text-[#84908a] text-[#0b100e]"
             />
             {query && (
               <button type="button" onClick={() => setQuery("")}
-                className="text-gray-400 hover:text-gray-600 transition-colors shrink-0">
+                className="text-[#84908a] hover:text-[#68726d] transition-colors shrink-0">
                 <X className="w-3 h-3" />
               </button>
             )}
@@ -234,10 +240,10 @@ function DropdownList({
             maxHeight: 264,
             overflowY: "auto",
             scrollbarWidth: "thin",
-            scrollbarColor: "#03C3A6 #f0fdf9",
+            scrollbarColor: "#087f70 #f0fdf9",
           } as React.CSSProperties}
         >
-          <style>{`.dp-i::-webkit-scrollbar{width:5px}.dp-i::-webkit-scrollbar-track{background:#f0fdf9;border-radius:99px}.dp-i::-webkit-scrollbar-thumb{background:#03C3A6;border-radius:99px}`}</style>
+          <style>{`.dp-i::-webkit-scrollbar{width:5px}.dp-i::-webkit-scrollbar-track{background:#f0fdf9;border-radius:99px}.dp-i::-webkit-scrollbar-thumb{background:#087f70;border-radius:99px}`}</style>
           <div className="dp-i p-1.5">
             {filtered.length > 0 ? filtered.map((opt) => {
               const sel = selectedValues.includes(opt.value);
@@ -247,19 +253,19 @@ function DropdownList({
                   key={opt.value}
                   onClick={() => onSelect(opt.value)}
                   style={{ minHeight: 48 }}
-                  className={`w-full flex items-center justify-between gap-3 px-3 rounded-xl text-left transition-colors cursor-pointer ${
-                    sel ? "bg-[#03C3A6]/10" : "hover:bg-gray-50"
+                  className={`w-full flex items-center justify-between gap-3 px-3 rounded-[14px] text-left transition-colors cursor-pointer ${
+                    sel ? "bg-[#087f70]/10" : "hover:bg-[#f9faf9]"
                   }`}
                 >
                   <div className="flex flex-col justify-center min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-800 text-left leading-snug truncate">{opt.label}</span>
+                      <span className="text-sm font-medium text-[#0b100e] text-left leading-snug truncate">{opt.label}</span>
                       {opt.sideBadge && (
-                        <span className="px-1.5 py-0.5 rounded-full bg-gray-100 text-[10px] font-medium text-gray-600 truncate max-w-[120px]">{opt.sideBadge}</span>
+                        <span className="px-1.5 py-0.5 rounded-full bg-[#f5f7f6] text-[10px] font-medium text-[#68726d] truncate max-w-[120px]">{opt.sideBadge}</span>
                       )}
                     </div>
                     {opt.subLabel && (
-                      <span className="text-xs text-gray-400 text-left leading-snug truncate">{opt.subLabel}</span>
+                      <span className="text-xs text-[#84908a] text-left leading-snug truncate">{opt.subLabel}</span>
                     )}
                   </div>
 
@@ -268,12 +274,12 @@ function DropdownList({
                     {/* Policy count badge */}
                     {opt.policyCount !== undefined && (
                       hasPolicy ? (
-                        <span className="inline-flex items-center h-5 px-2 rounded-full bg-[#03C3A6]/15 text-[#03C3A6] text-[10px] font-semibold gap-1 whitespace-nowrap">
+                        <span className="inline-flex items-center h-5 px-2 rounded-full bg-[#087f70]/15 text-[#087f70] text-[10px] font-semibold gap-1 whitespace-nowrap">
                           <ShieldCheck className="w-2.5 h-2.5" />
                           {opt.policyCount} {opt.policyCount === 1 ? "policy" : "policies"}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center h-5 px-2 rounded-full bg-gray-100 text-gray-400 text-[10px] font-medium whitespace-nowrap">
+                        <span className="inline-flex items-center h-5 px-2 rounded-full bg-[#f5f7f6] text-[#84908a] text-[10px] font-medium whitespace-nowrap">
                           No policy
                         </span>
                       )
@@ -289,8 +295,8 @@ function DropdownList({
                         }}
                         className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                           peekOpt?.value === opt.value
-                            ? "bg-[#03C3A6] text-white"
-                            : "bg-gray-100 hover:bg-[#03C3A6]/20 text-gray-400 hover:text-[#03C3A6]"
+                            ? "bg-[#087f70] text-white"
+                            : "bg-[#f5f7f6] hover:bg-[#087f70]/20 text-[#84908a] hover:text-[#087f70]"
                         }`}
                       >
                         <Info className="w-3 h-3" />
@@ -299,19 +305,19 @@ function DropdownList({
 
                     {/* Checkbox / checkmark */}
                     {multiSelect ? (
-                      <span className={`w-[18px] h-[18px] rounded-md border-2 flex items-center justify-center transition-all ${
-                        sel ? "bg-[#03C3A6] border-[#03C3A6]" : "border-gray-300"
+                      <span className={`w-[18px] h-[18px] rounded-[8px] border-2 flex items-center justify-center transition-all ${
+                        sel ? "bg-[#087f70] border-[#087f70]" : "border-black/[0.12]"
                       }`}>
                         {sel && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
                       </span>
                     ) : (
-                      sel && <Check className="w-4 h-4 text-[#03C3A6]" strokeWidth={2.5} />
+                      sel && <Check className="w-4 h-4 text-[#087f70]" strokeWidth={2.5} />
                     )}
                   </div>
                 </div>
               );
             }) : (
-              <div className="py-5 text-sm text-center text-muted-foreground italic">
+              <div className="py-5 text-sm text-center text-[#68726d] italic">
                 {query ? `No results for "${query}"` : "No options available"}
               </div>
             )}
@@ -348,11 +354,11 @@ function SimpleDropdown({ placeholder, value, onChange, options, footer, isLoadi
   return (
     <div className="relative">
       <button ref={ref} type="button" onClick={() => setOpen((p) => !p)} disabled={isLoading}
-        className="w-full h-12 rounded-xl border border-border bg-white px-4 flex items-center justify-between gap-3 text-sm transition-colors hover:border-[#03C3A6]/50 focus:outline-none focus:border-[#03C3A6] disabled:opacity-50">
-        <span className={`text-left truncate ${sel ? "text-gray-900 font-medium" : "text-muted-foreground"}`}>
+        className="w-full h-12 rounded-[14px] border border-black/[0.06] bg-white px-4 flex items-center justify-between gap-3 text-sm transition-colors hover:border-[#087f70]/50 focus:outline-none focus:border-[#087f70] disabled:opacity-50">
+        <span className={`text-left truncate ${sel ? "text-[#0b100e] font-medium" : "text-[#68726d]"}`}>
           {isLoading ? "Loading…" : sel?.label ?? placeholder}
         </span>
-        <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       <PortalDropdown triggerRef={ref} open={open} onClose={() => setOpen(false)}>
         <DropdownList options={options} selectedValues={value ? [value] : []} multiSelect={false}
@@ -380,17 +386,17 @@ function MultiDropdown({ placeholder, values, onToggle, options, footer, isLoadi
   return (
     <div className="relative">
       <button ref={ref} type="button" onClick={() => setOpen((p) => !p)} disabled={isLoading}
-        className="w-full h-12 rounded-xl border border-border bg-white px-4 flex items-center justify-between gap-3 text-sm transition-colors hover:border-[#03C3A6]/50 focus:outline-none focus:border-[#03C3A6] disabled:opacity-50">
-        <span className={`text-left truncate ${triggerLabel ? "text-gray-900 font-medium" : "text-muted-foreground"}`}>
+        className="w-full h-12 rounded-[14px] border border-black/[0.06] bg-white px-4 flex items-center justify-between gap-3 text-sm transition-colors hover:border-[#087f70]/50 focus:outline-none focus:border-[#087f70] disabled:opacity-50">
+        <span className={`text-left truncate ${triggerLabel ? "text-[#0b100e] font-medium" : "text-[#68726d]"}`}>
           {triggerLabel ?? placeholder}
         </span>
         <div className="flex items-center gap-2 shrink-0">
           {values.length > 1 && (
-            <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-[#03C3A6] text-white text-[11px] font-bold flex items-center justify-center">
+            <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-[#087f70] text-white text-[11px] font-bold flex items-center justify-center">
               {values.length}
             </span>
           )}
-          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+          <ChevronDown className={`w-4 h-4 text-[#68726d] transition-transform ${open ? "rotate-180" : ""}`} />
         </div>
       </button>
       <PortalDropdown triggerRef={ref} open={open} onClose={() => setOpen(false)}>
@@ -406,12 +412,12 @@ function MultiDropdown({ placeholder, values, onToggle, options, footer, isLoadi
 /** Chip with teal outlined style matching the designer's screenshot */
 function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1.5 h-7 pl-3 pr-1.5 rounded-full border border-[#03C3A6]/40 bg-[#03C3A6]/5 text-xs font-medium text-[#03C3A6]">
+    <span className="inline-flex items-center gap-1.5 h-7 pl-3 pr-1.5 rounded-full border border-[#087f70]/40 bg-[#087f70]/5 text-xs font-medium text-[#087f70]">
       {label}
       <button
         type="button"
         onClick={onRemove}
-        className="w-4 h-4 rounded-full border border-[#03C3A6]/30 hover:bg-[#03C3A6]/15 flex items-center justify-center transition-colors"
+        className="w-4 h-4 rounded-full border border-[#087f70]/30 hover:bg-[#087f70]/15 flex items-center justify-center transition-colors"
       >
         <X className="w-2 h-2" strokeWidth={3} />
       </button>
@@ -426,24 +432,24 @@ function RadioRow({ value, label, subLabel, checked, onChange }: {
     <button type="button" onClick={() => onChange(value)}
       className="flex items-start gap-3 py-1 w-full text-left group">
       <span className={`mt-0.5 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-        checked ? "border-[#03C3A6]" : "border-gray-300 group-hover:border-[#03C3A6]/40"
+        checked ? "border-[#087f70]" : "border-black/[0.12] group-hover:border-[#087f70]/40"
       }`}>
-        <span className={`rounded-full bg-[#03C3A6] transition-all ${checked ? "w-2 h-2" : "w-0 h-0"}`} />
+        <span className={`rounded-full bg-[#087f70] transition-all ${checked ? "w-2 h-2" : "w-0 h-0"}`} />
       </span>
       <div className="text-left">
-        <p className={`text-sm font-medium leading-snug ${checked ? "text-gray-900" : "text-gray-600"}`}>{label}</p>
-        {subLabel && <p className="text-xs text-gray-400 mt-0.5">{subLabel}</p>}
+        <p className={`text-sm font-medium leading-snug ${checked ? "text-[#0b100e]" : "text-[#68726d]"}`}>{label}</p>
+        {subLabel && <p className="text-xs text-[#84908a] mt-0.5">{subLabel}</p>}
       </div>
     </button>
   );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm font-medium text-gray-700 mb-1.5">{children}</p>;
+  return <p className="text-sm font-medium text-[#0b100e] mb-1.5">{children}</p>;
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm font-medium text-gray-700 mb-1.5">{children}</p>;
+  return <p className="text-sm font-medium text-[#0b100e] mb-1.5">{children}</p>;
 }
 
 function NumberInput({ value, onChange, placeholder = "0.00" }: {
@@ -452,14 +458,14 @@ function NumberInput({ value, onChange, placeholder = "0.00" }: {
   const currencySymbol = useAuthStore(state => state.getCurrencySymbol());
   return (
     <div className="relative">
-      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">{currencySymbol}</span>
+      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#84908a] text-sm pointer-events-none">{currencySymbol}</span>
       <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full h-12 rounded-xl border border-border bg-white pl-7 pr-8 text-sm font-medium text-gray-800 placeholder:text-muted-foreground focus:outline-none focus:border-[#03C3A6] transition-colors tabular-nums" />
+        className="w-full h-12 rounded-[14px] border border-black/[0.06] bg-white pl-7 pr-8 text-sm font-medium text-[#0b100e] placeholder:text-[#68726d] focus:outline-none focus:border-[#087f70] transition-colors tabular-nums" />
       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
         <button type="button" onClick={() => onChange(String((parseFloat(value || "0") + 1).toFixed(2)))}
-          className="text-gray-400 hover:text-gray-600 p-0.5"><ChevronUp className="w-3 h-3" /></button>
+          className="text-[#84908a] hover:text-[#68726d] p-0.5"><ChevronUp className="w-3 h-3" /></button>
         <button type="button" onClick={() => onChange(String(Math.max(0, parseFloat(value || "0") - 1).toFixed(2)))}
-          className="text-gray-400 hover:text-gray-600 p-0.5"><ChevronDown className="w-3 h-3" /></button>
+          className="text-[#84908a] hover:text-[#68726d] p-0.5"><ChevronDown className="w-3 h-3" /></button>
       </div>
     </div>
   );
@@ -474,15 +480,15 @@ function ThreeStepBar({ current }: { current: 1 | 2 | 3 }) {
         <div key={n} className="flex items-center">
           <div className="flex items-center gap-2">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-              n < current ? "bg-[#03C3A6] text-white" :
-              n === current ? "bg-[#03C3A6] text-white ring-[3px] ring-[#03C3A6]/20" :
-              "bg-gray-100 text-gray-400"
+              n < current ? "bg-[#087f70] text-white" :
+              n === current ? "bg-[#087f70] text-white ring-[3px] ring-[#087f70]/20" :
+              "bg-[#f5f7f6] text-[#84908a]"
             }`}>
               {n < current ? <Check className="w-3 h-3" strokeWidth={3} /> : n}
             </div>
-            <span className={`text-xs font-medium ${n === current ? "text-gray-900" : "text-gray-400"}`}>{label}</span>
+            <span className={`text-xs font-medium ${n === current ? "text-[#0b100e]" : "text-[#84908a]"}`}>{label}</span>
           </div>
-          {i < 2 && <div className={`w-10 h-px mx-2 ${n < current ? "bg-[#03C3A6]" : "bg-gray-200"}`} />}
+          {i < 2 && <div className={`w-10 h-px mx-2 ${n < current ? "bg-[#087f70]" : "bg-gray-200"}`} />}
         </div>
       ))}
     </div>
@@ -500,19 +506,19 @@ function ReceiptModeToggle({
   onChange: (m: "all" | "threshold") => void;
 }) {
   return (
-    <div className="flex rounded-xl border border-gray-200 overflow-hidden p-0.5 bg-gray-50 gap-0.5">
+    <div className="flex rounded-[14px] border border-black/[0.06] overflow-hidden p-0.5 bg-[#f9faf9] gap-0.5">
       <button
         type="button"
         onClick={() => onChange("all")}
         className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-[10px] text-sm font-medium transition-all ${
           mode === "all"
-            ? "bg-[#03C3A6] text-white shadow-sm shadow-[#03C3A6]/30"
-            : "text-gray-500 hover:text-gray-700"
+            ? "bg-[#087f70] text-white shadow-sm shadow-[#087f70]/30"
+            : "text-[#68726d] hover:text-[#0b100e]"
         }`}
       >
         <span
           className={`w-3 h-3 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-            mode === "all" ? "border-white" : "border-gray-300"
+            mode === "all" ? "border-white" : "border-black/[0.12]"
           }`}
         >
           {mode === "all" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
@@ -524,13 +530,13 @@ function ReceiptModeToggle({
         onClick={() => onChange("threshold")}
         className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-[10px] text-sm font-medium transition-all ${
           mode === "threshold"
-            ? "bg-[#03C3A6] text-white shadow-sm shadow-[#03C3A6]/30"
-            : "text-gray-500 hover:text-gray-700"
+            ? "bg-[#087f70] text-white shadow-sm shadow-[#087f70]/30"
+            : "text-[#68726d] hover:text-[#0b100e]"
         }`}
       >
         <span
           className={`w-3 h-3 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-            mode === "threshold" ? "border-white" : "border-gray-300"
+            mode === "threshold" ? "border-white" : "border-black/[0.12]"
           }`}
         >
           {mode === "threshold" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
@@ -556,12 +562,12 @@ function RuleCard({
   const isThreshold = receiptMode === "threshold";
 
   return (
-    <div className="rounded-2xl border border-border p-5 space-y-4 relative">
+    <div className="rounded-[24px] border border-black/[0.06] p-5 space-y-4 relative">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-800">{meta.label}</p>
+        <p className="text-sm font-semibold text-[#0b100e]">{meta.label}</p>
         {canDelete && (
           <button type="button" onClick={onDelete}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-500 transition-colors">
+            className="w-7 h-7 flex items-center justify-center rounded-[12px] text-red-400 hover:bg-red-50 hover:text-red-500 transition-colors">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         )}
@@ -576,14 +582,14 @@ function RuleCard({
               mode={receiptMode}
               onChange={(m) => onChange({ ...rule, receiptMode: m, amount: m === "all" ? "" : rule.amount })}
             />
-            <p className="mt-2 text-xs text-gray-400 leading-snug">
+            <p className="mt-2 text-xs text-[#84908a] leading-snug">
               {receiptMode === "all"
                 ? "Receipt is required on every transaction, regardless of the amount."
                 : "Receipt is only required when a transaction exceeds the amount you set below."}
             </p>
           </div>
 
-          <div className={`grid gap-4 ${isThreshold ? "grid-cols-2" : "grid-cols-1"}` }>
+          <div className={`grid gap-4 ${isThreshold ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}` }>
             {/* Amount — only shown in threshold mode */}
             {isThreshold && (
               <div>
@@ -603,7 +609,7 @@ function RuleCard({
 
       {/* Spend Limit — unchanged layout */}
       {isSpendLimit && (
-        <div className="grid gap-4 grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
           <div>
             <FieldLabel>Timeframe</FieldLabel>
             <SimpleDropdown
@@ -658,36 +664,36 @@ function Preview({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl border border-[#03C3A6]/25 bg-gradient-to-br from-[#03C3A6]/[0.06] to-white p-5">
-        <p className="text-[11px] font-semibold text-[#03C3A6] uppercase tracking-widest mb-1">Policy name</p>
-        <p className="text-base font-bold text-gray-900 mb-4">{policyName}</p>
+      <div className="rounded-[24px] border border-[#087f70]/25 bg-gradient-to-br from-[#087f70]/[0.06] to-white p-5">
+        <p className="text-[11px] font-semibold text-[#087f70] uppercase tracking-widest mb-1">Policy name</p>
+        <p className="text-base font-bold text-[#0b100e] mb-4">{policyName}</p>
 
-        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Expense categories</p>
+        <p className="text-[11px] font-semibold text-[#84908a] uppercase tracking-widest mb-2">Expense categories</p>
         <div className="flex flex-wrap gap-1.5 mb-4">
           {categories.map((c: string, categoryIndex: number) => {
             const label = expenseCategoryOptions.find((o: DropdownOption) => o.value === c)?.label ?? (typeof c === 'string' ? c : (c as { name?: string })?.name || 'Category');
             return (
-              <span key={`${c}-${categoryIndex}`} className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-[#03C3A6]/10 text-[#03C3A6] text-[11px] font-semibold">
+              <span key={`${c}-${categoryIndex}`} className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full bg-[#087f70]/10 text-[#087f70] text-[11px] font-semibold">
                 <Tag className="w-2.5 h-2.5" /> {label}
               </span>
             );
           })}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <div className="flex items-center gap-1.5 mb-1">
-              <Users className="w-3 h-3 text-gray-400" />
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Scope</p>
+              <Users className="w-3 h-3 text-[#84908a]" />
+              <p className="text-[11px] font-semibold text-[#84908a] uppercase tracking-wider">Scope</p>
             </div>
-            <p className="text-xs font-medium text-gray-700 leading-snug">{scopeSummary}</p>
+            <p className="text-xs font-medium text-[#0b100e] leading-snug">{scopeSummary}</p>
           </div>
           <div>
             <div className="flex items-center gap-1.5 mb-1">
-              <MapPin className="w-3 h-3 text-gray-400" />
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Location</p>
+              <MapPin className="w-3 h-3 text-[#84908a]" />
+              <p className="text-[11px] font-semibold text-[#84908a] uppercase tracking-wider">Location</p>
             </div>
-            <p className="text-xs font-medium text-gray-700 leading-snug">
+            <p className="text-xs font-medium text-[#0b100e] leading-snug">
               {location ? LOCATION_OPTIONS.find(o => o.value === location)?.label || location : "All locations"}
             </p>
           </div>
@@ -695,22 +701,23 @@ function Preview({
       </div>
 
       {rules.length > 0 && (
-        <div className="rounded-2xl border border-border overflow-hidden">
-          <div className="grid grid-cols-3 px-4 py-2 bg-gray-50 border-b border-border">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Rule</p>
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Amount</p>
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Enforcement</p>
-          </div>
-          {rules.map((rule, i) => (
-            <div key={rule.id}
-              className={`grid grid-cols-3 px-4 py-3 items-center ${i < rules.length - 1 ? "border-b border-border" : ""}`}>
-              <p className="text-sm font-medium text-gray-800">{RULE_TYPE_LABELS[rule.type].label}</p>
-              <p className="text-sm text-gray-700 tabular-nums">
+        <div className="rounded-[24px] border border-black/[0.06] overflow-x-auto">
+          <div className="min-w-[480px]">
+            <div className="grid grid-cols-3 px-4 py-2 bg-[#f9faf9] border-b border-black/[0.06]">
+              <p className="text-[11px] font-semibold text-[#84908a] uppercase tracking-wider">Rule</p>
+              <p className="text-[11px] font-semibold text-[#84908a] uppercase tracking-wider">Amount</p>
+              <p className="text-[11px] font-semibold text-[#84908a] uppercase tracking-wider">Enforcement</p>
+            </div>
+            {rules.map((rule, i) => (
+              <div key={rule.id}
+                className={`grid grid-cols-3 px-4 py-3 items-center ${i < rules.length - 1 ? "border-b border-black/[0.06]" : ""}`}>
+              <p className="text-sm font-medium text-[#0b100e]">{RULE_TYPE_LABELS[rule.type].label}</p>
+              <p className="text-sm text-[#0b100e] tabular-nums">
                 {rule.type === "receipt_requirement" && (rule.receiptMode ?? "all") === "all"
-                  ? <span className="inline-flex items-center gap-1 text-[#03C3A6] font-medium text-xs"><span className="w-1.5 h-1.5 rounded-full bg-[#03C3A6] inline-block" />All transactions</span>
+                  ? <span className="inline-flex items-center gap-1 text-[#087f70] font-medium text-xs"><span className="w-1.5 h-1.5 rounded-full bg-[#087f70] inline-block" />All transactions</span>
                   : rule.type === "receipt_requirement" && rule.receiptMode === "threshold"
                     ? rule.amount
-                      ? <span className="text-gray-700 tabular-nums">Above <span className="font-semibold">{currencySymbol}{rule.amount}</span></span>
+                      ? <span className="text-[#0b100e] tabular-nums">Above <span className="font-semibold">{currencySymbol}{rule.amount}</span></span>
                       : <span className="text-gray-300">—</span>
                     : rule.amount ? `${currencySymbol}${rule.amount}` : <span className="text-gray-300">—</span>
                 }
@@ -724,24 +731,25 @@ function Preview({
                   </span>
                 ) : <span className="text-gray-300 text-sm">—</span>}
               </div>
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {approvers.filter(Boolean).length > 0 && (
-        <div className="rounded-2xl border border-border bg-white p-4">
+        <div className="rounded-[24px] border border-black/[0.06] bg-white p-4">
           <div className="flex items-center gap-1.5 mb-3">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Approvers</p>
+            <p className="text-[11px] font-semibold text-[#84908a] uppercase tracking-wider">Approvers</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {approvers.filter(Boolean).map((a, i) => (
-              <div key={i} className="flex items-center gap-2 h-8 pl-2 pr-3 rounded-full bg-gray-50 border border-gray-100">
-                <div className="w-5 h-5 rounded-full bg-[#03C3A6]/15 flex items-center justify-center">
-                  <UserCircle className="w-3.5 h-3.5 text-[#03C3A6]" />
+              <div key={i} className="flex items-center gap-2 h-8 pl-2 pr-3 rounded-full bg-[#f9faf9] border border-gray-100">
+                <div className="w-5 h-5 rounded-full bg-[#087f70]/15 flex items-center justify-center">
+                  <UserCircle className="w-3.5 h-3.5 text-[#087f70]" />
                 </div>
-                <span className="text-xs font-medium text-gray-700">
+                <span className="text-xs font-medium text-[#0b100e]">
                   {adminOptions.find(o => o.value === a)?.label ?? (typeof a === "string" ? a : "User")}
                 </span>
               </div>
@@ -809,12 +817,14 @@ const mkRule = (type: RuleType = "spend_limit"): PolicyRule => ({
    MAIN MODAL
 ═══════════════════════════════════════════════════════════ */
 export default function PolicyCreationModal({
-  open, onOpenChange, onSuccess, policyId,
+  open, onOpenChange, onSuccess, policyId, initialDraftId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: (data: CreatedPolicyData) => void;
   policyId?: string | null;
+  /** Pass an existing draftId to resume editing a saved draft */
+  initialDraftId?: string | null;
 }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
@@ -844,6 +854,10 @@ export default function PolicyCreationModal({
   // Step 4 — Approvers (multi-select IDs)
   const [approvers, setApprovers] = useState<string[]>([]);
 
+  // Draft tracking — persists the draftId across "Save as Draft" calls
+  // so subsequent saves within the same session do a PATCH instead of POST.
+  const [draftId, setDraftId] = useState<string | null>(initialDraftId ?? null);
+
   const can = useAuthStore(state => state.can);
 
   const rolesApi         = useGetCompanyRolesApi({}, { enabled: open });
@@ -852,13 +866,19 @@ export default function PolicyCreationModal({
   // Expense categories are viewed within the context of Expense / Policies.
   const expCatApi        = useGetExpenseCategoriesApi({ enabled: open });
 
-  const createPolicyMutation = useCreatePolicyApi();
-  const updatePolicyMutation = useUpdatePolicyApi();
+  const createPolicyMutation   = useCreatePolicyApi();
+  const updatePolicyMutation   = useUpdatePolicyApi();
+  const createDraftMutation    = useCreateExpensePolicyDraft();
+  const updateDraftMutation    = useUpdateExpensePolicyDraft();
+  const deleteDraftMutation    = useDeleteExpensePolicyDraft();
   const detailsApi = useGetPolicyDetailsApi(policyId || null, { enabled: open && !!policyId });
+  const draftDetailsApi = useGetExpensePolicyDraft(initialDraftId || null, { enabled: open && !!initialDraftId });
 
-  const isEditing = !!policyId;
-  const isFetchingDetails = isEditing && detailsApi.isLoading;
-  const isLoading = createPolicyMutation.isPending || updatePolicyMutation.isPending;
+  const isEditing      = !!policyId || !!initialDraftId;
+  const isFetchingDetails = (!!policyId && detailsApi.isLoading) || (!!initialDraftId && draftDetailsApi.isLoading);
+  const isSavingDraft  = createDraftMutation.isPending || updateDraftMutation.isPending;
+  const isDeletingDraft = deleteDraftMutation.isPending;
+  const isLoading      = createPolicyMutation.isPending || updatePolicyMutation.isPending;
 
   const reset = () => {
     setStep(1); setPolicyName(""); setScope("all");
@@ -866,39 +886,37 @@ export default function PolicyCreationModal({
     setCategories([]); setLocation(resolveDefaultLocation(userCountry));
     setRules([mkRule("spend_limit"), mkRule("receipt_requirement")]);
     setApprovers([]);
+    setDraftId(initialDraftId ?? null);
   };
 
-  const detailsData = detailsApi.data?.data;
-  const [syncedDetails, setSyncedDetails] = useState(detailsData);
+  const detailsData = detailsApi.data?.data || draftDetailsApi.data?.data;
+  const [syncedDetails, setSyncedDetails] = useState<any>(undefined);
   if (open && isEditing && detailsData && detailsData !== syncedDetails) {
     setSyncedDetails(detailsData);
     const data = detailsData;
     setPolicyName(data.name || "");
-    const scopeType = data.scope?.type === "all" || data.scope?.type === "all_employees" ? "all" : "specific";
+    
+    // Support both standard policy response structure (data.scope object) and draft response (flat properties)
+    const dataAny = data as any;
+    const rawScopeType = data.scope?.type || dataAny.scopeType;
+    const scopeType = rawScopeType === "all" || rawScopeType === "all_employees" ? "all" : "specific";
     setScope(scopeType);
 
-    if (data.scope?.type === "specific") {
-      setSelectedDepts(data.scope.departments || []);
-      setSelectedRoles(data.scope.userRoles || []);
-      setLocation(data.scope.location || "");
+    if (scopeType === "specific") {
+      setSelectedDepts(dataAny.scope?.departments || dataAny.applicableDepartments || []);
+      setSelectedRoles(dataAny.scope?.userRoles || dataAny.applicableRoles || []);
+      setLocation(dataAny.scope?.location || dataAny.location || "");
     } else {
-      setLocation((data.scope as { location?: string } | undefined)?.location || "");
+      setLocation(dataAny.scope?.location || dataAny.location || "");
     }
 
-    const categoryIds = (data.expenseCategories || []).map((c: string | { categoryId?: string; id?: string }) => typeof c === 'string' ? c : (c?.categoryId || c?.id || ''));
+    const categoryIds = (data.expenseCategories || []).map((c: any) => typeof c === 'string' ? c : (c?.categoryId || c?.id || ''));
     setCategories(categoryIds);
-    const approverIds = (data.approvers || []).map((a: string | { userId?: string; id?: string }) => typeof a === 'string' ? a : (a?.userId || a?.id || '')).filter(Boolean);
+    const approverIds = (data.approvers || []).map((a: any) => typeof a === 'string' ? a : (a?.userId || a?.id || '')).filter(Boolean);
     setApprovers(approverIds);
 
     if (data.rules?.length) {
-      setRules(data.rules.map((r: {
-        type: RuleType;
-        amount?: string | number;
-        receiptAmountThreshold?: string | number;
-        timeUnit?: string;
-        timeframe?: string;
-        enforcementAction?: string;
-      }, ruleIndex: number) => {
+      setRules(data.rules.map((r: any, ruleIndex: number) => {
         const isReceipt = r.type === "receipt_requirement";
         const rawAmount = (r.amount ?? r.receiptAmountThreshold ?? "").toString();
         const receiptMode: "all" | "threshold" =
@@ -1072,15 +1090,60 @@ export default function PolicyCreationModal({
   };
 
   const handleSaveDraft = async () => {
+    if (!policyName.trim()) {
+      toast.error("Please enter a policy name before saving as draft.");
+      return;
+    }
+    const currencyCode = getCurrencyConfig(userCountry).code;
+    const draftPayload = {
+      name: policyName.trim(),
+      override_policy: false,
+      description: policyName.trim(),
+      rules: rules
+        .filter(r => r.enforcement)
+        .map(r => {
+          const enforcementAction = r.enforcement === "warn" ? "soft_warn" : (r.enforcement as string);
+          if (r.type === "spend_limit") return {
+            type: "spend_limit" as const,
+            timeUnit: r.timeframe || "daily",
+            amount: r.amount ? parseFloat(r.amount) : 0,
+            currency: currencyCode,
+            enforcementAction,
+          };
+          const mode = r.receiptMode ?? "all";
+          return {
+            type: "receipt_requirement" as const,
+            receiptNeeded: true,
+            receiptAmountThreshold: mode === "threshold" && r.amount ? parseFloat(r.amount) : 0,
+            currency: currencyCode,
+            enforcementAction,
+          };
+        }),
+      scope: scope === "all"
+        ? { type: "all" as const, ...(location ? { location } : {}) }
+        : { type: "specific" as const, departments: selectedDepts, userRoles: selectedRoles, ...(location ? { location } : {}) },
+      approvers: approvers.filter(Boolean),
+      expenseCategories: categories,
+    };
+
     try {
-      // TODO: draft endpoint not yet confirmed — saving with status "draft"
-      toast.info("Draft saving is not available for this endpoint yet.");
+      if (draftId) {
+        // Already saved once this session — patch the existing draft
+        await updateDraftMutation.mutateAsync({ draftId, payload: draftPayload });
+        toast.success("Draft updated successfully!");
+      } else {
+        // First save — create a new draft and retain its ID
+        const res = await createDraftMutation.mutateAsync(draftPayload);
+        const newDraftId = res?.data?.draftId;
+        if (newDraftId) setDraftId(newDraftId);
+        toast.success("Policy saved as draft!");
+      }
       handleClose();
-    } catch {
-      // If draft endpoint is not available, just close without pretending to save
-      handleClose();
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Failed to save draft"));
     }
   };
+
 
   const handleConfirm = async () => {
     try {
@@ -1146,30 +1209,30 @@ export default function PolicyCreationModal({
 
           {isFetchingDetails && (
             <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center rounded-[1.75rem]">
-              <Loader2 className="w-8 h-8 text-[#03C3A6] animate-spin mb-4" />
-              <p className="text-sm font-medium text-gray-600">Loading policy details...</p>
+              <Loader2 className="w-8 h-8 text-[#087f70] animate-spin mb-4" />
+              <p className="text-sm font-medium text-[#68726d]">Loading policy details...</p>
             </div>
           )}
 
           {/* ════ STEP 1 — Name ════════════════════════════════ */}
           {step === 1 && (
             <div className="p-9">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-5">{policyId ? "Edit Expense Policy" : "New Expense Policy"}</p>
-              <h2 className="text-[22px] font-semibold text-gray-900 mb-7">Policy Name</h2>
+              <p className="text-[11px] font-semibold text-[#84908a] uppercase tracking-widest mb-5">{policyId ? "Edit Expense Policy" : "New Expense Policy"}</p>
+              <h2 className="text-[22px] font-semibold text-[#0b100e] mb-7">Policy Name</h2>
               <input autoFocus
                 placeholder="e.g. Sales Team Travel Policy"
                 value={policyName}
                 onChange={(e) => setPolicyName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && policyName.trim() && setStep(2)}
-                className="w-full h-12 rounded-xl border border-border px-4 text-sm font-medium text-gray-900 placeholder:text-muted-foreground focus:outline-none focus:border-[#03C3A6] transition-colors mb-8"
+                className="w-full h-12 rounded-[14px] border border-black/[0.06] px-4 text-sm font-medium text-[#0b100e] placeholder:text-[#68726d] focus:outline-none focus:border-[#087f70] transition-colors mb-8"
               />
               <div className="flex justify-end gap-4">
                 <button type="button" onClick={handleClose}
-                  className="text-sm text-gray-400 hover:text-gray-600 underline underline-offset-4 transition-colors">
+                  className="text-sm text-[#84908a] hover:text-[#68726d] underline underline-offset-4 transition-colors">
                   Cancel
                 </button>
                 <button type="button" onClick={() => policyName.trim() && setStep(2)} disabled={!policyName.trim()}
-                  className="h-11 px-8 rounded-xl bg-[#03C3A6] text-white text-sm font-semibold disabled:opacity-40 hover:bg-[#03C3A6]/90 transition-all shadow-sm shadow-[#03C3A6]/20">
+                  className="h-11 px-8 rounded-[14px] bg-[#087f70] text-white text-sm font-semibold disabled:opacity-40 hover:bg-[#087f70]/90 transition-all shadow-sm shadow-[#087f70]/20">
                   Continue
                 </button>
               </div>
@@ -1183,8 +1246,8 @@ export default function PolicyCreationModal({
               <div className="px-8 pt-7 pb-5 shrink-0">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 pr-3">
-                    <p className="text-xs text-gray-400 font-medium truncate mb-0.5">{policyName}</p>
-                    <h2 className="text-[20px] font-semibold text-gray-900 leading-tight">
+                    <p className="text-xs text-[#84908a] font-medium truncate mb-0.5">{policyName}</p>
+                    <h2 className="text-[20px] font-semibold text-[#0b100e] leading-tight">
                       {step === 2 && "Scope"}
                       {step === 3 && "Rules"}
                       {step === 4 && "Approvers"}
@@ -1192,8 +1255,8 @@ export default function PolicyCreationModal({
                     </h2>
                   </div>
                   <button onClick={handleClose}
-                    className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0">
-                    <X className="w-4 h-4 text-gray-500" />
+                    className="w-9 h-9 rounded-full bg-[#f5f7f6] hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0">
+                    <X className="w-4 h-4 text-[#68726d]" />
                   </button>
                 </div>
                 {step <= 4 && (
@@ -1203,7 +1266,7 @@ export default function PolicyCreationModal({
                 )}
               </div>
 
-              <div className="h-px bg-gray-100 shrink-0" />
+              <div className="h-px bg-[#f5f7f6] shrink-0" />
 
               {/* Scrollable body */}
               <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6 min-h-0" style={{ scrollbarWidth: "none" } as React.CSSProperties}>
@@ -1224,7 +1287,7 @@ export default function PolicyCreationModal({
                         searchable
                         footer={
                           <button type="button" onClick={() => setIsAddCatOpen(true)}
-                            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-[#03C3A6] hover:bg-gray-50 transition-colors text-left">
+                            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-[#087f70] hover:bg-[#f9faf9] transition-colors text-left">
                             <Plus className="w-4 h-4" strokeWidth={2.5} /> Add category
                           </button>
                         }
@@ -1263,7 +1326,7 @@ export default function PolicyCreationModal({
 
                         {/* Expanded sub-fields — only shown when specific is chosen */}
                         {scope === "specific" && (
-                          <div className="ml-7 space-y-4 pt-4 px-4 pb-4 rounded-2xl bg-[#03C3A6]/[0.03] border border-[#03C3A6]/10">
+                          <div className="ml-7 space-y-4 pt-4 px-4 pb-4 rounded-[24px] bg-[#087f70]/[0.03] border border-[#087f70]/10">
 
                             {/* Department selector */}
                             <div>
@@ -1331,9 +1394,9 @@ export default function PolicyCreationModal({
 
                             {/* "Applies to:" summary — appears once something is selected */}
                             {appliesTo && (
-                              <p className="text-sm text-gray-500 leading-snug">
+                              <p className="text-sm text-[#68726d] leading-snug">
                                 Applies to:{" "}
-                                <span className="font-medium text-gray-700">{appliesTo}</span>
+                                <span className="font-medium text-[#0b100e]">{appliesTo}</span>
                               </p>
                             )}
                           </div>
@@ -1345,7 +1408,7 @@ export default function PolicyCreationModal({
                     <div>
                       <FieldLabel>
                         Location Filter{" "}
-                        <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                        <span className="text-[#84908a] font-normal text-xs">(Optional)</span>
                       </FieldLabel>
                       <SimpleDropdown
                         placeholder="Select location…"
@@ -1354,9 +1417,9 @@ export default function PolicyCreationModal({
                         options={LOCATION_OPTIONS}
                       />
                       {location && (
-                        <p className="mt-1.5 text-xs text-gray-400">
+                        <p className="mt-1.5 text-xs text-[#84908a]">
                           Policy will apply to employees in{" "}
-                          <span className="font-medium text-gray-600">
+                          <span className="font-medium text-[#68726d]">
                             {LOCATION_OPTIONS.find(o => o.value === location)?.label}
                           </span>.
                         </p>
@@ -1368,7 +1431,7 @@ export default function PolicyCreationModal({
                 {/* ══ STEP 3 — Rules ══════════════════════════ */}
                 {step === 3 && (
                   <>
-                    <p className="text-sm text-gray-500 leading-relaxed -mt-2">
+                    <p className="text-sm text-[#68726d] leading-relaxed -mt-2">
                       Stack multiple rules to create complex enforcement logic.
                     </p>
                     <div className="space-y-4">
@@ -1390,7 +1453,7 @@ export default function PolicyCreationModal({
                         return (
                           <>
                             <button ref={addRuleRef} type="button" onClick={() => setShowAddRule((p) => !p)}
-                              className="flex items-center gap-1.5 text-sm font-medium text-[#03C3A6] hover:underline">
+                              className="flex items-center gap-1.5 text-sm font-medium text-[#087f70] hover:underline">
                               <Plus className="w-3.5 h-3.5" strokeWidth={2.5} /> Add Another Rule
                             </button>
                             <PortalDropdown triggerRef={addRuleRef} open={showAddRule} onClose={() => setShowAddRule(false)} minWidth={280}>
@@ -1408,11 +1471,11 @@ export default function PolicyCreationModal({
                 {step === 4 && (
                   <div className="space-y-4">
                     {approverRequired ? (
-                      <p className="text-sm text-gray-500 leading-relaxed">
+                      <p className="text-sm text-[#68726d] leading-relaxed">
                         Assign one or more administrators to review this policy before it goes live.
                       </p>
                     ) : (
-                      <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3">
+                      <div className="rounded-[14px] bg-amber-50 border border-amber-100 px-4 py-3">
                         <p className="text-sm text-amber-700 font-medium">No other admins found</p>
                         <p className="text-xs text-amber-600 mt-0.5">
                           You appear to be the only admin. This policy will activate without a secondary review.
@@ -1465,22 +1528,27 @@ export default function PolicyCreationModal({
               </div>
 
               {/* Footer */}
-              <div className="h-px bg-gray-100 shrink-0" />
+              <div className="h-px bg-[#f5f7f6] shrink-0" />
               <div className="px-8 py-5 shrink-0 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={handleBack}
-                    className="h-11 px-6 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors">
+                    className="h-11 px-6 rounded-[14px] border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors">
                     Back
                   </button>
                   {step < 5 && (
-                    <button type="button" onClick={handleSaveDraft}
-                      className="h-11 px-6 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors">
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      disabled={isSavingDraft || !policyName.trim()}
+                      className="h-11 px-6 rounded-[14px] border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors disabled:opacity-40 flex items-center gap-2"
+                    >
+                      {isSavingDraft && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       Save as Draft
                     </button>
                   )}
                 </div>
                 <button type="button" onClick={handleForward} disabled={continueDisabled}
-                  className="h-11 px-8 rounded-xl bg-[#03C3A6] text-white text-sm font-semibold hover:bg-[#03C3A6]/90 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 transition-all shadow-sm shadow-[#03C3A6]/20 flex items-center gap-2">
+                  className="h-11 px-8 rounded-[14px] bg-[#087f70] text-white text-sm font-semibold hover:bg-[#087f70]/90 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 transition-all shadow-sm shadow-[#087f70]/20 flex items-center gap-2">
                   {isLoading
                     ? <Loader2 className="w-4 h-4 animate-spin" />
                     : step === 5 ? "Submit for approval" : "Continue"

@@ -1,7 +1,7 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Activity } from "lucide-react";
+import { Activity, ArrowRight } from "lucide-react";
 
 const activities: Array<{
   icon: React.ElementType;
@@ -12,60 +12,50 @@ const activities: Array<{
 
 export const RecentActivity = () => {
   return (
-    <Card className="p-6 rounded-[14px] border">
-      <div className="flex items-center justify-between mb-4">
+    <div className="flex h-full flex-col rounded-[12px] border border-black/[0.08] bg-white shadow-[0_4px_16px_rgba(14,28,23,0.04)]">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-black/[0.06] px-5 py-4">
         <div>
-          <h3 className="text-lg font-semibold leading-[100%]">
-            Recent Activity
-          </h3>
-          <p className="text-sm text-muted-foreground mt-2">
-            Your recent significant system actions
-          </p>
+          <h3 className="text-[13px] font-semibold text-[#0b100e]">Recent Activity</h3>
+          <p className="mt-0.5 text-[11px] text-[#84908a]">Significant system actions</p>
         </div>
+        {activities.length > 0 && (
+          <button className="flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#0ea894] transition-colors">
+            See all <ArrowRight className="size-3" />
+          </button>
+        )}
       </div>
 
-      {activities.length === 0 ? (
-        // Previously rendered nothing here — an empty space below
-        // the header with no indication whether activity exists and
-        // hasn't loaded, or whether there's genuinely none yet.
-        <EmptyState
-          icon={<Activity className="w-5 h-5" aria-hidden="true" />}
-          title="No recent activity"
-          description="Actions like approvals and submissions will show up here."
-          className="py-8"
-        />
-      ) : (
-        <div className="space-y-3.5">
-          {activities.map((activity, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-2.5 p-2.5 rounded-lg border hover:bg-muted/50 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0" aria-hidden="true">
-                <activity.icon className="w-5 h-5 text-muted-foreground" />
+      {/* Body */}
+      <div className="flex-1 px-5 py-4">
+        {activities.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <span className="flex size-10 items-center justify-center rounded-[10px] bg-[#f0faf8]">
+              <Activity className="size-5 text-[#087f70]" />
+            </span>
+            <p className="mt-3 text-[13px] font-semibold text-[#303834]">No recent activity</p>
+            <p className="mt-1 text-[12px] text-[#84908a]">Approvals and submissions will appear here.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {activities.map((activity, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-3 rounded-[8px] border border-black/[0.06] p-3 transition-colors hover:bg-[#f9faf9]"
+              >
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[#f0faf8]">
+                  <activity.icon className="size-4 text-[#087f70]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold text-[#0b100e]">{activity.title}</p>
+                  <p className="truncate text-[11px] text-[#84908a]">{activity.description}</p>
+                </div>
+                <span className="shrink-0 text-[10px] text-[#84908a]">{activity.time}</span>
               </div>
-              <div className="flex-1 min-w-0 space-y-0.5">
-                <p className="font-medium text-sm leading-[125%]">
-                  {activity.title}
-                </p>
-                <p className="text-[10px] leading-[125%] text-muted-foreground truncate">
-                  {activity.description}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {activities.length > 0 && (
-        <Button
-          variant={"link"}
-          size={"sm"}
-          className="w-full text-xs leading-[125%] text-primary hover:underline p-0! mt-4"
-        >
-          See all
-        </Button>
-      )}
-    </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 };

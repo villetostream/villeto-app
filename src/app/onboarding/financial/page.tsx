@@ -42,7 +42,7 @@ export default function FinancialPulse() {
     }
 
     return (
-        <div className="mx-auto flex min-h-full max-w-[760px] bg-background py-4">
+        <div className="flex h-full flex-col justify-center py-8">
             <div className="flex flex-1 flex-col justify-center">
 
                 {/* Header */}
@@ -61,17 +61,14 @@ export default function FinancialPulse() {
                 </div>
 
                 {/* Continue Button */}
-                <div className="mt-10 flex justify-end border-t border-black/[0.07] pt-5">
+                <div className="mt-8 flex justify-end border-t border-black/[0.07] pt-5">
                     <Button
-                        size="lg"
                         disabled={loading ?? !canContinue}
                         onClick={handleSubmit}
-                        className="h-[50px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[13px] font-semibold text-white hover:bg-[#0c9785] sm:w-auto"
+                        className="h-[54px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all sm:w-auto"
                     >
-                        {loading ? "Creating" : "   Continue"}
-                        {loading ? <Loader2 className="size-6 animate-spin" /> : <svg className="w-4 h-4 ml-2" viewBox="0 0 24 24" fill="none">
-                            <path d="M5 12h14m-7-7 7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>}
+                        {loading ? "Saving..." : "Continue"}
+                        {loading ? <Loader2 className="size-4 animate-spin" /> : <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-7-7 7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                     </Button>
                 </div>
 

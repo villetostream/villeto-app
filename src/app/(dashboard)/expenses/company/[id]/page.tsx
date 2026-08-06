@@ -105,7 +105,7 @@ function RejectReasonModal({
           <Button
             onClick={() => { if (isValid) onConfirm(reason); }}
             disabled={!isValid || isLoading}
-            className="bg-destructive hover:bg-destructive/90 text-white rounded-xl px-6"
+            className="bg-[#d33d44] hover:bg-[#c33339] text-white rounded-[8px] h-10 px-6 font-semibold"
           >
             {isLoading ? "Processing..." : "Reject Report"}
           </Button>
@@ -151,7 +151,7 @@ function FeedbackModal({
                 : "The expense has been rejected. The requester has been informed and can make corrections or resubmit for approval."}
             </p>
           </div>
-          <Button onClick={onClose} className="w-full bg-teal-500 hover:bg-teal-600 text-white">
+          <Button onClick={onClose} className="w-full bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-10 font-semibold">
             View Audi Trail
           </Button>
         </div>
@@ -330,7 +330,7 @@ export default function CompanyExpenseDetailPage() {
             <div className="flex items-center gap-3 mb-4">
               <Avatar className="h-12 w-12">
                 <AvatarImage src={user?.avatar} alt={reporterName} />
-                <AvatarFallback>{getInitials(reporterName)}</AvatarFallback>
+                <AvatarFallback className="bg-[#f0faf8] text-[#087f70] font-semibold">{getInitials(reporterName)}</AvatarFallback>
               </Avatar>
               <p className="text-sm font-semibold text-foreground">{reporterName}</p>
             </div>
@@ -351,14 +351,14 @@ export default function CompanyExpenseDetailPage() {
                   <Button
                     onClick={handleApprove}
                     disabled={isApproving || isRejecting}
-                    className="bg-teal-500 text-white hover:bg-teal-600 h-9 px-6 rounded-lg font-medium"
+                    className="bg-[#087f70] text-white hover:bg-[#076b5e] rounded-[8px] h-10 px-6 font-semibold shadow-sm"
                   >
                     {isApproving ? "Processing..." : "Approve"}
                   </Button>
                   <Button
                     onClick={() => setRejectOpen(true)}
                     disabled={isApproving || isRejecting}
-                    className="bg-red-500 text-white hover:bg-red-600 h-9 px-6 rounded-lg font-medium"
+                    className="bg-[#d33d44] text-white hover:bg-[#c33339] rounded-[8px] h-10 px-6 font-semibold shadow-sm"
                   >
                     Reject
                   </Button>
@@ -424,7 +424,7 @@ export default function CompanyExpenseDetailPage() {
                         <td className="p-3">
                           <button
                             onClick={(e) => { e.stopPropagation(); setSelectedExpense(expense); setIsExpenseModalOpen(true); }}
-                            className="text-sm text-primary hover:underline font-medium"
+                            className="text-[13px] text-[#087f70] hover:underline font-semibold"
                           >
                             View
                           </button>

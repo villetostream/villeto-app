@@ -30,10 +30,10 @@ interface FormFieldSelectProps<T extends FieldValues = FieldValues> {
 }
 
 const sharedInputClasses =
-  "w-full text-left font-normal rounded-lg h-12 border border-gray-200 bg-gray-50 text-gray-600";
+  "w-full text-left font-normal rounded-[10px] border-black/[0.1] bg-white text-[14px] shadow-[0_4px_16px_rgba(14,28,23,0.04)] placeholder:text-[#98a09c]";
 
 const focusVariants =
-  "focus:outline-none focus-visible:outline-none focus:border-primary focus-visible:border-primary focus:ring-primary/50 focus-visible:ring-primary/50 focus:ring-2 data-[state=open]:border-primary data-[state=open]:ring-primary/50 data-[state=open]:ring-2";
+  "focus:outline-none focus-visible:outline-none focus:border-[#0ea894] focus-visible:border-[#0ea894] focus-visible:ring-[#0ea894]/15 focus:ring-2 data-[state=open]:border-[#0ea894] data-[state=open]:ring-[#0ea894]/15 data-[state=open]:ring-2";
 
 const FormFieldSelect = <T extends FieldValues = FieldValues>({
   control,
@@ -52,13 +52,13 @@ const FormFieldSelect = <T extends FieldValues = FieldValues>({
       control={control}
       name={name}
       render={({ field, formState }) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
+        <FormItem className="space-y-2.5">
+          <FormLabel className="text-[13px] font-semibold !normal-case text-[#202723]">{label}</FormLabel>
 
           <FormControl>
             <div className="relative">
               {prefixIcon && (
-                <div className="absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400">
+                <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#84908a] z-10 [&>svg]:size-[18px] [&>svg]:stroke-[1.7]">
                   {prefixIcon}
                 </div>
               )}
@@ -87,7 +87,7 @@ const FormFieldSelect = <T extends FieldValues = FieldValues>({
     ${sharedInputClasses}
     ${focusVariants}
 
-    h-12 min-h-[3rem] max-h-[3rem]
+    h-[56px] min-h-[56px] max-h-[56px]
     py-0 leading-none
 
     grid grid-cols-[1fr_auto]

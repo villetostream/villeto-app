@@ -371,14 +371,14 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
     <div className="w-full bg-white rounded-xl overflow-hidden flex flex-col max-h-[80vh] min-h-[200px]">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+      <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-black/[0.06]">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
-            <Bell className="w-4 h-4 text-teal-600" />
+          <div className="w-8 h-8 rounded-[8px] bg-[#f0faf8] flex items-center justify-center">
+            <Bell className="w-4 h-4 text-[#087f70]" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-gray-900 leading-tight">Notifications</h3>
-            <p className="text-xs text-gray-400 leading-tight">
+            <h3 className="text-[15px] font-semibold text-[#0b100e] leading-tight">Notifications</h3>
+            <p className="text-[11px] text-[#84908a] leading-tight">
               {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
             </p>
           </div>
@@ -389,7 +389,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
             <button
               onClick={markAllRead}
               disabled={markingAllRead}
-              className="flex items-center gap-1.5 text-xs font-medium text-teal-600 hover:text-teal-700 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-full transition-colors disabled:opacity-50 whitespace-nowrap"
+              className="flex items-center gap-1.5 text-[12px] font-semibold text-[#087f70] hover:text-[#076b5e] bg-[#f0faf8] hover:bg-[#e7f6f2] px-3 py-1.5 rounded-[8px] transition-colors disabled:opacity-50 whitespace-nowrap"
             >
               {markingAllRead ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -403,7 +403,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
           {/* Close */}
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors focus:outline-none"
+            className="w-7 h-7 rounded-[6px] bg-[#f5f7f6] hover:bg-[#edf0ef] flex items-center justify-center text-[#68726d] hover:text-[#0b100e] transition-colors focus:outline-none"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -413,18 +413,18 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
       {/* ── Body ── */}
       <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-3">
-            <Loader2 className="w-6 h-6 animate-spin text-teal-500" />
-            <span className="text-sm">Loading notifications…</span>
+          <div className="flex flex-col items-center justify-center py-16 text-[#84908a] gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-[#087f70]" />
+            <span className="text-[13px] text-[#68726d]">Loading notifications…</span>
           </div>
         ) : notifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center">
-              <Bell className="w-7 h-7 text-gray-300" />
+          <div className="flex flex-col items-center justify-center py-12 text-[#84908a] gap-3">
+            <div className="w-14 h-14 rounded-[12px] bg-[#f5f7f6] flex items-center justify-center">
+              <Bell className="w-7 h-7 text-[#c4ccc8]" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium text-gray-600">You&apos;re all caught up!</p>
-              <p className="text-xs text-gray-400 mt-0.5">No notifications yet.</p>
+              <p className="text-[13px] font-semibold text-[#0b100e]">You&apos;re all caught up!</p>
+              <p className="text-[12px] text-[#84908a] mt-0.5">No notifications yet.</p>
             </div>
           </div>
         ) : (
@@ -438,15 +438,15 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
                   "flex items-start gap-3 px-5 py-4 transition-colors group",
                   n.isRead
                     ? "bg-white"
-                    : "bg-teal-50/40 cursor-pointer hover:bg-teal-50/70",
+                    : "bg-[#f0faf8]/50 cursor-pointer hover:bg-[#f0faf8]/80",
                   markingId === n.id ? "opacity-60 pointer-events-none" : "",
                 ].join(" ")}
               >
                 {/* Avatar */}
                 <div className="shrink-0 mt-0.5">
                   <div className={[
-                    "w-9 h-9 rounded-xl flex items-center justify-center border shadow-sm",
-                    n.isRead ? "bg-white border-gray-100" : "bg-white border-teal-100",
+                    "w-9 h-9 rounded-[8px] flex items-center justify-center border shadow-sm",
+                    n.isRead ? "bg-white border-black/[0.06]" : "bg-white border-[#087f70]/20",
                   ].join(" ")}>
                     <Image
                       src="/images/villeto-logo-v.png"
@@ -463,20 +463,20 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
                   {/* Title row */}
                   <div className="flex items-start justify-between gap-2">
                     <p className={[
-                      "text-sm leading-snug",
-                      n.isRead ? "text-gray-600 font-normal" : "text-gray-900 font-medium",
+                      "text-[13px] leading-snug",
+                      n.isRead ? "text-[#68726d] font-normal" : "text-[#0b100e] font-semibold",
                     ].join(" ")}>
                       {n.title}
                     </p>
                     {/* Unread dot */}
                     {!n.isRead && (
-                      <span className="shrink-0 mt-1.5 w-2 h-2 rounded-full bg-teal-500 block" />
+                      <span className="shrink-0 mt-1.5 w-2 h-2 rounded-full bg-[#087f70] block" />
                     )}
                   </div>
 
                   {/* Message */}
                   {displayMessage && displayMessage !== n.title && (
-                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    <p className="text-[12px] text-[#68726d] mt-0.5 leading-relaxed">
                       {displayMessage}
                     </p>
                   )}
@@ -486,7 +486,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
                     <a
                       href={n.actionUrl ?? "#"}
                       onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 mt-1.5 hover:underline"
+                      className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#087f70] mt-1.5 hover:underline"
                     >
                       {n.actionText}
                       <ExternalLink className="w-3 h-3" />
@@ -494,7 +494,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
                   )}
 
                   {/* Timestamp */}
-                  <p className="text-[11px] text-gray-400 mt-1.5">{timeAgo(n.createdAt)}</p>
+                  <p className="text-[11px] text-[#84908a] mt-1.5">{timeAgo(n.createdAt)}</p>
                 </div>
               </div>
             );
@@ -504,13 +504,13 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
 
       {/* ── Footer: View all ── */}
       {!loading && (
-        <div className="shrink-0 border-t border-gray-100 px-5 py-3">
+        <div className="shrink-0 border-t border-black/[0.06] px-5 py-3">
           <button
             onClick={() => {
               onClose?.();
               router.push("/inbox");
             }}
-            className="w-full flex items-center justify-center gap-2 text-sm font-medium text-teal-600 hover:text-teal-700 py-1.5 rounded-lg hover:bg-teal-50 transition-colors"
+            className="w-full flex items-center justify-center gap-2 text-[13px] font-semibold text-[#087f70] hover:text-[#076b5e] py-1.5 rounded-[8px] hover:bg-[#f0faf8] transition-colors"
           >
             View all notifications
             <ArrowRight className="w-3.5 h-3.5" />

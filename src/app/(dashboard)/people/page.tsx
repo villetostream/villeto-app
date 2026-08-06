@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, CreditCard, Building2, UserCog, DollarSign } from "lucide-react";
+import { Users, Building2, UserCog, UserCheck } from "lucide-react";
 import { AllUsersTab } from "@/components/dashboard/people/users/AllUsersTab";
 import { RolesTab } from "@/components/dashboard/people/role/RoleTab";
 import { DirectoryTab } from "@/components/dashboard/people/directory/DirectoryTab";
@@ -53,12 +53,19 @@ function People() {
         return depts.size;
     }, [usersApi?.data?.data]);
 
+    const activeUserCount = useMemo(() => {
+        const users: unknown[] = usersApi?.data?.data ?? [];
+        return users.filter((rawUser) => {
+            const u = rawUser as Record<string, unknown>;
+            return (u.status as string)?.toLowerCase() === "active";
+        }).length;
+    }, [usersApi?.data?.data]);
+
     const statCards = [
-        { icon: Users,     label: "Total Users",   value: usersApi?.data?.meta?.totalCount || "0", description: "Total registered users",               bgColor: "#384A57" },
-        { icon: CreditCard,label: "Active Cards",  value: "0",                                      description: "This month you spent extra $0.00",     bgColor: "#F45B69" },
-        { icon: Building2, label: "Departments",   value: uniqueDeptCount,                          description: "View Departments",                      bgColor: "#5A67D8" },
-        { icon: UserCog,   label: "Roles",         value: rolesApi?.data?.meta?.totalCount || "0",  description: "View Roles",                            bgColor: "#418341" },
-        { icon: DollarSign,label: "Total Limits",  value: "$0.00",                                  description: "This month you spent extra $0.00",      bgColor: "#38B2AC" },
+        { icon: Users,     label: "Total Users",   value: usersApi?.data?.meta?.totalCount || "0", description: "Total registered users",   bgColor: "#384A57" },
+        { icon: UserCheck, label: "Active Users",  value: activeUserCount,                          description: "Currently active members",  bgColor: "#0FA68E" },
+        { icon: Building2, label: "Departments",   value: uniqueDeptCount,                          description: "View Departments",           bgColor: "#5A67D8" },
+        { icon: UserCog,   label: "Roles",         value: rolesApi?.data?.meta?.totalCount || "0",  description: "View Roles",                 bgColor: "#418341" },
     ];
 
     const searchParams = useSearchParams();
@@ -140,11 +147,9 @@ function People() {
     }, [activeTab, setAction, clearAction, router, canManageUsers]);
 
     return (
-        <div className="bg-dashboard-bg min-h-screen">
-            <div className="p-6 space-y-6">
-
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-1.5">
+        <div className="space-y-6 h-full">
+            {/* Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                     {statCards.map((stat) => (
                         <StatsCard
                             key={stat.label}
@@ -155,13 +160,10 @@ function People() {
                                 stat.label === "Departments"  ? usersApi.isLoading :
                                 stat.label === "Roles"        ? rolesApi.isLoading : false
                             }
-                            icon={
-                                <div className="p-2 mr-3 flex items-center justify-center rounded-full text-white shrink-0" style={{ backgroundColor: stat.bgColor }}>
-                                    <stat.icon className="w-5 h-5" />
-                                </div>
-                            }
+                            accentColor={stat.bgColor}
+                            icon={<stat.icon className="w-4 h-4" style={{ color: stat.bgColor }} />}
                             subtitle={
-                                <span className="text-xs leading-[125%]">{stat.description}</span>
+                                <span className="text-[11px] text-[#68726d]">{stat.description}</span>
                             }
                         />
                     ))}
@@ -170,11 +172,11 @@ function People() {
                 {/* Tabs */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <TabsList className="bg-muted/50 p-1 h-auto rounded-lg">
+                        <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex border border-black/[0.05]">
                                 <PermissionGuard resource="user" action="manage">
                                     <TabsTrigger
                                         value="all-users"
-                                        className="data-[state=active]:bg-background rounded-md px-6"
+                                        className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
                                     >
                                         Invited Users
                                     </TabsTrigger>
@@ -182,7 +184,7 @@ function People() {
                                 <PermissionGuard resource="role" action="manage">
                                     <TabsTrigger
                                         value="roles"
-                                        className="data-[state=active]:bg-background rounded-md px-6"
+                                        className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
                                     >
                                         Roles
                                     </TabsTrigger>
@@ -194,7 +196,7 @@ function People() {
                                     <TabsTrigger
                                         value="directory"
                                         data-tour="directory-tab"
-                                        className="data-[state=active]:bg-background rounded-md px-6"
+                                        className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
                                     >
                                         Directory
                                     </TabsTrigger>
@@ -216,7 +218,6 @@ function People() {
                             <DirectoryTab />
                         </TabsContent>
                     </Tabs>
-                </div>
     
                 <InviteEmployeesWarningModal
                     isOpen={isInviteModalOpen}

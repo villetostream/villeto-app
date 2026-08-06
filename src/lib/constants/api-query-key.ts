@@ -13,6 +13,8 @@ export const QUERY_KEYS = {
   EXPENSE_CATEGORIES: "expense-categories",
   POLICIES: "policies",
   POLICY: "policy",
+  POLICY_DRAFT: "policy-draft",
+  POLICY_DRAFTS: "policy-drafts",
   DIRECTORY: "directory",
   PURCHASE_REQUESTS: "purchase-requests",
   PURCHASE_REQUEST: "purchase-request",

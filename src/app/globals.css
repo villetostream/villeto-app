@@ -267,3 +267,29 @@ body {
 .animate-marquee:hover {
   animation-play-state: paused;
 }
+
+/* ── Focus Ring Control ─────────────────────────────────────────
+   Only show outlines during keyboard navigation. When a modal
+   opens and Radix programmatically focuses an element (mouse
+   flow), the browser fires :focus but NOT :focus-visible — so
+   the ring stays hidden. Keyboard users still get full a11y rings.
+────────────────────────────────────────────────────────────── */
+*:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+  ring: none !important;
+}
+
+/* Radix Dialog/Sheet content is focused on open — always suppress outline */
+[data-slot="dialog-content"],
+[data-slot="sheet-content"] {
+  outline: none !important;
+}
+
+[data-slot="dialog-content"]:focus,
+[data-slot="dialog-content"]:focus-visible,
+[data-slot="sheet-content"]:focus,
+[data-slot="sheet-content"]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}

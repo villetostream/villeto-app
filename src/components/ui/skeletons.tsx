@@ -20,25 +20,25 @@ import { Card } from "@/components/ui/card";
 
 export function StatsCardSkeleton() {
   return (
-    <Card className="p-1 border border-muted gap-1" aria-hidden="true">
-      <div className="flex items-center justify-between border border-muted rounded-lg">
+    <div className="p-1 border border-black/[0.06] rounded-[12px] bg-white flex flex-col gap-1" aria-hidden="true">
+      <div className="flex items-center justify-between border border-black/[0.06] rounded-[8px] bg-white">
         <div className="p-3 pb-[.6rem] space-y-2 w-full">
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-6 w-16" />
         </div>
         <Skeleton className="h-10 w-10 rounded-full mr-3" />
       </div>
-      <div className="p-2.5 px-3 border border-muted rounded">
+      <div className="p-2.5 px-3 border border-black/[0.06] rounded-[8px] bg-[#f9faf9]">
         <Skeleton className="h-3 w-28" />
       </div>
-    </Card>
+    </div>
   );
 }
 
 export function TableRowSkeleton({ columns = 5 }: { columns?: number }) {
   return (
     <div
-      className="flex items-center gap-4 py-3 px-4 border-b border-muted last:border-b-0"
+      className="flex items-center gap-4 py-3 px-4 border-b border-black/[0.06] last:border-b-0 bg-white"
       aria-hidden="true"
     >
       {Array.from({ length: columns }).map((_, i) => (
@@ -54,8 +54,8 @@ export function TableRowSkeleton({ columns = 5 }: { columns?: number }) {
 
 export function TableSkeleton({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
   return (
-    <Card className="overflow-hidden" role="status" aria-label="Loading table data">
-      <div className="flex items-center gap-4 py-3 px-4 border-b border-muted bg-muted/40">
+    <div className="overflow-hidden border border-black/[0.06] rounded-[12px] bg-white" role="status" aria-label="Loading table data">
+      <div className="flex items-center gap-4 py-3 px-4 border-b border-black/[0.06] bg-[#f9faf9]">
         {Array.from({ length: columns }).map((_, i) => (
           <Skeleton key={i} className="h-3 flex-1" style={{ maxWidth: "100px" }} />
         ))}
@@ -63,7 +63,7 @@ export function TableSkeleton({ rows = 5, columns = 5 }: { rows?: number; column
       {Array.from({ length: rows }).map((_, i) => (
         <TableRowSkeleton key={i} columns={columns} />
       ))}
-    </Card>
+    </div>
   );
 }
 

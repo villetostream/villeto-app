@@ -17,6 +17,7 @@ import { useGetAllUsersApi } from "@/queries/users/get-all-users"
 import { useUpdateUserApi } from "@/queries/users/update-user"
 import { useGetAllRolesApi, Role, CapabilityGroup } from "@/queries/role/get-all-roles"
 import { useGetAllDepartmentsApi, Department } from "@/queries/departments/get-all-departments"
+import { useResendInvitationApi } from "@/queries/users/resend-invitation"
 import { toast } from "sonner"
 
 // ─── Extended types matching GET /users/{id} response ─────────────────────────
@@ -53,6 +54,7 @@ interface RichUser {
     companyRole?: RichCompanyRole
     department?: Department | string | null
     manager?: { firstName?: string; lastName?: string } | null
+    lastLoginAt?: string
 }
 
 // ─── Edit state ───────────────────────────────────────────────────────────────
@@ -81,6 +83,18 @@ function formatDate(iso?: string | null): string {
     if (!iso) return "—"
     try {
         return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    } catch { return iso }
+}
+
+function formatDateTime(iso?: string | null): string {
+    if (!iso) return "—"
+    try {
+        const date = new Date(iso)
+        const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "")
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${timeStr}, ${day}-${month}-${year}`
     } catch { return iso }
 }
 
@@ -290,6 +304,8 @@ function OverviewTab({
     allUsers,
     onToggleStatus,
     isToggling,
+    onResendInvitation,
+    isResending,
 }: {
     user: RichUser
     isEditing: boolean
@@ -300,6 +316,8 @@ function OverviewTab({
     allUsers: any[]
     onToggleStatus: () => void
     isToggling: boolean
+    onResendInvitation: () => void
+    isResending: boolean
 }) {
     const isActive = (user.status ?? "").toLowerCase() === "active"
     const capabilityGroups: CapabilityGroup[] = useMemo(
@@ -426,15 +444,17 @@ function OverviewTab({
                 </Row>
 
                 <Row>
-                    {/* Role — editable */}
+                    {/* Role — editable unless user is an owner */}
                     <div>
                         <FieldLabel>
                             <span className="flex items-center gap-1">
                                 Role
-                                {isEditing && <span className="text-primary normal-case font-medium tracking-normal ml-1">• editable</span>}
+                                {isEditing && user.position?.toUpperCase() !== "OWNER" && (
+                                    <span className="text-primary normal-case font-medium tracking-normal ml-1">• editable</span>
+                                )}
                             </span>
                         </FieldLabel>
-                        {isEditing ? (
+                        {isEditing && user.position?.toUpperCase() !== "OWNER" ? (
                             <InlineDropdown
                                 value={editState.roleId}
                                 options={roleOptions}
@@ -443,6 +463,11 @@ function OverviewTab({
                             />
                         ) : (
                             <ReadOnlyValue>{currentRoleName}</ReadOnlyValue>
+                        )}
+                        {isEditing && user.position?.toUpperCase() === "OWNER" && (
+                            <p className="text-[10px] text-muted-foreground/60 mt-1 flex items-center gap-1">
+                                <Lock className="w-2.5 h-2.5" /> Owner role cannot be changed
+                            </p>
                         )}
                     </div>
 
@@ -476,10 +501,10 @@ function OverviewTab({
                         <ReadOnlyValue>{formatDate(user.createdAt)}</ReadOnlyValue>
                     </div>
 
-                    {/* Last Login — placeholder */}
+                    {/* Last Login */}
                     <div>
                         <FieldLabel>Last Login</FieldLabel>
-                        <ReadOnlyValue>2:20pm, 2023-01-10</ReadOnlyValue>
+                        <ReadOnlyValue>{formatDateTime(user.lastLoginAt)}</ReadOnlyValue>
                     </div>
                 </Row>
 
@@ -537,27 +562,40 @@ function OverviewTab({
                 </div>
             )}
 
-            {/* ── Deactivate User ── */}
-            <div className="flex justify-end pt-4">
-                <Button 
-                    className={`h-10 px-6 font-medium ${isActive ? "bg-[#E63946] hover:bg-[#E63946]/90 text-white" : ""}`}
-                    variant={isActive ? "default" : "default"} 
-                    onClick={() => setConfirmOpen(true)}
-                    disabled={isToggling}
-                >
-                    {isToggling ? "Processing..." : (isActive ? "Deactivate User" : "Activate User")}
-                </Button>
+            {/* ── Action Buttons ── */}
+            <div className="flex justify-end gap-3 pt-4">
+                {(!isActive && (user.loginCount === 0 || user.loginCount === undefined)) && (
+                    <Button 
+                        className="h-10 px-6 font-medium bg-primary/10 text-primary hover:bg-primary/20"
+                        variant="secondary" 
+                        onClick={onResendInvitation}
+                        disabled={isResending}
+                    >
+                        {isResending ? (
+                            <><Loader2 className="w-4 h-4 animate-spin mr-2" />Resending...</>
+                        ) : "Resend Invitation"}
+                    </Button>
+                )}
+                
+                {isActive && (
+                    <Button 
+                        className="h-10 px-6 font-medium bg-[#E63946] hover:bg-[#E63946]/90 text-white"
+                        variant="default"
+                        onClick={() => setConfirmOpen(true)}
+                        disabled={isToggling}
+                    >
+                        {isToggling ? "Processing..." : "Deactivate User"}
+                    </Button>
+                )}
             </div>
 
             <ConfirmDialog 
                 open={confirmOpen}
                 onOpenChange={setConfirmOpen}
-                title={isActive ? "Deactivate User?" : "Activate User?"}
-                description={isActive 
-                    ? `Are you sure you want to deactivate ${user.firstName} ${user.lastName}? They will lose access to Villeto immediately.`
-                    : `Are you sure you want to activate ${user.firstName} ${user.lastName}? They will regain access to Villeto.`}
-                confirmText={isActive ? "Yes, Deactivate" : "Yes, Activate"}
-                variant={isActive ? "destructive" : "default"}
+                title="Deactivate User?"
+                description={`Are you sure you want to deactivate ${user.firstName} ${user.lastName}? They will lose access to Villeto immediately.`}
+                confirmText="Yes, Deactivate"
+                variant="destructive"
                 onConfirm={() => {
                     setConfirmOpen(false)
                     onToggleStatus()
@@ -678,6 +716,7 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
     const deptsQuery = useGetAllDepartmentsApi({ enabled: isOpen })
     const allUsersQuery = useGetAllUsersApi({ enabled: isOpen })
     const updateUser = useUpdateUserApi()
+    const resendInvitation = useResendInvitationApi()
 
     const roles: Role[] = rolesQuery.data?.data ?? []
     const departments: Department[] = deptsQuery.data?.data ?? []
@@ -733,6 +772,27 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
             toast.success(`User successfully ${newStatus === "active" ? "activated" : "deactivated"}`)
         } catch {
             toast.error("Failed to change user status. Please try again.")
+        }
+    }
+
+    const handleResendInvitation = async () => {
+        if (!user) return
+        try {
+            const payload: any = { email: user.email }
+            
+            // The backend expects employeeId to be a "number string".
+            // Extract digits from employeeExternalId (e.g. "E1006" -> "1006")
+            if (user.employeeExternalId) {
+                const numericId = user.employeeExternalId.replace(/\D/g, "")
+                if (numericId) {
+                    payload.employeeId = numericId
+                }
+            }
+
+            await resendInvitation.mutateAsync(payload)
+            toast.success("Invitation resent successfully")
+        } catch {
+            toast.error("Failed to resend invitation. Please try again.")
         }
     }
 
@@ -874,6 +934,8 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
                                 allUsers={allUsers}
                                 onToggleStatus={handleToggleStatus}
                                 isToggling={updateUser.isPending}
+                                onResendInvitation={handleResendInvitation}
+                                isResending={resendInvitation.isPending}
                             />
                         </TabsContent>
                         <TabsContent value="activity" className="mt-0 focus-visible:ring-0 focus-visible:outline-none">

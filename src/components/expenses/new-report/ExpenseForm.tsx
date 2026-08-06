@@ -808,21 +808,20 @@ export function ExpenseForm({
         {/* Actions */}
         {!hideActions && (
           <div className="flex justify-end gap-3 pt-4">
-            <Button
+            <button
               type="button"
-              variant="ghost"
               onClick={onCancel}
-              className="text-muted-foreground hover:text-foreground hover:bg-transparent px-0 underline"
+              className="flex-1 sm:flex-none h-10 px-5 rounded-[8px] border border-black/[0.08] text-[#68726d] font-semibold text-[13px] hover:bg-[#f9faf9] transition-colors"
             >
               {cancelLabel}
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              disabled={submitDisabled}
-              className="bg-primary hover:bg-primary/90 text-white rounded-lg px-6"
+              disabled={submitDisabled || forceDisableSubmit}
+              className="flex-1 sm:flex-none h-10 px-5 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors shadow-sm disabled:opacity-50"
             >
               {submitLabel}
-            </Button>
+            </button>
           </div>
         )}
       </form>

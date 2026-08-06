@@ -160,7 +160,7 @@ const Page = () => {
                   alt={expenseData.employee}
                 />
               ) : (
-                <AvatarFallback className="bg-primary/10 text-primary">
+                <AvatarFallback className="bg-[#f0faf8] text-[#087f70]">
                   {employeeInitials}
                 </AvatarFallback>
               )}
@@ -173,7 +173,7 @@ const Page = () => {
             {hasSplitExpense ? (
               <Link
                 href={`/expenses/${expense.id}/split-expense`}
-                className="text-sm text-primary hover:underline font-medium"
+                className="text-[13px] text-[#087f70] hover:underline font-semibold"
                 onClick={() => {
                   sessionStorage.setItem("expensePreviousPage", "detail");
                 }}
@@ -183,7 +183,7 @@ const Page = () => {
             ) : (
               <Link
                 href={`/expenses/${expense.id}/audit-trail`}
-                className="text-sm text-primary hover:underline font-medium"
+                className="text-[13px] text-[#087f70] hover:underline font-semibold"
                 onClick={() => {
                   sessionStorage.setItem("expensePreviousPage", "detail");
                 }}

@@ -51,8 +51,8 @@ function CapabilityGroupCard({
     return (
         <div
             className={cn(
-                "border rounded-xl overflow-hidden transition-all",
-                selected ? "border-primary bg-primary/5" : "border-slate-200 bg-white"
+                "border rounded-[12px] overflow-hidden transition-all bg-white",
+                selected ? "border-[#0ea894]/40 bg-[#e7f6f2]/20" : "border-black/[0.08]"
             )}
         >
             {/* Header row */}
@@ -60,20 +60,20 @@ function CapabilityGroupCard({
                 <Checkbox
                     checked={selected}
                     onCheckedChange={onToggle}
-                    className="mt-0.5 w-4 h-4 shrink-0 border-2 border-slate-300 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+                    className="mt-0.5 w-4 h-4 shrink-0 border-2 border-[#84908a] data-[state=checked]:border-[#0ea894] data-[state=checked]:bg-[#0ea894]"
                     id={group.key}
                 />
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={onToggle}>
-                    <p className={cn("text-sm font-semibold", selected ? "text-primary" : "text-slate-800")}>
+                    <p className={cn("text-[13px] font-semibold", selected ? "text-[#087f70]" : "text-[#0b100e]")}>
                         {group.name}
                     </p>
-                    <p className="text-xs text-slate-500 mt-0.5">{group.description}</p>
+                    <p className="text-[12px] text-[#66706b] mt-0.5">{group.description}</p>
                 </div>
                 {/* Expand / collapse */}
                 <button
                     type="button"
                     onClick={() => setExpanded(v => !v)}
-                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 transition-colors shrink-0"
+                    className="flex items-center gap-2 text-[11px] text-[#84908a] hover:text-[#303834] transition-colors shrink-0 mt-0.5"
                 >
                     <span>{group.permissions.length} permissions</span>
                     {expanded
@@ -85,17 +85,17 @@ function CapabilityGroupCard({
 
             {/* Permissions detail (expandable) */}
             {expanded && (
-                <div className="border-t border-slate-100 px-4 pb-4 pt-3 bg-slate-50/70">
-                    <p className="text-xs font-medium text-slate-500 mb-2">Includes the following permissions:</p>
+                <div className="border-t border-black/[0.05] px-4 pb-4 pt-3 bg-[#f9faf9]">
+                    <p className="text-[11px] font-semibold text-[#84908a] mb-2 uppercase tracking-[0.06em]">Includes the following permissions:</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-6">
                         {group.permissions.map(p => (
                             <div key={p.permissionId} className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
-                                <span className="text-xs text-slate-600">{formatPermissionName(p.name)}</span>
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#0ea894]/60 shrink-0" />
+                                <span className="text-[12px] text-[#66706b]">{formatPermissionName(p.name)}</span>
                             </div>
                         ))}
                         {group.permissions.length === 0 && (
-                            <p className="text-xs text-slate-400 col-span-2">No individual permissions listed.</p>
+                            <p className="text-[12px] text-[#84908a] col-span-2">No individual permissions listed.</p>
                         )}
                     </div>
                 </div>
@@ -120,15 +120,15 @@ function CapabilityModuleSection({
     const [open, setOpen] = useState(true);
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-3">
             <button
                 type="button"
                 onClick={() => setOpen(v => !v)}
                 className="flex items-center gap-2 w-full text-left"
             >
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">{label}</h3>
-                <div className="flex-1 h-px bg-slate-100" />
-                {open ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+                <h3 className="text-[11px] font-bold text-[#84908a] uppercase tracking-[0.1em]">{label}</h3>
+                <div className="flex-1 h-px bg-black/[0.06]" />
+                {open ? <ChevronUp className="w-4 h-4 text-[#84908a]" /> : <ChevronDown className="w-4 h-4 text-[#84908a]" />}
             </button>
             {open && (
                 <div className="space-y-2">
@@ -316,10 +316,10 @@ function CreateRolePage() {
     if (isEditMode && roleData.isLoading) {
         return (
             <div className="p-6">
-                <h1 className="text-2xl font-bold mb-8">Roles and Permissions</h1>
-                <div className="flex items-center justify-center py-32 text-slate-400 gap-3">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                    <span className="text-sm font-medium">Loading role details...</span>
+                <h1 className="text-[24px] font-bold text-[#0b100e] mb-8">Roles and Permissions</h1>
+                <div className="flex items-center justify-center py-32 text-[#84908a] gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#0ea894]" />
+                    <span className="text-[13px] font-medium">Loading role details...</span>
                 </div>
             </div>
         );
@@ -330,15 +330,15 @@ function CreateRolePage() {
             <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-12 items-start">
                 {/* Sidebar */}
                 <aside className="sticky top-6 space-y-8 h-fit">
-                    <h1 className="text-2xl font-bold">Roles and Permissions</h1>
+                    <h1 className="text-[24px] font-bold text-[#0b100e]">Roles and Permissions</h1>
 
                     <button
-                        className="w-full flex items-center justify-between p-4 border-2 border-primary rounded-xl text-primary bg-white hover:bg-primary/5 transition-colors"
+                        className="w-full flex items-center justify-between p-4 border border-[#0ea894]/25 rounded-[14px] text-[#087f70] bg-[#e7f6f2]/30 hover:bg-[#e7f6f2]/50 transition-colors"
                         type="button"
                     >
                         <div className="flex items-center gap-3">
                             <Plus className="w-5 h-5" />
-                            <span className="font-semibold">{isEditMode ? "Edit Role" : "Add New Role"}</span>
+                            <span className="font-semibold text-[15px]">{isEditMode ? "Edit Role" : "Add New Role"}</span>
                         </div>
                         <ChevronRight className="w-5 h-5" />
                     </button>
@@ -349,32 +349,32 @@ function CreateRolePage() {
                     <form onSubmit={(e) => e.preventDefault()} className="space-y-8">
                         {/* Role Details */}
                         <section className="space-y-6">
-                            <h2 className="text-xl font-bold">Describe {isEditMode ? "" : "New "}Role</h2>
+                            <h2 className="text-[20px] font-bold text-[#0b100e]">Describe {isEditMode ? "" : "New "}Role</h2>
 
                             <div className="space-y-2">
-                                <Label htmlFor="name" className="text-sm font-semibold">
-                                    Role Name<span className="text-destructive">*</span>
+                                <Label htmlFor="name" className="text-[13px] font-semibold text-[#0b100e]">
+                                    Role Name<span className="text-red-500">*</span>
                                 </Label>
                                 <Input
                                     id="name"
                                     placeholder="Enter role name"
-                                    className="h-12 border-gray-200 rounded-lg focus-visible:ring-primary"
+                                    className="h-[46px] border-black/[0.1] rounded-[10px] text-[13px] focus-visible:ring-[#0ea894] placeholder:text-[#84908a]"
                                     {...register("name")}
                                 />
-                                {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+                                {errors.name && <p className="text-[12px] text-red-500">{errors.name.message}</p>}
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="description" className="text-sm font-semibold">
-                                    Description<span className="text-destructive">*</span>
+                                <Label htmlFor="description" className="text-[13px] font-semibold text-[#0b100e]">
+                                    Description<span className="text-red-500">*</span>
                                 </Label>
                                 <Textarea
                                     id="description"
                                     placeholder="Describe role"
-                                    className="min-h-[100px] resize-none border-gray-200 rounded-lg focus-visible:ring-primary"
+                                    className="min-h-[100px] resize-none border-black/[0.1] rounded-[10px] text-[13px] focus-visible:ring-[#0ea894] placeholder:text-[#84908a]"
                                     {...register("description")}
                                 />
-                                {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
+                                {errors.description && <p className="text-[12px] text-red-500">{errors.description.message}</p>}
                             </div>
                         </section>
 
@@ -432,44 +432,44 @@ function CreateRolePage() {
 
                             {/* ── Advanced (individual permissions) Tab ── */}
                             <TabsContent value="advanced">
-                                <Accordion type="single" collapsible className="w-full border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                <Accordion type="single" collapsible className="w-full border border-black/[0.08] rounded-[14px] overflow-hidden bg-white">
                                     <AccordionItem value="permissions" className="border-none">
-                                        <AccordionTrigger className="px-6 py-4 hover:no-underline bg-slate-50 hover:bg-slate-100 transition-colors [&[data-state=open]]:border-b [&[data-state=open]]:border-slate-200">
+                                        <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-[#f5f7f6] transition-colors [&[data-state=open]]:border-b [&[data-state=open]]:border-black/[0.08]">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                                    <Check className="w-4 h-4 text-primary" />
+                                                <div className="w-8 h-8 rounded-[8px] bg-[#e7f6f2] flex items-center justify-center flex-shrink-0">
+                                                    <Check className="w-4 h-4 text-[#0ea894]" />
                                                 </div>
                                                 <div className="text-left">
-                                                    <p className="text-base font-semibold text-slate-800">Individual Permissions</p>
-                                                    <p className="text-xs text-slate-500 font-normal">
+                                                    <p className="text-[15px] font-semibold text-[#0b100e]">Individual Permissions</p>
+                                                    <p className="text-[12px] text-[#84908a] font-normal">
                                                         {selectedPermissionIds.length} permission{selectedPermissionIds.length !== 1 ? "s" : ""} selected
                                                     </p>
                                                 </div>
                                             </div>
-                                            <ChevronDown className="w-5 h-5 text-slate-500 transition-transform duration-200 ml-auto flex-shrink-0" />
+                                            <ChevronDown className="w-5 h-5 text-[#84908a] transition-transform duration-200 ml-auto flex-shrink-0" />
                                         </AccordionTrigger>
-                                        <AccordionContent className="px-6 pb-6 pt-6 bg-white">
+                                        <AccordionContent className="px-6 pb-6 pt-6">
                                             <div className="space-y-8">
                                                 {permissionGroups.map(group => (
                                                     <div key={group.resource} className="space-y-4">
                                                         <div className="flex items-center gap-2">
-                                                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                                            <h3 className="text-[11px] font-bold text-[#84908a] uppercase tracking-[0.1em]">
                                                                 {formatPermissionName(group.resource)}
                                                             </h3>
-                                                            <div className="flex-1 h-px bg-slate-100" />
+                                                            <div className="flex-1 h-px bg-black/[0.06]" />
                                                         </div>
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-8">
                                                             {group.permissions.map(permission => (
-                                                                <div key={permission.permissionId} className="flex items-center space-x-3 py-1.5 px-3 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                                                                <div key={permission.permissionId} className="flex items-center space-x-3 py-1.5 px-3 rounded-[8px] hover:bg-[#f5f7f6] transition-colors cursor-pointer">
                                                                     <Checkbox
                                                                         id={permission.permissionId}
                                                                         checked={selectedPermissionIds.includes(permission.permissionId)}
                                                                         onCheckedChange={() => handlePermissionToggle(permission.permissionId)}
-                                                                        className="w-5 h-5 border-2 border-slate-300 rounded data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+                                                                        className="w-4 h-4 border-2 border-[#84908a] rounded-[4px] data-[state=checked]:border-[#0ea894] data-[state=checked]:bg-[#0ea894]"
                                                                     />
                                                                     <label
                                                                         htmlFor={permission.permissionId}
-                                                                        className="text-sm font-medium leading-none cursor-pointer text-slate-600"
+                                                                        className="text-[13px] font-medium leading-none cursor-pointer text-[#66706b]"
                                                                     >
                                                                         {formatPermissionName(permission.name)}
                                                                     </label>
@@ -486,11 +486,11 @@ function CreateRolePage() {
                         </Tabs>
 
                         {/* Actions */}
-                        <div className="flex justify-end gap-4 pt-8 border-t">
+                        <div className="flex justify-end gap-4 pt-8 border-t border-black/[0.08]">
                             <Button
                                 type="button"
                                 variant="outline"
-                                className="px-8 h-12 rounded-xl text-slate-700 border-slate-200"
+                                className="px-8 h-[46px] rounded-[10px] text-[13px] font-semibold border-black/[0.1] text-[#303834] hover:bg-[#f5f7f6]"
                                 onClick={handleCancel}
                                 disabled={isLoading}
                             >
@@ -498,7 +498,7 @@ function CreateRolePage() {
                             </Button>
                             <Button
                                 type="button"
-                                className="px-12 h-12 rounded-xl bg-primary hover:bg-primary/90 text-white"
+                                className="px-12 h-[46px] rounded-[10px] text-[13px] font-semibold bg-[#0ea894] hover:bg-[#0c9785] text-white shadow-[0_8px_20px_-10px_rgba(14,168,148,0.7)] hover:translate-y-[-1px] transition-all disabled:opacity-50 disabled:shadow-none disabled:translate-y-0"
                                 disabled={isLoading || (isEditMode && !isDirty && JSON.stringify([...selectedCapabilityKeys].sort()) === JSON.stringify([...initialCapabilityKeys].sort()))}
                                 onClick={handleDirectSubmit}
                             >

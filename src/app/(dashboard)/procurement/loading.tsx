@@ -11,7 +11,7 @@ export default function Loading() {
       </div>
 
       {/* Status filter tabs row */}
-      <div className="flex items-center gap-6 border-b border-border pb-3">
+      <div className="flex items-center gap-6 border-b border-black/[0.06] pb-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-4 w-20" />
         ))}
@@ -19,12 +19,12 @@ export default function Loading() {
 
       {/* Search + filter row */}
       <div className="flex items-center justify-between gap-4">
-        <Skeleton className="h-10 w-72 rounded-xl" />
-        <Skeleton className="h-10 w-24 rounded-xl" />
+        <Skeleton className="h-10 w-72 rounded-[12px]" />
+        <Skeleton className="h-10 w-24 rounded-[12px]" />
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-border overflow-hidden">
+      <div className="rounded-[12px] border border-black/[0.06] overflow-hidden">
         <Skeleton className="h-11 w-full rounded-none" />
         {Array.from({ length: 8 }).map((_, i) => (
           <Skeleton key={i} className="h-14 w-full rounded-none border-t border-border/40" />

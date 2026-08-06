@@ -82,8 +82,8 @@ interface ProfileFormData {
 function NotifRow({ label, defaultOn = false }: { label: string; defaultOn?: boolean }) {
   const [on, setOn] = useState(defaultOn);
   return (
-    <div className="flex items-center justify-between py-3 border-b border-border last:border-0">
-      <span className="text-sm text-foreground">{label}</span>
+    <div className="flex items-center justify-between py-3 border-b border-black/[0.06] last:border-0">
+      <span className="text-[13px] text-[#0b100e]">{label}</span>
       <Switch checked={on} onCheckedChange={setOn} />
     </div>
   );
@@ -310,14 +310,14 @@ function MyProfileTab() {
   const accountHolderName = `${form.firstName} ${form.lastName}`.trim() || user?.email;
 
   return (
-    <div className="bg-white rounded-xl border border-border p-6" data-tour="account-details-section">
+    <div className="bg-white rounded-[14px] border border-black/[0.06] p-6" data-tour="account-details-section">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-base font-semibold text-foreground">My Profile Details</h2>
+        <h2 className="text-[15px] font-semibold text-[#0b100e]">My Profile Details</h2>
         {!isEditing ? (
           <Button
             onClick={() => setIsEditing(true)}
-            className="bg-primary text-white hover:bg-primary/90 h-9 px-4 gap-2 text-sm"
+            className="bg-[#087f70] text-white hover:bg-[#076b5e] h-9 px-4 gap-2 text-[13px] font-semibold rounded-[8px]"
           >
             <Pencil className="w-3.5 h-3.5" />
             Edit Details
@@ -327,14 +327,14 @@ function MyProfileTab() {
             <Button
               variant="outline"
               onClick={() => setIsEditing(false)}
-              className="h-9 px-4 text-sm"
+              className="h-9 px-4 text-[13px] font-medium text-[#68726d] border-black/[0.12] rounded-[8px] hover:bg-[#f9faf9]"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="bg-primary text-white hover:bg-primary/90 h-9 px-4 text-sm"
+              className="bg-[#087f70] text-white hover:bg-[#076b5e] h-9 px-4 text-[13px] font-semibold rounded-[8px]"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Changes"}
             </Button>
@@ -344,19 +344,19 @@ function MyProfileTab() {
 
       {/* Avatar */}
       <div className="mb-8 relative w-20">
-        <div className="w-20 h-20 rounded-full overflow-hidden bg-muted border border-border">
+        <div className="w-20 h-20 rounded-full overflow-hidden bg-[#f9faf9] border border-black/[0.08]">
           {avatarPreview ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-muted-foreground bg-gradient-to-br from-primary/20 to-primary/10">
+            <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-[#087f70] bg-[#f0faf8]">
               {(user?.firstName?.[0] || "U").toUpperCase()}
             </div>
           )}
         </div>
         <button
           onClick={() => avatarInputRef.current?.click()}
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-primary flex items-center justify-center border-2 border-white"
+          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-[#087f70] flex items-center justify-center border-2 border-white"
         >
           <Camera className="w-3.5 h-3.5 text-white" />
         </button>
@@ -366,73 +366,73 @@ function MyProfileTab() {
       {/* Personal Details + Bank Details side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6">
         {/* Personal Details Card */}
-        <div className="border border-border rounded-xl p-5">
-          <p className="text-xs font-bold uppercase tracking-wider text-foreground mb-5">Personal Details</p>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+        <div className="border border-black/[0.06] rounded-[12px] p-5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-[#84908a] mb-5">Personal Details</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">First Name</p>
+              <p className="text-[11px] text-[#84908a]">First Name</p>
               {isEditing ? (
                 <Input
                   value={form.firstName}
                   onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))}
-                  className="h-10 text-sm border-border bg-muted/30"
+                  className="h-10 text-[13px] border-black/[0.12] bg-[#f9faf9] rounded-[8px]"
                 />
               ) : (
-                <p className="text-sm font-medium text-foreground">{form.firstName || "—"}</p>
+                <p className="text-[13px] font-semibold text-[#0b100e]">{form.firstName || "—"}</p>
               )}
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Last Name</p>
+              <p className="text-[11px] text-[#84908a]">Last Name</p>
               {isEditing ? (
                 <Input
                   value={form.lastName}
                   onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
-                  className="h-10 text-sm border-border bg-muted/30"
+                  className="h-10 text-[13px] border-black/[0.12] bg-[#f9faf9] rounded-[8px]"
                 />
               ) : (
-                <p className="text-sm font-medium text-foreground">{form.lastName || "—"}</p>
+                <p className="text-[13px] font-semibold text-[#0b100e]">{form.lastName || "—"}</p>
               )}
             </div>
             <div className="col-span-2 space-y-1">
-              <p className="text-xs text-muted-foreground">Email Address</p>
-              <p className="text-sm font-medium text-foreground">{form.email || "—"}</p>
+              <p className="text-[11px] text-[#84908a]">Email Address</p>
+              <p className="text-[13px] font-semibold text-[#0b100e]">{form.email || "—"}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Country</p>
-              <p className="text-sm font-medium text-foreground">{form.country || "—"}</p>
+              <p className="text-[11px] text-[#84908a]">Country</p>
+              <p className="text-[13px] font-semibold text-[#0b100e]">{form.country || "—"}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">City</p>
+              <p className="text-[11px] text-[#84908a]">City</p>
               {isEditing ? (
                 <Input
                   value={form.city}
                   onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
-                  className="h-10 text-sm border-border bg-muted/30"
+                  className="h-10 text-[13px] border-black/[0.12] bg-[#f9faf9] rounded-[8px]"
                 />
               ) : (
-                <p className="text-sm font-medium text-foreground">{form.city || "—"}</p>
+                <p className="text-[13px] font-semibold text-[#0b100e]">{form.city || "—"}</p>
               )}
             </div>
           </div>
         </div>
 
         {/* Bank Details Card */}
-        <div className="border border-border rounded-xl p-5 min-w-[280px]">
-          <p className="text-xs font-bold uppercase tracking-wider text-foreground mb-5">Bank Details</p>
+        <div className="border border-black/[0.06] rounded-[12px] p-5 min-w-[280px]">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-[#84908a] mb-5">Bank Details</p>
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-5">
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Account Number</p>
-              <p className="text-sm font-medium text-foreground">{bankDetails?.accountNumber || "-"}</p>
+              <p className="text-[11px] text-[#84908a]">Account Number</p>
+              <p className="text-[13px] font-semibold text-[#0b100e]">{bankDetails?.accountNumber || "—"}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Bank Name</p>
-              <p className="text-sm font-medium text-foreground">{bankDetails?.bankName || "-"}</p>
+              <p className="text-[11px] text-[#84908a]">Bank Name</p>
+              <p className="text-[13px] font-semibold text-[#0b100e]">{bankDetails?.bankName || "—"}</p>
             </div>
           </div>
           <Button
             onClick={() => setBankModalOpen(true)}
             data-tour="update-details-button"
-            className="bg-primary text-white hover:bg-primary/90 h-10 px-5 text-sm"
+            className="bg-[#087f70] text-white hover:bg-[#076b5e] h-10 px-5 text-[13px] font-semibold rounded-[8px]"
           >
             Update Details
           </Button>
@@ -440,20 +440,20 @@ function MyProfileTab() {
       </div>
 
       {/* Delete Account */}
-      <div className="mt-6 rounded-xl bg-muted/30 border border-border p-5">
-        <h3 className="text-sm font-semibold text-foreground mb-3">Delete Account</h3>
+      <div className="mt-6 rounded-[12px] bg-[#fff5f5] border border-[#d33d44]/20 p-5">
+        <h3 className="text-[13px] font-semibold text-[#0b100e] mb-3">Delete Account</h3>
         <div className="flex items-start gap-2 mb-3">
-          <div className="w-4 h-4 rounded-full border border-muted-foreground flex items-center justify-center shrink-0 mt-0.5">
-            <span className="text-xs text-muted-foreground font-bold">i</span>
+          <div className="w-4 h-4 rounded-full border border-[#d33d44]/40 flex items-center justify-center shrink-0 mt-0.5">
+            <span className="text-[10px] text-[#d33d44] font-bold">i</span>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[12px] text-[#68726d]">
             After making a deletion request, you will have 1 month to recover your account.
           </p>
         </div>
-        <p className="text-xs text-muted-foreground mb-4">
+        <p className="text-[12px] text-[#68726d] mb-4">
           To permanently delete your Villeto account, click the button below. You cannot reverse this action.
         </p>
-        <button className="flex items-center gap-2 text-sm text-red-500 font-medium border border-red-200 rounded-lg px-4 py-2 hover:bg-red-50 transition-colors">
+        <button className="flex items-center gap-2 text-[13px] text-[#d33d44] font-semibold border border-[#d33d44]/30 rounded-[8px] px-4 py-2 hover:bg-[#d33d44]/5 transition-colors">
           <Trash2 className="w-4 h-4" />
           Delete Account
         </button>
@@ -473,11 +473,11 @@ function MyProfileTab() {
 // ─── Notifications tab ────────────────────────────────────────────────────────
 function NotificationsTab() {
   return (
-    <div className="bg-white rounded-xl border border-border p-6">
-      <h2 className="text-base font-semibold text-foreground mb-6">Notification Preferences</h2>
+    <div className="bg-white rounded-[14px] border border-black/[0.06] p-6">
+      <h2 className="text-[15px] font-semibold text-[#0b100e] mb-6">Notification Preferences</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-3">Email Notifications</h3>
+          <h3 className="text-[13px] font-semibold text-[#0b100e] mb-3">Email Notifications</h3>
           <NotifRow label="Expense submissions" defaultOn />
           <NotifRow label="Approval updates" defaultOn />
           <NotifRow label="Card transactions" />
@@ -485,7 +485,7 @@ function NotificationsTab() {
           <NotifRow label="Policy violation alerts" defaultOn />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-3">In-App Notifications</h3>
+          <h3 className="text-[13px] font-semibold text-[#0b100e] mb-3">In-App Notifications</h3>
           <NotifRow label="Card alerts" defaultOn />
           <NotifRow label="Spending limit warnings" defaultOn />
           <NotifRow label="Pending approvals" defaultOn />
@@ -583,17 +583,17 @@ function InfoRow({
 }) {
   return (
     <div className="space-y-1">
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-[11px] text-[#84908a]">{label}</p>
       {isEditing && !disabled ? (
         renderEdit ? renderEdit() : (
           <Input 
             value={value || ""} 
             onChange={(e) => onChange?.(e.target.value)}
-            className="h-8 text-sm bg-gray-50 border-gray-200"
+            className="h-8 text-[13px] bg-[#f9faf9] border-black/[0.12] rounded-[6px]"
           />
         )
       ) : (
-        <p className={cn("text-sm font-medium text-foreground", !value && "text-muted-foreground")}>
+        <p className={cn("text-[13px] font-semibold text-[#0b100e]", !value && "text-[#84908a] font-medium")}>
           {value || "—"}
         </p>
       )}
@@ -833,8 +833,8 @@ function CompanyProfileTab() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[40vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-6 h-6 animate-spin text-[#087f70]" />
       </div>
     );
   }
@@ -879,68 +879,70 @@ function CompanyProfileTab() {
   return (
     <div className="space-y-4 pt-2">
       <div className="flex items-center">
-         <h1 className="text-xl font-bold text-foreground">Company Details</h1>
+         <h1 className="text-[18px] sm:text-xl font-bold text-[#0b100e]">Company Details</h1>
       </div>
 
       {/* Header card */}
-      <div className="bg-white rounded-xl border border-border px-8 py-6">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-6">
+      <div className="bg-white rounded-[14px] border border-black/[0.06] px-5 sm:px-8 py-5 sm:py-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
             <LogoUploader 
               currentLogo={logoPreview || undefined} 
               companyName={businessName}
               onLogoChange={handleLogoChange} 
             />
-            <div className="flex flex-col">
-              <h2 className="text-[22px] font-bold text-foreground leading-none mb-2">{businessName}</h2>
-              <p className="text-sm text-muted-foreground">{location}</p>
+            <div className="flex flex-col min-w-0">
+              <h2 className="text-[18px] sm:text-[22px] font-bold text-[#0b100e] leading-none mb-1.5 truncate">{businessName}</h2>
+              <p className="text-[13px] text-[#68726d]">{location}</p>
               {pendingLogoFile && (
                 <Button size="sm" onClick={handleSaveLogo} disabled={isSavingLogo}
-                  className="mt-3 h-8 px-4 text-xs bg-primary text-white hover:bg-primary/90 w-fit">
+                  className="mt-3 h-8 px-4 text-[13px] font-semibold bg-[#087f70] text-white hover:bg-[#076b5e] w-fit rounded-[8px]">
                   {isSavingLogo ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : null}
                   {isSavingLogo ? "Saving..." : "Save Logo"}
                 </Button>
               )}
             </div>
           </div>
-          <div className="text-right min-w-[200px] flex flex-col justify-center h-full">
-            <p className="text-sm font-medium text-foreground mb-1">Profile Completion</p>
-            <div className="flex items-center gap-2 justify-end mb-2">
-              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden w-32">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${completionPct}%` }} />
+          <div className="flex flex-row sm:flex-col sm:text-right sm:min-w-[200px] items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-0 border-t border-black/[0.06] sm:border-0 pt-4 sm:pt-0">
+            <div className="flex-1 sm:flex-none">
+              <p className="text-[13px] font-semibold text-[#0b100e] mb-1">Profile Completion</p>
+              <div className="flex items-center gap-2 sm:justify-end mb-0 sm:mb-2">
+                <div className="flex-1 sm:flex-none h-2 bg-[#f0faf8] rounded-full overflow-hidden sm:w-32">
+                  <div className="h-full bg-[#087f70] rounded-full transition-all" style={{ width: `${completionPct}%` }} />
+                </div>
+                <span className="text-[11px] font-semibold text-[#0b100e]">{completionPct}%</span>
               </div>
-              <span className="text-xs font-semibold text-foreground">{completionPct}%</span>
             </div>
-            <Button size="sm" className="h-8 px-4 text-xs bg-foreground text-white hover:bg-foreground/90 rounded-lg">
+            <Button size="sm" className="h-8 px-4 text-[13px] font-semibold bg-[#0b100e] text-white hover:bg-black/90 rounded-[8px] shrink-0">
               Finish setup
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Two-column body */}
-      <div className="grid grid-cols-[1fr_300px] gap-5">
+      {/* Two-column body: single column on mobile, side-by-side on lg+ */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
         <div className="space-y-5">
-          <div className="bg-white rounded-xl border border-border p-5">
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">Profile Information</h2>
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#84908a]">Profile Information</h2>
               {!isEditingInfo ? (
                 <button 
                   onClick={() => setIsEditingInfo(true)}
-                  className="text-primary hover:text-primary/80 transition-colors cursor-pointer p-1 rounded-md hover:bg-primary/5"
+                  className="text-[#087f70] hover:text-[#076b5e] transition-colors cursor-pointer p-1.5 rounded-[6px] hover:bg-[#f0faf8]"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
               ) : (
                 <div className="flex gap-2">
-                  <button onClick={() => setIsEditingInfo(false)} className="text-xs font-medium text-muted-foreground hover:text-foreground">Cancel</button>
-                  <button onClick={handleSaveInfo} disabled={isSaving} className="text-xs font-bold text-primary hover:text-primary/80 disabled:opacity-50">
+                  <button onClick={() => setIsEditingInfo(false)} className="text-[13px] font-medium text-[#68726d] hover:text-[#0b100e]">Cancel</button>
+                  <button onClick={handleSaveInfo} disabled={isSaving} className="text-[13px] font-bold text-[#087f70] hover:text-[#076b5e] disabled:opacity-50">
                     {isSaving ? "Saving..." : "Save"}
                   </button>
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
               <InfoRow 
                 label="Business Name" 
                 value={isEditingInfo ? infoForm.businessName : businessName} 
@@ -960,7 +962,7 @@ function CompanyProfileTab() {
                       setFinancialsForm(p => ({ ...p, currency: newConfig.code }));
                     }}
                   >
-                    <SelectTrigger className="h-8 w-full bg-gray-50 border-gray-200">
+                    <SelectTrigger className="h-8 w-full bg-[#f9faf9] border-black/[0.12] rounded-[6px]">
                       <SelectValue placeholder="Select Country" />
                     </SelectTrigger>
                     <SelectContent>
@@ -978,12 +980,19 @@ function CompanyProfileTab() {
                 isEditing={isEditingInfo}
                 onChange={(v) => setInfoForm(p => ({ ...p, phone: v }))}
               />
-              <InfoRow 
-                label="Website" 
-                value={isEditingInfo ? infoForm.website : website} 
-                isEditing={isEditingInfo}
-                onChange={(v) => setInfoForm(p => ({ ...p, website: v }))}
-              />
+              <div className="space-y-1 min-w-0">
+                <p className="text-[11px] text-[#84908a]">Website</p>
+                {isEditingInfo ? (
+                  <InfoRow 
+                    label="" 
+                    value={infoForm.website} 
+                    isEditing={true}
+                    onChange={(v) => setInfoForm(p => ({ ...p, website: v }))}
+                  />
+                ) : (
+                  <p className="text-[13px] font-semibold text-[#0b100e] truncate">{website || "—"}</p>
+                )}
+              </div>
               <InfoRow 
                 label="Industry" 
                 value={isEditingInfo ? infoForm.industry : industry} 
@@ -998,20 +1007,20 @@ function CompanyProfileTab() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-border p-5">
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">Financial Snapshot</h2>
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#84908a]">Financial Snapshot</h2>
               {!isEditingFinancials ? (
                 <button 
                   onClick={() => setIsEditingFinancials(true)}
-                  className="text-primary hover:text-primary/80 transition-colors cursor-pointer p-1 rounded-md hover:bg-primary/5"
+                  className="text-[#087f70] hover:text-[#076b5e] transition-colors cursor-pointer p-1.5 rounded-[6px] hover:bg-[#f0faf8]"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
               ) : (
                 <div className="flex gap-2">
-                  <button onClick={() => setIsEditingFinancials(false)} className="text-xs font-medium text-muted-foreground hover:text-foreground">Cancel</button>
-                  <button onClick={handleSaveFinancials} disabled={isSaving} className="text-xs font-bold text-primary hover:text-primary/80 disabled:opacity-50">
+                  <button onClick={() => setIsEditingFinancials(false)} className="text-[13px] font-medium text-[#68726d] hover:text-[#0b100e]">Cancel</button>
+                  <button onClick={handleSaveFinancials} disabled={isSaving} className="text-[13px] font-bold text-[#087f70] hover:text-[#076b5e] disabled:opacity-50">
                     {isSaving ? "Saving..." : "Save"}
                   </button>
                 </div>
@@ -1027,12 +1036,12 @@ function CompanyProfileTab() {
                   return (
                     <div className="space-y-4 pt-4 col-span-2">
                       <div className="flex justify-between items-center mb-1">
-                         <span className="text-xs text-muted-foreground">Adjust Range</span>
-                         <span className="text-sm font-bold text-primary">{currentConfig.spendingRanges[financialsForm.spendIndex]?.label}</span>
+                         <span className="text-[12px] text-[#68726d]">Adjust Range</span>
+                         <span className="text-[13px] font-bold text-[#087f70]">{currentConfig.spendingRanges[financialsForm.spendIndex]?.label}</span>
                       </div>
                       <div className="relative h-6 flex items-center">
-                        <div className="absolute w-full h-1 bg-muted rounded-full">
-                           <div className="h-full bg-primary rounded-full" style={{ width: `${(financialsForm.spendIndex / 3) * 100}%` }} />
+                        <div className="absolute w-full h-1 bg-[#f0faf8] rounded-full">
+                           <div className="h-full bg-[#087f70] rounded-full" style={{ width: `${(financialsForm.spendIndex / 3) * 100}%` }} />
                         </div>
                         <input 
                            type="range" min="0" max="3" step="1" 
@@ -1040,13 +1049,13 @@ function CompanyProfileTab() {
                            onChange={(e) => setFinancialsForm(p => ({ ...p, spendIndex: parseInt(e.target.value) }))}
                            className="absolute w-full h-6 opacity-0 cursor-pointer z-10"
                         />
-                        <div className="absolute w-4 h-4 bg-white border-2 border-primary rounded-full shadow-sm" 
+                        <div className="absolute w-4 h-4 bg-white border-2 border-[#087f70] rounded-full shadow-sm" 
                              style={{ left: `calc(${(financialsForm.spendIndex / 3) * 100}% - 8px)` }} 
                         />
                       </div>
                       <div className="flex justify-between px-1">
                         {currentConfig.spendingRanges.map((r, i) => (
-                           <span key={i} className={cn("text-[10px] cursor-pointer hover:text-primary", financialsForm.spendIndex === i ? "text-primary font-bold" : "text-muted-foreground")}
+                           <span key={i} className={cn("text-[10px] cursor-pointer", financialsForm.spendIndex === i ? "text-[#087f70] font-bold" : "text-[#84908a] hover:text-[#087f70]")}
                                  onClick={() => setFinancialsForm(p => ({ ...p, spendIndex: i }))}>
                               {r.label.split(' ')[0]}
                            </span>
@@ -1061,29 +1070,29 @@ function CompanyProfileTab() {
                 value={isEditingFinancials ? financialsForm.currency : actCurrencyDisplay} 
                 isEditing={isEditingFinancials}
                 renderEdit={() => (
-                  <div className="h-8 flex items-center px-3 rounded-md bg-muted/50 border border-border text-sm font-medium text-muted-foreground">
+                  <div className="h-8 flex items-center px-3 rounded-[6px] bg-[#f9faf9] border border-black/[0.08] text-[13px] font-medium text-[#68726d]">
                     {financialsForm.currency}
                   </div>
                 )}
               />
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Bank Status</p>
-                <span className={cn("inline-block text-xs font-medium px-2.5 py-0.5 rounded-full",
-                  currBankStatus === "Connected" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground")}>
+                <p className="text-[11px] text-[#84908a]">Bank Status</p>
+                <span className={cn("inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full",
+                  currBankStatus === "Connected" ? "bg-[#e6f7ef] text-[#087f70]" : "bg-[#f9faf9] text-[#84908a]")}>
                   {currBankStatus}
                 </span>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="mt-4 text-xs h-8 border-primary text-primary hover:bg-primary/10">
+            <Button variant="outline" size="sm" className="mt-4 text-[13px] font-semibold h-8 border-[#087f70]/30 text-[#087f70] hover:bg-[#f0faf8] rounded-[8px]">
               Manage connection
             </Button>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-border p-5">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-foreground mb-4">Administrators &amp; Owners</h2>
+        <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#84908a] mb-4">Administrators &amp; Owners</h2>
           {admins.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">No admins found</p>
+            <p className="text-[13px] text-[#68726d] py-4 text-center">No admins found</p>
           ) : (
             <div className="space-y-3 mb-5">
               {admins.map((admin) => (
@@ -1091,22 +1100,22 @@ function CompanyProfileTab() {
                   <div className="flex items-center gap-3">
                     <AdminAvatar admin={admin} />
                     <div>
-                      <p className="text-sm font-semibold text-foreground leading-tight">{admin.firstName} {admin.lastName}</p>
-                      <p className="text-[13px] text-muted-foreground capitalize mt-0.5">
+                      <p className="text-[13px] font-semibold text-[#0b100e] leading-tight">{admin.firstName} {admin.lastName}</p>
+                      <p className="text-[12px] text-[#68726d] capitalize mt-0.5">
                         {((admin.villetoRole?.name || admin.position || "Admin") as string).toLowerCase().replace(/_/g, ' ')}
                       </p>
                     </div>
                   </div>
-                  <button className="text-sm font-medium text-muted-foreground hover:text-foreground">Manage</button>
+                  <button className="text-[13px] font-semibold text-[#087f70] hover:text-[#076b5e]">Manage</button>
                 </div>
               ))}
             </div>
           )}
-          <div className="flex gap-2 pt-2 border-t border-border">
-            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => router.push("/people")}>
+          <div className="flex gap-2 pt-2 border-t border-black/[0.06]">
+            <Button variant="outline" size="sm" className="flex-1 h-8 text-[13px] font-semibold border-black/[0.12] text-[#0b100e] hover:bg-[#f9faf9] rounded-[8px]" onClick={() => router.push("/people")}>
               View Permission
             </Button>
-            <Button size="sm" className="flex-1 h-8 text-xs bg-white border border-primary text-primary hover:bg-primary/10"
+            <Button size="sm" className="flex-1 h-8 text-[13px] font-semibold bg-white border border-[#087f70]/30 text-[#087f70] hover:bg-[#f0faf8] rounded-[8px]"
               onClick={() => router.push("/people/invite/leadership")}>
               Invite Admin
             </Button>
@@ -1140,18 +1149,18 @@ export default function PersonalSettingsPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-6 px-4">
+    <div className="max-w-5xl mx-auto py-6 px-4 sm:px-6">
       <Tabs value={defaultTab} onValueChange={handleTabChange}>
-        <TabsList className="bg-muted/50 p-1 h-auto rounded-lg mb-6">
-          <TabsTrigger value="my-profile" className="data-[state=active]:bg-background rounded-md px-6">
+        <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide mb-6">
+          <TabsTrigger value="my-profile" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-6 text-[13px] font-semibold h-full">
             My Profile
           </TabsTrigger>
           {canSeeCompany && (
-            <TabsTrigger value="company-profile" className="data-[state=active]:bg-background rounded-md px-6">
+            <TabsTrigger value="company-profile" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-6 text-[13px] font-semibold h-full">
               Company Profile
             </TabsTrigger>
           )}
-          <TabsTrigger value="notifications" className="data-[state=active]:bg-background rounded-md px-6">
+          <TabsTrigger value="notifications" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-6 text-[13px] font-semibold h-full">
             Notifications
           </TabsTrigger>
         </TabsList>

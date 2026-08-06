@@ -1,4 +1,5 @@
 
+import { Users } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -22,55 +23,46 @@ export function InviteEmployeesWarningModal({
 }: InviteEmployeesWarningModalProps) {
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[480px] flex flex-col items-center text-center p-10 bg-white gap-6 [&>button]:hidden rounded-lg">
-                <Button 
-                    className="absolute right-4 top-4 p-0 w-auto h-auto bg-transparent hover:bg-transparent text-gray-500 hover:text-gray-900"
+            <DialogContent className="sm:max-w-[440px] flex flex-col items-center text-center p-8 bg-white gap-5 [&>button]:hidden rounded-2xl border-none shadow-xl">
+                {/* Close button */}
+                <button
                     onClick={onClose}
+                    className="absolute right-4 top-4 w-7 h-7 flex items-center justify-center rounded-[8px] text-[#84908a] hover:text-[#303834] hover:bg-[#f5f7f6] transition-colors"
+                    aria-label="Close"
                 >
-                    <span className="sr-only">Close</span>
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-6 w-6"
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M18 6 6 18" />
                         <path d="m6 6 12 12" />
                     </svg>
-                </Button>
+                </button>
 
-                <div className="h-28 w-28 bg-[#FCAC12] rounded-full flex items-center justify-center mb-2 shadow-sm">
-                    <span className="text-white text-7xl font-semibold">!</span>
+                {/* Icon */}
+                <div className="w-16 h-16 rounded-2xl bg-[#e7f6f2] flex items-center justify-center">
+                    <Users className="w-7 h-7 text-[#087f70]" strokeWidth={1.8} />
                 </div>
-                
-                <div className="space-y-3 px-4">
-                    <DialogTitle className="text-2xl font-semibold text-center text-gray-800">
-                        Managers & Leadership
+
+                <div className="space-y-2 px-2">
+                    <DialogTitle className="text-[18px] font-semibold text-[#0b100e] leading-snug">
+                        Invite Managers first?
                     </DialogTitle>
-                    <DialogDescription className="text-center text-gray-500 text-sm leading-relaxed">
-                        Inviting Admins and other leadership before inviting employees helps the system easily assign managers to each employee
+                    <DialogDescription className="text-[13px] text-[#66706b] leading-relaxed">
+                        Inviting admins and leadership before employees helps the system automatically assign managers to each employee.
                     </DialogDescription>
                 </div>
-                
-                <div className="flex gap-4 w-full mt-4">
-                    <Button 
-                        onClick={onInviteLeaders} 
-                        className="flex-1 bg-[#03C3A6] hover:bg-[#03C3A6]/90 text-white font-medium h-12 text-sm rounded-lg border-0 shadow-none transition-all"
+
+                <div className="flex flex-col gap-2.5 w-full mt-1">
+                    <Button
+                        onClick={onInviteLeaders}
+                        className="h-[46px] w-full rounded-[10px] bg-[#0ea894] text-[13px] font-semibold text-white shadow-[0_8px_20px_-10px_rgba(14,168,148,0.7)] hover:bg-[#0c9785] hover:translate-y-[-1px] transition-all"
                     >
-                        Invite Leaders
+                        Invite Leadership First
                     </Button>
-                    <Button 
-                        variant="outline" 
+                    <Button
+                        variant="outline"
                         onClick={onContinue}
-                        className="flex-1 border-[#03C3A6] text-[#03C3A6] hover:bg-[#03C3A6]/5 hover:text-[#03C3A6] font-medium h-12 text-sm rounded-lg"
+                        className="h-[46px] w-full rounded-[10px] border-[#0ea894]/40 text-[#087f70] hover:bg-[#e7f6f2] hover:border-[#0ea894]/60 text-[13px] font-semibold transition-all"
                     >
-                        Continue
+                        Continue with Employees
                     </Button>
                 </div>
             </DialogContent>

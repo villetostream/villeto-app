@@ -56,6 +56,21 @@ export function ReceiptUploadSection({
     };
   }, [pendingReceipts]);
 
+  useEffect(() => {
+    const handleOpenManual = () => {
+      setShowManualForm(true);
+    };
+    window.addEventListener('villeto:open-manual-form', handleOpenManual);
+    return () => {
+      window.removeEventListener('villeto:open-manual-form', handleOpenManual);
+    };
+  }, []);
+
+  // Broadcast manual form state so other components (like empty state) can react
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('villeto:manual-form-state', { detail: showManualForm }));
+  }, [showManualForm]);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -148,16 +163,16 @@ export function ReceiptUploadSection({
 
   // ── Tab switcher ────────────────────────────────────────────────────────
   const tabSwitcher = (
-    <div className="flex justify-center mb-4">
-      <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-muted/40">
+    <div className="flex justify-center mb-6">
+      <div className="inline-flex items-center gap-1 p-1 rounded-[10px] bg-[#f5f7f6]">
         <button
           type="button"
           onClick={() => handleTabChange("individual")}
           className={cn(
-            "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+            "px-5 py-1.5 rounded-[6px] text-[13px] font-semibold transition-colors",
             !isSplitTab
-              ? "bg-white text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
+              ? "bg-white text-[#0b100e] shadow-sm"
+              : "text-[#68726d] hover:text-[#0b100e]",
           )}
         >
           Individual Expense
@@ -166,10 +181,10 @@ export function ReceiptUploadSection({
           type="button"
           onClick={() => handleTabChange("split")}
           className={cn(
-            "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+            "px-5 py-1.5 rounded-[6px] text-[13px] font-semibold transition-colors",
             isSplitTab
-              ? "bg-white text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
+              ? "bg-white text-[#0b100e] shadow-sm"
+              : "text-[#68726d] hover:text-[#0b100e]",
           )}
         >
           Split Expense
@@ -182,16 +197,20 @@ export function ReceiptUploadSection({
     return (
       <div className="h-full flex flex-col animate-in fade-in zoom-in-[0.99] duration-150 ease-out">
         {tabSwitcher}
-        <div className="mb-4 flex flex-row justify-between items-center bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
-          <span className="font-semibold text-dashboard-text-primary">
-            {isSplitTab ? "Split Expense Entry" : "Manual Expense Entry"}
-          </span>
+        <div className="mb-4 flex flex-row justify-between items-center bg-gray-100 border border-gray-200 rounded-xl px-4 py-3">
+          <div className="flex flex-col">
+            <span className="font-semibold text-foreground text-sm">
+              {isSplitTab ? "Split Expense Entry" : "Manual Expense Entry"}
+            </span>
+            <span className="text-xs text-muted-foreground mt-0.5">Fill in the details below</span>
+          </div>
           <button
             type="button"
             onClick={() => setShowManualForm(false)}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+            className="w-8 h-8 flex items-center justify-center rounded-full border border-border bg-white text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+            aria-label="Exit manual entry"
           >
-            Cancel Manual entry
+            <X className="w-4 h-4" />
           </button>
         </div>
         <ExpenseForm
@@ -217,8 +236,8 @@ export function ReceiptUploadSection({
 
       <div
         className={cn(
-          "border-2 border-dashed border-primary rounded-lg transition-colors bg-white overflow-hidden",
-          isDragging && "bg-primary/10",
+          "border-2 border-dashed border-[#087f70]/40 rounded-[14px] transition-colors bg-white overflow-hidden hover:border-[#087f70]/60",
+          isDragging && "bg-[#f0faf8] border-[#087f70]",
           hasPending ? "flex min-h-[320px]" : "flex flex-col items-center justify-center min-h-[320px] p-10",
         )}
         onDragOver={handleDragOver}

@@ -137,7 +137,7 @@ const LogoUploadContent: React.FC<LogoUploadContentProps> = ({
                <Button
                 type="button"
                 variant="outline"
-                className="text-teal-500 border-teal-500 hover:text-teal-600 hover:border-teal-600 bg-transparent hover:bg-teal-50 flex items-center gap-2"
+                className="flex items-center gap-2 rounded-[8px] border-black/[0.1] bg-white text-[13px] font-semibold text-[#087f70] shadow-[0_4px_16px_rgba(14,28,23,0.04)] hover:border-[#0ea894] hover:bg-[#f2fcfb] hover:text-[#065f55]"
                 onClick={open}
               >
                   {!value && <Upload className="w-4 h-4" />}
@@ -249,7 +249,7 @@ const LogoButtonPreview: React.FC<{ value: File | string | undefined }> = ({ val
   }, [previewSrc]);
 
   if (!previewSrc) {
-    return <User className="w-8 h-8 text-black" />;
+    return <User className="size-8 text-[#0ea894]" strokeWidth={1.5} />;
   }
 
   return (
@@ -286,11 +286,11 @@ const FormFieldLogoUpload = <T extends FieldValues = FieldValues>({
               <div className="flex items-center gap-4">
                 {/* Preview Circle / Placeholder */}
                 {/* Preview Circle / Placeholder */}
-                <div className={`relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 border border-gray-100 flex items-center justify-center ${field.value ? 'bg-transparent' : 'bg-teal-50'}`}>
+                <div className={`relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/[0.08] ${field.value ? 'bg-transparent' : 'bg-[#e7f6f2]'}`}>
                   {field.value ? (
                     <LogoButtonPreview value={field.value} />
                   ) : (
-                    <User className="w-8 h-8 text-black" />
+                    <User className="size-8 text-[#0ea894]" strokeWidth={1.5} />
                   )}
                 </div>
 

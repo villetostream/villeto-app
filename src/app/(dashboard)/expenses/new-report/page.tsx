@@ -793,8 +793,8 @@ export default function NewReportPage() {
   return (
     <div className="max-w-7xl mx-auto p-4 h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 mb-4 border-b">
-        <div className="relative inline-grid items-center group">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 mb-4 border-b">
+        <div className="relative inline-grid items-center group w-full md:w-auto">
           {/* Hidden span dictates the width of the grid container based on text length */}
           <span className="col-start-1 row-start-1 invisible whitespace-pre pl-3 pr-8 py-1 text-sm font-semibold">
             {reportTitle || "Enter report name"}
@@ -811,29 +811,28 @@ export default function NewReportPage() {
               window.history.replaceState(null, "", url.toString());
             }}
             placeholder="Enter report name"
-            className="col-start-1 row-start-1 w-full min-w-0 border border-border rounded-md pl-3 pr-8 py-1 text-sm font-semibold text-foreground bg-white hover:border-gray-400 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+            className="col-start-1 row-start-1 w-full min-w-0 border border-black/[0.08] rounded-[8px] pl-3 pr-8 py-1 text-[13px] font-semibold text-[#0b100e] bg-white hover:border-gray-400 focus:border-[#087f70] focus:ring-1 focus:ring-[#087f70] outline-none transition-all"
             title="Edit report name"
           />
           <Pencil className="absolute right-2.5 w-3.5 h-3.5 text-muted-foreground opacity-60 pointer-events-none" />
         </div>
-        <div className="flex items-center gap-3">
-          <Button
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <button
             onClick={() => runPolicyAndSubmit("draft")}
             disabled={isSubmitting || isEmpty}
             className={
               (isSubmitting || isEmpty)
-                ? "bg-gray-100 text-gray-400 border border-gray-200 rounded-lg h-11 px-8 text-sm font-medium cursor-not-allowed"
-                : "bg-white border border-primary text-primary hover:bg-primary/10 rounded-lg h-11 px-8 text-sm font-medium"
+                ? "bg-[#f9faf9] text-[#84908a] border border-black/[0.08] rounded-[8px] h-10 px-6 text-[13px] font-semibold cursor-not-allowed"
+                : "bg-white border border-[#087f70] text-[#087f70] hover:bg-[#f0faf8] rounded-[8px] h-10 px-6 text-[13px] font-semibold transition-colors"
             }
           >
             {isSubmitting ? "Saving..." : "Save as Draft"}
-          </Button>
-          <Button
+          </button>
+          <button
             onClick={() => {
               if (submitButtonState === "submit") {
                 runPolicyAndSubmit("pending");
               } else {
-                // "fix" or "resolve" — open the modal to show violations
                 setPendingSubmitStatus("pending");
                 setIsPolicyModalOpen(true);
               }
@@ -841,12 +840,12 @@ export default function NewReportPage() {
             disabled={isSubmitting || isEmpty}
             className={
               (isSubmitting || isEmpty)
-                ? "bg-gray-100 text-gray-400 border border-gray-100 rounded-lg h-11 px-8 text-sm font-medium cursor-not-allowed"
+                ? "bg-[#f9faf9] text-[#84908a] border border-black/[0.08] rounded-[8px] h-10 px-6 text-[13px] font-semibold cursor-not-allowed"
                 : submitButtonState === "fix"
-                  ? "bg-red-500 border border-red-500 text-white hover:bg-red-600 rounded-lg h-11 px-8 text-sm font-medium"
+                  ? "bg-[#d33d44] border border-[#d33d44] text-white hover:bg-[#c33339] rounded-[8px] h-10 px-6 text-[13px] font-semibold shadow-sm transition-colors"
                   : submitButtonState === "resolve"
-                    ? "bg-amber-500 border border-amber-500 text-white hover:bg-amber-600 rounded-lg h-11 px-8 text-sm font-medium"
-                    : "bg-primary border border-primary text-white hover:bg-primary/90 rounded-lg h-11 px-8 text-sm font-medium"
+                    ? "bg-[#b27b00] border border-[#b27b00] text-white hover:bg-[#966800] rounded-[8px] h-10 px-6 text-[13px] font-semibold shadow-sm transition-colors"
+                    : "bg-[#087f70] border border-[#087f70] text-white hover:bg-[#076b5e] rounded-[8px] h-10 px-6 text-[13px] font-semibold shadow-sm transition-colors"
             }
           >
             {isSubmitting
@@ -856,14 +855,14 @@ export default function NewReportPage() {
                 : submitButtonState === "resolve"
                   ? "Resolve Warnings"
                   : "Submit Report"}
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* ── Main layout: Preview (60%) | Scan/Form (40%) ── */}
-      <div className="flex gap-6 flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
         {/* Left: Preview list — 60% */}
-        <div className="w-[60%] min-w-0 overflow-y-auto pr-4">
+        <div className="w-full lg:w-[60%] min-w-0 lg:overflow-y-auto lg:pr-4">
           <ExpensePreviewList
             expenses={expenses}
             total={total}
@@ -875,7 +874,7 @@ export default function NewReportPage() {
         </div>
 
         {/* Right: Scan / Manual form — 40% */}
-        <div className="w-[40%] min-w-0 overflow-y-auto pl-2 pr-4">
+        <div className="w-full lg:w-[40%] min-w-0 lg:overflow-y-auto lg:pl-2 lg:pr-4">
           <ReceiptUploadSection
             categories={categories}
             onReceiptsUpload={handleReceiptsUpload}
@@ -921,10 +920,10 @@ export default function NewReportPage() {
 
       {/* Processing overlay */}
       {isProcessing && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 flex items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="text-sm">Processing receipts...</span>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-[14px] p-6 flex items-center gap-3 shadow-xl">
+            <Loader2 className="h-6 w-6 animate-spin text-[#087f70]" />
+            <span className="text-[14px] font-semibold text-[#0b100e]">Processing receipts...</span>
           </div>
         </div>
       )}

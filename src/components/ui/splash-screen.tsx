@@ -18,28 +18,28 @@ import Image from "next/image";
 export function SplashScreen() {
   return (
     <div 
-      className="fixed inset-0 z-[9999] bg-dashboard-background flex flex-col items-center justify-center overflow-hidden"
+      className="fixed inset-0 z-[9999] bg-[#f9faf9] flex flex-col items-center justify-center overflow-hidden"
       suppressHydrationWarning
     >
-      <div className="relative flex flex-col items-center gap-8" suppressHydrationWarning>
-        {/* Animated logo container */}
-        <div className="relative animate-pulse" suppressHydrationWarning>
+      <div className="relative flex flex-col items-center gap-6" suppressHydrationWarning>
+        {/* Logo container */}
+        <div className="relative" suppressHydrationWarning>
           <Image
             src="/images/villeto-logo.png"
             alt="Villeto"
-            width={180}
-            height={56}
-            className="w-auto h-14 object-contain"
+            width={160}
+            height={50}
+            className="w-auto h-12 object-contain"
             priority
           />
         </div>
         
-        {/* Sleek, indeterminate progress bar using arbitrary Tailwind classes for the animation */}
+        {/* Sleek, indeterminate progress bar matching new design tokens */}
         <div 
-          className="w-48 h-1 bg-border/40 rounded-full overflow-hidden relative"
+          className="w-32 h-1 bg-[#e7f6f2] rounded-full overflow-hidden relative"
           suppressHydrationWarning
         >
-          <div className="absolute inset-y-0 left-0 bg-primary/80 rounded-full w-1/2 animate-[progress_1.5s_ease-in-out_infinite]" />
+          <div className="absolute inset-y-0 left-0 bg-[#087f70] rounded-full w-1/3 animate-[progress_1.2s_ease-in-out_infinite]" />
         </div>
       </div>
 
@@ -47,8 +47,8 @@ export function SplashScreen() {
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes progress {
           0% { transform: translateX(-100%); }
-          50% { transform: translateX(100%); }
-          100% { transform: translateX(200%); }
+          50% { transform: translateX(200%); }
+          100% { transform: translateX(300%); }
         }
       `}} />
     </div>

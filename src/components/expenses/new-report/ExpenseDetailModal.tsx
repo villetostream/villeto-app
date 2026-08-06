@@ -162,7 +162,7 @@ export function ExpenseDetailModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className="rounded-2xl p-0 overflow-hidden gap-0 flex flex-col"
+        className="rounded-[14px] p-0 overflow-hidden gap-0 flex flex-col"
         style={{
           maxWidth: hasReceipt ? "820px" : "560px",
           maxHeight: "88vh",
@@ -178,8 +178,8 @@ export function ExpenseDetailModal({
           <div className={`flex flex-col ${hasReceipt ? "flex-1 min-w-0" : "w-full"}`}>
 
             {/* Sticky title header */}
-            <div className="shrink-0 px-6 pt-5 pb-3 border-b border-border">
-              <h2 className="text-base font-semibold text-foreground">{expense.name}</h2>
+            <div className="shrink-0 px-6 pt-5 pb-3 border-b border-black/[0.06]">
+              <h2 className="text-[15px] font-semibold text-[#0b100e] tracking-tight">{expense.name}</h2>
             </div>
 
             {/* Scrollable body: banners + form + inline justification */}
@@ -296,31 +296,30 @@ export function ExpenseDetailModal({
             </div>
 
             {/* ── Sticky Footer ── */}
-            <div className="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-white">
-              <Button
+            <div className="shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-black/[0.06] bg-white">
+              <button
                 type="button"
-                variant="ghost"
                 onClick={onClose}
-                className="text-muted-foreground hover:text-foreground hover:bg-transparent px-0 underline text-sm"
+                className="h-10 px-5 rounded-[8px] border border-black/[0.08] text-[#68726d] font-semibold text-[13px] hover:bg-[#f9faf9] transition-colors"
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 type="submit"
                 form={formId}
                 disabled={hasHardBlock && !isFormDirty}
-                className="bg-primary hover:bg-primary/90 text-white rounded-lg px-6 text-sm"
+                className="h-10 px-5 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save Update
-              </Button>
+              </button>
             </div>
           </div>
 
           {/* ── Right: receipt preview panel ── */}
           {hasReceipt && (
-            <div className="w-72 shrink-0 border-l border-border bg-gray-50 flex flex-col p-4 gap-3">
-              <p className="text-xs font-medium text-muted-foreground">Receipt</p>
-              <div className="relative flex-1 min-h-[220px] max-h-[420px] rounded-lg overflow-hidden bg-white border border-border">
+            <div className="w-72 shrink-0 border-l border-black/[0.06] bg-[#f9faf9] flex flex-col p-4 gap-3">
+              <p className="text-[11px] font-semibold text-[#84908a] uppercase tracking-widest">Receipt</p>
+              <div className="relative flex-1 min-h-[220px] max-h-[420px] rounded-[10px] overflow-hidden bg-white border border-black/[0.08]">
                 <Image
                   src={normalizeReceiptSrc(displayReceipt)}
                   alt="Receipt"
@@ -350,15 +349,13 @@ export function ExpenseDetailModal({
                     className="hidden"
                     onChange={handleSideReceiptChange}
                   />
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
+                    className="w-full h-9 rounded-[8px] border border-black/[0.08] text-[13px] font-semibold text-[#68726d] hover:bg-[#f5f7f6] hover:text-[#0b100e] transition-colors"
                     onClick={() => document.getElementById("expense-detail-receipt-change")?.click()}
                   >
                     Change Receipt
-                  </Button>
+                  </button>
                 </>
               )}
             </div>

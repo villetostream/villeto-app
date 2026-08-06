@@ -20,7 +20,7 @@ export function ManagerOverrideBanner({
 }: ManagerOverrideBannerProps) {
   if (isUnlocked) {
     return (
-      <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+      <div className="flex items-center justify-between rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3">
         <div className="flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100">
             <LockOpen className="h-3.5 w-3.5 text-amber-600" />
@@ -40,7 +40,7 @@ export function ManagerOverrideBanner({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2.5">
+    <div className="rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 space-y-2.5">
       <div className="flex items-center gap-2.5">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200">
           <Lock className="h-3.5 w-3.5 text-slate-500" />
