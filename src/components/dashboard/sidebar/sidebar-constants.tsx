@@ -219,8 +219,7 @@ export const navigationItems: NavItem[] = [
       {
         label: "Entities",
         href: "/settings/entities",
-        permissions: [],
-        comingSoon: true,
+        permissions: [{ resource: "legal_entity", action: "view" }],
       },
       {
         label: "Apps",
