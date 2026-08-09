@@ -61,12 +61,12 @@ function CollapsedNavTooltip({
   if (!show) return children;
 
   return (
-    <Tooltip>
+    <Tooltip delayDuration={120}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent
         side="right"
-        sideOffset={12}
-        className="border border-white/10 bg-[#10231d] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-xl [&>svg]:bg-[#10231d] [&>svg]:fill-[#10231d]"
+        sideOffset={6}
+        className="rounded-[7px] border border-black/[0.08] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#25312c] shadow-[0_6px_18px_rgba(11,31,26,0.12)] [&>svg]:bg-white [&>svg]:fill-white"
       >
         {label}
       </TooltipContent>
