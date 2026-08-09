@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, BadgeDollarSign, Building2, CalendarClock, CheckCircle2, FileText, Plus, ShoppingCart, Sparkles, Truck } from "lucide-react";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
-import { ProcurementMetric, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
+import { ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
@@ -57,13 +57,6 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <ProcurementMetric label="Awaiting action" value={pendingApprovals.length} detail="Requests in an approval queue" icon={<CalendarClock className="size-4" />} tone="amber" />
-          <ProcurementMetric label="Open purchase orders" value={openOrders.length} detail={`${currency(committed, code)} committed`} icon={<ShoppingCart className="size-4" />} />
-          <ProcurementMetric label="Receiving" value={receiving.length} detail="Orders awaiting complete delivery" icon={<Truck className="size-4" />} tone="blue" />
-          <ProcurementMetric label="Active entities" value={(entityResponse?.data || []).filter((item) => item.status === "active").length} detail={entity?.readinessStatus?.replaceAll("_", " ") || "Configuration required"} icon={<Building2 className="size-4" />} tone="teal" />
-        </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.55fr_0.85fr]">
           <ProcurementSection title="Recent purchase requests" description="The latest demand entering your procurement workflow" action={{ label: "View all", href: "/procurement/purchase-request" }}>
