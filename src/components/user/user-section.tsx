@@ -419,19 +419,6 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
   return "Overview";
 }
 
-function getSectionContext(pathname: string) {
-  if (pathname.startsWith("/procurement")) return { area: "Operations", description: "Purchase operations" };
-  if (pathname.startsWith("/expenses")) return { area: "Spend", description: "Expenses and reimbursements" };
-  if (pathname.startsWith("/bill-pay")) return { area: "Finance", description: "Accounts payable" };
-  if (pathname.startsWith("/accounting")) return { area: "Finance", description: "Accounting workspace" };
-  if (pathname.startsWith("/vendors")) return { area: "Operations", description: "Supplier management" };
-  if (pathname.startsWith("/people")) return { area: "Workspace", description: "People and access" };
-  if (pathname.startsWith("/policies")) return { area: "Workspace", description: "Controls and approvals" };
-  if (pathname.startsWith("/settings")) return { area: "Workspace", description: "Configuration and preferences" };
-  if (pathname.startsWith("/cards")) return { area: "Spend", description: "Company cards" };
-  return { area: "Workspace", description: "Company overview" };
-}
-
 // ─── UserSection ─────────────────────────────────────────────────────────────
 
 export function UserSection() {
@@ -472,7 +459,6 @@ export function UserSection() {
     if (isPersonalOnly && pathname === "/expenses") return "My Expenses";
     return base;
   }, [pathname, searchParams, isPersonalOnly]);
-  const sectionContext = useMemo(() => getSectionContext(pathname), [pathname]);
 
   // All page-detection flags in one memoized block — runs once per pathname change
   const {
@@ -696,12 +682,7 @@ export function UserSection() {
           </Button>
         ) : (
           <div className="min-w-0">
-            <div className="hidden items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.13em] text-[#8a9691] sm:flex">
-              <span>{sectionContext.area}</span>
-              <span className="size-1 rounded-full bg-[#38bfa9]" />
-              <span className="normal-case tracking-normal text-[#718079]">{sectionContext.description}</span>
-            </div>
-            <h1 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-[#10231d] sm:mt-0.5 sm:text-[18px]">
+            <h1 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-[#10231d] sm:text-[18px]">
               {currentSectionLabel}
             </h1>
           </div>
@@ -781,7 +762,7 @@ export function UserSection() {
                 <button
                   onClick={headerAction.secondaryAction.onClick}
                   data-tour={headerAction.secondaryAction.dataTourId}
-                  className="h-9 px-4 rounded-[8px] border border-[#087f70] text-[#087f70] bg-transparent hover:bg-[#f0faf8] text-[13px] font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+                  className="h-9 px-4 rounded-[8px] border border-primary text-primary bg-transparent hover:bg-primary/5 text-[13px] font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   {headerAction.secondaryAction.iconName === "upload" ? (
                     <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
@@ -802,7 +783,7 @@ export function UserSection() {
                     onClick={() => {
                       window.dispatchEvent(new CustomEvent("villeto:invite-button-clicked"));
                     }}
-                    className="h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold flex items-center gap-2 hover:bg-[#076b5e] transition-colors cursor-pointer whitespace-nowrap">
+                    className="h-9 px-4 rounded-[8px] bg-primary text-primary-foreground text-[13px] font-semibold flex items-center gap-2 hover:bg-primary-hover transition-colors cursor-pointer whitespace-nowrap">
                     {headerAction.iconName === "upload" ? (
                       <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
                     ) : (
@@ -821,7 +802,7 @@ export function UserSection() {
                         onClick={item.disabled ? (e) => e.preventDefault() : item.onClick}
                         disabled={item.disabled}
                       >
-                        <PlusCircle className="h-4 w-4 text-[#087f70] shrink-0" />
+                        <PlusCircle className="h-4 w-4 text-primary shrink-0" />
                         <span>{item.label}</span>
                       </DropdownMenuItem>
                     );

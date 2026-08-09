@@ -3,12 +3,10 @@ import type { ReactNode } from "react";
 import { ArrowRight, Plus } from "lucide-react";
 
 export function ProcurementWorkspaceHeader({
-  eyebrow = "Procurement workspace",
   title,
   description,
   action,
 }: {
-  eyebrow?: string;
   title: string;
   description: string;
   action?: { label: string; href: string };
@@ -19,12 +17,11 @@ export function ProcurementWorkspaceHeader({
       <div className="pointer-events-none absolute bottom-0 right-24 h-24 w-48 bg-gradient-to-t from-[#0ea894]/10 to-transparent" />
       <div className="relative flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div className="max-w-2xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#70dfce]">{eyebrow}</p>
-          <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.035em] md:text-[32px]">{title}</h1>
+          <h1 className="text-[26px] font-semibold tracking-[-0.035em] md:text-[32px]">{title}</h1>
           <p className="mt-2 max-w-xl text-[13px] leading-6 text-white/55">{description}</p>
         </div>
         {action && (
-          <Link href={action.href} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[#19b9a1] px-4 text-[12px] font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#20c8ae]">
+          <Link href={action.href} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-primary px-4 text-[12px] font-semibold text-primary-foreground transition hover:-translate-y-0.5 hover:bg-primary-hover">
             <Plus className="size-4" /> {action.label}
           </Link>
         )}
@@ -45,10 +42,7 @@ export function ProcurementPageHeader({
   return (
     <section className="flex flex-col gap-4 border-b border-black/[0.07] pb-5 pt-1 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#0b8f7d]">
-          Procurement
-        </p>
-        <h1 className="mt-1.5 text-[22px] font-semibold tracking-[-0.03em] text-[#10231d] md:text-[25px]">
+        <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[#10231d] md:text-[25px]">
           {title}
         </h1>
         <p className="mt-1.5 text-[12px] leading-5 text-[#718079]">{description}</p>
@@ -56,7 +50,7 @@ export function ProcurementPageHeader({
       {action && (
         <Link
           href={action.href}
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 self-start rounded-[9px] bg-[#087f70] px-4 text-[11px] font-semibold text-white transition hover:bg-[#076b5e] sm:self-auto"
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 self-start rounded-[9px] bg-primary px-4 text-[11px] font-semibold text-primary-foreground transition hover:bg-primary-hover sm:self-auto"
         >
           <Plus className="size-3.5" /> {action.label}
         </Link>
