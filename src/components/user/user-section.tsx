@@ -419,19 +419,6 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
   return "Overview";
 }
 
-function getSectionContext(pathname: string) {
-  if (pathname.startsWith("/procurement")) return { area: "Operations", description: "Purchase operations" };
-  if (pathname.startsWith("/expenses")) return { area: "Spend", description: "Expenses and reimbursements" };
-  if (pathname.startsWith("/bill-pay")) return { area: "Finance", description: "Accounts payable" };
-  if (pathname.startsWith("/accounting")) return { area: "Finance", description: "Accounting workspace" };
-  if (pathname.startsWith("/vendors")) return { area: "Operations", description: "Supplier management" };
-  if (pathname.startsWith("/people")) return { area: "Workspace", description: "People and access" };
-  if (pathname.startsWith("/policies")) return { area: "Workspace", description: "Controls and approvals" };
-  if (pathname.startsWith("/settings")) return { area: "Workspace", description: "Configuration and preferences" };
-  if (pathname.startsWith("/cards")) return { area: "Spend", description: "Company cards" };
-  return { area: "Workspace", description: "Company overview" };
-}
-
 // ─── UserSection ─────────────────────────────────────────────────────────────
 
 export function UserSection() {
@@ -472,7 +459,6 @@ export function UserSection() {
     if (isPersonalOnly && pathname === "/expenses") return "My Expenses";
     return base;
   }, [pathname, searchParams, isPersonalOnly]);
-  const sectionContext = useMemo(() => getSectionContext(pathname), [pathname]);
 
   // All page-detection flags in one memoized block — runs once per pathname change
   const {
@@ -696,12 +682,7 @@ export function UserSection() {
           </Button>
         ) : (
           <div className="min-w-0">
-            <div className="hidden items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.13em] text-[#8a9691] sm:flex">
-              <span>{sectionContext.area}</span>
-              <span className="size-1 rounded-full bg-[#38bfa9]" />
-              <span className="normal-case tracking-normal text-[#718079]">{sectionContext.description}</span>
-            </div>
-            <h1 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-[#10231d] sm:mt-0.5 sm:text-[18px]">
+            <h1 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-[#10231d] sm:text-[18px]">
               {currentSectionLabel}
             </h1>
           </div>

@@ -13,8 +13,7 @@ export function PolicyWorkspaceHeader({
   return (
     <section className="flex flex-col gap-5 border-b border-black/[0.07] pb-5 pt-1 xl:flex-row xl:items-end xl:justify-between">
       <div className="max-w-2xl">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#0b8f7d]">Governance center</p>
-        <h1 className="mt-1.5 text-[25px] font-semibold tracking-[-0.035em] text-[#10231d] md:text-[28px]">Policies and controls</h1>
+        <h1 className="text-[25px] font-semibold tracking-[-0.035em] text-[#10231d] md:text-[28px]">Policies and controls</h1>
         <p className="mt-2 text-[12px] leading-5 text-[#718079]">
           Define how money is spent, who approves it, and which controls apply before an expense or purchase moves forward.
         </p>
