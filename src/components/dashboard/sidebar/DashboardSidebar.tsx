@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { type ReactElement, useEffect, useState } from "react";
 import { useTourStore } from "@/stores/useTourStore";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -47,6 +47,32 @@ import {
   canPOReadDepartment,
 } from "@/lib/permissions/purchase-order-permissions";
 import { useCompanyExpenses } from "@/lib/react-query/expenses";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+function CollapsedNavTooltip({
+  label,
+  show,
+  children,
+}: {
+  label: string;
+  show: boolean;
+  children: ReactElement;
+}) {
+  if (!show) return children;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent
+        side="right"
+        sideOffset={12}
+        className="border border-white/10 bg-[#10231d] px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-xl [&>svg]:bg-[#10231d] [&>svg]:fill-[#10231d]"
+      >
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoading?: boolean }) {
   const location = usePathname();
@@ -313,8 +339,9 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
       return (
         <SidebarMenuItem key={item.label}>
           <Collapsible open={isOpen} onOpenChange={() => toggleMenu(item.label)}>
-            <CollapsibleTrigger asChild>
-              <button
+            <CollapsedNavTooltip label={item.label} show={!isExpanded}>
+              <CollapsibleTrigger asChild>
+                <button
                 className={cn(
                   "group/nav relative flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] transition-all duration-150",
                   isGroupActive
@@ -336,8 +363,9 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
                     isOpen && "rotate-180"
                   )}
                 />
-              </button>
-            </CollapsibleTrigger>
+                </button>
+              </CollapsibleTrigger>
+            </CollapsedNavTooltip>
 
             <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
               <div className="ml-[31px] mt-1 space-y-0.5 border-l border-white/10 pl-3">
@@ -393,18 +421,20 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
     if (item.comingSoon) {
       return (
         <SidebarMenuItem key={item.label}>
-          <span
-            className={cn(
-              "flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] text-white/30 cursor-not-allowed",
-              !isExpanded && "justify-center px-2.5"
-            )}
-          >
-            <span className="shrink-0 flex size-8 items-center justify-center rounded-[8px] bg-white/[0.03] [&>svg]:size-[18px] [&>svg]:text-white/30">{item.icon}</span>
-            <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
-            <span className="ml-auto border border-amber-300/20 bg-amber-300/10 px-1.5 py-0.5 rounded-full text-[9px] font-semibold text-amber-200/70 group-data-[collapsible=icon]:hidden whitespace-nowrap">
-              Soon
+          <CollapsedNavTooltip label={`${item.label} · Coming soon`} show={!isExpanded}>
+            <span
+              className={cn(
+                "flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] text-white/30 cursor-not-allowed",
+                !isExpanded && "justify-center px-2.5"
+              )}
+            >
+              <span className="shrink-0 flex size-8 items-center justify-center rounded-[8px] bg-white/[0.03] [&>svg]:size-[18px] [&>svg]:text-white/30">{item.icon}</span>
+              <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
+              <span className="ml-auto border border-amber-300/20 bg-amber-300/10 px-1.5 py-0.5 rounded-full text-[9px] font-semibold text-amber-200/70 group-data-[collapsible=icon]:hidden whitespace-nowrap">
+                Soon
+              </span>
             </span>
-          </span>
+          </CollapsedNavTooltip>
         </SidebarMenuItem>
       );
     }
@@ -412,24 +442,26 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
     const active = isActive(item.href);
     return (
       <SidebarMenuItem key={item.label}>
-        <Link
-          href={item.href}
-          className={cn(
-            "group/nav relative flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] transition-all duration-150",
-            active
-              ? "bg-white/[0.11] text-white font-semibold shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
-              : "text-white/65 hover:bg-white/[0.07] hover:text-white",
-            !isExpanded && "justify-center px-2.5"
-          )}
-        >
-          {active && isExpanded && <span className="absolute left-0 h-5 w-[3px] rounded-r-full bg-[#38d5bc]" />}
-          <span className={cn("relative shrink-0 flex size-8 items-center justify-center rounded-[8px] transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0", active ? "bg-[#24bda7]/20 [&>svg]:text-[#55e2cc]" : "bg-white/[0.04] [&>svg]:text-white/55 group-hover/nav:[&>svg]:text-white/85")}>
-            {item.icon}
-            {!isExpanded && renderBadge(item.badge, true)}
-          </span>
-          <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
-          {isExpanded && renderBadge(item.badge)}
-        </Link>
+        <CollapsedNavTooltip label={item.label} show={!isExpanded}>
+          <Link
+            href={item.href}
+            className={cn(
+              "group/nav relative flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] transition-all duration-150",
+              active
+                ? "bg-white/[0.11] text-white font-semibold shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
+                : "text-white/65 hover:bg-white/[0.07] hover:text-white",
+              !isExpanded && "justify-center px-2.5"
+            )}
+          >
+            {active && isExpanded && <span className="absolute left-0 h-5 w-[3px] rounded-r-full bg-[#38d5bc]" />}
+            <span className={cn("relative shrink-0 flex size-8 items-center justify-center rounded-[8px] transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0", active ? "bg-[#24bda7]/20 [&>svg]:text-[#55e2cc]" : "bg-white/[0.04] [&>svg]:text-white/55 group-hover/nav:[&>svg]:text-white/85")}>
+              {item.icon}
+              {!isExpanded && renderBadge(item.badge, true)}
+            </span>
+            <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
+            {isExpanded && renderBadge(item.badge)}
+          </Link>
+        </CollapsedNavTooltip>
       </SidebarMenuItem>
     );
   };
@@ -461,7 +493,11 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
                 {!isTourActive && <SidebarTrigger className="shrink-0 cursor-pointer rounded-[8px] text-white/45 hover:bg-white/[0.08] hover:text-white" />}
               </>
             ) : (
-              !isTourActive && <SidebarTrigger className="shrink-0 cursor-pointer rounded-[8px] text-white/45 hover:bg-white/[0.08] hover:text-white" />
+              !isTourActive && (
+                <CollapsedNavTooltip label="Expand navigation" show>
+                  <SidebarTrigger className="shrink-0 cursor-pointer rounded-[8px] text-white/45 hover:bg-white/[0.08] hover:text-white" />
+                </CollapsedNavTooltip>
+              )
             )}
           </div>
 
@@ -480,9 +516,9 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
                 </div>
               </div>
             ) : (
-              <div className="w-8 h-8">
-                {renderCollapsedLogo()}
-              </div>
+              <CollapsedNavTooltip label={businessName || "Workspace"} show>
+                <div className="w-8 h-8">{renderCollapsedLogo()}</div>
+              </CollapsedNavTooltip>
             )}
           </div>
         </div>
@@ -532,16 +568,18 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
             </div>
           </div>
         )}
-        <button
-          onClick={() => setShowLogoutModal(true)}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[12px] text-white/45 transition-colors hover:bg-red-400/10 hover:text-red-200",
-            !isExpanded && "justify-center px-2"
-          )}
-        >
-          <Logout className="size-[18px] shrink-0" />
-          <span className="group-data-[collapsible=icon]:hidden">Log Out</span>
-        </button>
+        <CollapsedNavTooltip label="Log out" show={!isExpanded}>
+          <button
+            onClick={() => setShowLogoutModal(true)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[12px] text-white/45 transition-colors hover:bg-red-400/10 hover:text-red-200",
+              !isExpanded && "justify-center px-2"
+            )}
+          >
+            <Logout className="size-[18px] shrink-0" />
+            <span className="group-data-[collapsible=icon]:hidden">Log Out</span>
+          </button>
+        </CollapsedNavTooltip>
       </SidebarFooter>
 
       {/* ── Logout Confirmation ── */}
