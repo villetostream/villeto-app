@@ -25,6 +25,7 @@ import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departmen
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { isPRPriority } from "@/lib/types/purchase-request-helpers";
+import { useLegalEntities } from "@/queries/legal-entities";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -33,8 +34,6 @@ const PRIORITIES: { label: string; value: string }[] = [
   { label: "Medium", value: "medium" },
   { label: "High", value: "urgent" },
 ];
-
-const CURRENCIES = ["USD", "NGN", "EUR", "GBP", "CAD", "AUD", "GHS", "KES", "ZAR", "JPY", "CNY"];
 
 // ─── Generic Select Dropdown ──────────────────────────────────────────────────
 
@@ -496,7 +495,7 @@ export default function NewPurchaseOrderPage() {
   const [vendorId, setVendorId] = useState("");
   const [priority, setPriority] = useState<PRPriority | "">("");
   const [deliveryDate, setDeliveryDate] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const [legalEntityId, setLegalEntityId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [notes, setNotes] = useState("");
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -514,6 +513,7 @@ export default function NewPurchaseOrderPage() {
   const { data: deptData } = useGetAllDepartmentsApi();
   const { data: catData } = useGetProcurementCategories();
   const { data: vendorData } = useGetVendors();
+  const { data: legalEntityData } = useLegalEntities();
 
   const rawCategories = catData?.data || [];
   const categories = rawCategories.flatMap(c => [c, ...(c.children || [])]);
@@ -533,12 +533,29 @@ export default function NewPurchaseOrderPage() {
     return v ? v.displayName || v.legalName : "Unknown Vendor";
   };
 
-  const currencyOptions = CURRENCIES.map(c => ({ label: c, value: c }));
+  const legalEntities = (legalEntityData?.data || []).filter(entity => entity.status === "active");
+  const legalEntityOptions = legalEntities.map(entity => ({
+    label: `${entity.legalName} (${entity.baseCurrency})`,
+    value: entity.legalEntityId,
+  }));
+
+  const effectiveLegalEntityId =
+    legalEntityId ||
+    (legalEntities.length === 1 ? legalEntities[0].legalEntityId : "");
+  const currency =
+    legalEntities.find(
+      (entity) => entity.legalEntityId === effectiveLegalEntityId,
+    )?.baseCurrency || "";
+
+  const selectLegalEntity = (id: string) => {
+    setLegalEntityId(id);
+  };
 
   const handleSaveHeader = () => {
     if (!vendorId) { toast.error("Vendor is required"); return; }
     if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
     if (!deliveryDate) { toast.error("Delivery date is required"); return; }
+    if (!effectiveLegalEntityId) { toast.error("Legal entity is required"); return; }
 
     setStep(2);
   };
@@ -606,8 +623,8 @@ export default function NewPurchaseOrderPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Currency <span className="text-[#d33d44]">*</span></label>
-                <SelectDropdown value={currency} onChange={setCurrency} options={currencyOptions} placeholder="Select currency" />
+                <label className="text-sm font-medium text-[#0b100e]">Legal entity <span className="text-[#d33d44]">*</span></label>
+                <SelectDropdown value={effectiveLegalEntityId} onChange={selectLegalEntity} options={legalEntityOptions} placeholder="Select legal entity" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-[#0b100e]">Delivery Date <span className="text-[#d33d44]">*</span></label>
@@ -634,6 +651,12 @@ export default function NewPurchaseOrderPage() {
                   </PopoverContent>
                 </Popover>
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-[#0b100e]">Currency</label>
+              <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">{currency || "Select a legal entity"}</div>
+              <p className="text-xs text-[#68726d]">Locked to the legal entity base currency.</p>
             </div>
 
             <div className="space-y-1.5">
@@ -796,6 +819,7 @@ export default function NewPurchaseOrderPage() {
                 if (!vendorId || !deliveryDate) return;
                 try {
                   const payload: CreatePurchaseOrderPayload = {
+                    legalEntityId: effectiveLegalEntityId,
                     vendorId,
                     priority: priority as any,
                     deliveryDate,

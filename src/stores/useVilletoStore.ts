@@ -21,6 +21,11 @@ export interface ConnectedAccount {
 }
 export interface BusinessSnapshot {
     businessName: string;
+    legalName: string;
+    registeredAddress: string;
+    baseCurrency: string;
+    taxId?: string;
+    registrationId?: string;
     countryOfRegistration: string;
     contactNumber: string;
     website: string;
@@ -116,6 +121,9 @@ const initialState: OnboardingState = {
     selfOwner: null,
     businessSnapshot: {
         businessName: '',
+        legalName: '',
+        registeredAddress: '',
+        baseCurrency: '',
         countryOfRegistration: '',
         contactNumber: '',
         website: '',

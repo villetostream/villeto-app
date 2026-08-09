@@ -30,6 +30,7 @@ import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departmen
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { isPRPriority, toApiLineItemPayload } from "@/lib/types/purchase-request-helpers";
+import { useLegalEntities } from "@/queries/legal-entities";
 
 function cleanLineItemPayload(payload: LineItemPayload): LineItemPayload {
   return toApiLineItemPayload(payload);
@@ -42,8 +43,6 @@ const PRIORITIES: { label: string; value: string }[] = [
   { label: "Medium", value: "medium" },
   { label: "High", value: "urgent" },   // UI shows "High", sends "urgent" to backend
 ];
-
-const CURRENCIES = ["USD", "NGN", "EUR", "GBP", "CAD", "AUD", "GHS", "KES", "ZAR", "JPY", "CNY"];
 
 // Department editability is now driven by permissions, not role names
 
@@ -453,7 +452,7 @@ export default function NewPurchaseRequestPage() {
   const [description, setDescription] = useState("");
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [priority, setPriority] = useState<PRPriority | "">("");
-  const [currency, setCurrency] = useState("USD");
+  const [legalEntityId, setLegalEntityId] = useState("");
   const [neededByDate, setNeededByDate] = useState("");
   const defaultDepartmentId = user?.departmentId || (user?.department as { departmentId?: string })?.departmentId || "";
   const [departmentOverride, setDepartmentOverride] = useState<string | null>(null);
@@ -474,6 +473,7 @@ export default function NewPurchaseRequestPage() {
   // an unnecessary request to an endpoint they have no use for.
   const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
   const { data: catData } = useGetProcurementCategories();
+  const { data: legalEntityData } = useLegalEntities();
   const addLineItem = useAddLineItem(purchaseRequestId || "");
   const updateLineItem = useUpdateLineItem(purchaseRequestId || "", editingItem?.item.purchaseRequestLineItemId || (editingItem?.item as any)?.id || "");
   const deleteLineItem = useDeleteLineItem(purchaseRequestId || "");
@@ -495,7 +495,23 @@ export default function NewPurchaseRequestPage() {
     value: d.departmentId,
   }));
 
-  const currencyOptions = CURRENCIES.map(c => ({ label: c, value: c }));
+  const legalEntities = (legalEntityData?.data || []).filter(entity => entity.status === "active");
+  const legalEntityOptions = legalEntities.map(entity => ({
+    label: `${entity.legalName} (${entity.baseCurrency})`,
+    value: entity.legalEntityId,
+  }));
+
+  const effectiveLegalEntityId =
+    legalEntityId ||
+    (legalEntities.length === 1 ? legalEntities[0].legalEntityId : "");
+  const currency =
+    legalEntities.find(
+      (entity) => entity.legalEntityId === effectiveLegalEntityId,
+    )?.baseCurrency || "";
+
+  const selectLegalEntity = (id: string) => {
+    setLegalEntityId(id);
+  };
 
   // Department defaults from the signed-in user when available.
 
@@ -504,10 +520,12 @@ export default function NewPurchaseRequestPage() {
     if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
     if (!neededByDate) { toast.error("Expected date is required"); return; }
     if (!departmentId) { toast.error("Department is required"); return; }
+    if (!effectiveLegalEntityId) { toast.error("Legal entity is required"); return; }
 
     setHeaderSaving(true);
     try {
       const res = await createPR.mutateAsync({
+        legalEntityId: effectiveLegalEntityId,
         title: title.trim(),
         description: description.trim() || undefined,
         priority,
@@ -698,8 +716,8 @@ export default function NewPurchaseRequestPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Currency <span className="text-[#d33d44]">*</span></label>
-                <SelectDropdown value={currency} onChange={setCurrency} options={currencyOptions} placeholder="Select currency" />
+                <label className="text-sm font-medium text-[#0b100e]">Legal entity <span className="text-[#d33d44]">*</span></label>
+                <SelectDropdown value={effectiveLegalEntityId} onChange={selectLegalEntity} options={legalEntityOptions} placeholder="Select legal entity" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-[#0b100e]">Expected Date <span className="text-[#d33d44]">*</span></label>
@@ -726,6 +744,12 @@ export default function NewPurchaseRequestPage() {
                   </PopoverContent>
                 </Popover>
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-[#0b100e]">Currency</label>
+              <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">{currency || "Select a legal entity"}</div>
+              <p className="text-xs text-[#68726d]">Locked to the legal entity base currency.</p>
             </div>
 
             <div className="space-y-1.5">
