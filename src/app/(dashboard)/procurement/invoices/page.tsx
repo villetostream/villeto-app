@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertCircle, ArrowRight, CheckCircle2, FileCheck2, Loader2, ReceiptText, Search } from "lucide-react";
 import { toast } from "sonner";
-import { ProcurementMetric, ProcurementSection, ProcurementWorkspaceHeader } from "@/components/procurement/ProcurementWorkspace";
+import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
 import { useInvoiceAction, useProcurementInvoices } from "@/queries/procurement/invoices";
 import { useAuthStore } from "@/stores/auth-stores";
 
@@ -29,7 +29,7 @@ export default function ProcurementInvoicesPage() {
   };
 
   return <div className="space-y-5 pb-8">
-    <ProcurementWorkspaceHeader title="Vendor invoices" description="Review supplier invoices against the legal entity, PO, receiving evidence, and accounting controls before they become payable." />
+    <ProcurementPageHeader title="Vendor invoices" description="Review supplier invoices against the legal entity, PO, receiving evidence, and accounting controls before they become payable." />
     <div className="grid gap-3 sm:grid-cols-3"><ProcurementMetric label="New submissions" value={awaiting} detail="Waiting to enter review" icon={<ReceiptText className="size-4" />} tone="blue" /><ProcurementMetric label="Under review" value={underReview} detail="Matching and accounting checks" icon={<AlertCircle className="size-4" />} tone="amber" /><ProcurementMetric label="Approved value" value={money(approvedValue, currency)} detail="Posted to the AP subledger" icon={<FileCheck2 className="size-4" />} /></div>
     <ProcurementSection title="Invoice review queue" description="Invoices received through the vendor portal">
       <div className="flex flex-col gap-3 border-b border-black/[0.06] p-4 lg:flex-row lg:items-center lg:justify-between"><div className="flex gap-1 overflow-x-auto rounded-[9px] bg-[#f3f6f5] p-1">{["all", "submitted", "under_review", "approved", "paid", "rejected"].map((item) => <button key={item} onClick={() => setTab(item)} className={`h-8 whitespace-nowrap rounded-[7px] px-3 text-[10px] font-semibold capitalize transition ${tab === item ? "bg-white text-[#111815] shadow-sm" : "text-[#75807b]"}`}>{item.replaceAll("_", " ")}</button>)}</div><div className="relative w-full lg:w-64"><Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#89918d]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Invoice, PO, or vendor" className="h-9 w-full rounded-[9px] border border-black/[0.08] pl-9 pr-3 text-[11px] outline-none focus:border-[#0ea894]" /></div></div>

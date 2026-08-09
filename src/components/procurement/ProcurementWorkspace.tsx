@@ -33,6 +33,38 @@ export function ProcurementWorkspaceHeader({
   );
 }
 
+export function ProcurementPageHeader({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: { label: string; href: string };
+}) {
+  return (
+    <section className="flex flex-col gap-4 border-b border-black/[0.07] pb-5 pt-1 sm:flex-row sm:items-end sm:justify-between">
+      <div className="max-w-2xl">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#0b8f7d]">
+          Procurement
+        </p>
+        <h1 className="mt-1.5 text-[22px] font-semibold tracking-[-0.03em] text-[#10231d] md:text-[25px]">
+          {title}
+        </h1>
+        <p className="mt-1.5 text-[12px] leading-5 text-[#718079]">{description}</p>
+      </div>
+      {action && (
+        <Link
+          href={action.href}
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 self-start rounded-[9px] bg-[#087f70] px-4 text-[11px] font-semibold text-white transition hover:bg-[#076b5e] sm:self-auto"
+        >
+          <Plus className="size-3.5" /> {action.label}
+        </Link>
+      )}
+    </section>
+  );
+}
+
 export function ProcurementMetric({
   label,
   value,

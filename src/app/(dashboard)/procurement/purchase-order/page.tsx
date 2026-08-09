@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { ProcurementWorkspaceHeader } from "@/components/procurement/ProcurementWorkspace";
+import { ProcurementPageHeader } from "@/components/procurement/ProcurementWorkspace";
 
 function POStatusBadge({ status, isOwnView }: { status: string; isOwnView?: boolean }) {
   const displayKey = getPODisplayStatus(status, isOwnView);
@@ -575,7 +575,7 @@ function PurchaseOrderPage() {
   if (outerTabs.length === 1) {
     return (
       <div className="space-y-5 pb-8">
-        <ProcurementWorkspaceHeader title="Purchase orders" description="Turn approved demand into clear supplier commitments and keep every order visible through delivery." action={canCreatePO ? { label: "Create purchase order", href: "/procurement/purchase-order/new" } : undefined} />
+        <ProcurementPageHeader title="Purchase orders" description="Turn approved demand into clear supplier commitments and keep every order visible through delivery." />
         <POTable scope="own" outerTabKey="own" initialInnerTab={innerTabFromUrl} />
       </div>
     );
@@ -590,7 +590,7 @@ function PurchaseOrderPage() {
 
   return (
     <div className="space-y-5 pb-8">
-      <ProcurementWorkspaceHeader title="Purchase orders" description="Turn approved demand into clear supplier commitments and keep every order visible through delivery." action={canCreatePO ? { label: "Create purchase order", href: "/procurement/purchase-order/new" } : undefined} />
+      <ProcurementPageHeader title="Purchase orders" description="Turn approved demand into clear supplier commitments and keep every order visible through delivery." />
       <Tabs value={outerTab} onValueChange={setOuterTab}>
         <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
           {outerTabs.map(t => (

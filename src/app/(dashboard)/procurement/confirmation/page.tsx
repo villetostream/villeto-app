@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Clock3, Loader2, PackageCheck, Search, Truck } from "lucide-react";
-import { ProcurementMetric, ProcurementSection, ProcurementWorkspaceHeader } from "@/components/procurement/ProcurementWorkspace";
+import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
 import { useAuthStore } from "@/stores/auth-stores";
 
@@ -28,7 +28,7 @@ export default function ConfirmationPage() {
 
   return (
     <div className="space-y-5 pb-8">
-      <ProcurementWorkspaceHeader title="Receiving & confirmation" description="Track what suppliers are preparing, what has arrived, and what still needs a tenant receipt confirmation." />
+      <ProcurementPageHeader title="Receiving & confirmation" description="Track what suppliers are preparing, what has arrived, and what still needs a tenant receipt confirmation." />
       <div className="grid gap-3 sm:grid-cols-3">
         <ProcurementMetric label="Active receiving" value={inTransit} detail="Issued through partial delivery" icon={<Truck className="size-4" />} tone="blue" />
         <ProcurementMetric label="Partial deliveries" value={partial} detail="Orders with quantity still open" icon={<PackageCheck className="size-4" />} tone="amber" />

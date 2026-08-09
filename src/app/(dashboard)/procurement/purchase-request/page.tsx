@@ -23,7 +23,7 @@ import {
   getPRDisplayStatus,
 } from "@/lib/constants/purchase-request-status";
 import { toast } from "sonner";
-import { ProcurementWorkspaceHeader } from "@/components/procurement/ProcurementWorkspace";
+import { ProcurementPageHeader } from "@/components/procurement/ProcurementWorkspace";
 
 // ─── Status / Priority Badges ─────────────────────────────────────────────────
 
@@ -752,7 +752,7 @@ function PurchaseRequestPage() {
   if (tabs.length === 1) {
     return (
       <div className="space-y-5 pb-8">
-        <ProcurementWorkspaceHeader title="Purchase requests" description="Capture demand, route approvals, and convert authorized requests into controlled purchase orders." action={{ label: "Create request", href: "/procurement/purchase-request/new" }} />
+        <ProcurementPageHeader title="Purchase requests" description="Capture demand, route approvals, and convert authorized requests into controlled purchase orders." />
         <PRTable scope="own" initialInnerTab={innerTabFromUrl} />
       </div>
     );
@@ -760,7 +760,7 @@ function PurchaseRequestPage() {
 
   return (
     <div className="space-y-5 pb-8">
-      <ProcurementWorkspaceHeader title="Purchase requests" description="Capture demand, route approvals, and convert authorized requests into controlled purchase orders." action={{ label: "Create request", href: "/procurement/purchase-request/new" }} />
+      <ProcurementPageHeader title="Purchase requests" description="Capture demand, route approvals, and convert authorized requests into controlled purchase orders." />
       <Tabs value={outerTab} onValueChange={setOuterTab}>
         <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
           {tabs.map(t => (
