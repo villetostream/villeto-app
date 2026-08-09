@@ -103,8 +103,12 @@ export const onboardingBusinessSchema = z.object({
     .string()
     .min(1, "Company name is required")
     .min(2, "Must be at least 2 characters")
-    .max(100)
-    .optional(),
+    .max(100),
+  legalName: z.string().min(2, "Legal name is required").max(255),
+  registeredAddress: z.string().min(5, "Registered address is required"),
+  baseCurrency: z.string().length(3, "Base currency is required"),
+  taxId: z.string().optional(),
+  registrationId: z.string().optional(),
   contactPhone: z
     .string()
     .min(1, "Contact number is required")

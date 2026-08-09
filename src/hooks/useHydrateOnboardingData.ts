@@ -40,6 +40,10 @@ export const useHydrateOnboardingData = () => {
         // Hydrate business snapshot
         updateBusinessSnapshot({
             businessName: company.companyName || "",
+            legalName: company.businessName || company.companyName || "",
+            registeredAddress: company.address || "",
+            taxId: company.taxId || undefined,
+            registrationId: company.registrationId || undefined,
             contactNumber: company.contactPhone || "",
             countryOfRegistration: company.countryOfRegistration || "",
             website: company.websiteUrl || "",

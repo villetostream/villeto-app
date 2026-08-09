@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
-  CheckCircle2, Loader2, Pencil,
+  CheckCircle2, Loader2, Pencil, ChevronLeft,
 } from "lucide-react";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import type { LineItemPayload as _LIP } from "@/queries/procurement/purchase-requests";
@@ -30,6 +30,7 @@ import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departmen
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { isPRPriority, toApiLineItemPayload } from "@/lib/types/purchase-request-helpers";
+import { useLegalEntities } from "@/queries/legal-entities";
 
 function cleanLineItemPayload(payload: LineItemPayload): LineItemPayload {
   return toApiLineItemPayload(payload);
@@ -42,8 +43,6 @@ const PRIORITIES: { label: string; value: string }[] = [
   { label: "Medium", value: "medium" },
   { label: "High", value: "urgent" },   // UI shows "High", sends "urgent" to backend
 ];
-
-const CURRENCIES = ["USD", "NGN", "EUR", "GBP", "CAD", "AUD", "GHS", "KES", "ZAR", "JPY", "CNY"];
 
 // Department editability is now driven by permissions, not role names
 
@@ -453,7 +452,7 @@ export default function NewPurchaseRequestPage() {
   const [description, setDescription] = useState("");
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [priority, setPriority] = useState<PRPriority | "">("");
-  const [currency, setCurrency] = useState("USD");
+  const [legalEntityId, setLegalEntityId] = useState("");
   const [neededByDate, setNeededByDate] = useState("");
   const defaultDepartmentId = user?.departmentId || (user?.department as { departmentId?: string })?.departmentId || "";
   const [departmentOverride, setDepartmentOverride] = useState<string | null>(null);
@@ -474,6 +473,7 @@ export default function NewPurchaseRequestPage() {
   // an unnecessary request to an endpoint they have no use for.
   const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
   const { data: catData } = useGetProcurementCategories();
+  const { data: legalEntityData } = useLegalEntities();
   const addLineItem = useAddLineItem(purchaseRequestId || "");
   const updateLineItem = useUpdateLineItem(purchaseRequestId || "", editingItem?.item.purchaseRequestLineItemId || (editingItem?.item as any)?.id || "");
   const deleteLineItem = useDeleteLineItem(purchaseRequestId || "");
@@ -495,7 +495,23 @@ export default function NewPurchaseRequestPage() {
     value: d.departmentId,
   }));
 
-  const currencyOptions = CURRENCIES.map(c => ({ label: c, value: c }));
+  const legalEntities = (legalEntityData?.data || []).filter(entity => entity.status === "active");
+  const legalEntityOptions = legalEntities.map(entity => ({
+    label: `${entity.legalName} (${entity.baseCurrency})`,
+    value: entity.legalEntityId,
+  }));
+
+  const effectiveLegalEntityId =
+    legalEntityId ||
+    (legalEntities.length === 1 ? legalEntities[0].legalEntityId : "");
+  const currency =
+    legalEntities.find(
+      (entity) => entity.legalEntityId === effectiveLegalEntityId,
+    )?.baseCurrency || "";
+
+  const selectLegalEntity = (id: string) => {
+    setLegalEntityId(id);
+  };
 
   // Department defaults from the signed-in user when available.
 
@@ -504,10 +520,12 @@ export default function NewPurchaseRequestPage() {
     if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
     if (!neededByDate) { toast.error("Expected date is required"); return; }
     if (!departmentId) { toast.error("Department is required"); return; }
+    if (!effectiveLegalEntityId) { toast.error("Legal entity is required"); return; }
 
     setHeaderSaving(true);
     try {
       const res = await createPR.mutateAsync({
+        legalEntityId: effectiveLegalEntityId,
         title: title.trim(),
         description: description.trim() || undefined,
         priority,
@@ -670,8 +688,9 @@ export default function NewPurchaseRequestPage() {
           {/* Title + stepper */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold text-[#0b100e]">New Purchase Request</h1>
-              <p className="text-sm text-[#68726d] mt-0.5">Fill in the details and add line items</p>
+              <button type="button" onClick={() => router.push("/procurement/purchase-request")} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]"><ChevronLeft className="size-3.5" /> Purchase requests</button>
+              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Create purchase request</h1>
+              <p className="mt-1 text-[12px] text-[#68726d]">Capture the need, ownership, entity, and expected timing.</p>
             </div>
             <StepIndicator step={step} />
           </div>
@@ -698,8 +717,8 @@ export default function NewPurchaseRequestPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Currency <span className="text-[#d33d44]">*</span></label>
-                <SelectDropdown value={currency} onChange={setCurrency} options={currencyOptions} placeholder="Select currency" />
+                <label className="text-sm font-medium text-[#0b100e]">Legal entity <span className="text-[#d33d44]">*</span></label>
+                <SelectDropdown value={effectiveLegalEntityId} onChange={selectLegalEntity} options={legalEntityOptions} placeholder="Select legal entity" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-[#0b100e]">Expected Date <span className="text-[#d33d44]">*</span></label>
@@ -726,6 +745,12 @@ export default function NewPurchaseRequestPage() {
                   </PopoverContent>
                 </Popover>
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-[#0b100e]">Currency</label>
+              <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">{currency || "Select a legal entity"}</div>
+              <p className="text-xs text-[#68726d]">Locked to the legal entity base currency.</p>
             </div>
 
             <div className="space-y-1.5">
@@ -768,8 +793,9 @@ export default function NewPurchaseRequestPage() {
           {/* Sticky page header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 shrink-0">
             <div>
-              <h1 className="text-xl font-bold text-[#0b100e]">New Purchase Request</h1>
-              <p className="text-sm text-[#68726d] mt-0.5">Fill in the details and add line items</p>
+              <button type="button" onClick={() => router.push("/procurement/purchase-request")} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]"><ChevronLeft className="size-3.5" /> Purchase requests</button>
+              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Build the request</h1>
+              <p className="mt-1 text-[12px] text-[#68726d]">Add quantities, categories, vendors, and accounting context.</p>
             </div>
             <StepIndicator step={step} />
           </div>

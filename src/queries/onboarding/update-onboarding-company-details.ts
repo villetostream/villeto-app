@@ -33,7 +33,7 @@ export const useUpdateOnboardingCompanyDetailsApi = (): UseMutationResult<
     retry: false,
     mutationFn: async (payload: payload) => {
       const { onboardingId } = useOnboardingStore.getState();
-      const latestPayload = { ...payload };
+      const latestPayload: Partial<payload> = { ...payload };
       delete latestPayload.business_name;
 
       const extractBase64 = (dataUrl: string): string => {

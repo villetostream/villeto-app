@@ -419,6 +419,19 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
   return "Overview";
 }
 
+function getSectionContext(pathname: string) {
+  if (pathname.startsWith("/procurement")) return { area: "Operations", description: "Purchase operations" };
+  if (pathname.startsWith("/expenses")) return { area: "Spend", description: "Expenses and reimbursements" };
+  if (pathname.startsWith("/bill-pay")) return { area: "Finance", description: "Accounts payable" };
+  if (pathname.startsWith("/accounting")) return { area: "Finance", description: "Accounting workspace" };
+  if (pathname.startsWith("/vendors")) return { area: "Operations", description: "Supplier management" };
+  if (pathname.startsWith("/people")) return { area: "Workspace", description: "People and access" };
+  if (pathname.startsWith("/policies")) return { area: "Workspace", description: "Controls and approvals" };
+  if (pathname.startsWith("/settings")) return { area: "Workspace", description: "Configuration and preferences" };
+  if (pathname.startsWith("/cards")) return { area: "Spend", description: "Company cards" };
+  return { area: "Workspace", description: "Company overview" };
+}
+
 // ─── UserSection ─────────────────────────────────────────────────────────────
 
 export function UserSection() {
@@ -427,6 +440,7 @@ export function UserSection() {
   const router   = useRouter();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const unreadCount = useNotificationCount();
+  const user = useAuthStore((state) => state.user);
 
   const { fromDate, toDate, setFromDate, setToDate, resetDates } = useDateFilterStore();
   const { action: headerAction, clearAction } = useHeaderActionStore();
@@ -458,6 +472,7 @@ export function UserSection() {
     if (isPersonalOnly && pathname === "/expenses") return "My Expenses";
     return base;
   }, [pathname, searchParams, isPersonalOnly]);
+  const sectionContext = useMemo(() => getSectionContext(pathname), [pathname]);
 
   // All page-detection flags in one memoized block — runs once per pathname change
   const {
@@ -658,13 +673,13 @@ export function UserSection() {
   };
 
   return (
-    <div className="flex items-center justify-between w-full">
+    <div className="flex min-w-0 items-center justify-between gap-3 w-full">
       {/* ── Left ── */}
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         {customBackHandler || isBackButtonPage ? (
           <Button
             variant="ghost"
-            className="flex items-center gap-2 px-0 text-[18px] hover:bg-transparent hover:text-[#087f70] text-[#68726d] h-auto! py-1! has-[>svg]:px-0!"
+            className="flex h-9! items-center gap-2 rounded-[9px] border border-black/[0.07] bg-white px-3! text-[13px] font-semibold text-[#52605b] shadow-sm hover:bg-[#f4f8f6] hover:text-[#087f70] has-[>svg]:px-3!"
             onClick={() => {
               // A page-registered handler always knows its own exact "one
               // level back" (e.g. the previous step of a wizard) better than
@@ -676,11 +691,20 @@ export function UserSection() {
               handleBack();
             }}
           >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-[18px] font-semibold">Back</span>
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back</span>
           </Button>
         ) : (
-          <h1 className="text-[18px] font-semibold text-[#0b100e]">{currentSectionLabel}</h1>
+          <div className="min-w-0">
+            <div className="hidden items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.13em] text-[#8a9691] sm:flex">
+              <span>{sectionContext.area}</span>
+              <span className="size-1 rounded-full bg-[#38bfa9]" />
+              <span className="normal-case tracking-normal text-[#718079]">{sectionContext.description}</span>
+            </div>
+            <h1 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-[#10231d] sm:mt-0.5 sm:text-[18px]">
+              {currentSectionLabel}
+            </h1>
+          </div>
         )}
         {/* For personal-only users on /expenses, mount the CTA here so it
             registers into the header action store (no inline heading needed) */}
@@ -690,7 +714,7 @@ export function UserSection() {
       </div>
 
       {/* ── Right ── */}
-      <div className="flex items-center gap-2 sm:gap-4">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         {/* Date range picker — expenses list & procurement list pages */}
         {(isExpensesListPage || isProcurementListPage) && (
           <DateRangePicker
@@ -702,7 +726,7 @@ export function UserSection() {
         )}
 
         {/* Bot - hidden on very small screens */}
-        <Button variant="ghost" size="icon" className="relative h-9 w-9 text-[#68726d] hover:bg-[#f5f7f6] hover:text-[#0b100e] rounded-[8px] hidden xs:flex">
+        <Button variant="ghost" size="icon" className="relative hidden h-9 w-9 rounded-[9px] border border-transparent text-[#68726d] hover:border-black/[0.05] hover:bg-[#f4f8f6] hover:text-[#0b100e] xs:flex">
           <Bot className="h-[18px] w-[18px]" />
           <div className="absolute top-[7px] right-[7px] w-2 h-2 bg-[#0ea894] rounded-full animate-pulse border-2 border-white" />
         </Button>
@@ -710,7 +734,7 @@ export function UserSection() {
         {/* Bell */}
         <Popover open={isNotifOpen} onOpenChange={setIsNotifOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative h-9 w-9 text-[#68726d] hover:bg-[#f5f7f6] hover:text-[#0b100e] rounded-[8px] outline-none">
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-[9px] border border-transparent text-[#68726d] outline-none hover:border-black/[0.05] hover:bg-[#f4f8f6] hover:text-[#0b100e]">
               <Bell className="w-[18px] h-[18px]" />
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold leading-none shadow-sm border border-white">
@@ -726,7 +750,7 @@ export function UserSection() {
 
         {/* Dynamic CTA button registered by the current page */}
         {headerAction && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Optional Secondary Action */}
             {headerAction.secondaryAction && (
               headerAction.secondaryAction.items ? (
@@ -863,6 +887,27 @@ export function UserSection() {
             )}
           </div>
         )}
+
+        <div className="mx-0.5 hidden h-7 w-px bg-black/[0.07] sm:block" />
+        <button
+          type="button"
+          onClick={() => router.push("/settings/personal-settings?tab=my-profile")}
+          className="group flex h-10 items-center gap-2 rounded-[10px] border border-black/[0.06] bg-white p-1 pr-1 shadow-[0_1px_2px_rgba(16,35,29,0.04)] transition-colors hover:bg-[#f4f8f6] xl:pr-2.5"
+          aria-label="Open personal settings"
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[#e6f7f3] text-[11px] font-bold uppercase text-[#087f70] ring-1 ring-[#087f70]/10">
+            {user?.firstName?.[0] || user?.email?.[0] || "U"}
+          </span>
+          <span className="hidden max-w-28 text-left xl:block">
+            <span className="block truncate text-[11px] font-semibold leading-4 text-[#10231d]">
+              {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "My profile"}
+            </span>
+            <span className="block truncate text-[9px] leading-3 text-[#7a8782]">
+              {user?.companyRole?.name || user?.jobTitle || "Workspace member"}
+            </span>
+          </span>
+          <ChevronDown className="hidden size-3.5 text-[#8a9691] transition-transform group-hover:translate-y-0.5 xl:block" />
+        </button>
       </div>
 
       {/* Notifications previously here, now moved to Bell Popover */}

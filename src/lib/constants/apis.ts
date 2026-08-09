@@ -56,6 +56,13 @@ export const API_KEYS = {
     ADMIN_INVITES: "companies/admins/invites",
     LOGO: "companies/logo",
   },
+  LEGAL_ENTITY: {
+    LIST: "legal-entities",
+    DETAIL: (id: string) => `legal-entities/${id}` as const,
+    DEFAULT: (id: string) => `legal-entities/${id}/default` as const,
+    STATUS: (id: string) => `legal-entities/${id}/status` as const,
+    CURRENCIES: "reference/currencies",
+  },
   EXPENSE: {
     CATEGORIES: "companies/categories?module=expense",
     CATEGORY_DETAIL: (id: string) => `companies/expense/categories/${id}` as const,
