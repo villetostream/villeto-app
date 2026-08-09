@@ -15,6 +15,7 @@ import {
   MoneySendSquareFreeIcons,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Calculator } from "lucide-react";
 
 // ─── Permission Gate Shape ────────────────────────────────────────────────────
 // Each nav item declares zero or more { resource, action } pairs.
@@ -119,9 +120,24 @@ export const navigationItems: NavItem[] = [
     icon: <HugeiconsIcon icon={InvoiceIcon} />,
     label: "Bill Pay",
     href: "/bill-pay",
-    permissions: [],
+    permissions: [
+      { resource: "bill_pay.payment_request", action: "create" },
+      { resource: "bill_pay.payment", action: "record_external" },
+      { resource: "bill_pay.reconciliation", action: "manage" },
+      { resource: "bill_pay.configuration", action: "manage" },
+    ],
     section: "MANAGEMENT",
-    comingSoon: true,
+  },
+  {
+    icon: <Calculator />,
+    label: "Accounting",
+    href: "/accounting",
+    permissions: [
+      { resource: "accounting.account", action: "view" },
+      { resource: "accounting.journal", action: "view" },
+      { resource: "accounting.configuration", action: "manage" },
+    ],
+    section: "MANAGEMENT",
   },
   {
     icon: <Shop />,
