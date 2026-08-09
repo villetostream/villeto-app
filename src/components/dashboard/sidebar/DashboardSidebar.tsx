@@ -65,8 +65,8 @@ function CollapsedNavTooltip({
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent
         side="right"
-        sideOffset={6}
-        className="rounded-[7px] border border-black/[0.08] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#25312c] shadow-[0_6px_18px_rgba(11,31,26,0.12)] [&>svg]:bg-white [&>svg]:fill-white"
+        sideOffset={8}
+        className="rounded-[7px] border border-black/[0.06] bg-white/95 px-2.5 py-1.5 text-[11px] font-medium text-[#33413b] shadow-[0_5px_16px_rgba(11,31,26,0.1)] backdrop-blur-sm [&>svg]:hidden"
       >
         {label}
       </TooltipContent>
@@ -536,38 +536,14 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
             ))}
           </div>
         ) : (
-          <div className="space-y-5">
-            {Array.from(new Set(filteredNavigationItems.map((item) => item.section))).map((section) => (
-              <div key={section}>
-                {isExpanded && (
-                  <p className="mb-1.5 px-3 text-[9px] font-semibold uppercase tracking-[0.16em] text-white/30">
-                    {section}
-                  </p>
-                )}
-                <SidebarMenu className="space-y-0.5">
-                  {filteredNavigationItems.filter((item) => item.section === section).map((item) => renderMenuItem(item))}
-                </SidebarMenu>
-              </div>
-            ))}
-          </div>
+          <SidebarMenu className="space-y-0.5">
+            {filteredNavigationItems.map((item) => renderMenuItem(item))}
+          </SidebarMenu>
         )}
       </SidebarContent>
 
       {/* ── Footer: Logout ── */}
       <SidebarFooter className="border-t border-white/[0.07] bg-[#0b1f1a] px-2.5 py-3">
-        {isExpanded && (
-          <div className="mb-1 flex items-center gap-2.5 rounded-[10px] px-2.5 py-2">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#38d5bc]/15 text-[11px] font-semibold uppercase text-[#70ead7] ring-1 ring-[#38d5bc]/20">
-              {user?.firstName?.[0] || user?.email?.[0] || "U"}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12px] font-semibold text-white/85">
-                {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Workspace member"}
-              </p>
-              <p className="truncate text-[10px] text-white/35">{user?.email}</p>
-            </div>
-          </div>
-        )}
         <CollapsedNavTooltip label="Log out" show={!isExpanded}>
           <button
             onClick={() => setShowLogoutModal(true)}
