@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  ChevronDown,
   Clock,
   Eye,
   FileText,
@@ -10,17 +9,16 @@ import {
   RefreshCcw,
   Search,
   ShieldCheck,
-  SlidersHorizontal,
   Loader2,
+  ShoppingCart,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { StatsCard } from "@/components/dashboard/landing/StatCard";
+import { PolicySummaryStrip, type PolicySummaryItem } from "@/components/policies/PolicyWorkspace";
 import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -29,6 +27,12 @@ import { ProcurementPolicyDetailsModal } from "./ProcurementPolicyDetailsModal";
 import { POLICY_GROUPS } from "./constants";
 import { useGetProcurementPolicies } from "@/queries/procurement/policies";
 import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
+
+const groupLabel = (group: string) =>
+  POLICY_GROUPS.find((item) => item.value === group)?.title ?? group;
+
+const formatDate = (iso: string) =>
+  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -58,7 +62,7 @@ export function ProcurementPolicySection({
   const [detailPolicy, setDetailPolicy] = useState<ProcurementPolicyApiRecord | null>(null);
 
   const { data, isLoading, refetch, isRefetching } = useGetProcurementPolicies(page, 50);
-  const policies: ProcurementPolicyApiRecord[] = data?.data ?? [];
+  const policies = useMemo<ProcurementPolicyApiRecord[]>(() => data?.data ?? [], [data?.data]);
 
   const tableProps = useDataTable({
     initialPage: 1,
@@ -73,13 +77,11 @@ export function ProcurementPolicySection({
   const pendingCount  = useMemo(() => policies.filter((p) => p.status === "pending").length, [policies]);
   const draftCount    = useMemo(() => policies.filter((p) => p.status === "draft").length, [policies]);
 
-  const lastUpdated = `Last updated: ${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}`;
-
-  const statCards = [
-    { title: "Approved Policies", value: approvedCount, icon: ShieldCheck, bg: "#418341" },
-    { title: "Pending Approval",  value: pendingCount,  icon: Clock,       bg: "#D97706" },
-    { title: "Draft Policies",    value: draftCount,    icon: FileText,    bg: "#384A57" },
-    { title: "Total Policies",    value: policies.length, icon: FileText,  bg: "#38B2AC" },
+  const summary: PolicySummaryItem[] = [
+    { label: "Active", value: approvedCount, detail: "Currently enforced", icon: ShieldCheck, tone: "teal" },
+    { label: "Pending", value: pendingCount, detail: "Waiting for approval", icon: Clock, tone: "amber" },
+    { label: "Drafts", value: draftCount, detail: "Still being configured", icon: FileText, tone: "slate" },
+    { label: "Total", value: policies.length, detail: "Procurement controls", icon: ShoppingCart, tone: "blue" },
   ];
 
   const filteredPolicies = useMemo(() => {
@@ -88,12 +90,6 @@ export function ProcurementPolicySection({
       (p) => !q || p.name.toLowerCase().includes(q)
     );
   }, [policies, search]);
-
-  const groupLabel = (group: string) =>
-    POLICY_GROUPS.find((g) => g.value === group)?.title ?? group;
-
-  const formatDate = (iso: string) =>
-    iso ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
   const columns = useMemo<ColumnDef<ProcurementPolicyApiRecord>[]>(
     () => [
@@ -160,78 +156,58 @@ export function ProcurementPolicySection({
         ),
       },
     ],
-    [] // eslint-disable-line react-hooks/exhaustive-deps
+    []
   );
 
   return (
     <>
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1.5">
-        {statCards.map((s) => (
-          <StatsCard
-            key={s.title}
-            title={s.title}
-            value={isLoading ? "—" : s.value}
-            icon={
-              <div
-                className="p-2 mr-3 flex items-center justify-center rounded-full text-white shrink-0"
-                style={{ backgroundColor: s.bg }}
-              >
-                <s.icon className="w-5 h-5" />
-              </div>
-            }
-            subtitle={<span className="text-xs leading-[125%]">{lastUpdated}</span>}
-          />
-        ))}
-      </div>
+      <PolicySummaryStrip items={summary} isLoading={isLoading} />
 
       {/* Main card */}
-      <div className="bg-white rounded-[1.25rem] border border-black/[0.06] shadow-sm overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-4 md:px-6 py-4 shrink-0 flex-wrap gap-3">
-          <h2 className="text-sm font-bold text-[#0b100e]">Procurement Policies</h2>
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative">
+      <div className="bg-white rounded-[15px] border border-black/[0.07] shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-4 md:px-5 py-4 shrink-0 flex-wrap gap-3 border-b border-black/[0.055]">
+          <div><h2 className="text-[13px] font-semibold text-[#14231e]">Procurement policies</h2><p className="mt-0.5 text-[9px] text-[#8b9591]">Approval, sourcing, vendor, and purchase-order controls</p></div>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="relative flex-1 sm:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#68726d]" />
               <input
                 placeholder="Search policies…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-10 pl-9 pr-4 rounded-[14px] border border-black/[0.06] bg-white text-sm placeholder:text-[#68726d] focus:outline-none focus:border-primary transition-colors w-[200px]"
+                className="h-9 w-full rounded-[9px] border border-black/[0.07] bg-white pl-9 pr-4 text-[10px] placeholder:text-[#929c97] focus:outline-none focus:border-[#0ea894] transition-colors sm:w-[220px]"
               />
             </div>
-            <button className="h-10 px-4 rounded-[14px] border border-black/[0.06] bg-white text-sm text-[#68726d] flex items-center gap-1.5 hover:bg-[#f9faf9]/30 transition-colors">
-              <SlidersHorizontal className="w-4 h-4" /> Filter <ChevronDown className="w-3.5 h-3.5" />
-            </button>
             <button
               onClick={() => refetch()}
               disabled={isRefetching}
-              className="h-10 w-10 rounded-[14px] border border-black/[0.06] bg-white flex items-center justify-center text-[#68726d] hover:bg-[#f9faf9]/30 transition-colors"
+              className="flex size-9 shrink-0 items-center justify-center rounded-[9px] border border-black/[0.07] bg-white text-[#68726d] hover:bg-[#f4f8f6] hover:text-[#087f70] transition-colors"
             >
               {isRefetching ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <RefreshCcw className="w-4 h-4" />
+                <RefreshCcw className="w-3.5 h-3.5" />
               )}
+              <span className="sr-only">Refresh procurement policies</span>
             </button>
           </div>
         </div>
 
         {isLoading ? (
-          <div className="border-t border-black/[0.06] flex justify-center items-center py-20">
+          <div className="flex justify-center items-center py-20">
             <Loader2 className="w-6 h-6 animate-spin text-[#68726d]" />
           </div>
         ) : policies.length === 0 ? (
-          <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
-            <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-[#087f70]/[0.02] py-10 px-8 flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-[24px] bg-[#087f70]/[0.06] flex items-center justify-center mb-7">
-                <FileText className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
+          <div className="flex justify-center items-center py-10 px-6">
+            <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+              <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
+                <FileText className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
               </div>
-              <h2 className="text-xl font-bold text-[#0b100e] mb-2">No Procurement Policies Yet</h2>
-              <p className="text-sm text-[#68726d] max-w-xs leading-relaxed mb-9">
+              <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No procurement policies yet</h2>
+              <p className="text-[11px] text-[#77837e] max-w-sm leading-5 mb-6">
                 Create your first procurement policy to define how your organisation handles purchasing requests, vendor assignments, and purchase orders.
               </p>
               {canCreate && (
-                <button onClick={onCreateClick} className="h-12 px-7 rounded-full bg-[#087f70] text-white hover:opacity-90 transition-opacity text-sm font-semibold flex items-center gap-2">
+                <button onClick={onCreateClick} className="h-9 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[10px] font-semibold flex items-center gap-2">
                   <FileText className="w-4 h-4" strokeWidth={2} />
                   Create First Policy
                 </button>
@@ -239,7 +215,7 @@ export function ProcurementPolicySection({
             </div>
           </div>
         ) : (
-          <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-hidden flex flex-col">
             <DataTable
               data={filteredPolicies}
               columns={columns}
