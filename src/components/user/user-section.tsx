@@ -762,7 +762,7 @@ export function UserSection() {
                 <button
                   onClick={headerAction.secondaryAction.onClick}
                   data-tour={headerAction.secondaryAction.dataTourId}
-                  className="h-9 px-4 rounded-[8px] border border-[#087f70] text-[#087f70] bg-transparent hover:bg-[#f0faf8] text-[13px] font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+                  className="h-9 px-4 rounded-[8px] border border-primary text-primary bg-transparent hover:bg-primary/5 text-[13px] font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   {headerAction.secondaryAction.iconName === "upload" ? (
                     <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
@@ -783,7 +783,7 @@ export function UserSection() {
                     onClick={() => {
                       window.dispatchEvent(new CustomEvent("villeto:invite-button-clicked"));
                     }}
-                    className="h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold flex items-center gap-2 hover:bg-[#076b5e] transition-colors cursor-pointer whitespace-nowrap">
+                    className="h-9 px-4 rounded-[8px] bg-primary text-primary-foreground text-[13px] font-semibold flex items-center gap-2 hover:bg-primary-hover transition-colors cursor-pointer whitespace-nowrap">
                     {headerAction.iconName === "upload" ? (
                       <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
                     ) : (
@@ -802,7 +802,7 @@ export function UserSection() {
                         onClick={item.disabled ? (e) => e.preventDefault() : item.onClick}
                         disabled={item.disabled}
                       >
-                        <PlusCircle className="h-4 w-4 text-[#087f70] shrink-0" />
+                        <PlusCircle className="h-4 w-4 text-primary shrink-0" />
                         <span>{item.label}</span>
                       </DropdownMenuItem>
                     );

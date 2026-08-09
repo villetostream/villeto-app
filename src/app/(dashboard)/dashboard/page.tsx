@@ -61,7 +61,7 @@ export default function DashboardPage() {
             <div>
               <h1 className="max-w-2xl text-[26px] font-semibold leading-[1.08] tracking-[-0.04em] md:text-[32px]">{greeting}, {userName}.<br /><span className="text-white/45">Here&apos;s what needs your attention.</span></h1>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/procurement/purchase-request/new" className="inline-flex h-9 items-center gap-2 rounded-[9px] bg-[#19b9a1] px-3.5 text-[11px] font-semibold transition hover:-translate-y-0.5 hover:bg-[#21c7ae]"><Plus className="size-3.5" /> New request</Link>
+                <Link href="/procurement/purchase-request/new" className="inline-flex h-9 items-center gap-2 rounded-[9px] bg-primary px-3.5 text-[11px] font-semibold text-primary-foreground transition hover:-translate-y-0.5 hover:bg-primary-hover"><Plus className="size-3.5" /> New request</Link>
                 <Link href="/procurement" className="inline-flex h-9 items-center gap-2 rounded-[9px] border border-white/12 bg-white/[0.05] px-3.5 text-[11px] font-semibold text-white/80 hover:bg-white/[0.1]">Open procurement <ArrowRight className="size-3.5" /></Link>
               </div>
             </div>

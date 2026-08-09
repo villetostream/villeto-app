@@ -21,7 +21,7 @@ export function ProcurementWorkspaceHeader({
           <p className="mt-2 max-w-xl text-[13px] leading-6 text-white/55">{description}</p>
         </div>
         {action && (
-          <Link href={action.href} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[#19b9a1] px-4 text-[12px] font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#20c8ae]">
+          <Link href={action.href} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-primary px-4 text-[12px] font-semibold text-primary-foreground transition hover:-translate-y-0.5 hover:bg-primary-hover">
             <Plus className="size-4" /> {action.label}
           </Link>
         )}
@@ -50,7 +50,7 @@ export function ProcurementPageHeader({
       {action && (
         <Link
           href={action.href}
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 self-start rounded-[9px] bg-[#087f70] px-4 text-[11px] font-semibold text-white transition hover:bg-[#076b5e] sm:self-auto"
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 self-start rounded-[9px] bg-primary px-4 text-[11px] font-semibold text-primary-foreground transition hover:bg-primary-hover sm:self-auto"
         >
           <Plus className="size-3.5" /> {action.label}
         </Link>

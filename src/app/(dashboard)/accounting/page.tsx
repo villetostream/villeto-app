@@ -116,7 +116,7 @@ export default function AccountingPage() {
             <RefreshCcw className="size-4" />
             <span className="sr-only">Refresh accounting data</span>
           </Button>
-          <Button onClick={provisionChart} disabled={!legalEntityId || provision.isPending} className="h-10 rounded-[10px] bg-[#087f70] px-4 text-[11px] font-semibold text-white shadow-none hover:bg-[#076b5e]">
+          <Button onClick={provisionChart} disabled={!legalEntityId || provision.isPending} className="h-10 rounded-[10px] px-4 text-[11px] font-semibold shadow-none">
             {provision.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Settings2 className="mr-2 size-4" />}
             {accounts.length ? "Refresh configuration" : "Configure subledger"}
           </Button>
