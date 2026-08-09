@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
-  CheckCircle2, Loader2, Pencil, Search
+  CheckCircle2, Loader2, Pencil, Search, ChevronLeft
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
@@ -598,8 +598,9 @@ export default function NewPurchaseOrderPage() {
         <div className="max-w-5xl mx-auto space-y-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold text-[#0b100e]">New Purchase Order</h1>
-              <p className="text-sm text-[#68726d] mt-0.5">Fill in the PO details and add line items</p>
+              <button type="button" onClick={() => router.push("/procurement/purchase-order")} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]"><ChevronLeft className="size-3.5" /> Purchase orders</button>
+              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Create purchase order</h1>
+              <p className="mt-1 text-[12px] text-[#68726d]">Define the supplier commitment, entity, and delivery expectation.</p>
             </div>
             <StepIndicator step={step} />
           </div>
@@ -681,8 +682,9 @@ export default function NewPurchaseOrderPage() {
         <div className="flex flex-col h-full max-w-5xl mx-auto">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 shrink-0">
             <div>
-              <h1 className="text-xl font-bold text-[#0b100e]">New Purchase Order</h1>
-              <p className="text-sm text-[#68726d] mt-0.5">Fill in the details and add line items</p>
+              <button type="button" onClick={() => router.push("/procurement/purchase-order")} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]"><ChevronLeft className="size-3.5" /> Purchase orders</button>
+              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Build the purchase order</h1>
+              <p className="mt-1 text-[12px] text-[#68726d]">Add the exact items, quantities, categories, and pricing.</p>
             </div>
             <StepIndicator step={step} />
           </div>

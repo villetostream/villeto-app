@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
-  CheckCircle2, Loader2, Pencil,
+  CheckCircle2, Loader2, Pencil, ChevronLeft,
 } from "lucide-react";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import type { LineItemPayload as _LIP } from "@/queries/procurement/purchase-requests";
@@ -688,8 +688,9 @@ export default function NewPurchaseRequestPage() {
           {/* Title + stepper */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold text-[#0b100e]">New Purchase Request</h1>
-              <p className="text-sm text-[#68726d] mt-0.5">Fill in the details and add line items</p>
+              <button type="button" onClick={() => router.push("/procurement/purchase-request")} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]"><ChevronLeft className="size-3.5" /> Purchase requests</button>
+              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Create purchase request</h1>
+              <p className="mt-1 text-[12px] text-[#68726d]">Capture the need, ownership, entity, and expected timing.</p>
             </div>
             <StepIndicator step={step} />
           </div>
@@ -792,8 +793,9 @@ export default function NewPurchaseRequestPage() {
           {/* Sticky page header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 shrink-0">
             <div>
-              <h1 className="text-xl font-bold text-[#0b100e]">New Purchase Request</h1>
-              <p className="text-sm text-[#68726d] mt-0.5">Fill in the details and add line items</p>
+              <button type="button" onClick={() => router.push("/procurement/purchase-request")} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]"><ChevronLeft className="size-3.5" /> Purchase requests</button>
+              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Build the request</h1>
+              <p className="mt-1 text-[12px] text-[#68726d]">Add quantities, categories, vendors, and accounting context.</p>
             </div>
             <StepIndicator step={step} />
           </div>

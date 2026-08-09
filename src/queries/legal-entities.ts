@@ -43,11 +43,12 @@ export interface Currency {
 
 const key = ["legal-entities"] as const;
 
-export function useLegalEntities() {
+export function useLegalEntities(options?: { enabled?: boolean }) {
   const axios = useAxios();
   return useQuery<{ data: LegalEntity[] }>({
     queryKey: key,
     queryFn: async () => (await axios.get(API_KEYS.LEGAL_ENTITY.LIST)).data,
+    enabled: options?.enabled,
   });
 }
 
