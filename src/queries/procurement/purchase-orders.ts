@@ -117,6 +117,7 @@ export interface POLineItemPayload {
 }
 
 export interface CreatePurchaseOrderPayload {
+  legalEntityId: string;
   vendorId: string;
   priority?: "low" | "medium" | "urgent";
   deliveryDate: string;

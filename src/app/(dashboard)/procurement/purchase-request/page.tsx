@@ -23,6 +23,7 @@ import {
   getPRDisplayStatus,
 } from "@/lib/constants/purchase-request-status";
 import { toast } from "sonner";
+import { ProcurementPageHeader } from "@/components/procurement/ProcurementWorkspace";
 
 // ─── Status / Priority Badges ─────────────────────────────────────────────────
 
@@ -490,7 +491,7 @@ function PRTable({
         isPending={isRejecting}
       />
 
-      <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
+      <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden flex-1 flex flex-col min-h-0">
         {/* Status tabs + filters */}
         <div className="flex items-center justify-between px-5 py-4 gap-4 flex-wrap">
           <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
@@ -591,7 +592,7 @@ function PRTable({
           </div>
         </div>
 
-        <div className="border-b border-black/[0.06]" />
+        <div className="border-b border-black/[0.06] shrink-0" />
 
         {/* Table body */}
         {isError ? (
@@ -610,16 +611,17 @@ function PRTable({
             <span className="text-[13px]">Loading purchase requests...</span>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-black/[0.06] bg-[#f9faf9]">
-                {columns.map(h => (
-                  <th key={h} className="px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
+          <div className="flex-1 overflow-auto bg-white min-h-0">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-[#f9faf9] shadow-[0_1px_0_rgba(0,0,0,0.06)]">
+                <tr className="border-b border-black/[0.06]">
+                  {columns.map(h => (
+                    <th key={h} className="px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest bg-[#f9faf9]">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
             <tbody>
               {paginated.length === 0 ? (
                 <tr>
@@ -691,7 +693,8 @@ function PRTable({
                 );
               })}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
 
         {!isLoading && !isError && totalCount > 0 && (
@@ -750,16 +753,18 @@ function PurchaseRequestPage() {
   // Single outer tab — no outer switcher
   if (tabs.length === 1) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-5 pb-8 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
+        <ProcurementPageHeader title="Purchase requests" description="Capture demand, route approvals, and convert authorized requests into controlled purchase orders." />
         <PRTable scope="own" initialInnerTab={innerTabFromUrl} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <Tabs value={outerTab} onValueChange={setOuterTab}>
-        <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
+    <div className="space-y-5 pb-8 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
+      <ProcurementPageHeader title="Purchase requests" description="Capture demand, route approvals, and convert authorized requests into controlled purchase orders." />
+      <Tabs value={outerTab} onValueChange={setOuterTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
           {tabs.map(t => (
             <TabsTrigger
               key={t.key}
@@ -772,7 +777,7 @@ function PurchaseRequestPage() {
         </TabsList>
 
         {tabs.map(t => (
-          <TabsContent key={t.key} value={t.key} className="mt-4">
+          <TabsContent key={t.key} value={t.key} className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden m-0">
             <PRTable
               scope={t.key as "own" | "team" | "company"}
               initialInnerTab={outerTab === t.key ? innerTabFromUrl : undefined}

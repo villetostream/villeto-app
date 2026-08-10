@@ -77,6 +77,14 @@ export interface PurchaseRequest {
   approvalStatus?: ApprovalStatus | null;
   neededByDate: string;
   currency: string;
+  legalEntity: {
+    legalEntityId: string;
+    code: string;
+    legalName: string;
+    baseCurrency: string;
+    status: "active" | "inactive";
+    readinessStatus: string;
+  };
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
@@ -118,11 +126,12 @@ interface ApiResponse<T> {
 // ── Create Purchase Request Header ────────────────────────────────────────
 
 export interface CreatePurchaseRequestPayload {
+  legalEntityId: string;
   title: string;
   description?: string;
   priority: PRPriority;
   neededByDate: string;
-  currency: string;
+  currency?: string;
   departmentId: string;
 }
 
@@ -562,4 +571,3 @@ export const useGetVendors = (
     ...options,
   });
 };
-

@@ -123,13 +123,23 @@ export function useAxios(): AxiosInstance {
           !originalRequest.url.includes("account-confirmation") &&
           !originalRequest.url.includes("onboardings/pre-fetch")
         ) {
-          const errorMessage =
+          let errorMessage =
             error.response?.data?.message ||
             error.response?.data?.error ||
             error.message;
 
+          if (Array.isArray(errorMessage)) {
+             errorMessage = errorMessage.map((msg: any) => {
+                if (typeof msg !== 'string') return String(msg);
+                const parts = msg.split(': ');
+                let rawError = parts.length > 1 ? parts[1] : parts[0];
+                rawError = rawError.charAt(0).toUpperCase() + rawError.slice(1);
+                return rawError.replace(/_/g, ' ');
+            }).join(" • ");
+          }
+
           if (errorMessage && errorMessage !== "Network Error") {
-            toast.error(errorMessage);
+            toast.error(String(errorMessage));
           }
         }
 

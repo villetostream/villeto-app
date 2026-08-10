@@ -75,6 +75,17 @@ export default function DashboardLayoutContent({
       const { role, _company, companyId, ...userData } = responseData || {};
 
       if (userData) {
+        if (
+          userData.isActive === false ||
+          userData.status === "DELETED" ||
+          userData.status === "deleted" ||
+          userData.deletedAt
+        ) {
+          useAuthStore.getState().logout();
+          router.replace("/login");
+          return;
+        }
+
         const currentUser = useAuthStore.getState().user;
         login({
           ...currentUser,
@@ -150,17 +161,19 @@ export default function DashboardLayoutContent({
   }
 
   return (
-    <div className="flex bg-dashboard-background h-screen overflow-hidden" suppressHydrationWarning>
+    <div className="flex h-screen overflow-hidden bg-[#f4f7f5]" suppressHydrationWarning>
       <SidebarProvider defaultOpen={defaultOpen}>
         <DashboardSidebar isProfileLoading={!profileFetched} />
         <div className="flex flex-col flex-1 h-full overflow-hidden">
-          <header className="flex items-center gap-4 px-4 sm:px-6 h-16 border-b border-dashboard-border-shade w-full shrink-0">
+          <header className="relative z-10 flex h-[72px] w-full shrink-0 items-center gap-3 border-b border-black/[0.06] bg-white/95 px-3 shadow-[0_1px_0_rgba(16,35,29,0.02)] backdrop-blur sm:px-5 lg:px-6">
             {/* Hide mobile collapse trigger during tour so sidebar stays open */}
-            {!isTourActive && <SidebarTrigger className="md:hidden" />}
+            {!isTourActive && (
+              <SidebarTrigger className="md:hidden shrink-0 rounded-[9px] border border-black/[0.06] bg-[#f4f8f6] text-[#53615c] hover:bg-[#eaf3ef] hover:text-[#087f70]" />
+            )}
             <UserSection />
           </header>
 
-          <main className="flex-1 overflow-y-auto p-3 sm:p-5 bg-white scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
+          <main className="flex-1 overflow-y-auto bg-[#f4f7f5] p-3 sm:p-5 lg:p-6 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
             {children}
           </main>
         </div>

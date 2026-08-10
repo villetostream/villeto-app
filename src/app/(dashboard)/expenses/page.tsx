@@ -255,8 +255,8 @@ export default function Reimbursements() {
 
     const localStats = calculateStats(data);
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
           <StatsCard isLoading={isLoadingExpenses} title="Total Expenses" value={localStats.totalExpenses.toString()}
             accentColor="#0b100e" icon={<FileText className="w-4 h-4 text-[#0b100e]" />}
             subtitle={<span className="text-[11px] text-[#68726d]">All expenses submitted</span>} />
@@ -275,9 +275,9 @@ export default function Reimbursements() {
         ) : error ? (
           <ErrorState error={error} onRetry={refetch} />
         ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+              <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
                 <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">All</TabsTrigger>
                 <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">
                   Awaiting Approval
@@ -294,7 +294,7 @@ export default function Reimbursements() {
               <div id="tab-actions" className="flex items-center gap-2" />
             </div>
             {companyExpenseStatusTabs.map(t => (
-              <TabsContent key={t.key} value={t.key}>
+              <TabsContent key={t.key} value={t.key} className="flex-1 flex flex-col min-h-0 overflow-hidden mt-4">
                 <ExpenseTable
                   actionButton={<></>}
                   statusFilter={t.filter}
@@ -321,8 +321,8 @@ export default function Reimbursements() {
   };
 
   const renderPersonalExpenseTab = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+    <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden w-full h-full">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
         <StatsCard isLoading={isLoadingPersonalExpenses || isLoadingDrafts} title="Draft" value={personalStats.draft.toString()}
           accentColor="#0b100e" icon={<FileText className="w-4 h-4 text-[#0b100e]" />}
           subtitle={<span className="text-[11px] text-[#68726d]">Manage your saved items</span>} />
@@ -341,9 +341,9 @@ export default function Reimbursements() {
       ) : personalExpensesError ? (
         <ErrorState error={personalExpensesError} onRetry={refetchPersonalExpenses} />
       ) : (
-        <Tabs value={personalActiveTab} onValueChange={setPersonalActiveTab}>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
+        <Tabs value={personalActiveTab} onValueChange={setPersonalActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+            <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
               <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">All</TabsTrigger>
               <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Pending Review</TabsTrigger>
               <TabsTrigger value="approved" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Approved</TabsTrigger>
@@ -354,7 +354,7 @@ export default function Reimbursements() {
             <div id="tab-actions" className="flex items-center gap-2" />
           </div>
           {expenseStatusTabs.map(t => (
-            <TabsContent key={t.key} value={t.key}>
+            <TabsContent key={t.key} value={t.key} className="flex-1 flex flex-col min-h-0 overflow-hidden mt-4">
               <ExpenseTable
                 statusFilter={t.filter}
                 data={personalExpenses as ExpenseTableRow[]}
@@ -387,17 +387,17 @@ export default function Reimbursements() {
   const isPersonalOnly = !hasCompanyScope && !hasTeamScope;
 
   return (
-    <div style={{ maxHeight: "100%" }}>
+    <div className="flex flex-col h-full pb-2">
       {isPersonalOnly ? (
         // Own-scope only: no tabs, no "My Expenses" heading (moved to user-section)
-        <div className="space-y-8">
+        <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* NewExpenseHeaderAction registers the CTA into the header store */}
           <NewExpenseHeaderAction />
           {renderPersonalExpenseTab()}
         </div>
       ) : (
-        <Tabs value={outerTab} onValueChange={handleTabChange}>
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <Tabs value={outerTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 shrink-0">
             <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex">
               {outerTabs.map(t => (
                 <TabsTrigger key={t.key} value={t.key} className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full cursor-pointer">
@@ -409,7 +409,7 @@ export default function Reimbursements() {
           </div>
 
           {hasCompanyScope && (
-            <TabsContent value="company-expenses">
+            <TabsContent value="company-expenses" className="flex-1 flex flex-col min-h-0 overflow-hidden m-0">
               {renderCompanyExpenseTab({
                 data: companyExpenses,
                 isLoading: isLoadingCompany,
@@ -426,7 +426,7 @@ export default function Reimbursements() {
           )}
 
           {hasTeamScope && (
-            <TabsContent value="team-expenses">
+            <TabsContent value="team-expenses" className="flex-1 flex flex-col min-h-0 overflow-hidden m-0">
               {renderCompanyExpenseTab({
                 data: teamExpenses,
                 isLoading: isLoadingTeam,
@@ -442,7 +442,7 @@ export default function Reimbursements() {
             </TabsContent>
           )}
 
-          <TabsContent value="personal-expenses">
+          <TabsContent value="personal-expenses" className="flex-1 flex flex-col min-h-0 overflow-hidden m-0">
             {renderPersonalExpenseTab()}
           </TabsContent>
         </Tabs>

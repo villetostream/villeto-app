@@ -1,7 +1,0 @@
-employee_external_id,first_name,last_name,email,job_title,department_name,department_external_id,manager_id,role_name
-S5002,Michael,Stone,michael.stone22@acme.com,CEO,Executive,DEPT-001,,
-S5003,Sarah,Lee,sarah.lee22@acme.com,Head of Engineering,Engineering,DEPT-002,S5002,Employee
-S3004,David,Wong,david.wong22@acme.com,Head of Sales,Sales,DEPT-003,S5002,Finance Admin
-S3005,Abiodun,Okoro,godwin1.lawal.alx@gmail.com,CSR,Operations,DEPT-004,S3002,Manager
-S3002,Tom,Henderson,godwinl2001@gmail.com,Sales Person Manager,Sales,DEPT-003,S5003,Employee
-S3003,Jerry,Cornel,jerry.cornel@acme.com,Techical support,IT,DEPT-005,S5002,Auditor

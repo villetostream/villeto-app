@@ -4,18 +4,17 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   PlusCircle, ShieldCheck, MoreHorizontal, Pencil, Shield, Trash2,
-  Search, SlidersHorizontal, RefreshCcw, ChevronDown,
+  Search, RefreshCcw,
   Eye, Archive, X, UserCircle, FileText, Clock, Tag, Loader2
 } from "lucide-react";
 import PolicyCreationModal, { type CreatedPolicyData } from "@/components/policies/PolicyCreationModal";
 import SimpleAddExpenseCategoryDialog from "@/components/policies/SimpleAddExpenseCategoryDialog";
 import { ProcurementPolicySection } from "@/components/policies/procurement/ProcurementPolicySection";
 import { ProcurementPolicyWizard } from "@/components/policies/procurement/ProcurementPolicyWizard";
-import type { ProcurementPolicyListItem } from "@/components/policies/procurement/types";
+import { PolicySummaryStrip, PolicyWorkspaceHeader, type PolicySummaryItem } from "@/components/policies/PolicyWorkspace";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { DataTable } from "@/components/datatable";
 import { ColumnDef } from "@tanstack/react-table";
-import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -341,7 +340,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft 
   };
 
   const getScopeText = () => {
-    const sType = (fullPolicy as any)?.scopeType || (fullPolicy as any)?.scope?.type;
+    const sType = getString(asRecord(fullPolicy).scopeType) || fullPolicy?.scope?.type;
     if (sType === "all" || sType === "all_employees") return "All Employees";
     
     if (!fullPolicy?.scope) return policy.appliedTo;
@@ -396,7 +395,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft 
                   <StatusBadge status={policyStatus} />
                   {policyStatus === "draft" && canUpdate && (
                     <button
-                      onClick={() => onDeleteDraft(policy.id || (policy as any).policyId)}
+                      onClick={() => onDeleteDraft(policy.id)}
                       className="ml-1 p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
                       title="Delete Draft"
                     >
@@ -670,7 +669,6 @@ function PoliciesPage() {
   const policyType: "expense" | "procurement" =
     searchParams.get("type") === "procurement" ? "procurement" : "expense";
 
-  const [procurementPolicies, setProcurementPolicies] = useState<ProcurementPolicyListItem[]>([]);
   const [procurementView, setProcurementView] = useState<"list" | "create">("list");
 
   const switchPolicyType = useCallback((type: "expense" | "procurement") => {
@@ -721,6 +719,7 @@ function PoliciesPage() {
     manualFiltering: false,
     manualPagination: true,
   });
+  const setPolicyTotalItems = policyTableProps.setTotalItems;
 
   const policiesApi = useGetPoliciesApi({ 
     page: policyTableProps.page, 
@@ -802,11 +801,11 @@ function PoliciesPage() {
 
   useEffect(() => {
     if (policiesApi.data?.meta?.totalCount !== undefined) {
-      policyTableProps.setTotalItems(policiesApi.data.meta.totalCount);
+      setPolicyTotalItems(policiesApi.data.meta.totalCount);
     } else if (policiesApi.data?.data) {
-      policyTableProps.setTotalItems(policiesApi.data.data.length);
+      setPolicyTotalItems(policiesApi.data.data.length);
     }
-  }, [policiesApi.data, policyTableProps.setTotalItems]);
+  }, [policiesApi.data, setPolicyTotalItems]);
 
   // Register dynamic header CTA button
   const { setAction, clearAction } = useHeaderActionStore();
@@ -909,7 +908,7 @@ function PoliciesPage() {
     try {
       await deleteDraftMutation.mutateAsync(draftToDelete);
       toast.success("Draft deleted successfully");
-      if (detailPolicy?.id === draftToDelete || (detailPolicy as any)?.policyId === draftToDelete) {
+      if (detailPolicy?.id === draftToDelete) {
         setDetailPolicy(null);
       }
     } catch (error: unknown) {
@@ -928,10 +927,10 @@ function PoliciesPage() {
 
   const handleEdit = useCallback((policy: Policy) => {
     if (policy.status === "draft") {
-      setEditingDraftId(policy.id || (policy as any).policyId);
+      setEditingDraftId(policy.id);
       setEditingPolicyId(null);
     } else {
-      setEditingPolicyId(policy.id || (policy as any).policyId);
+      setEditingPolicyId(policy.id);
       setEditingDraftId(null);
     }
     setIsCreatePolicyOpen(true);
@@ -980,12 +979,11 @@ function PoliciesPage() {
     }
   }, [axios, queryClient, user?.userId]);
 
-  const lastUpdated = `Last updated: ${new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}`;
-  const statCards = [
-    { title: "Approved Policies",  value: approvedCount,               icon: ShieldCheck, accent: "#087f70" },
-    { title: "Drafted Policies",   value: draftedCount,                icon: FileText,    accent: "#68726d" },
-    { title: "Pending Policies",   value: pendingCount,                icon: Clock,       accent: "#d97706" },
-    { title: "Expense Category",   value: liveExpenseCategories.length, icon: Tag,         accent: "#0b100e" },
+  const policySummary: PolicySummaryItem[] = [
+    { label: "Active", value: approvedCount, detail: "Policies currently enforced", icon: ShieldCheck, tone: "teal" },
+    { label: "Pending", value: pendingCount, detail: "Waiting for an approver", icon: Clock, tone: "amber" },
+    { label: "Drafts", value: draftedCount, detail: "Still being configured", icon: FileText, tone: "slate" },
+    { label: "Categories", value: liveExpenseCategories.length, detail: "Expense classifications", icon: Tag, tone: "blue" },
   ];
 
   /* DataTable columns for Policy tab */
@@ -1024,7 +1022,7 @@ function PoliciesPage() {
         const isApprover = policy.approversRaw.some((rawApprover) => {
           const a = asRecord(rawApprover);
           return pickString(a, "userId") === user?.userId;
-        }) || (policy as any).approverIds?.includes(user?.userId);
+        }) || (user?.userId ? policy.approverIds?.includes(user.userId) : false);
         
         const { can } = useAuthStore.getState();
         const canUpdate = can('policy', 'update');
@@ -1046,14 +1044,14 @@ function PoliciesPage() {
                 onView={() => setDetailPolicy(policy)}
                 onEdit={canUpdate ? () => handleEdit(policy) : undefined}
                 onArchive={policy.status !== "draft" && canDeactivate ? () => handleArchive(policy) : undefined}
-                onDeleteDraft={policy.status === "draft" && canUpdate ? () => setDraftToDelete(policy.id || (policy as any).policyId) : undefined}
+                onDeleteDraft={policy.status === "draft" && canUpdate ? () => setDraftToDelete(policy.id) : undefined}
               />
             )}
           </div>
         );
       },
     },
-  ], [handleOpenReview, user?.userId, handleEdit]);
+  ], [handleOpenReview, user?.userId, handleEdit, handleArchive]);
 
   /* DataTable columns for Archived tab */
   const archivedColumns = useMemo<ColumnDef<Policy>[]>(() => [
@@ -1178,28 +1176,7 @@ function PoliciesPage() {
   ], [handleViewCategory]);
 
   const policyTypeToggle = (
-    <div className="sticky -top-3 sm:-top-5 -mt-3 sm:-mt-5 pt-3 sm:pt-5 pb-4 bg-white z-40 flex items-center justify-between flex-wrap gap-3">
-      <div className="flex bg-black/[0.04] rounded-[14px] p-1 w-fit border border-black/[0.06] shadow-sm">
-        <button
-          data-tour="expenses-policy-type-tab"
-          onClick={() => switchPolicyType("expense")}
-          className={`py-1.5 px-4 text-sm rounded-[12px] transition-all whitespace-nowrap ${
-            policyType === "expense" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
-          }`}
-        >
-          Expenses Policy
-        </button>
-        <button
-          data-tour="procurement-policy-type-tab"
-          onClick={() => switchPolicyType("procurement")}
-          className={`py-1.5 px-4 text-sm rounded-[12px] transition-all whitespace-nowrap ${
-            policyType === "procurement" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
-          }`}
-        >
-          Procurement Policy
-        </button>
-      </div>
-    </div>
+    <PolicyWorkspaceHeader policyType={policyType} onPolicyTypeChange={switchPolicyType} />
   );
 
   if (policyType === "procurement" && procurementView === "create") {
@@ -1216,7 +1193,7 @@ function PoliciesPage() {
   }
 
   return (
-    <div className="space-y-6 h-full">
+    <div className="flex flex-col h-full pb-2">
       <>
       {policyTypeToggle}
 
@@ -1227,31 +1204,19 @@ function PoliciesPage() {
         />
       ) : (
       <>
-      {/* ── Stat cards ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-        {statCards.map((s) => (
-          <StatsCard
-            key={s.title}
-            title={s.title}
-            value={s.value}
-            accentColor={s.accent}
-            icon={<s.icon className="w-4 h-4" strokeWidth={2} style={{ color: s.accent }} />}
-            subtitle={<span className="text-[11px]">{lastUpdated}</span>}
-          />
-        ))}
-      </div>
+      <PolicySummaryStrip items={policySummary} isLoading={policiesApi.isLoading || expCatApi.isLoading} />
 
       {/* ── Main card ── */}
-      <div className="bg-white rounded-[1.25rem] border border-black/[0.06] shadow-sm overflow-hidden flex flex-col">
+      <div className="bg-white rounded-[15px] border border-black/[0.07] shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] overflow-hidden flex flex-col flex-1 min-h-0 mt-5">
 
         {/* Tab row */}
-        <div className="flex items-center justify-between px-6 py-5 shrink-0 flex-wrap gap-3">
+        <div className="flex items-center justify-between px-4 md:px-5 py-4 shrink-0 flex-wrap gap-3 border-b border-black/[0.055]">
           {/* Pill tabs */}
-          <div className="flex bg-[#f9faf9] rounded-[14px] p-1">
+          <div className="flex max-w-full overflow-x-auto bg-[#eaf0ed] rounded-[10px] p-1">
             <button
               data-tour="policies-tab"
               onClick={() => { switchTab("policies"); setSearch(""); }}
-              className={`py-1.5 px-4 text-sm rounded-[12px] transition-all whitespace-nowrap ${
+              className={`h-8 px-4 text-[10px] rounded-[7px] transition-all whitespace-nowrap ${
                 activeTab === "policies" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
               }`}
             >
@@ -1261,7 +1226,7 @@ function PoliciesPage() {
               <button
                 data-tour="expense-category-tab"
                 onClick={() => { switchTab("expense"); setSearch(""); }}
-                className={`py-1.5 px-4 text-sm rounded-[12px] transition-all whitespace-nowrap ${
+                className={`h-8 px-4 text-[10px] rounded-[7px] transition-all whitespace-nowrap ${
                   activeTab === "expense" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
                 }`}
               >
@@ -1270,7 +1235,7 @@ function PoliciesPage() {
             )}
             <button
               onClick={() => { switchTab("archived"); setSearch(""); }}
-              className={`py-1.5 px-4 text-sm rounded-[12px] transition-all whitespace-nowrap ${
+              className={`h-8 px-4 text-[10px] rounded-[7px] transition-all whitespace-nowrap ${
                 activeTab === "archived" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
               }`}
             >
@@ -1279,21 +1244,24 @@ function PoliciesPage() {
           </div>
 
           {/* Search + Filter + Refresh */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="relative flex-1 sm:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#68726d]" />
               <input
-                placeholder="Search..."
+                placeholder={activeTab === "expense" ? "Search categories" : "Search policies"}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-10 pl-9 pr-4 rounded-[14px] border border-black/[0.06] bg-white text-sm placeholder:text-[#68726d] focus:outline-none focus:border-primary transition-colors w-[200px]"
+                className="h-9 w-full rounded-[9px] border border-black/[0.07] bg-white pl-9 pr-4 text-[10px] placeholder:text-[#929c97] focus:outline-none focus:border-[#0ea894] transition-colors sm:w-[220px]"
               />
             </div>
-            <button className="h-10 px-4 rounded-[14px] border border-black/[0.06] bg-white text-sm text-[#68726d] flex items-center gap-1.5 hover:bg-[#f9faf9]/30 transition-colors">
-              <SlidersHorizontal className="w-4 h-4" /> Filter <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-            <button className="h-10 w-10 rounded-[14px] border border-black/[0.06] bg-white flex items-center justify-center text-[#68726d] hover:bg-[#f9faf9]/30 transition-colors">
-              <RefreshCcw className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={() => activeTab === "expense" ? expCatApi.refetch() : policiesApi.refetch()}
+              disabled={activeTab === "expense" ? expCatApi.isRefetching : policiesApi.isRefetching}
+              className="flex size-9 shrink-0 items-center justify-center rounded-[9px] border border-black/[0.07] bg-white text-[#68726d] hover:bg-[#f4f8f6] hover:text-[#087f70] transition-colors"
+            >
+              <RefreshCcw className={`w-3.5 h-3.5 ${(activeTab === "expense" ? expCatApi.isRefetching : policiesApi.isRefetching) ? "animate-spin" : ""}`} />
+              <span className="sr-only">Refresh policy data</span>
             </button>
           </div>
         </div>
@@ -1309,19 +1277,19 @@ function PoliciesPage() {
                 </div>
               </div>
             ) : activePolicies.length === 0 ? (
-              <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
-                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-[#087f70]/[0.02] py-10 px-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-[24px] bg-[#087f70]/[0.06] flex items-center justify-center mb-7">
-                    <ShieldCheck className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
+              <div className="flex-1 flex justify-center items-center py-10 px-6 bg-white">
+                <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+                  <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
+                    <ShieldCheck className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
                   </div>
-                  <h2 className="text-xl font-bold text-[#0b100e] mb-2">No policies created yet</h2>
-                  <p className="text-sm text-[#68726d] max-w-xs leading-relaxed mb-9">
-                    Policies help you automate expense approvals and enforce spending limits.
+                  <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No policies created yet</h2>
+                  <p className="text-[11px] text-[#77837e] max-w-sm leading-5 mb-6">
+                    Policies help you automate expense approvals and enforce spending limits. Create your first expense policy to get started.
                   </p>
                   {canCreatePolicy && (
                     <button
                       onClick={() => setIsCreatePolicyOpen(true)}
-                      className="h-12 px-7 rounded-full bg-[#087f70] text-white text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
+                      className="h-9 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[10px] font-semibold flex items-center gap-2"
                     >
                       <PlusCircle className="w-4 h-4" strokeWidth={2} />
                       Create First Policy
@@ -1361,19 +1329,19 @@ function PoliciesPage() {
                 </div>
               </div>
             ) : liveExpenseCategories.length === 0 ? (
-              <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
-                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-[#087f70]/[0.02] py-10 px-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-[24px] bg-[#087f70]/[0.06] flex items-center justify-center mb-7">
-                    <Tag className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
+              <div className="flex-1 flex justify-center items-center py-10 px-6 bg-white">
+                <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+                  <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
+                    <Tag className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
                   </div>
-                  <h2 className="text-xl font-bold text-[#0b100e] mb-2">No expense categories</h2>
-                  <p className="text-sm text-[#68726d] max-w-xs leading-relaxed mb-9">
-                    Expense categories help you organize and control spending across your company.
+                  <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No expense categories</h2>
+                  <p className="text-[11px] text-[#77837e] max-w-sm leading-5 mb-6">
+                    Expense categories help you organize and control spending across your company. Create your first category to get started.
                   </p>
                   {canManageCategories && (
                     <button
                       onClick={() => setIsAddCategoryOpen(true)}
-                      className="h-12 px-7 rounded-full bg-[#087f70] text-white text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
+                      className="h-9 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[10px] font-semibold flex items-center gap-2"
                     >
                       <PlusCircle className="w-4 h-4" strokeWidth={2} />
                       Create First Category
@@ -1406,13 +1374,13 @@ function PoliciesPage() {
         {activeTab === "archived" && (
           <>
             {archivedPolicies.length === 0 ? (
-              <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
-                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-primary/[0.02] py-10 px-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-[24px] bg-primary/[0.06] flex items-center justify-center mb-7">
-                    <Archive className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
+              <div className="flex-1 flex justify-center items-center py-10 px-6 bg-white">
+                <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+                  <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
+                    <Archive className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
                   </div>
-                  <h2 className="text-xl font-bold text-foreground mb-2">No archived policies</h2>
-                  <p className="text-sm text-[#68726d] max-w-xs leading-relaxed">
+                  <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No archived policies</h2>
+                  <p className="text-[11px] text-[#77837e] max-w-sm leading-5">
                     Policies that you archive will appear here for future reference.
                   </p>
                 </div>

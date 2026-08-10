@@ -32,6 +32,7 @@ interface FormFieldInputProps<T extends FieldValues = FieldValues> {
   pattern?: string;
   prefixIcon?: React.ReactNode;
   disabled?: boolean;
+  required?: boolean;
 }
 
 const FormFieldInput = <T extends FieldValues = FieldValues>({
@@ -46,6 +47,7 @@ const FormFieldInput = <T extends FieldValues = FieldValues>({
   showPasswordToggle = false,
   prefixIcon = null,
   disabled = false,
+  required = false,
 }: FormFieldInputProps<T>) => {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -66,7 +68,10 @@ const FormFieldInput = <T extends FieldValues = FieldValues>({
       name={name}
       render={({ field }) => (
         <FormItem className="space-y-2.5">
-          <FormLabel className="text-[13px] font-semibold !normal-case text-[#202723]">{label}</FormLabel>
+          <FormLabel className="text-[13px] font-semibold !normal-case text-[#202723]">
+            {label}
+            {required && <span className="text-destructive ml-1">*</span>}
+          </FormLabel>
           <FormControl>
             <div className="relative">
               {prefixIcon && (

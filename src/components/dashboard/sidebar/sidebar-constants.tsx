@@ -15,6 +15,7 @@ import {
   MoneySendSquareFreeIcons,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Calculator } from "lucide-react";
 
 // ─── Permission Gate Shape ────────────────────────────────────────────────────
 // Each nav item declares zero or more { resource, action } pairs.
@@ -120,8 +121,19 @@ export const navigationItems: NavItem[] = [
     label: "Bill Pay",
     href: "/bill-pay",
     permissions: [],
-    section: "MANAGEMENT",
     comingSoon: true,
+    section: "MANAGEMENT",
+  },
+  {
+    icon: <Calculator />,
+    label: "Accounting",
+    href: "/accounting",
+    permissions: [
+      { resource: "accounting.account", action: "view" },
+      { resource: "accounting.journal", action: "view" },
+      { resource: "accounting.configuration", action: "manage" },
+    ],
+    section: "MANAGEMENT",
   },
   {
     icon: <Shop />,
@@ -133,7 +145,7 @@ export const navigationItems: NavItem[] = [
   {
     icon: <ShoppingCart />,
     label: "Procurement",
-    href: "/procurement/purchase-request",
+    href: "/procurement",
     // Visible if the user can read at least one PR scope (own/department/company)
     permissions: [
       { resource: "procurement.purchase_request", action: "read_own" },
@@ -142,6 +154,15 @@ export const navigationItems: NavItem[] = [
     ],
     section: "MANAGEMENT",
     subItems: [
+      {
+        label: "Overview",
+        href: "/procurement",
+        permissions: [
+          { resource: "procurement.purchase_request", action: "read_own" },
+          { resource: "procurement.purchase_request", action: "read_department" },
+          { resource: "procurement.purchase_request", action: "read_company" },
+        ],
+      },
       {
         label: "Purchase Requests",
         href: "/procurement/purchase-request",
@@ -167,6 +188,15 @@ export const navigationItems: NavItem[] = [
       {
         label: "Confirmation",
         href: "/procurement/confirmation",
+        permissions: [
+          { resource: "procurement.purchase_order", action: "read_own" },
+          { resource: "procurement.purchase_order", action: "read_department" },
+          { resource: "procurement.purchase_order", action: "read_company" },
+        ],
+      },
+      {
+        label: "Invoices",
+        href: "/procurement/invoices",
         permissions: [{ resource: "procurement.vendor_invoice", action: "read_company" }],
       },
       {
@@ -205,12 +235,7 @@ export const navigationItems: NavItem[] = [
         permissions: [],
         comingSoon: true,
       },
-      {
-        label: "Expense Policy",
-        href: "/settings/expense-policy",
-        permissions: [{ resource: "policy", action: "read_company" }],
-        comingSoon: true,
-      },
+
       {
         label: "Company Settings",
         href: "/settings/company-settings",
@@ -219,8 +244,7 @@ export const navigationItems: NavItem[] = [
       {
         label: "Entities",
         href: "/settings/entities",
-        permissions: [],
-        comingSoon: true,
+        permissions: [{ resource: "legal_entity", action: "view" }],
       },
       {
         label: "Apps",

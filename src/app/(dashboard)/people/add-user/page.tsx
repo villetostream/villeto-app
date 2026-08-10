@@ -93,11 +93,12 @@ function AddSingleUser() {
                 firstName: data.firstName,
                 lastName: data.lastName,
                 email: data.email,
-                phone: data?.phone ?? "",
+                phone: data?.phone ? String(data.phone) : "",
                 cardIssued: data?.cardIssued ?? false,
                 jobTitle: data?.jobTitle ?? "",
+                location: data?.location ?? "",
                 departmentId: data?.departmentId ?? "",
-                roleId: data?.role?.roleId ?? "",
+                roleId: (data as any)?.role?.roleId ?? (data as any)?.roleId ?? "",
                 id: data?.userId
             })
         }

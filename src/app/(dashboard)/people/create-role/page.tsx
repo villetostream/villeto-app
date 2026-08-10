@@ -17,7 +17,7 @@ import {
     AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useGetAllPermissionsApi } from "@/queries/auth/auth-permissions";
+import { useGetAllPermissionsApi } from "@/features/auth/queries/permissions";
 import { groupPermissionsByResource, formatPermissionName } from "@/lib/utils";
 import { roleSchema, type RoleFormData } from "@/lib/schemas/schemas";
 import type { z } from "zod";

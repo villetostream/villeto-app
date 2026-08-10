@@ -1,244 +1,83 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+"use client";
+
+import { useState } from "react";
+import { AlertTriangle, BadgeCheck, CircleDollarSign, Landmark, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-    FileText,
-    Plus,
-    Search,
-    Filter,
-    Calendar,
-    CheckCircle,
-    Clock,
-    AlertTriangle
-} from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAccountingData } from "@/queries/accounting";
+import { useBillPayAction, useBillPayData, type PaymentRequest } from "@/queries/bill-pay";
+import { useLegalEntities } from "@/queries/legal-entities";
 
-const bills: Array<{
-    id: number;
-    vendor: string;
-    description: string;
-    amount: number;
-    dueDate: string;
-    status: string;
-    invoiceNumber: string;
-    category: string;
-}> = [];
+const money = (value: string | number, currency = "USD") => new Intl.NumberFormat(undefined, { style: "currency", currency }).format(Number(value));
 
-export default function BillPay() {
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case 'paid':
-                return <CheckCircle className="w-4 h-4 text-status-success" />;
-            case 'pending':
-                return <Clock className="w-4 h-4 text-status-warning" />;
-            case 'scheduled':
-                return <Calendar className="w-4 h-4 text-dashboard-accent" />;
-            case 'overdue':
-                return <AlertTriangle className="w-4 h-4 text-status-error" />;
-            default:
-                return null;
-        }
-    };
+export default function BillPayPage() {
+  const entities = useLegalEntities().data?.data || [];
+  const [selectedId, setSelectedId] = useState("");
+  const legalEntityId = selectedId || entities.find((item) => item.isDefault)?.legalEntityId || entities[0]?.legalEntityId;
+  const entity = entities.find((item) => item.legalEntityId === legalEntityId);
+  const accounting = useAccountingData(legalEntityId);
+  const data = useBillPayData(legalEntityId);
+  const action = useBillPayAction();
+  const [recording, setRecording] = useState<PaymentRequest | null>(null);
+  const [executionDate, setExecutionDate] = useState(new Date().toISOString().slice(0, 10));
+  const [bankReference, setBankReference] = useState("");
+  const [obligationId, setObligationId] = useState("");
+  const [requestAmount, setRequestAmount] = useState("");
+  const [fundingId, setFundingId] = useState("");
+  const [beneficiaryId, setBeneficiaryId] = useState("");
+  const [fundingForm, setFundingForm] = useState({ name: "", maskedIdentifier: "", externalReference: "" });
+  const [beneficiaryForm, setBeneficiaryForm] = useState({ vendorId: "", name: "", maskedIdentifier: "", externalReference: "" });
 
-    const getStatusBadge = (status: string) => {
-        const baseClasses = "text-xs font-medium";
-        switch (status) {
-            case 'paid':
-                return `${baseClasses} bg-status-success text-white`;
-            case 'pending':
-                return `${baseClasses} bg-status-warning text-white`;
-            case 'scheduled':
-                return `${baseClasses} bg-dashboard-accent text-white`;
-            case 'overdue':
-                return `${baseClasses} bg-status-error text-white`;
-            default:
-                return baseClasses;
-        }
-    };
+  const run = async (path: string, body?: Record<string, unknown>, message = "Updated") => {
+    try { await action.mutateAsync({ path, body }); toast.success(message); }
+    catch { toast.error("The action could not be completed"); }
+  };
+  const recordExternal = async () => {
+    if (!recording || !bankReference) return;
+    await run(`bill-pay/payment-requests/${recording.paymentRequestId}/record-external`, {
+      fundingAccountId: recording.fundingAccountId, beneficiaryId: recording.destinationAccountId,
+      executionDate, amount: recording.amount, bankReference,
+      idempotencyKey: `external:${recording.paymentRequestId}:${bankReference}`,
+    }, "External payment recorded; reconciliation is still required");
+    setRecording(null); setBankReference("");
+  };
+  const createRequest = async () => {
+    if (!legalEntityId || !obligationId || !requestAmount || !fundingId || !beneficiaryId || !entity) return;
+    await run("bill-pay/payment-requests", { legalEntityId, fundingAccountId: fundingId, beneficiaryId, currency: entity.baseCurrency, amount: requestAmount, paymentMethod: "external_bank", idempotencyKey: `request:${crypto.randomUUID()}`, allocations: [{ financialObligationId: obligationId, amount: requestAmount }] }, "Payment request created as draft");
+    setObligationId(""); setRequestAmount("");
+  };
+  const createFunding = async () => {
+    if (!legalEntityId || !entity) return;
+    await run("bill-pay/funding-accounts", { legalEntityId, accountType: "bank", currency: entity.baseCurrency, ...fundingForm }, "Masked funding account added");
+    setFundingForm({ name: "", maskedIdentifier: "", externalReference: "" });
+  };
+  const createBeneficiary = async () => {
+    if (!legalEntityId || !entity) return;
+    await run("bill-pay/beneficiaries", { legalEntityId, currency: entity.baseCurrency, ...beneficiaryForm }, "Masked beneficiary added");
+    setBeneficiaryForm({ vendorId: "", name: "", maskedIdentifier: "", externalReference: "" });
+  };
 
-    const isOverdue = (dueDate: string) => {
-        return new Date(dueDate) < new Date();
-    };
+  return <div className="min-h-screen bg-dashboard-bg p-6 space-y-6">
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><h1 className="text-3xl font-bold">Bill Pay</h1><p className="mt-1 text-muted-foreground">Controlled AP payment requests, external recording, and reconciliation</p></div><Select value={legalEntityId || ""} onValueChange={setSelectedId}><SelectTrigger className="w-72"><SelectValue placeholder="Select legal entity" /></SelectTrigger><SelectContent>{entities.map((item) => <SelectItem key={item.legalEntityId} value={item.legalEntityId}>{item.legalName} · {item.baseCurrency}</SelectItem>)}</SelectContent></Select></div>
+    <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-semibold">Payment execution is disabled</p><p className="text-sm">Villeto has no live gateway adapter. Payments must be executed by your bank, recorded here, then reconciled before obligations are reduced.</p></div></div>
+    <div className="grid gap-4 md:grid-cols-4"><Summary icon={<CircleDollarSign />} title="Outstanding AP" value={money((accounting.obligations.data || []).reduce((sum, item) => sum + Number(item.outstandingAmount), 0), entity?.baseCurrency)} /><Summary icon={<ShieldCheck />} title="Awaiting approval" value={String((data.requests.data || []).filter((item) => item.status.includes("authoriz")).length)} /><Summary icon={<Landmark />} title="External payments" value={String((data.payments.data || []).filter((item) => item.status === "externally_recorded").length)} /><Summary icon={<BadgeCheck />} title="Entity readiness" value={(entity?.readinessStatus || "not configured").replaceAll("_", " ")} /></div>
 
-    return (
-
-        <div className="min-h-screen bg-dashboard-bg">
-            <div className="p-6 space-y-6">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold text-dashboard-text-primary">Bill Pay</h1>
-                        <p className="text-dashboard-text-secondary mt-1">
-                            Manage vendor bills and automated payments
-                        </p>
-                    </div>
-                    <div className="flex gap-3">
-                        <Button variant="outline">
-                            <Calendar className="w-4 h-4 mr-2" />
-                            Payment Schedule
-                        </Button>
-                        <Button className="bg-dashboard-accent hover:bg-dashboard-accent/90">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Bill
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <Card className="bg-dashboard-card border-dashboard-border">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-dashboard-text-secondary text-sm">Due This Week</p>
-                                    <p className="text-2xl font-bold text-dashboard-text-primary">—</p>
-                                </div>
-                                <Clock className="w-8 h-8 text-status-warning" />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-dashboard-card border-dashboard-border">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-dashboard-text-secondary text-sm">Overdue</p>
-                                    <p className="text-2xl font-bold text-status-error">—</p>
-                                </div>
-                                <AlertTriangle className="w-8 h-8 text-status-error" />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-dashboard-card border-dashboard-border">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-dashboard-text-secondary text-sm">Paid This Month</p>
-                                    <p className="text-2xl font-bold text-dashboard-text-primary">—</p>
-                                </div>
-                                <CheckCircle className="w-8 h-8 text-status-success" />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-dashboard-card border-dashboard-border">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-dashboard-text-secondary text-sm">Scheduled</p>
-                                    <p className="text-2xl font-bold text-dashboard-text-primary">0</p>
-                                </div>
-                                <Calendar className="w-8 h-8 text-dashboard-accent" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Filters */}
-                <div className="flex items-center space-x-4">
-                    <div className="relative flex-1 max-w-sm">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-dashboard-text-secondary w-4 h-4" />
-                        <Input placeholder="Search bills..." className="pl-10" />
-                    </div>
-                    <Button variant="outline" size="sm">
-                        <Filter className="w-4 h-4 mr-2" />
-                        Filter
-                    </Button>
-                </div>
-
-                {/* Bills List */}
-                <Card className="bg-dashboard-card border-dashboard-border">
-                    <CardHeader>
-                        <CardTitle className="text-dashboard-text-primary">Upcoming Bills</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {bills.length === 0 ? (
-                            <p className="text-dashboard-text-secondary text-sm text-center py-8">No bills found</p>
-                        ) : (
-                            <div className="space-y-4">
-                                {bills.map((bill) => (
-                                    <div key={bill.id} className="flex items-center justify-between p-4 bg-dashboard-hover rounded-lg">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-lg bg-dashboard-accent/10 flex items-center justify-center">
-                                                <FileText className="w-6 h-6 text-dashboard-accent" />
-                                            </div>
-                                            <div>
-                                                <h3 className="font-medium text-dashboard-text-primary">
-                                                    {bill.vendor}
-                                                </h3>
-                                                <p className="text-sm text-dashboard-text-secondary">
-                                                    {bill.description}
-                                                </p>
-                                                <div className="flex items-center gap-4 text-xs text-dashboard-text-secondary mt-1">
-                                                    <span>{bill.invoiceNumber}</span>
-                                                    <span>•</span>
-                                                    <span className={isOverdue(bill.dueDate) && bill.status !== 'paid' ? 'text-status-error font-medium' : ''}>
-                                                        Due: {bill.dueDate}
-                                                    </span>
-                                                    <span>•</span>
-                                                    <Badge variant="secondary" className="text-xs">
-                                                        {bill.category}
-                                                    </Badge>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <div className="text-right">
-                                                <p className="font-semibold text-dashboard-text-primary">
-                                                    ${bill.amount.toLocaleString()}
-                                                </p>
-                                                <Badge className={getStatusBadge(bill.status)}>
-                                                    {getStatusIcon(bill.status)}
-                                                    <span className="ml-1 capitalize">{bill.status}</span>
-                                                </Badge>
-                                            </div>
-                                            {bill.status === 'pending' && (
-                                                <Button size="sm" className="bg-dashboard-accent hover:bg-dashboard-accent/90">
-                                                    Pay Now
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Payment Methods & Settings */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card className="bg-dashboard-card border-dashboard-border">
-                        <CardHeader>
-                            <CardTitle className="text-dashboard-text-primary">Payment Methods</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-3">
-                                <p className="text-dashboard-text-secondary text-sm text-center py-4">No payment methods added</p>
-                                <Button variant="outline" size="sm" className="w-full">
-                                    <Plus className="w-4 h-4 mr-2" />
-                                    Add Payment Method
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-dashboard-card border-dashboard-border">
-                        <CardHeader>
-                            <CardTitle className="text-dashboard-text-primary">Automation Settings</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-3">
-                                <p className="text-dashboard-text-secondary text-sm text-center py-4">No automation settings configured</p>
-                                <Button variant="outline" size="sm" className="w-full">
-                                    Manage Settings
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
-        </div>
-
-    );
+    <Tabs defaultValue="obligations"><TabsList className="flex h-auto flex-wrap"><TabsTrigger value="obligations">Obligations</TabsTrigger><TabsTrigger value="requests">Payment requests</TabsTrigger><TabsTrigger value="approvals">Approvals</TabsTrigger><TabsTrigger value="recording">External recording</TabsTrigger><TabsTrigger value="reconciliation">Reconciliation</TabsTrigger><TabsTrigger value="configuration">Configuration</TabsTrigger></TabsList>
+      <TabsContent value="obligations"><List title="Outstanding obligations" empty="Approved invoice obligations appear here.">{(accounting.obligations.data || []).map((item) => <Row key={item.financialObligationId} title={`${item.vendor?.displayName || item.vendor?.legalName || "Vendor"} · ${money(item.outstandingAmount, item.currency)}`} detail={`${item.status}${item.dueDate ? ` · due ${item.dueDate}` : ""}`} />)}</List></TabsContent>
+      <TabsContent value="requests"><Card className="mb-4"><CardHeader><CardTitle>Create payment request</CardTitle></CardHeader><CardContent className="grid gap-3 md:grid-cols-5"><Select value={obligationId} onValueChange={(value) => { setObligationId(value); const item = (accounting.obligations.data || []).find((entry) => entry.financialObligationId === value); if (item) setRequestAmount(item.outstandingAmount); }}><SelectTrigger><SelectValue placeholder="Obligation" /></SelectTrigger><SelectContent>{(accounting.obligations.data || []).filter((item) => item.status !== "paid").map((item) => <SelectItem key={item.financialObligationId} value={item.financialObligationId}>{item.vendor?.displayName || item.vendor?.legalName || "Vendor"} · {money(item.outstandingAmount, item.currency)}</SelectItem>)}</SelectContent></Select><Input type="number" min="0.01" step="0.01" placeholder="Amount" value={requestAmount} onChange={(event) => setRequestAmount(event.target.value)} /><Select value={fundingId} onValueChange={setFundingId}><SelectTrigger><SelectValue placeholder="Funding account" /></SelectTrigger><SelectContent>{(data.funding.data || []).map((item) => <SelectItem key={item.fundingAccountId} value={item.fundingAccountId}>{item.name} · {item.maskedIdentifier}</SelectItem>)}</SelectContent></Select><Select value={beneficiaryId} onValueChange={setBeneficiaryId}><SelectTrigger><SelectValue placeholder="Beneficiary" /></SelectTrigger><SelectContent>{(data.beneficiaries.data || []).map((item) => <SelectItem key={item.vendorBeneficiaryId} value={item.vendorBeneficiaryId}>{item.name} · {item.maskedIdentifier}</SelectItem>)}</SelectContent></Select><Button onClick={createRequest}>Create draft</Button></CardContent></Card><List title="Payment requests" empty="No payment requests have been created.">{(data.requests.data || []).map((item) => <Row key={item.paymentRequestId} title={`${item.vendor?.displayName || item.vendor?.legalName || "Vendor"} · ${money(item.amount, item.currency)}`} detail={item.status} actions={item.status === "draft" ? <Button size="sm" onClick={() => run(`bill-pay/payment-requests/${item.paymentRequestId}/submit`, {}, "Submitted for maker-checker approval")}>Submit</Button> : undefined} />)}</List></TabsContent>
+      <TabsContent value="approvals"><List title="Maker-checker approvals" empty="No requests await your authorization.">{(data.requests.data || []).filter((item) => ["pending_authorization", "partially_authorized"].includes(item.status)).map((item) => <Row key={item.paymentRequestId} title={`${item.vendor?.displayName || item.vendor?.legalName || "Vendor"} · ${money(item.amount, item.currency)}`} detail={`Created by ${item.createdBy?.firstName || "another user"}`} actions={<div className="flex gap-2"><Button size="sm" onClick={() => run(`bill-pay/payment-requests/${item.paymentRequestId}/authorize`, {}, "Authorization recorded")}>Authorize</Button><Button size="sm" variant="outline" onClick={() => run(`bill-pay/payment-requests/${item.paymentRequestId}/reject`, { reason: "Rejected in Bill Pay" }, "Request rejected")}>Reject</Button></div>} />)}</List></TabsContent>
+      <TabsContent value="recording"><List title="Record bank-executed payments" empty="Authorized requests will appear here.">{(data.requests.data || []).filter((item) => ["authorized", "scheduled"].includes(item.status)).map((item) => <Row key={item.paymentRequestId} title={`${item.vendor?.displayName || item.vendor?.legalName || "Vendor"} · ${money(item.amount, item.currency)}`} detail="No gateway call will be made" actions={<Button size="sm" onClick={() => setRecording(item)}>Record external payment</Button>} />)}</List>{recording && <Card className="mt-4"><CardHeader><CardTitle>External bank confirmation</CardTitle></CardHeader><CardContent className="grid gap-3 md:grid-cols-[1fr_1fr_auto]"><Input type="date" value={executionDate} onChange={(event) => setExecutionDate(event.target.value)} /><Input placeholder="Unique bank reference" value={bankReference} onChange={(event) => setBankReference(event.target.value)} /><Button onClick={recordExternal} disabled={!bankReference}>Record only</Button></CardContent></Card>}</TabsContent>
+      <TabsContent value="reconciliation"><List title="Reconciliation queue" empty="No external payments await reconciliation.">{(data.payments.data || []).filter((item) => item.status === "externally_recorded").map((item) => <Row key={item.paymentId} title={`${item.externalBankReference} · ${money(item.amount, item.currency)}`} detail={`${item.executionDate || "Execution date pending"} · obligation unchanged`} actions={<Button size="sm" onClick={() => run(`bill-pay/payments/${item.paymentId}/reconcile`, {}, "Payment reconciled and AP reduced")}>Confirm reconciliation</Button>} />)}</List><List title="Imported bank transactions" empty="No bank CSV transactions imported.">{(data.bankTransactions.data || []).map((item) => <Row key={item.bankTransactionId} title={`${item.reference} · ${money(item.amount, item.currency)}`} detail={`${item.transactionDate} · ${item.matchStatus}`} />)}</List></TabsContent>
+      <TabsContent value="configuration"><div className="grid gap-4 md:grid-cols-2"><div><Card className="mb-4"><CardHeader><CardTitle>Add masked funding reference</CardTitle></CardHeader><CardContent className="space-y-3"><Input placeholder="Account name" value={fundingForm.name} onChange={(event) => setFundingForm({ ...fundingForm, name: event.target.value })} /><Input placeholder="Masked identifier, e.g. •••• 1234" value={fundingForm.maskedIdentifier} onChange={(event) => setFundingForm({ ...fundingForm, maskedIdentifier: event.target.value })} /><Input placeholder="Opaque vault/external reference" value={fundingForm.externalReference} onChange={(event) => setFundingForm({ ...fundingForm, externalReference: event.target.value })} /><Button onClick={createFunding}>Add funding account</Button></CardContent></Card><List title="Funding accounts" empty="No masked funding references.">{(data.funding.data || []).map((item) => <Row key={item.fundingAccountId} title={item.name} detail={`${item.maskedIdentifier} · ${item.currency}`} />)}</List></div><div><Card className="mb-4"><CardHeader><CardTitle>Add masked vendor beneficiary</CardTitle></CardHeader><CardContent className="space-y-3"><Input placeholder="Vendor UUID" value={beneficiaryForm.vendorId} onChange={(event) => setBeneficiaryForm({ ...beneficiaryForm, vendorId: event.target.value })} /><Input placeholder="Beneficiary name" value={beneficiaryForm.name} onChange={(event) => setBeneficiaryForm({ ...beneficiaryForm, name: event.target.value })} /><Input placeholder="Masked identifier" value={beneficiaryForm.maskedIdentifier} onChange={(event) => setBeneficiaryForm({ ...beneficiaryForm, maskedIdentifier: event.target.value })} /><Input placeholder="Opaque vault/external reference" value={beneficiaryForm.externalReference} onChange={(event) => setBeneficiaryForm({ ...beneficiaryForm, externalReference: event.target.value })} /><Button onClick={createBeneficiary}>Add beneficiary</Button></CardContent></Card><List title="Vendor beneficiaries" empty="Plaintext vendor bank fields are never used.">{(data.beneficiaries.data || []).map((item) => <Row key={item.vendorBeneficiaryId} title={item.name} detail={`${item.maskedIdentifier} · ${item.currency}`} />)}</List></div></div></TabsContent>
+    </Tabs>
+  </div>;
 }
+
+function Summary({ icon, title, value }: { icon: React.ReactNode; title: string; value: string }) { return <Card><CardContent className="flex items-center justify-between p-5"><div><p className="text-sm text-muted-foreground">{title}</p><p className="mt-1 text-xl font-semibold capitalize">{value}</p></div><span className="text-dashboard-accent [&>svg]:h-6 [&>svg]:w-6">{icon}</span></CardContent></Card>; }
+function List({ title, empty, children }: { title: string; empty: string; children: React.ReactNode[] }) { return <Card className="mb-4"><CardHeader><CardTitle>{title}</CardTitle></CardHeader><CardContent className="divide-y">{children.length ? children : <p className="py-10 text-center text-sm text-muted-foreground">{empty}</p>}</CardContent></Card>; }
+function Row({ title, detail, actions }: { title: string; detail: string; actions?: React.ReactNode }) { return <div className="flex items-center justify-between gap-4 py-4"><div><p className="font-medium">{title}</p><Badge variant="secondary" className="mt-1 capitalize">{detail.replaceAll("_", " ")}</Badge></div>{actions}</div>; }

@@ -80,7 +80,7 @@ export const columns: ColumnDef<Role, unknown>[] = [
         enableHiding: false,
         cell: (data) => <ActionCell role={data.row.original} />,
     }),
-];
+] as any as ColumnDef<Role, unknown>[];
 
 function ActionCell({ role }: { role: Role }) {
     const roleId = role.roleId;

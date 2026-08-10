@@ -21,23 +21,38 @@ interface Response {
 }
 
 export interface Meta {
-    totalCount: number,
-    totalPages: number,
-    currentPage: number,
-    limit: number
+    totalCount: number;
+    totalPages: number;
+    currentPage: number;
+    limit: number;
+}
+
+export interface UserListParams {
+    page?: number;
+    limit?: number;
+    invited?: boolean;
+    status?: string;
+    employeeStatus?: string;
+    search?: string;
+    roleId?: string;
+    departmentId?: string;
+}
+
+export interface UseUserListOptions extends Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn"> {
+    params?: UserListParams;
 }
 
 /** Generic base hook — kept for any consumer that still calls it directly */
 export const useGetAllUsersApi = (
-    options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">
+    options?: UseUserListOptions
 ): UseQueryResult<Response, Error> => {
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.USERS],
+        queryKey: [QUERY_KEYS.USERS, options?.params],
         queryFn: async () => {
             const apiUrl = `${API_KEYS.USER.USERS}`;
-            const response = await axiosInstance.get(apiUrl);
+            const response = await axiosInstance.get(apiUrl, { params: options?.params });
             return response.data;
         },
         staleTime: STALE_TIMES.NORMAL,
@@ -47,14 +62,14 @@ export const useGetAllUsersApi = (
 
 /** Fetches users where invited=true — used by AllUsersTab (Invited Users) */
 export const useGetInvitedUsersApi = (
-    options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">
+    options?: UseUserListOptions
 ): UseQueryResult<Response, Error> => {
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.INVITED_USERS],
+        queryKey: [QUERY_KEYS.INVITED_USERS, options?.params],
         queryFn: async () => {
-            const response = await axiosInstance.get(API_KEYS.USER.INVITED_USERS);
+            const response = await axiosInstance.get(API_KEYS.USER.INVITED_USERS, { params: options?.params });
             return response.data;
         },
         staleTime: STALE_TIMES.NORMAL,
@@ -64,14 +79,14 @@ export const useGetInvitedUsersApi = (
 
 /** Fetches users where invited=false — used by DirectoryTab */
 export const useGetDirectoryUsersApi = (
-    options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">
+    options?: UseUserListOptions
 ): UseQueryResult<Response, Error> => {
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.DIRECTORY_USERS],
+        queryKey: [QUERY_KEYS.DIRECTORY_USERS, options?.params],
         queryFn: async () => {
-            const response = await axiosInstance.get(API_KEYS.USER.DIRECTORY_USERS);
+            const response = await axiosInstance.get(API_KEYS.USER.DIRECTORY_USERS, { params: options?.params });
             return response.data;
         },
         staleTime: STALE_TIMES.NORMAL,
@@ -81,14 +96,14 @@ export const useGetDirectoryUsersApi = (
 
 /** Fetches users where invited=false — used by Invite forms */
 export const useGetUninvitedUsersApi = (
-    options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">
+    options?: UseUserListOptions
 ): UseQueryResult<Response, Error> => {
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.UNINVITED_USERS],
+        queryKey: [QUERY_KEYS.UNINVITED_USERS, options?.params],
         queryFn: async () => {
-            const response = await axiosInstance.get(API_KEYS.USER.UNINVITED_USERS);
+            const response = await axiosInstance.get(API_KEYS.USER.UNINVITED_USERS, { params: options?.params });
             return response.data;
         },
         staleTime: STALE_TIMES.NORMAL,

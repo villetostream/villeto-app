@@ -27,7 +27,7 @@ export const useCompanyBulkImportApi = (): UseMutationResult<Response, Error, pa
     return useMutation<Response, Error, payload>({
         retry: false,
         mutationFn: async (payload: payload) => {
-            const res = await axiosInstance.post(API_KEYS.COMPANY.BULK_IMPORT, payload, {
+            const res = await axiosInstance.post(API_KEYS.COMPANY.BULK_IMPORT(), payload, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },

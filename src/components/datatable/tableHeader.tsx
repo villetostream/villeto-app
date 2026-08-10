@@ -14,6 +14,7 @@ import {
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
+import { cn } from "@/lib/utils";
 
 export interface ITableHeader {
   title?: string;
@@ -58,14 +59,14 @@ export function TableHeader({
       {tableHeader?.actionButton && <div>{tableHeader.actionButton}</div>}
 
       {tableHeader?.isSearchable && (
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full sm:w-[280px]">
           <SearchIcon
             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
             size={18}
           />
           <Input
             placeholder="Search..."
-            className="pl-10 h-10 w-full bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary rounded-lg text-sm"
+            className="pl-10 h-[41px] w-full bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary rounded-[12px] text-sm"
             value={tableHeader?.search}
             onChange={(e) => tableHeader?.searchQuery?.(e.target.value)}
           />
@@ -81,36 +82,44 @@ export function TableHeader({
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
-              className="h-10 px-4 border-gray-200 hover:bg-gray-50 text-gray-600 font-medium rounded-lg flex items-center gap-2"
+              size="md"
+              className="w-[41px] border-gray-200 hover:bg-gray-50 text-gray-600 rounded-[12px] flex items-center justify-center p-0 shrink-0"
             >
               <Settings size={18} />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 p-2">
-            <DropdownMenuLabel className="mb-2 px-2 py-1.5 text-sm font-semibold text-gray-900 border-b border-gray-100">
-              Toggle Columns
-            </DropdownMenuLabel>
+          <DropdownMenuContent align="end" className="w-48 p-2 max-h-[18rem] overflow-y-auto rounded-[12px] shadow-lg border-black/[0.055] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-black/[0.1] [&::-webkit-scrollbar-thumb]:rounded-full pr-1 mr-1">
             {table
               .getAllColumns()
               .filter((column) => column.getCanHide())
               .map((column) => (
                 <DropdownMenuItem
                   key={column.id}
-                  className="capitalize py-2 cursor-pointer focus:bg-primary/5"
+                  className="uppercase py-2 px-3 cursor-pointer border border-black/[0.055] rounded-[9px] mb-1.5 last:mb-0 hover:border-[#0ea894]/25 hover:bg-[#f8fbfa] focus:bg-[#f8fbfa] text-[10px] font-semibold tracking-wider text-[#17211d] flex items-center gap-2.5 transition-colors shadow-none"
                   onClick={(e) => {
                     e.preventDefault();
                     column.toggleVisibility(!column.getIsVisible());
                   }}
                 >
-                  <Checkbox
-                    checked={column.getIsVisible()}
-                    onCheckedChange={() => {}}
-                    className="mr-2"
-                  />
-                  {typeof column.columnDef.header === "string"
-                    ? column.columnDef.header
-                    : column.id}
+                  <div 
+                    className={cn(
+                      "w-4 h-4 rounded-[4px] flex items-center justify-center shrink-0 transition-colors",
+                      column.getIsVisible() 
+                        ? "bg-[#087f70] border-[#087f70]" 
+                        : "border border-black/[0.1] bg-white"
+                    )}
+                  >
+                    {column.getIsVisible() && (
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className="truncate">
+                    {typeof column.columnDef.header === "string"
+                      ? column.columnDef.header
+                      : column.id}
+                  </span>
                 </DropdownMenuItem>
               ))}
           </DropdownMenuContent>

@@ -35,6 +35,10 @@ export const directoryColumns = [
             return <p className="text-sm">{rowNum}</p>;
         },
     }),
+    columnHelper.accessor("employeeExternalId", {
+        header: "EMPLOYEE ID",
+        cell: (info) => <p className="font-medium text-sm">{info.getValue() || "—"}</p>,
+    }),
     columnHelper.accessor("firstName", {
         header: "DETAILS",
         cell: (info) => {
@@ -45,7 +49,7 @@ export const directoryColumns = [
             
             return (
                 <div className="flex flex-col">
-                    <p className="capitalize font-medium">{fullName}</p>
+                    <p className="capitalize font-medium text-sm">{fullName}</p>
                     <p className="text-xs text-muted-foreground">{email}</p>
                 </div>
             );
@@ -54,9 +58,17 @@ export const directoryColumns = [
     columnHelper.accessor("department", {
         header: "DEPARTMENT",
         cell: (info) => {
-            const dept = info.getValue() as unknown;
-            return <p className="capitalize">{getDepartmentName(dept)}</p>;
+            const dept = info.getValue();
+            return <p className="capitalize text-sm">{getDepartmentName(dept)}</p>;
         },
+    }),
+    columnHelper.accessor("businessUnit", {
+        header: "BUSINESS UNIT",
+        cell: (info) => <p className="text-sm">{formatName(info.getValue())}</p>,
+    }),
+    columnHelper.accessor("location", {
+        header: "LOCATION",
+        cell: (info) => <p className="text-sm">{info.getValue() || "—"}</p>,
     }),
     columnHelper.accessor("position", {
         header: "JOB TITLE",
@@ -65,39 +77,48 @@ export const directoryColumns = [
             return <p className="text-sm">{formatName(jobTitle)}</p>;
         },
     }),
+    columnHelper.accessor("managementLevel", {
+        header: "MGT. LEVEL",
+        cell: (info) => <p className="text-sm">{formatName(info.getValue())}</p>,
+    }),
+    columnHelper.accessor("jobGrade", {
+        header: "JOB GRADE",
+        cell: (info) => {
+            const grade = info.getValue();
+            return <p className="text-sm font-medium">{grade?.code || "—"}</p>;
+        },
+    }),
+    columnHelper.accessor("employmentType", {
+        header: "EMP. TYPE",
+        cell: (info) => <p className="text-sm">{formatName(info.getValue())}</p>,
+    }),
     columnHelper.display({
         id: "manager",
         header: "REPORTS TO",
         cell: (info) => {
             const manager = info.row.original.manager;
             let managerName = "—";
-            if (manager && isRecord(manager)) {
-                const first = formatName(typeof manager.firstName === "string" ? manager.firstName : null);
-                const last = formatName(typeof manager.lastName === "string" ? manager.lastName : null);
+            if (manager && typeof manager === "object" && "name" in manager && manager.name) {
+                managerName = manager.name;
+            } else if (manager && typeof manager === "object" && "firstName" in manager) {
+                const first = typeof manager.firstName === "string" ? manager.firstName : "";
+                const last = typeof manager.lastName === "string" ? manager.lastName : "";
                 managerName = `${first} ${last}`.trim() || "—";
             } else if (typeof manager === "string" && manager) {
                 managerName = formatName(manager);
             }
-            return <p className="font-medium">{managerName}</p>;
+            return <p className="font-medium text-sm">{managerName}</p>;
         },
     }),
-    columnHelper.display({
-        id: "updatedAt",
-        header: "LAST UPDATED",
+    columnHelper.accessor("employeeStatus", {
+        header: "HR STATUS",
         cell: (info) => {
-            const record = info.row.original as unknown as Record<string, unknown>;
-            const date = record.updatedAt;
-            if (typeof date !== "string" || !date) return <p className="text-sm text-gray-500">—</p>;
-            const formatted = new Date(date).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-            });
-            return <p className="text-sm text-gray-600">{formatted}</p>;
+            const status = info.getValue() || "—";
+            return <p className="text-sm capitalize">{status}</p>;
         },
     }),
     columnHelper.accessor("status", {
-        header: "STATUS",
+        header: "APP STATUS",
         cell: (info) => {
             const status = info.getValue() as string;
             const isActive = status?.toLowerCase() === "active";

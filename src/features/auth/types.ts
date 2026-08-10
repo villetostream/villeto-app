@@ -41,44 +41,120 @@ export interface Permission {
 
 // ─── User Type ────────────────────────────────────────────────────────────────
 
-export interface User {
-    createdAt: Date;
-    updatedAt: Date;
-    deletedAt?: Date;
-    userId: string;
-    firstName: string;
-    lastName: number;
-    email: string;
-    loginCount: number;
+export interface CapabilityGroup {
+    capabilityGroupId: string;
+    key: string;
+    name: string;
+    description: string;
+    module: string;
+    sortOrder: number;
     isActive: boolean;
-    phone?: string | number;
-    ownershipPercentage?: number;
-    companyId?: string;
-    status?: string;
+    permissions: CompanyPermission[];
+    createdAt: string;
+    updatedAt: string;
+    deletedAt: string | null;
+}
+
+export interface User {
+    createdAt: string;
+    updatedAt: string;
+    deletedAt?: string | null;
+    userId: string;
+    employeeExternalId?: string | null;
+    firstName: string;
+    lastName: string;
+    loginCount: number;
+    lastLoginAt?: string | null;
+    email: string;
+    status: string;
+    isActive?: boolean; // legacy
     jobTitle?: string | null;
+    businessUnit?: string | null;
+    location?: string | null;
+    phoneNumber?: string | null;
+    phone?: string | number; // legacy
+    employmentType?: string | null;
+    employeeStatus?: string | null;
+    managementLevel?: string | null;
+    effectiveDate?: string | null;
+    lastImportSource?: string | null;
+    percentageOfOwnership?: string | null;
+    ownershipPercentage?: number; // legacy
+    departmentId?: string | null;
     managerId?: string | null;
+    jobGradeId?: string | null;
+    managementLevelId?: string | null;
+    lastImportBatchId?: string | null;
+    companyId?: string; // legacy
+    position: string;
+    villetoRole?: Role; // legacy
+    cardIssued?: boolean; // legacy
+    manager?: {
+        name: string | null;
+        userId: string;
+        employeeExternalId?: string | null;
+        firstName?: string | null;
+        lastName?: string | null;
+    } | User | string | null; // legacy
+    jobGrade?: {
+        code: string | null;
+        name: string | null;
+        rank: number | null;
+        jobGradeId: string;
+    } | null; // legacy
+    managementLevelRef?: {
+        code: string | null;
+        name: string | null;
+        rank: number | null;
+        managementLevelId: string;
+    } | null; // legacy
     company?: {
-        countryOfRegistration?: string;
+        companyId: string;
+        contactEmail: string;
+        contactPhone: string;
+        contactFirstName: string;
+        contactLastName: string;
+        companyName: string;
+        countryOfRegistration: string;
+        businessName: string;
+        taxId?: string | null;
+        registrationId?: string | null;
+        websiteUrl?: string | null;
+        address?: string | null;
+        logoUrl?: string | null;
+        accountType: string;
+        productModules: string[];
+        description?: string | null;
+        status: string;
         [key: string]: unknown;
     };
-    department?: Department;
-    departmentId?: string | null;
+    department?: {
+        departmentId: string;
+        departmentExternalId?: string | null;
+        departmentName: string;
+        description?: string | null;
+        departmentHeadId?: string | null;
+        departmentHeadName?: string | null;
+        parentDepartmentId?: string | null;
+        isActive: string;
+        [key: string]: unknown;
+    };
     /**
      * Some backend responses return the department name as a flat sibling
      * of departmentId rather than nesting it under `department`. Display
      * code should check both `department?.departmentName` and this field.
      */
     departmentName?: string | null;
-    position: string;
-    /** Used for display purposes only (e.g. profile page badge). Do NOT
-     *  branch on villetoRole.name for any UI gating logic. */
-    villetoRole?: Role;
     /** Company role holds the user's explicit capability permissions. */
     companyRole?: {
         roleId: string;
         name: string;
-        description?: string;
-        templateKey?: string;
+        description?: string | null;
+        isActive: string;
+        templateKey?: string | null;
+        source?: string | null;
+        isDefault: boolean;
         permissions: CompanyPermission[];
     };
+    capabilityGroups?: CapabilityGroup[];
 }

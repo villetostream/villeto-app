@@ -201,7 +201,7 @@ function DataTable<Data extends object, Value = unknown>(
   const pagination = useMemo<PaginationState>(
     () => ({
       pageIndex: paginationProps ? paginationProps.page - 1 : 0,
-      pageSize: paginationProps?.pageSize || 10,
+      pageSize: paginationProps?.pageSize || 5,
     }),
     [paginationProps]
   );
@@ -317,7 +317,7 @@ function DataTable<Data extends object, Value = unknown>(
 
   //  pagination helpers here
   const currentPage = paginationProps?.page ?? 1;
-  const pageSize = paginationProps?.pageSize ?? 10;
+  const pageSize = paginationProps?.pageSize ?? 5;
   const total = paginationProps?.total ?? 0;
   const totalPages = Math.ceil(total / pageSize);
 
@@ -337,7 +337,7 @@ function DataTable<Data extends object, Value = unknown>(
   const pageNumbers = getPageNumbers(currentPage, totalPages);
 
   return (
-    <div className="flex flex-col w-full border-0">
+    <div className="flex flex-col w-full h-full border-0 overflow-hidden">
       <TableHeader
         tableHeader={tableHeader}
         handleExport={handleExport}
@@ -346,8 +346,8 @@ function DataTable<Data extends object, Value = unknown>(
         enableColumnVisibility={enableColumnVisibility}
         table={table as unknown as TanStackTable<object>}
       />
-      <div className="overflow-x-auto rounded-md border bg-white h-full ">
-        <Table className="min-w-full divide-y divide-gray-200">
+      <div className="rounded-md border bg-white flex-1 min-h-0 flex flex-col">
+        <Table wrapperClassName="flex-1 overflow-auto" className="min-w-full divide-y divide-gray-200">
           <TableHead className="bg-gray-50 sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="bg-gray-50">
@@ -355,7 +355,7 @@ function DataTable<Data extends object, Value = unknown>(
                   return (
                     <th
                       key={header.id}
-                      className="px-4 py-3 text-center text-xs font-semibold text-gray-700 tracking-wider select-none"
+                      className="px-4 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider select-none whitespace-nowrap"
                     >
                       <div className="flex items-center justify-start gap-1">
                         {header.id !== "select" &&
@@ -419,7 +419,7 @@ function DataTable<Data extends object, Value = unknown>(
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className="px-4 py-2.5 whitespace-nowrap text-left text-[#181D27]"
+                        className="px-4 py-4 whitespace-nowrap text-left text-[#181D27] text-sm"
                       >
                         {flexRender(
                           cell.column.columnDef.cell,
@@ -450,7 +450,7 @@ function DataTable<Data extends object, Value = unknown>(
               Array.from({ length: 5 }).map((_, rowIndex) => (
                 <TableRow key={`skeleton-row-${rowIndex}`} className="hover:bg-transparent">
                   {table.getVisibleFlatColumns().map((column, colIndex) => (
-                    <TableCell key={`skeleton-cell-${rowIndex}-${colIndex}`} className="px-4 py-2.5">
+                    <TableCell key={`skeleton-cell-${rowIndex}-${colIndex}`} className="px-4 py-4 whitespace-nowrap">
                       <Skeleton className="h-4 w-full rounded" />
                     </TableCell>
                   ))}

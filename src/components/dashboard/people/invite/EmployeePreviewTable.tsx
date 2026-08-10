@@ -1,6 +1,4 @@
-
 "use client";
-
 import { useState } from "react";
 import {
     Table,
@@ -11,15 +9,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Trash2, Loader2 } from "lucide-react";
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from "@/components/ui/dialog";
+import { Loader2, AlertCircle } from "lucide-react";
 import {
     Select,
     SelectContent,
@@ -37,24 +27,60 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useDataTable } from "@/components/datatable/useDataTable";
+import { cn } from "@/lib/utils";
 
 export interface EmployeeData {
     id: string;
-    employee_external_id: string;
+    // Required
     first_name: string;
     last_name: string;
     email: string;
-    job_title: string;
+    // Optional
+    employee_external_id: string;
+    manager_external_id: string;
     department_name: string;
     department_external_id: string;
-    manager_id: string;
-    role_name: string;
+    job_title: string;
+    management_level: string;
+    job_grade: string;
+    business_unit: string;
+    location: string;
+    employment_type: string;
+    status: string;
+    effective_date: string;
+    // Legacy compat
+    manager_id?: string;
+    role_name?: string;
 }
+
+interface ColumnDef {
+    key: keyof EmployeeData;
+    label: string;
+    required: boolean;
+    minW?: string;
+}
+
+const COLUMNS: ColumnDef[] = [
+    { key: "employee_external_id",  label: "Employee ID",         required: true, minW: "140px" },
+    { key: "first_name",            label: "First Name",          required: true,  minW: "120px" },
+    { key: "last_name",             label: "Last Name",           required: true,  minW: "120px" },
+    { key: "email",                 label: "Email",               required: true,  minW: "200px" },
+    { key: "manager_external_id",   label: "Manager ID",          required: true, minW: "120px" },
+    { key: "department_name",       label: "Department",          required: true, minW: "140px" },
+    { key: "department_external_id",label: "Dept. ID",            required: true, minW: "100px" },
+    { key: "job_title",             label: "Job Title",           required: true, minW: "160px" },
+    { key: "management_level",      label: "Mgmt. Level",         required: true, minW: "120px" },
+    { key: "job_grade",             label: "Job Grade",           required: true, minW: "100px" },
+    { key: "business_unit",         label: "Business Unit",       required: false, minW: "140px" },
+    { key: "location",              label: "Location",            required: false, minW: "120px" },
+    { key: "employment_type",       label: "Employment Type",     required: false, minW: "150px" },
+    { key: "status",                label: "Status",              required: false, minW: "100px" },
+    { key: "effective_date",        label: "Effective Date",      required: false, minW: "130px" },
+];
 
 interface EmployeePreviewTableProps {
     data: EmployeeData[];
     onDataChange: (data: EmployeeData[]) => void;
-    onDelete: (id: string) => void;
     onUploadDifferent: () => void;
     onSaveToDirectory: () => void;
     onSaveAndInviteAll: () => void;
@@ -63,28 +89,45 @@ interface EmployeePreviewTableProps {
 }
 
 const PAGE_SIZE_OPTIONS = [
-    { label: "5", value: "5" },
-    { label: "10", value: "10" },
-    { label: "20", value: "20" },
-    { label: "50", value: "50" },
+    { label: "5",   value: "5" },
+    { label: "10",  value: "10" },
+    { label: "20",  value: "20" },
+    { label: "50",  value: "50" },
     { label: "100", value: "100" },
 ];
+
+/** Checks whether a column has ANY value across all rows */
+function colHasData(data: EmployeeData[], key: keyof EmployeeData): boolean {
+    return data.some((row) => {
+        const v = row[key];
+        return v !== undefined && v !== null && String(v).trim() !== "";
+    });
+}
+
+function StatusBadge({ value }: { value: string }) {
+    const v = value?.toLowerCase();
+    const colors: Record<string, string> = {
+        active:   "bg-[#e7f6f2] text-[#087f70] border-[#c3ece7]",
+        inactive: "bg-[#fef3e8] text-[#9a4a00] border-[#fddbb6]",
+        pending:  "bg-[#f0f0fe] text-[#4a47c0] border-[#d4d3fc]",
+    };
+    const style = colors[v] || "bg-[#f5f7f6] text-[#66706b] border-black/[0.08]";
+    return (
+        <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize", style)}>
+            {value || "—"}
+        </span>
+    );
+}
 
 export default function EmployeePreviewTable({
     data,
     onDataChange: _onDataChange,
-    onDelete,
     onUploadDifferent,
     onSaveToDirectory,
     onSaveAndInviteAll,
     isSaving = false,
     saveOnlyMode = false,
 }: EmployeePreviewTableProps) {
-    const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; name: string }>({
-        open: false,
-        id: "",
-        name: "",
-    });
 
     const totalItems = data.length;
 
@@ -96,35 +139,34 @@ export default function EmployeePreviewTable({
     });
     const { paginationProps } = tableProps;
 
-    const pageSize = paginationProps.pageSize;
+    const pageSize    = paginationProps.pageSize;
     const currentPage = paginationProps.page;
-    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const totalPages  = Math.max(1, Math.ceil(totalItems / pageSize));
 
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, totalItems);
+    const startIndex   = (currentPage - 1) * pageSize;
+    const endIndex     = Math.min(startIndex + pageSize, totalItems);
     const paginatedData = data.slice(startIndex, endIndex);
 
-    const handleDeleteClick = (id: string, name: string) => {
-        setDeleteModal({ open: true, id, name });
+    // Only show columns that appear in the data OR are required
+    const visibleCols = COLUMNS.filter((col) => col.required || colHasData(data, col.key));
+
+    const isRowMissingRequired = (row: EmployeeData) => {
+        const basicCols = [
+            "employee_external_id", "first_name", "last_name", "email", 
+            "manager_external_id", "department_name", "department_external_id", "job_title"
+        ];
+        const missingBasic = basicCols.some((k) => !row[k as keyof EmployeeData]?.trim());
+        const missingLevelAndGrade = !row.management_level?.trim() && !row.job_grade?.trim();
+        return missingBasic || missingLevelAndGrade;
     };
 
-    const handleConfirmDelete = () => {
-        onDelete(deleteModal.id);
-        setDeleteModal({ open: false, id: "", name: "" });
-        // Go back a page if the last item on this page was deleted
-        if (paginatedData.length === 1 && currentPage > 1) {
-            paginationProps.setPage(currentPage - 1);
-        }
-    };
+    // Count missing required fields for the warning banner
+    const missingRequired = data.filter(isRowMissingRequired).length;
 
     const getPageNumbers = (current: number, total: number) => {
         const delta = 2;
         const pages: number[] = [];
-        for (
-            let i = Math.max(1, current - delta);
-            i <= Math.min(total, current + delta);
-            i++
-        ) {
+        for (let i = Math.max(1, current - delta); i <= Math.min(total, current + delta); i++) {
             pages.push(i);
         }
         return pages;
@@ -132,15 +174,20 @@ export default function EmployeePreviewTable({
 
     const pageNumbers = getPageNumbers(currentPage, totalPages);
 
+    const getCellValue = (employee: EmployeeData, key: keyof EmployeeData): string => {
+        const v = employee[key];
+        return v !== undefined && v !== null && String(v).trim() !== "" ? String(v) : "";
+    };
+
     return (
         <>
             <div className="flex flex-col h-full space-y-4">
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 flex-shrink-0">
                     <div>
                         <h2 className="text-[16px] font-semibold text-[#0b100e]">Preview Directory</h2>
                         <p className="text-[13px] text-[#66706b] mt-0.5">
-                            {totalItems} employee(s) loaded — review before saving
+                            {totalItems} employee{totalItems !== 1 ? "s" : ""} loaded — review before saving
                         </p>
                     </div>
                     <Button
@@ -153,60 +200,132 @@ export default function EmployeePreviewTable({
                     </Button>
                 </div>
 
-                {/* Table */}
+                {/* Column legend */}
+                <div className="flex items-center gap-4 flex-shrink-0">
+                    <span className="flex items-center gap-1.5 text-[11px] text-[#66706b]">
+                        <span className="inline-block h-2 w-2 rounded-full bg-[#0ea894]" />
+                        Required field
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[11px] text-[#66706b]">
+                        <span className="inline-block h-2 w-2 rounded-full bg-[#d0d7d4]" />
+                        Optional field
+                    </span>
+                    <span className="text-[11px] text-[#84908a]">
+                        · Only columns present in your file are shown
+                    </span>
+                </div>
+
+                {/* Missing required data warning */}
+                {missingRequired > 0 && (
+                    <div className="flex items-start gap-3 rounded-[10px] border border-amber-200 bg-amber-50 px-4 py-3 flex-shrink-0">
+                        <AlertCircle className="mt-0.5 size-[16px] shrink-0 text-amber-600" strokeWidth={1.8} />
+                        <p className="text-[12px] text-amber-700 leading-5">
+                            <span className="font-semibold">{missingRequired} row{missingRequired !== 1 ? "s" : ""}</span> {missingRequired !== 1 ? "are" : "is"} missing required fields. Please ensure fields up to Job Title (plus Management Level or Job Grade) are filled. These entries may be rejected by the server.
+                        </p>
+                    </div>
+                )}
+
+                {/* Table with horizontal scroll */}
                 <div className="border border-black/[0.08] rounded-[12px] flex-1 overflow-hidden relative bg-white">
-                    <div className="absolute inset-0 overflow-auto w-full">
-                        <Table className="min-w-max w-full">
-                            <TableHeader className="bg-[#f9faf9] sticky top-0 z-10 shadow-[0_1px_0_rgba(0,0,0,0.06)]">
-                                <TableRow className="hover:bg-transparent border-none">
-                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">employee_external_id</TableHead>
-                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">first_name</TableHead>
-                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">last_name</TableHead>
-                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">email</TableHead>
-                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">job_title</TableHead>
-                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">department_name</TableHead>
-                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">department_external_id</TableHead>
-                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">manager_id</TableHead>
-                                    <TableHead className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] h-10">role_name</TableHead>
-                                    <TableHead className="w-[50px] h-10"></TableHead>
+                    <Table wrapperClassName="absolute inset-0 overflow-auto" className="min-w-max w-full">
+                        <TableHeader className="bg-[#f9faf9] sticky top-0 z-10 shadow-[0_1px_0_rgba(0,0,0,0.06)]">
+                            <TableRow className="hover:bg-transparent border-none">
+                                    {visibleCols.map((col) => (
+                                        <TableHead
+                                            key={col.key}
+                                            style={{ minWidth: col.minW }}
+                                            className="h-10 px-3"
+                                        >
+                                            <div className="flex items-center gap-1.5">
+                                                <span
+                                                    className={cn(
+                                                        "h-1.5 w-1.5 rounded-full shrink-0",
+                                                        col.required ? "bg-[#0ea894]" : "bg-[#d0d7d4]"
+                                                    )}
+                                                />
+                                                <span className="font-semibold text-[11px] text-[#84908a] uppercase tracking-[0.06em] whitespace-nowrap">
+                                                    {col.label}
+                                                </span>
+                                                {!col.required && (
+                                                    <span className="text-[9px] font-medium text-[#9aa49e] bg-[#f0f2f1] rounded px-1 py-0.5 leading-none">
+                                                        opt
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </TableHead>
+                                    ))}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {paginatedData.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={10} className="text-center text-[#84908a] text-[13px] py-12">
+                                        <TableCell
+                                            colSpan={visibleCols.length + 1}
+                                            className="text-center text-[#84908a] text-[13px] py-12"
+                                        >
                                             No employees to preview.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    paginatedData.map((employee) => (
-                                        <TableRow key={employee.id} className="border-b border-black/[0.04] hover:bg-[#f5f7f6] transition-colors text-[13px]">
-                                            <TableCell className="text-[#66706b]">{employee.employee_external_id || "—"}</TableCell>
-                                            <TableCell className="font-semibold text-[#0b100e]">{employee.first_name || "—"}</TableCell>
-                                            <TableCell className="font-semibold text-[#0b100e]">{employee.last_name || "—"}</TableCell>
-                                            <TableCell className="text-[#66706b]">{employee.email || "—"}</TableCell>
-                                            <TableCell className="text-[#0b100e]">{employee.job_title || "—"}</TableCell>
-                                            <TableCell className="text-[#0b100e]">{employee.department_name || "—"}</TableCell>
-                                            <TableCell className="text-[#66706b]">{employee.department_external_id || "—"}</TableCell>
-                                            <TableCell className="text-[#66706b]">{employee.manager_id || "—"}</TableCell>
-                                            <TableCell className="text-[#0b100e]">{employee.role_name || "—"}</TableCell>
-                                            <TableCell>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-[#84908a] hover:text-red-500 hover:bg-red-50 rounded-[8px] transition-colors"
-                                                    onClick={() => handleDeleteClick(employee.id, `${employee.first_name} ${employee.last_name}`.trim() || employee.email)}
-                                                    disabled={isSaving}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                    paginatedData.map((employee) => {
+                                        const isMissing = isRowMissingRequired(employee);
+                                        const hasLevelOrGrade = !!employee.management_level?.trim() || !!employee.job_grade?.trim();
+
+                                        return (
+                                            <TableRow
+                                                key={employee.id}
+                                                className={cn(
+                                                    "border-b border-black/[0.04] transition-colors text-[13px]",
+                                                    isMissing
+                                                        ? "bg-amber-50/60 hover:bg-amber-50"
+                                                        : "hover:bg-[#f5f7f6]"
+                                                )}
+                                            >
+                                                {visibleCols.map((col) => {
+                                                    const val = getCellValue(employee, col.key);
+                                                    const isEmpty = val === "";
+                                                    const isStatusCol = col.key === "status";
+                                                    const isMgmtOrGrade = col.key === "management_level" || col.key === "job_grade";
+                                                    
+                                                    // If it's a conditionally required field (mgmt/grade) and one of them is provided, it's not "missing"
+                                                    const isColMissing = col.required && isEmpty && !(isMgmtOrGrade && hasLevelOrGrade);
+
+                                                    return (
+                                                        <TableCell
+                                                            key={col.key}
+                                                            className={cn(
+                                                                "px-3 py-2.5 whitespace-nowrap",
+                                                                isColMissing
+                                                                    ? "text-red-400 font-medium"
+                                                                    : col.required
+                                                                    ? "font-semibold text-[#0b100e]"
+                                                                    : "text-[#66706b]"
+                                                            )}
+                                                        >
+                                                            {isStatusCol && val ? (
+                                                                <StatusBadge value={val} />
+                                                            ) : (
+                                                                isEmpty ? (
+                                                                    isColMissing ? (
+                                                                        <span className="flex items-center gap-1 text-red-400 text-[12px]">
+                                                                            <AlertCircle className="size-3 shrink-0" />
+                                                                            Missing
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-[#c2c9c5]">—</span>
+                                                                    )
+                                                                ) : val
+                                                            )}
+                                                        </TableCell>
+                                                    );
+                                                })}
+                                                {/* End of row cells */}
+                                            </TableRow>
+                                        );
+                                    })
                                 )}
                             </TableBody>
                         </Table>
-                    </div>
                 </div>
 
                 {/* Pagination */}
@@ -214,13 +333,7 @@ export default function EmployeePreviewTable({
                     <div className="flex flex-col md:flex-row items-center justify-between bg-[#f9faf9] py-3 px-4 border border-black/[0.08] rounded-[12px] w-full flex-shrink-0 gap-4">
                         <div className="flex items-center gap-3 w-full sm:w-auto">
                             <span className="text-[12px] text-[#66706b] font-medium whitespace-nowrap">
-                                {totalItems > 0 ? (
-                                    <>
-                                        Showing {startIndex + 1}-{endIndex} of {totalItems} entries
-                                    </>
-                                ) : (
-                                    <>Showing 0 of 0 entries</>
-                                )}
+                                Showing {startIndex + 1}–{endIndex} of {totalItems}
                             </span>
                             <Select
                                 value={String(pageSize)}
@@ -233,9 +346,9 @@ export default function EmployeePreviewTable({
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {PAGE_SIZE_OPTIONS.map((option) => (
-                                        <SelectItem key={option.value} value={option.value} className="text-[12px]">
-                                            {option.label}
+                                    {PAGE_SIZE_OPTIONS.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value} className="text-[12px]">
+                                            {opt.label}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -247,38 +360,20 @@ export default function EmployeePreviewTable({
                                 <PaginationContent>
                                     <PaginationItem>
                                         <PaginationPrevious
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                paginationProps.setPage(Math.max(1, currentPage - 1));
-                                            }}
+                                            onClick={(e) => { e.preventDefault(); paginationProps.setPage(Math.max(1, currentPage - 1)); }}
                                             href="#"
                                             isDisabled={currentPage === 1}
                                             isActive={currentPage > 1}
-                                            size={"sm"}
+                                            size="sm"
                                         />
                                     </PaginationItem>
 
-                                    {/* First page + Ellipsis */}
                                     {pageNumbers[0] > 1 && (
                                         <>
                                             <PaginationItem>
-                                                <PaginationLink
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        paginationProps.setPage(1);
-                                                    }}
-                                                    href="#"
-                                                    isActive={1 === currentPage}
-                                                    size={"sm"}
-                                                >
-                                                    1
-                                                </PaginationLink>
+                                                <PaginationLink onClick={(e) => { e.preventDefault(); paginationProps.setPage(1); }} href="#" isActive={1 === currentPage} size="sm">1</PaginationLink>
                                             </PaginationItem>
-                                            {pageNumbers[0] > 2 && (
-                                                <PaginationItem>
-                                                    <PaginationEllipsis />
-                                                </PaginationItem>
-                                            )}
+                                            {pageNumbers[0] > 2 && <PaginationItem><PaginationEllipsis /></PaginationItem>}
                                         </>
                                     )}
 
@@ -286,38 +381,22 @@ export default function EmployeePreviewTable({
                                         {pageNumbers.map((page) => (
                                             <PaginationItem key={page}>
                                                 <PaginationLink
-                                                    className={`${currentPage !== page ? "text-muted-foreground" : ""}`}
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        paginationProps.setPage(page);
-                                                    }}
-                                                    href="#"
-                                                    isActive={page === currentPage}
-                                                    size={"sm"}
+                                                    className={currentPage !== page ? "text-muted-foreground" : ""}
+                                                    onClick={(e) => { e.preventDefault(); paginationProps.setPage(page); }}
+                                                    href="#" isActive={page === currentPage} size="sm"
                                                 >
                                                     {page}
                                                 </PaginationLink>
                                             </PaginationItem>
                                         ))}
 
-                                        {/* Ellipsis + Last page */}
                                         {pageNumbers[pageNumbers.length - 1] < totalPages && (
                                             <>
                                                 {pageNumbers[pageNumbers.length - 1] < totalPages - 1 && (
-                                                    <PaginationItem>
-                                                        <PaginationEllipsis />
-                                                    </PaginationItem>
+                                                    <PaginationItem><PaginationEllipsis /></PaginationItem>
                                                 )}
                                                 <PaginationItem>
-                                                    <PaginationLink
-                                                        href="#"
-                                                        size="sm"
-                                                        isActive={totalPages === currentPage}
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            paginationProps.setPage(totalPages);
-                                                        }}
-                                                    >
+                                                    <PaginationLink href="#" size="sm" isActive={totalPages === currentPage} onClick={(e) => { e.preventDefault(); paginationProps.setPage(totalPages); }}>
                                                         {totalPages}
                                                     </PaginationLink>
                                                 </PaginationItem>
@@ -327,20 +406,14 @@ export default function EmployeePreviewTable({
 
                                     <div className="md:hidden block">
                                         <PaginationItem>
-                                            <PaginationLink isActive size="sm" href={""}>
-                                                {currentPage}
-                                            </PaginationLink>
+                                            <PaginationLink isActive size="sm" href="">{currentPage}</PaginationLink>
                                         </PaginationItem>
                                     </div>
 
                                     <PaginationItem>
                                         <PaginationNext
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                paginationProps.setPage(currentPage + 1);
-                                            }}
-                                            href="#"
-                                            size={"sm"}
+                                            onClick={(e) => { e.preventDefault(); paginationProps.setPage(currentPage + 1); }}
+                                            href="#" size="sm"
                                             isActive={currentPage < totalPages}
                                             isDisabled={currentPage === totalPages}
                                         />
@@ -378,33 +451,6 @@ export default function EmployeePreviewTable({
                 </div>
             </div>
 
-            {/* Delete confirmation modal */}
-            <Dialog open={deleteModal.open} onOpenChange={(open) => !open && setDeleteModal({ open: false, id: "", name: "" })}>
-                <DialogContent className="sm:max-w-[400px] p-6 bg-white rounded-2xl border-none shadow-xl gap-0">
-                    <DialogHeader className="mb-5 text-left">
-                        <DialogTitle className="text-[18px] font-semibold text-[#0b100e]">Remove Employee</DialogTitle>
-                        <DialogDescription className="text-[13px] text-[#66706b] mt-2">
-                            Remove <span className="font-semibold text-[#0b100e]">{deleteModal.name}</span> from the preview list? This does not delete them from the system.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex flex-col-reverse sm:flex-row gap-3">
-                        <Button
-                            variant="outline"
-                            onClick={() => setDeleteModal({ open: false, id: "", name: "" })}
-                            className="flex-1 h-[44px] rounded-[10px] border-black/[0.1] text-[#303834] hover:bg-[#f5f7f6] text-[13px] font-semibold"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={handleConfirmDelete}
-                            className="flex-1 h-[44px] rounded-[10px] bg-red-500 hover:bg-red-600 text-white text-[13px] font-semibold shadow-[0_8px_20px_-10px_rgba(239,68,68,0.7)] hover:translate-y-[-1px] transition-all"
-                        >
-                            Remove
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </>
     );
 }

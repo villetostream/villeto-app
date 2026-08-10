@@ -65,7 +65,7 @@ export function UserPermissionsDialog({
     } = useGetAUsersApi(userId, { enabled: open && !!userId });
 
     const user = userResponse?.data;
-    const roleId = user?.role?.roleId;
+    const roleId = (user as any)?.role?.roleId;
 
     const {
         data: roleResponse,
