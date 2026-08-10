@@ -112,7 +112,8 @@ export const PROCUREMENT_KEYS = {
   CREATE_MULTIPLE_PO: (id: string) => `procurement/purchase-requests/${id}/purchase-orders` as const,
   CATEGORIES: "companies/categories?module=procurement",
   CATEGORY: (categoryId: string) => `companies/categories/${categoryId}` as const,
-  VENDORS: "procurement/vendors",
+  VENDORS: "vendors",
+  ACTIVE_VENDORS: "vendors?status=Active",
   // ── Purchase Order endpoints ─────────────────────────────────────────────
   PURCHASE_ORDERS: "procurement/purchase-orders",
   PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}` as const,

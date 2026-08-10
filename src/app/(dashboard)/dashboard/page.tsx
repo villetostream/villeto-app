@@ -105,16 +105,16 @@ export default function DashboardPage() {
   // Vendors
   const canViewVendors = can("vendor", "read_company");
   const { data: vendorsData } = useQuery({
-    queryKey: ["dashboard_vendors"],
+    queryKey: ["dashboard_vendors", "active"],
     queryFn: async () => {
-      const res = await axios.get(PROCUREMENT_KEYS.VENDORS);
+      const res = await axios.get(PROCUREMENT_KEYS.ACTIVE_VENDORS);
       return res.data;
     },
     enabled: canViewVendors,
     staleTime: 5 * 60 * 1000,
   });
   const vendorsList = Array.isArray(vendorsData?.data) ? vendorsData.data : (vendorsData?.data?.data || []);
-  const activeVendors = vendorsList.filter((v: any) => v.status === "VERIFIED" || v.status === "ACTIVE").length;
+  const activeVendors = vendorsData?.meta?.totalCount || vendorsList.length;
 
   // Total Metric Calculations
   const totalSpend = committedSpend + approvedExpensesSpend;
