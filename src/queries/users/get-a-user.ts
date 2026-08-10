@@ -3,10 +3,10 @@ import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/lib/constants/api-query-key";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
-import { AppUser } from "../departments/get-all-departments";
+import { User } from "@/features/auth/types";
 
 interface Response {
-    data: AppUser
+    data: User
     error: {
         error: string;
         message?: string;

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useGetExpenseCategoriesApi } from "@/queries/companies/get-expense-categories";
-import { useGetInvitedUsersApi } from "@/queries/users/get-all-users";
+import { useGetInvitedUsersApi, useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useCreatePolicyApi, type CreatePolicyPayload } from "@/queries/companies/create-policy";
 import type { UpdatePolicyPayload } from "@/queries/companies/update-policy";
@@ -639,12 +639,12 @@ function RuleCard({
    Preview
 ───────────────────────────────────────────────────────────── */
 function Preview({
-  policyName, categories, scope, selectedRoles, roleOptions,
+  policyName, categories, scope, selectedRoles, managementGradeOptions,
   selectedDepts, departmentOptions,
   location, rules, approvers, expenseCategoryOptions, adminOptions,
 }: {
   policyName: string; categories: string[]; scope: "all" | "specific";
-  selectedRoles: string[]; roleOptions: DropdownOption[];
+  selectedRoles: string[]; managementGradeOptions: DropdownOption[];
   selectedDepts: string[]; departmentOptions: DropdownOption[];
   location: string; rules: PolicyRule[]; approvers: string[];
   expenseCategoryOptions: DropdownOption[];
@@ -655,7 +655,7 @@ function Preview({
   const scopeSummary = (() => {
     if (scope === "all") return "All employees, all departments";
     const deptNames = selectedDepts.map((d: string) => departmentOptions.find((o: DropdownOption) => o.value === d)?.label ?? d);
-    const roleNames = selectedRoles.map((r: string) => roleOptions.find((o: DropdownOption) => o.value === r)?.label ?? r);
+    const roleNames = selectedRoles.map((r: string) => managementGradeOptions.find((o: DropdownOption) => o.value === r)?.label ?? r);
     const listFmt = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
     const deptPart = deptNames.length > 0 ? listFmt.format(deptNames) : "All departments";
     const rolePart = roleNames.length > 0 ? listFmt.format(roleNames) : "All employees";
@@ -862,6 +862,7 @@ export default function PolicyCreationModal({
 
   const rolesApi         = useGetCompanyRolesApi({}, { enabled: open });
   const invitedUsersApi  = useGetInvitedUsersApi({ enabled: open });
+  const directoryUsersApi = useGetDirectoryUsersApi({ enabled: open && scope === "specific" });
   const departmentsApi   = useGetAllDepartmentsApi({ enabled: open });
   // Expense categories are viewed within the context of Expense / Policies.
   const expCatApi        = useGetExpenseCategoriesApi({ enabled: open });
@@ -966,11 +967,60 @@ export default function PolicyCreationModal({
       };
     }), [expCatApi.data?.data]);
 
-  const roleOptions = useMemo<DropdownOption[]>(() =>
-    (rolesApi.data?.data ?? []).map((r: Role) => {
-      const n = (r.name ?? "").replace(/_/g, " ");
-      return { label: n.charAt(0).toUpperCase() + n.slice(1).toLowerCase(), value: r.roleId };
-    }), [rolesApi.data?.data]);
+  const managementGradeOptions = useMemo<DropdownOption[]>(() => {
+    const users = (directoryUsersApi.data?.data as any[]) ?? [];
+    const depts = (departmentsApi.data?.data as Department[]) ?? [];
+    const uniqueOptions = new Map<string, DropdownOption>();
+    
+    const getDeptId = (u: any): string | null => {
+      if (u.departmentId) return String(u.departmentId);
+      if (u.department && typeof u.department === "object" && (u.department.departmentId || u.department.id)) {
+         return String(u.department.departmentId || u.department.id);
+      }
+      const deptName = u.department && typeof u.department === "object" 
+         ? (u.department.departmentName || u.department.name) 
+         : (typeof u.department === "string" ? u.department : null);
+      if (deptName) {
+         const found = depts.find(d => d.departmentName?.toLowerCase() === deptName.toLowerCase());
+         if (found) return String(found.departmentId);
+      }
+      return null;
+    };
+
+    users.forEach(u => {
+      // Cross-filter: if a department is selected, only show grades/levels belonging to users in that department
+      if (selectedDepts.length > 0) {
+        const uDeptId = getDeptId(u);
+        if (!uDeptId || !selectedDepts.includes(uDeptId)) return;
+      }
+      
+      const ml = u.managementLevel;
+      if (ml) {
+        const val = ml;
+        if (!uniqueOptions.has(val)) {
+          uniqueOptions.set(val, { 
+            value: val, 
+            label: ml.charAt(0).toUpperCase() + ml.slice(1).toLowerCase().replace(/_/g, " "),
+            subLabel: "Management Level"
+          });
+        }
+      }
+      
+      const jg = u.jobGrade?.code || (typeof u.jobGrade === "string" ? u.jobGrade : null);
+      if (jg) {
+        const val = jg;
+        if (!uniqueOptions.has(val)) {
+          uniqueOptions.set(val, { 
+            value: val, 
+            label: jg,
+            subLabel: "Job Grade"
+          });
+        }
+      }
+    });
+    
+    return Array.from(uniqueOptions.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [directoryUsersApi.data?.data, departmentsApi.data?.data, selectedDepts]);
 
   const currentUserId = useAuthStore(state => state.user?.userId);
 
@@ -986,7 +1036,7 @@ export default function PolicyCreationModal({
           ? rawRole.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
           : "Administrator";
 
-        const jobTitle = u.jobTitle || u.role?.name || "";
+        const jobTitle = u.jobTitle || (u as any).role?.name || "";
 
         return {
           label: `${u.firstName} ${u.lastName}`,
@@ -996,11 +1046,47 @@ export default function PolicyCreationModal({
         };
       }), [invitedUsersApi.data?.data, currentUserId]);
 
-  const departmentOptions = useMemo<DropdownOption[]>(() =>
-    (departmentsApi.data?.data ?? []).map((d: Department) => ({
+  const departmentOptions = useMemo<DropdownOption[]>(() => {
+    const allDepts = (departmentsApi.data?.data ?? []).map((d: Department) => ({
       label: d.departmentName,
       value: String(d.departmentId),
-    })), [departmentsApi.data?.data]);
+    }));
+
+    if (selectedRoles.length === 0) return allDepts;
+
+    // Cross-filter: if management levels/job grades are selected, only show departments that have them
+    const users = (directoryUsersApi.data?.data as any[]) ?? [];
+    const validDeptIds = new Set<string>();
+    
+    const getDeptId = (u: any): string | null => {
+      if (u.departmentId) return String(u.departmentId);
+      if (u.department && typeof u.department === "object" && (u.department.departmentId || u.department.id)) {
+         return String(u.department.departmentId || u.department.id);
+      }
+      const deptName = u.department && typeof u.department === "object" 
+         ? (u.department.departmentName || u.department.name) 
+         : (typeof u.department === "string" ? u.department : null);
+      if (deptName) {
+         const found = allDepts.find(d => d.label.toLowerCase() === deptName.toLowerCase());
+         if (found) return found.value;
+      }
+      return null;
+    };
+    
+    users.forEach(u => {
+      const uDeptId = getDeptId(u);
+      if (!uDeptId) return;
+      
+      const ml = u.managementLevel;
+      const jg = u.jobGrade?.code || (typeof u.jobGrade === "string" ? u.jobGrade : null);
+      
+      if ((ml && selectedRoles.includes(ml)) || (jg && selectedRoles.includes(jg))) {
+        validDeptIds.add(uDeptId);
+      }
+    });
+
+    return allDepts.filter(d => validDeptIds.has(d.value));
+  }, [departmentsApi.data?.data, directoryUsersApi.data?.data, selectedRoles]);
 
   const approverRequired = adminOptions.length > 0;
   const approverFilled   = approvers.length > 0;
@@ -1021,7 +1107,7 @@ export default function PolicyCreationModal({
   const appliesTo = useMemo(() => {
     if (scope !== "specific") return "";
     const deptNames = selectedDepts.map((d) => departmentOptions.find((o) => o.value === d)?.label ?? d);
-    const roleNames = selectedRoles.map((r) => roleOptions.find((o) => o.value === r)?.label ?? r);
+    const roleNames = selectedRoles.map((r) => managementGradeOptions.find((o) => o.value === r)?.label ?? r);
     if (deptNames.length === 0 && roleNames.length === 0) return "";
     const listFmt = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
     const rolePart = roleNames.length > 0 ? listFmt.format(roleNames) : "All employees";
@@ -1029,7 +1115,7 @@ export default function PolicyCreationModal({
       ? `the ${listFmt.format(deptNames)} department${deptNames.length > 1 ? "s" : ""}`
       : "all departments";
     return `${rolePart} in ${deptPart}`;
-  }, [scope, selectedDepts, selectedRoles, departmentOptions, roleOptions]);
+  }, [scope, selectedDepts, selectedRoles, departmentOptions, managementGradeOptions]);
 
   const handleClose   = () => { onOpenChange(false); reset(); };
   const handleBack    = () => setStep((s) => (s > 1 ? (s - 1) as 1|2|3|4|5 : s));
@@ -1315,11 +1401,11 @@ export default function PolicyCreationModal({
                           onChange={(v) => setScope(v as "all" | "specific")}
                         />
 
-                        {/* Option 2 — Employees by department or role */}
+                        {/* Option 2 — Employees by department or management level/job grade */}
                         <RadioRow
                           value="specific"
-                          label="Employees by department or role"
-                          subLabel="Narrow down by department, role, or both"
+                          label="Employees by department or management level/job grade"
+                          subLabel="Narrow down by department, management level/job grade, or both"
                           checked={scope === "specific"}
                           onChange={(v) => setScope(v as "all" | "specific")}
                         />
@@ -1341,40 +1427,51 @@ export default function PolicyCreationModal({
                               />
                               {selectedDepts.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5 mt-2">
-                                  {selectedDepts.map((d) => (
-                                    <Chip
-                                      key={d}
-                                      label={departmentOptions.find((o) => o.value === d)?.label ?? d}
-                                      onRemove={() => togDept(d)}
-                                    />
-                                  ))}
+                                  {selectedDepts.map((d) => {
+                                    const rawDept = (departmentsApi.data?.data as Department[])?.find(x => String(x.departmentId) === d);
+                                    const label = rawDept?.departmentName ?? departmentOptions.find((o) => o.value === d)?.label ?? d;
+                                    return (
+                                      <Chip
+                                        key={d}
+                                        label={label}
+                                        onRemove={() => togDept(d)}
+                                      />
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
 
-                            {/* Role selector */}
-                            <div>
-                              <SectionLabel>Select role(s)</SectionLabel>
-                              <MultiDropdown
-                                placeholder="Select role(s)"
-                                values={selectedRoles}
-                                onToggle={togRole}
-                                options={roleOptions}
-                                isLoading={rolesApi.isLoading}
-                                searchable
-                              />
-                              {selectedRoles.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 mt-2">
-                                  {selectedRoles.map((r) => (
-                                    <Chip
-                                      key={r}
-                                      label={roleOptions.find((o) => o.value === r)?.label ?? r}
-                                      onRemove={() => togRole(r)}
-                                    />
-                                  ))}
-                                </div>
-                              )}
-                            </div>
+                            {/* Management Level / Job Grade selector */}
+                            {managementGradeOptions.length > 0 && (
+                              <div>
+                                <SectionLabel>Select management level(s) / job grade(s)</SectionLabel>
+                                <MultiDropdown
+                                  placeholder="Select management level(s) / job grade(s)"
+                                  values={selectedRoles}
+                                  onToggle={togRole}
+                                  options={managementGradeOptions}
+                                  isLoading={directoryUsersApi.isLoading}
+                                  searchable
+                                />
+                                {selectedRoles.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {selectedRoles.map((r) => {
+                                      // Because managementGradeOptions is dynamically built and filtered, we should try to find it there first. 
+                                      // If it was filtered out, we just show the raw ID for now, or we could rebuild the original map. 
+                                      // But since roles are strings like "L4", falling back to 'r' actually looks fine (it just shows "L4").
+                                      return (
+                                        <Chip
+                                          key={r}
+                                          label={managementGradeOptions.find((o) => o.value === r)?.label ?? r}
+                                          onRemove={() => togRole(r)}
+                                        />
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                             {/*
                               Nudge — only visible when neither field has a selection yet.
@@ -1387,7 +1484,7 @@ export default function PolicyCreationModal({
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 2.5L1.5 13.5h13L8 2.5zM8 7v3M8 11.5v.5"/>
                                 </svg>
                                 <span>
-                                  Please select at least one department or role to narrow down the policy scope.
+                                  Please select at least one department, management level or job grade to narrow down the policy scope.
                                 </span>
                               </p>
                             )}
@@ -1515,7 +1612,7 @@ export default function PolicyCreationModal({
                     categories={categories}
                     scope={scope}
                     selectedRoles={selectedRoles}
-                    roleOptions={roleOptions}
+                    managementGradeOptions={managementGradeOptions}
                     selectedDepts={selectedDepts}
                     departmentOptions={departmentOptions}
                     location={location}

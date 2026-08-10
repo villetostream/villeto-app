@@ -120,12 +120,8 @@ export const navigationItems: NavItem[] = [
     icon: <HugeiconsIcon icon={InvoiceIcon} />,
     label: "Bill Pay",
     href: "/bill-pay",
-    permissions: [
-      { resource: "bill_pay.payment_request", action: "create" },
-      { resource: "bill_pay.payment", action: "record_external" },
-      { resource: "bill_pay.reconciliation", action: "manage" },
-      { resource: "bill_pay.configuration", action: "manage" },
-    ],
+    permissions: [],
+    comingSoon: true,
     section: "MANAGEMENT",
   },
   {
@@ -239,12 +235,7 @@ export const navigationItems: NavItem[] = [
         permissions: [],
         comingSoon: true,
       },
-      {
-        label: "Expense Policy",
-        href: "/settings/expense-policy",
-        permissions: [{ resource: "policy", action: "read_company" }],
-        comingSoon: true,
-      },
+
       {
         label: "Company Settings",
         href: "/settings/company-settings",

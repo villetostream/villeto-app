@@ -18,6 +18,7 @@ import { useUpdateUserApi } from "@/queries/users/update-user"
 import { useGetAllRolesApi, Role, CapabilityGroup } from "@/queries/role/get-all-roles"
 import { useGetAllDepartmentsApi, Department } from "@/queries/departments/get-all-departments"
 import { useResendInvitationApi } from "@/queries/users/resend-invitation"
+import { useAuthStore } from "@/stores/auth-stores"
 import { toast } from "sonner"
 
 // ─── Extended types matching GET /users/{id} response ─────────────────────────
@@ -326,6 +327,12 @@ function OverviewTab({
     )
     const [showAllCapabilities, setShowAllCapabilities] = useState(false);
 
+    const currentUserId = useAuthStore.getState().user?.userId;
+    const roleName = String(user.companyRole?.name || user.position || "").toUpperCase();
+    const isOwner = roleName.includes("OWNER");
+    const isSelf = user.userId === currentUserId;
+    const canDeactivate = !isOwner && !isSelf;
+
     const [confirmOpen, setConfirmOpen] = useState(false)
 
     const managerName = useMemo(() => {
@@ -577,7 +584,7 @@ function OverviewTab({
                     </Button>
                 )}
                 
-                {isActive && (
+                {isActive && canDeactivate && (
                     <Button 
                         className="h-10 px-6 font-medium bg-[#E63946] hover:bg-[#E63946]/90 text-white"
                         variant="default"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FolderX } from "lucide-react";
@@ -31,80 +31,74 @@ import {
 const getRowId = (row: AppUser) => row.userId;
 
 export function DirectoryTab() {
-    const usersApi = useGetDirectoryUsersApi();
+    const tableProps = useDataTable({
+        initialPage: 1,
+        totalItems: 0, 
+        manualSorting: false,
+        manualFiltering: true,
+        manualPagination: true,
+    });
+
+    const page = tableProps.paginationProps.page;
+    const limit = tableProps.paginationProps.pageSize || 20;
+
+    const filters = tableProps.filterBy || {};
+    const status = filters.status && filters.status !== "all" ? (filters.status as string) : undefined;
+    const employeeStatus = filters.employeeStatus && filters.employeeStatus !== "all" ? (filters.employeeStatus as string) : undefined;
+    const roleId = filters.roleId && filters.roleId !== "all" ? (filters.roleId as string) : undefined;
+    const departmentId = filters.departmentId && filters.departmentId !== "all" ? (filters.departmentId as string) : undefined;
+    const invited = filters.invited && filters.invited !== "all" ? (filters.invited === "true") : undefined;
+
+    const usersApi = useGetDirectoryUsersApi({
+        params: {
+            page,
+            limit,
+            status,
+            employeeStatus,
+            roleId,
+            departmentId,
+            invited,
+        }
+    });
+
     const depts = useGetAllDepartmentsApi();
     const roles = useGetAllRolesApi();
     const router = useRouter();
 
-    const users = useMemo(
-        () => usersApi?.data?.data ?? [],
-        [usersApi.data?.data],
-    );
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    useEffect(() => {
+        const id = setTimeout(() => setDebouncedSearch(tableProps.globalSearch ?? ""), 200);
+        return () => clearTimeout(id);
+    }, [tableProps.globalSearch]);
+
+    const users = useMemo(() => {
+        let data = usersApi?.data?.data ?? [];
+        if (debouncedSearch) {
+            const query = debouncedSearch.toLowerCase();
+            data = data.filter((u) => {
+                const deptName = typeof u.department === "string" 
+                    ? u.department 
+                    : (u.department?.name || u.department?.departmentName || "");
+                
+                return (u.firstName?.toLowerCase() || "").includes(query) ||
+                    (u.lastName?.toLowerCase() || "").includes(query) ||
+                    (u.email?.toLowerCase() || "").includes(query) ||
+                    String(deptName).toLowerCase().includes(query);
+            });
+        }
+        return data;
+    }, [usersApi.data?.data, debouncedSearch]);
+
+    const totalCount = usersApi?.data?.meta?.totalCount ?? 0;
+
     const isLoading = usersApi.isLoading || depts.isLoading || roles.isLoading;
 
-    const tableProps = useDataTable({
-        initialPage: 1,
-        initialPageSize: 10,
-        totalItems: users.length, 
-        manualSorting: false,
-        manualFiltering: false,
-        manualPagination: false,
-    });
-
-    const filteredUsers = useMemo(() => {
-        let result = users;
-
-        // Apply search
-        if (tableProps.globalSearch) {
-            const searchLower = tableProps.globalSearch.toLowerCase();
-            result = result.filter(u => {
-                const fullName = `${u.firstName || ""} ${u.lastName || ""}`.toLowerCase();
-                const email = (u.email || "").toLowerCase();
-                return fullName.includes(searchLower) || email.includes(searchLower);
-            });
-        }
-
-        // Apply filters
-        const filters = tableProps.filterBy || {};
-        if (filters.status && filters.status !== "all") {
-            const filterStat = filters.status.toLowerCase();
-            result = result.filter(u => {
-                const statusStr = (u.status || "").toLowerCase();
-                const isActiveStr = u.isActive ? "active" : "inactive";
-                return statusStr === filterStat || isActiveStr === filterStat;
-            });
-        }
-        if (filters.roleId && filters.roleId !== "all") {
-            result = result.filter(u => getUserRoleId(u) === filters.roleId);
-        }
-        if (filters.departmentId && filters.departmentId !== "all") {
-            result = result.filter(u => getUserDepartmentId(u) === filters.departmentId);
-        }
-        if (filters.manager && filters.manager !== "all") {
-            result = result.filter(u =>
-                getUserManagerName(u).includes(filters.manager.toLowerCase())
-            );
-        }
-
-        return result;
-    }, [users, tableProps.globalSearch, tableProps.filterBy]);
-
     useEffect(() => {
-        tableProps.setTotalItems(filteredUsers.length);
-    }, [filteredUsers.length, tableProps.setTotalItems]);
-
-    if (isLoading) {
-        return (
-            <div className="space-y-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-14 w-full rounded-md" />
-                ))}
-            </div>
-        );
-    }
+        tableProps.setTotalItems(totalCount);
+    }, [totalCount, tableProps.setTotalItems]);
 
     // Empty state
-    if (users.length === 0) {
+    if (!isLoading && totalCount === 0 && !tableProps.globalSearch && Object.keys(tableProps.filterBy || {}).length === 0) {
         return (
             <div className="bg-white rounded-lg border">
                 {/* Empty content */}
@@ -133,9 +127,9 @@ export function DirectoryTab() {
 
     // Data state — uses DataTable matching AllUsersTab pattern
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 flex flex-col min-h-0 overflow-hidden">
             <DataTable
-                data={filteredUsers}
+                data={users}
                 isLoading={isLoading}
                 emptyState={
                     <EmptyState 
@@ -145,7 +139,7 @@ export function DirectoryTab() {
                     />
                 }
                 columns={directoryColumns}
-                paginationProps={{ ...tableProps.paginationProps, total: filteredUsers.length }}
+                paginationProps={{ ...tableProps.paginationProps, total: totalCount }}
                 enableRowSelection={false}
                 enableColumnVisibility={true}
                 selectedDataIds={tableProps.selectedDataIds}
@@ -160,25 +154,36 @@ export function DirectoryTab() {
                     search: tableProps.globalSearch,
                     searchQuery: tableProps.setGlobalSearch,
                     filterProps: {
-                        title: "Filter Directory",
+                        title: "Directory",
                         filterData: [
                             {
-                                name: "status",
-                                label: "Status",
+                                name: "invited",
+                                label: "Invitation Status",
                                 type: "select",
                                 options: [
-                                    { label: "Active", value: "active" },
-                                    { label: "Inactive", value: "inactive" },
+                                    { label: "Invited", value: "true" },
+                                    { label: "Not Invited", value: "false" },
                                 ],
                             },
                             {
-                                name: "roleId",
-                                label: "Role",
+                                name: "status",
+                                label: "App Account Status",
                                 type: "select",
-                                options: roles?.data?.data?.map((r) => ({
-                                    label: formatRoleOptionLabel(r),
-                                    value: r.roleId,
-                                })) || [],
+                                options: [
+                                    { label: "Active Account", value: "Active" },
+                                    { label: "Inactive Account", value: "Inactive" },
+                                    { label: "Archived", value: "archive" },
+                                    { label: "Rejected", value: "rejected" },
+                                ],
+                            },
+                            {
+                                name: "employeeStatus",
+                                label: "Employee Status",
+                                type: "select",
+                                options: [
+                                    { label: "Active Employee", value: "Active" },
+                                    { label: "Inactive Employee", value: "Inactive" },
+                                ],
                             },
                             {
                                 name: "departmentId",

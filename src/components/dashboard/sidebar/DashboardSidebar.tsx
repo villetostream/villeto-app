@@ -66,7 +66,7 @@ function CollapsedNavTooltip({
       <TooltipContent
         side="right"
         sideOffset={8}
-        className="rounded-[7px] border border-black/[0.06] bg-white/95 px-2.5 py-1.5 text-[11px] font-medium text-[#33413b] shadow-[0_5px_16px_rgba(11,31,26,0.1)] backdrop-blur-sm [&>svg]:hidden"
+        className="rounded-[6px] border border-white/[0.08] bg-[#0b1f1a] px-2.5 py-1 text-[11px] font-medium text-white shadow-[0_5px_15px_rgba(0,0,0,0.3)] [&>svg]:hidden"
       >
         {label}
       </TooltipContent>
@@ -525,7 +525,11 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
       </SidebarHeader>
 
       {/* ── Nav Content ── */}
-      <SidebarContent className="px-2.5 py-3 overflow-y-auto bg-[#0b1f1a] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+      <SidebarContent className={cn(
+        "px-2.5 py-3 overflow-y-auto bg-[#0b1f1a]",
+        "scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent",
+        "group-data-[state=collapsed]:[scrollbar-width:none] group-data-[state=collapsed]:[&::-webkit-scrollbar]:hidden"
+      )}>
         {isAuthLoading ? (
           <div className="space-y-1 px-1">
             {Array.from({ length: 7 }).map((_, i) => (

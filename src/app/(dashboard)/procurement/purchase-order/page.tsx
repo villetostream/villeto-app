@@ -366,7 +366,7 @@ function POTable({
         isPending={approvalDecision.isPending}
       />
 
-      <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
+      <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden flex-1 flex flex-col min-h-0">
         <div className="flex items-center justify-between px-5 py-4 gap-4 flex-wrap">
           <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
 
@@ -431,14 +431,14 @@ function POTable({
           </div>
         </div>
 
-        <div className="border-b border-black/[0.06]" />
+        <div className="border-b border-black/[0.06] shrink-0" />
 
-        <div className="overflow-x-auto min-h-[400px]">
+        <div className="overflow-auto flex-1 min-h-0 bg-white">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-black/[0.06] bg-[#f9faf9]">
+            <thead className="sticky top-0 z-10 bg-[#f9faf9] shadow-[0_1px_0_rgba(0,0,0,0.06)]">
+              <tr className="border-b border-black/[0.06]">
                 {["PO Number", ...(showRequester ? ["Requester"] : []), "Vendor", "Department", "Date", "Total Amount", "Status", "Action"].map(h => (
-                  <th key={h} className="px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest">{h}</th>
+                  <th key={h} className="px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest bg-[#f9faf9]">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -574,7 +574,7 @@ function PurchaseOrderPage() {
   // If user only has own scope, skip the outer tabs entirely
   if (outerTabs.length === 1) {
     return (
-      <div className="space-y-5 pb-8">
+      <div className="space-y-5 pb-8 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
         <ProcurementPageHeader title="Purchase orders" description="Turn approved demand into clear supplier commitments and keep every order visible through delivery." />
         <POTable scope="own" outerTabKey="own" initialInnerTab={innerTabFromUrl} />
       </div>
@@ -589,10 +589,10 @@ function PurchaseOrderPage() {
   };
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-5 pb-8 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
       <ProcurementPageHeader title="Purchase orders" description="Turn approved demand into clear supplier commitments and keep every order visible through delivery." />
-      <Tabs value={outerTab} onValueChange={setOuterTab}>
-        <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
+      <Tabs value={outerTab} onValueChange={setOuterTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
           {outerTabs.map(t => (
             <TabsTrigger
               key={t.key}
@@ -605,7 +605,7 @@ function PurchaseOrderPage() {
           ))}
         </TabsList>
         {outerTabs.map(t => (
-          <TabsContent key={t.key} value={t.key} className="mt-4">
+          <TabsContent key={t.key} value={t.key} className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden m-0">
             <POTable
               scope={tabToScope(t.key)}
               outerTabKey={t.key as "own" | "all"}

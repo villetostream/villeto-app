@@ -50,7 +50,22 @@ export const API_KEYS = {
     PASSWORD_SET: "users/invitation/password-set",
   },
   COMPANY: {
-    BULK_IMPORT: "companies/bulk/import",
+    BULK_IMPORT: (duplicateStrategy?: "skip_existing" | "update_existing") =>
+      duplicateStrategy
+        ? `companies/bulk/import?duplicateStrategy=${duplicateStrategy}` as const
+        : "companies/bulk/import" as const,
+    BULK_IMPORT_VALIDATE: (duplicateStrategy?: "skip_existing" | "update_existing") =>
+      duplicateStrategy
+        ? `companies/bulk/import/validate?duplicateStrategy=${duplicateStrategy}` as const
+        : "companies/bulk/import/validate" as const,
+    BULK_MANUAL: (duplicateStrategy?: "skip_existing" | "update_existing") =>
+      duplicateStrategy
+        ? `companies/bulk/manual?duplicateStrategy=${duplicateStrategy}` as const
+        : "companies/bulk/manual" as const,
+    BULK_MANUAL_VALIDATE: "companies/bulk/manual/validate",
+    IMPORT_REFERENCES: (type: "job_grades" | "management_levels") => 
+      `companies/bulk/import/references?type=${type}` as const,
+    BULK_IMPORT_TEMPLATE: (type: "csv" | "xlsx", mode: "blank" | "current_directory") => `companies/bulk/import/template?type=${type}&mode=${mode}` as const,
     COMPANY_DETAILS: (id: string) => `companies/${id}` as const,
     EMPLOYEE_INVITES: "companies/employees/invites",
     ADMIN_INVITES: "companies/admins/invites",

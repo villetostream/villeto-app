@@ -92,7 +92,6 @@ export default RoleTable;
 export const useTableData = () => {
     return useDataTable({
         initialPage: 1,
-        initialPageSize: 20,
         totalItems: 0,
         manualSorting: false,
         manualFiltering: false,

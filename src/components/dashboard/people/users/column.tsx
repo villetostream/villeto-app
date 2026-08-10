@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Eye, Lock, MoreHorizontal, UserCheck } from "lucide-react";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
+import { useAuthStore } from "@/stores/auth-stores";
 
 
 function getDepartmentName(dept: unknown): string {
@@ -76,7 +77,7 @@ export const columns = (
         header: "ROLE",
         cell: (info) => {
             const original = info.row.original;
-            const roleName = original.role?.name || (original as any).companyRole?.name || original.villetoRole?.name || info.getValue();
+            const roleName = (original as any).role?.name || (original as any).companyRole?.name || (original as any).villetoRole?.name || info.getValue();
             const formattedRole = formatName(roleName) || "-";
             return <p className="capitalize text-sm">{formattedRole}</p>;
         },
@@ -84,9 +85,11 @@ export const columns = (
     columnHelper.accessor("department", {
         header: "DEPARTMENT",
         cell: (info) => {
-            const dept = info.getValue() as unknown;
-            const deptName = getDepartmentName(dept);
-            return <p className="capitalize">{deptName}</p>;
+            const dept = info.getValue();
+            let name = "—";
+            if (typeof dept === "string") name = dept;
+            else if (dept && typeof dept === "object") name = (dept as any).name || "—";
+            return <p className="capitalize text-sm">{name}</p>;
         },
     }),
     columnHelper.display({
@@ -95,14 +98,16 @@ export const columns = (
         cell: (info) => {
             const manager = info.row.original.manager;
             let managerName = "—";
-            if (manager && isRecord(manager)) {
-                const first = formatName(typeof manager.firstName === "string" ? manager.firstName : null);
-                const last = formatName(typeof manager.lastName === "string" ? manager.lastName : null);
+            if (manager && typeof manager === "object" && "name" in manager && manager.name) {
+                managerName = manager.name;
+            } else if (manager && typeof manager === "object" && "firstName" in manager) {
+                const first = typeof manager.firstName === "string" ? manager.firstName : "";
+                const last = typeof manager.lastName === "string" ? manager.lastName : "";
                 managerName = `${first} ${last}`.trim() || "—";
             } else if (typeof manager === "string" && manager) {
                 managerName = formatName(manager);
             }
-            return <p className="capitalize">{managerName}</p>;
+            return <p className="capitalize text-sm">{managerName}</p>;
         },
     }),
     columnHelper.accessor("status", {
@@ -148,20 +153,28 @@ export const columns = (
                             
                             <div className="h-[1px] bg-[#F2F4F7] my-1 mx-2" />
                             
-                            {isActive && (
-                                <PermissionGuard resource="user" action="manage">
-                                    <DropdownMenuItem 
-                                        className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
-                                        onClick={() => {
-                                            if (onToggleStatus) onToggleStatus(data.row.original);
-                                            else logger.log("Deactivate user:", data.row.original.userId);
-                                        }}
-                                    >
-                                        <Lock className="w-5 h-5" />
-                                        <span className="font-medium">Deactivate User</span>
-                                    </DropdownMenuItem>
-                                </PermissionGuard>
-                            )}
+                            {isActive && (() => {
+                                const roleName = String(data.row.original.villetoRole?.name || data.row.original.position || "").toUpperCase();
+                                const isOwner = roleName.includes("OWNER");
+                                const currentUserId = useAuthStore.getState().user?.userId;
+                                const isSelf = data.row.original.userId === currentUserId;
+                                const canDeactivate = !isOwner && !isSelf;
+
+                                return canDeactivate ? (
+                                    <PermissionGuard resource="user" action="manage">
+                                        <DropdownMenuItem 
+                                            className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
+                                            onClick={() => {
+                                                if (onToggleStatus) onToggleStatus(data.row.original);
+                                                else logger.log("Deactivate user:", data.row.original.userId);
+                                            }}
+                                        >
+                                            <Lock className="w-5 h-5" />
+                                            <span className="font-medium">Deactivate User</span>
+                                        </DropdownMenuItem>
+                                    </PermissionGuard>
+                                ) : null;
+                            })()}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>

@@ -83,7 +83,6 @@ export default UsersTable
 export const useTableData = (data: AppUser[]) => {
     return useDataTable({
         initialPage: 1,
-        initialPageSize: 10,
         totalItems: data.length,
         manualSorting: false,
         manualFiltering: false,

@@ -13,15 +13,14 @@ export const useBulkImportApi = () => {
     const axiosInstance = useAxios();
     const queryClient = useQueryClient();
 
-    return useMutation<BulkImportResponse, Error, File>({
+    return useMutation<BulkImportResponse, Error, { file: File; duplicateStrategy?: "skip_existing" | "update_existing" }>({
         retry: false,
-        mutationFn: async (file: File) => {
+        mutationFn: async ({ file, duplicateStrategy }) => {
             const formData = new FormData();
             formData.append("file", file);
-            const res = await axiosInstance.post(API_KEYS.COMPANY.BULK_IMPORT, formData, {
-                headers: {
-                    "Content-Type": "multipart/form-data",
-                },
+            const url = API_KEYS.COMPANY.BULK_IMPORT(duplicateStrategy);
+            const res = await axiosInstance.post(url, formData, {
+                headers: { "Content-Type": "multipart/form-data" },
             });
             return res.data;
         },

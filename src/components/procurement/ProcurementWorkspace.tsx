@@ -37,8 +37,14 @@ export function ProcurementPageHeader({
 }: {
   title: string;
   description: string;
-  action?: { label: string; href: string };
+  action?: { label: string; href?: string; onClick?: () => void };
 }) {
+  const ActionButton = () => (
+    <>
+      <Plus className="size-3.5" /> {action?.label}
+    </>
+  );
+
   return (
     <section className="flex flex-col gap-4 border-b border-black/[0.07] pb-5 pt-1 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
@@ -48,12 +54,22 @@ export function ProcurementPageHeader({
         <p className="mt-1.5 text-[12px] leading-5 text-[#718079]">{description}</p>
       </div>
       {action && (
-        <Link
-          href={action.href}
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 self-start rounded-[9px] bg-primary px-4 text-[11px] font-semibold text-primary-foreground transition hover:bg-primary-hover sm:self-auto"
-        >
-          <Plus className="size-3.5" /> {action.label}
-        </Link>
+        action.href ? (
+          <Link
+            href={action.href}
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 self-start rounded-[9px] bg-primary px-4 text-[11px] font-semibold text-primary-foreground transition hover:bg-primary-hover sm:self-auto"
+          >
+            <ActionButton />
+          </Link>
+        ) : (
+          <button
+            onClick={action.onClick}
+            type="button"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 self-start rounded-[9px] bg-primary px-4 text-[11px] font-semibold text-primary-foreground transition hover:bg-primary-hover sm:self-auto"
+          >
+            <ActionButton />
+          </button>
+        )
       )}
     </section>
   );
@@ -89,12 +105,16 @@ export function ProcurementMetric({
   );
 }
 
-export function ProcurementSection({ title, description, action, children }: { title: string; description?: string; action?: { label: string; href: string }; children: ReactNode }) {
+export function ProcurementSection({ title, description, action, children, className }: { title: string; description?: string; action?: { label: string; href?: string; onClick?: () => void }; children: ReactNode; className?: string }) {
   return (
-    <section className="overflow-hidden rounded-[15px] border border-black/[0.07] bg-white shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)]">
-      <div className="flex items-center justify-between gap-4 border-b border-black/[0.06] px-5 py-4">
+    <section className={`overflow-hidden rounded-[15px] border border-black/[0.07] bg-white shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] ${className || ""}`}>
+      <div className="flex items-center justify-between gap-4 border-b border-black/[0.06] px-5 py-4 shrink-0">
         <div><h2 className="text-[14px] font-semibold text-[#111815]">{title}</h2>{description && <p className="mt-0.5 text-[11px] text-[#84908a]">{description}</p>}</div>
-        {action && <Link href={action.href} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]">{action.label}<ArrowRight className="size-3.5" /></Link>}
+        {action && (
+          action.href ? 
+          <Link href={action.href} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]">{action.label}<ArrowRight className="size-3.5" /></Link>
+          : <button onClick={action.onClick} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]">{action.label}<ArrowRight className="size-3.5" /></button>
+        )}
       </div>
       {children}
     </section>

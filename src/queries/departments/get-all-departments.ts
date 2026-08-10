@@ -8,42 +8,29 @@ import { Role } from "../role/get-all-roles";
 import { Meta } from "../users/get-all-users";
 
 
+import { User } from "@/features/auth/types";
+
+export type AppUser = User;
+
 export interface Department {
     departmentId: string;
+    departmentExternalId?: string | null;
     departmentName: string;
     description?: string | null;
-    code?: string | null;
-    isActive?: boolean | null;
-    company?: string | null;
-    head?: AppUser;
-    manager?: AppUser;
-    members?: AppUser[];
-    createdAt?: string | null;
-    updatedAt?: string | null;
-    deletedAt?: string | null;
-}
-
-export interface AppUser {
-    userId: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    password?: string | null;
-    loginCount?: number | null;
-    isActive?: boolean | null;
-    status?: string | null;
-    phone?: string | null;
-    ownershipPercentage?: number | null;
-    company?: string | null;
-    companyId?: string | null;
-    department?: string | null;
-    departmentId?: string | null;
-    villetoRole?: Role
-    role?: Role
-    position?: string | null;
-    cardIssued?: boolean
-    jobTitle?: string
+    departmentHeadId?: string | null;
+    departmentHeadName?: string | null;
+    parentDepartmentId?: string | null;
+    isActive: string;
+    head?: AppUser | null;
     manager?: AppUser | null;
+    createdAt: string;
+    updatedAt: string;
+    deletedAt?: string | null;
+    
+    // Optional legacy fields to avoid breaking changes
+    code?: string | null;
+    company?: string | null;
+    members?: AppUser[];
 }
 interface Response {
     data: Department[]

@@ -164,7 +164,7 @@ export function ProcurementPolicySection({
       <PolicySummaryStrip items={summary} isLoading={isLoading} />
 
       {/* Main card */}
-      <div className="bg-white rounded-[15px] border border-black/[0.07] shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-[15px] border border-black/[0.07] shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] overflow-hidden flex flex-col flex-1 min-h-0 mt-5">
         <div className="flex items-center justify-between px-4 md:px-5 py-4 shrink-0 flex-wrap gap-3 border-b border-black/[0.055]">
           <div><h2 className="text-[13px] font-semibold text-[#14231e]">Procurement policies</h2><p className="mt-0.5 text-[9px] text-[#8b9591]">Approval, sourcing, vendor, and purchase-order controls</p></div>
           <div className="flex w-full items-center gap-2 sm:w-auto">

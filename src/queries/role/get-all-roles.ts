@@ -3,7 +3,7 @@ import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/lib/constants/api-query-key";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
-import { Permission } from "../auth/auth-permissions";
+import type { Permission } from "@/features/auth/types";
 import { AppUser } from "../departments/get-all-departments";
 
 // ── Shared types ───────────────────────────────────────────────────────────

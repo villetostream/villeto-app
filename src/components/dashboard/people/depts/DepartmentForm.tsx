@@ -94,7 +94,7 @@ const DepartmentForm = () => {
             departmentCode: department.code || "",
             departmentManager: department.head?.userId || undefined,
             reportsTo: department.manager?.userId || undefined,
-            isActive: department.isActive ?? true,
+            isActive: department.isActive === undefined ? true : (String(department.isActive).toLowerCase() === "true"),
             description: department.description || "",
             id: department.departmentId,
         });

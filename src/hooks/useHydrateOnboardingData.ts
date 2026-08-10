@@ -7,6 +7,7 @@ import {
 
 type Company = Onboarding["company"];
 type Owner = NonNullable<Company["owners"]>[number];
+type BusinessOwner = NonNullable<Onboarding["businessOwners"]>[number];
 type ControllingOfficer = NonNullable<Company["controllingOfficers"]>[number];
 
 /**
@@ -50,15 +51,20 @@ export const useHydrateOnboardingData = () => {
             logo: company.logo || company.logoUrl || (businessSnapshot.logo as string) || undefined,
         });
 
-        // Hydrate leadership (owners + controlling officers → userProfiles)
-        const ownerProfiles = (company.owners || []).map((owner: Owner) => ({
-            id: owner.ownerId || owner.user?.userId || Date.now().toString(),
-            firstName: owner.user?.firstName || "",
-            lastName: owner.user?.lastName || "",
-            email: owner.user?.email || "",
-            role: owner.user?.role || "",
-            phone: owner.user?.phone || undefined,
-            ownershipPercentage: owner.ownershipPercentage,
+        // Hydrate leadership (businessOwners/owners + controlling officers → userProfiles)
+        // Check for businessOwners at top level first, fallback to company.owners
+        const apiOwners = onboarding.businessOwners && onboarding.businessOwners.length > 0 
+            ? onboarding.businessOwners 
+            : (company.owners || []);
+            
+        const ownerProfiles = apiOwners.map((owner: any) => ({
+            id: owner.userId || owner.ownerId || owner.user?.userId || Date.now().toString(),
+            firstName: owner.firstName || owner.user?.firstName || "",
+            lastName: owner.lastName || owner.user?.lastName || "",
+            email: owner.email || owner.user?.email || "",
+            role: owner.position || owner.user?.role || "OWNER",
+            phone: owner.phone || owner.user?.phone || undefined,
+            ownershipPercentage: typeof owner.ownershipPercentage === 'string' ? parseFloat(owner.ownershipPercentage) : owner.ownershipPercentage,
         }));
 
         const officerProfiles = (company.controllingOfficers || []).map((officer: ControllingOfficer) => ({

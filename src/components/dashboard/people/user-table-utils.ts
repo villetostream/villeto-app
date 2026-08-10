@@ -31,9 +31,8 @@ export function getUserRoleId(u: AppUser): string | undefined {
 }
 
 export function getUserDepartmentId(u: AppUser): string | undefined {
-  if (isRecord(u.department)) {
-    const deptId = u.department.departmentId ?? u.department.id;
-    if (typeof deptId === "string") return deptId;
+  if (u.department && typeof u.department === "object") {
+    return u.department.departmentId;
   }
   if (typeof u.departmentId === "string") return u.departmentId;
   if (typeof u.department === "string") return u.department;

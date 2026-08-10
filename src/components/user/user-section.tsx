@@ -604,7 +604,8 @@ export function UserSection() {
     if (pathname === "/people/create-role" || isViewRolePage) { router.push("/people?tab=roles"); return; }
     if (pathname === "/people/invite/employees") {
       const step = new URLSearchParams(window.location.search).get("step");
-      if (step === "preview") router.push("/people/invite/employees?step=upload");
+      if (step === "review") router.push("/people/invite/employees?step=preview");
+      else if (step === "preview") router.push("/people/invite/employees?step=upload");
       else if (step === "upload") {
         const ref = sessionStorage.getItem("uploadDirReferrer");
         sessionStorage.removeItem("uploadDirReferrer");

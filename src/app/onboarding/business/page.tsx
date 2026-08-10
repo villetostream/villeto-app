@@ -175,16 +175,26 @@ export default function Business() {
 
     } catch (e: unknown) {
       logger.warn(e);
-      const error = e as { response?: { data?: { message?: string } } };
-      toast.error(
-        error.response?.data?.message || "Failed to update company details"
-      );
+      const error = e as { response?: { data?: { message?: string | string[] } } };
+      let errorMessage = "Failed to update company details";
+      
+      if (error.response?.data?.message) {
+        const msg = error.response.data.message;
+        
+        if (Array.isArray(msg)) {
+          errorMessage = msg.map(m => m.replace(/^[\w]+:\s*/, "")).join(" • ");
+        } else {
+          errorMessage = msg.replace(/^[\w]+:\s*/, "");
+        }
+      }
+      
+      toast.error(errorMessage);
     }
   }
 
   return (
-    <div className="flex h-full flex-col justify-center py-8">
-      <div className="text-left ">
+    <div className="flex h-full flex-col py-8">
+      <div className="text-left shrink-0 pb-2">
         <div className="mb-5 flex size-11 items-center justify-center rounded-[10px] bg-[#e7f6f2]">
           <HugeiconsIcon
             icon={Building03FreeIcons}
@@ -198,8 +208,9 @@ export default function Business() {
         />
       </div>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="mt-7 space-y-4">
-          <FormFieldLogoUpload
+        <form onSubmit={form.handleSubmit(onSubmit)} className="mt-5 flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
+            <FormFieldLogoUpload
             control={form.control}
             name="businessLogo"
             label="Business Logo"
@@ -304,6 +315,7 @@ export default function Business() {
               placeholder="Enter your website link"
               type="text"
               prefixIcon={<LinkIcon />}
+              required
             />
           </div>
 
@@ -342,7 +354,9 @@ export default function Business() {
                         )} />
                 </div> */}
 
-          <div className="mt-6 flex w-full border-t border-black/[0.07] pt-5">
+          </div>
+
+          <div className="mt-4 shrink-0 flex w-full border-t border-black/[0.07] pt-5">
             <Button
               type="submit"
               className="ml-auto h-[54px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all sm:w-auto disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none"

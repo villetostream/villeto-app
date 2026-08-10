@@ -82,8 +82,19 @@ export interface Onboarding {
     deletedAt: string | null;
     onboardingId: string;
     status: boolean;
+    onboardingStatus?: string;
     step: number;
     company: Company;
+    businessOwners?: {
+        userId: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        phone: string | null;
+        ownershipPercentage: string;
+        position: string;
+        status: string;
+    }[];
 }
 
 type Response = { data: Onboarding };

@@ -1193,7 +1193,7 @@ function PoliciesPage() {
   }
 
   return (
-    <div className="space-y-5 h-full pb-8">
+    <div className="flex flex-col h-full pb-2">
       <>
       {policyTypeToggle}
 
@@ -1207,7 +1207,7 @@ function PoliciesPage() {
       <PolicySummaryStrip items={policySummary} isLoading={policiesApi.isLoading || expCatApi.isLoading} />
 
       {/* ── Main card ── */}
-      <div className="bg-white rounded-[15px] border border-black/[0.07] shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-[15px] border border-black/[0.07] shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] overflow-hidden flex flex-col flex-1 min-h-0 mt-5">
 
         {/* Tab row */}
         <div className="flex items-center justify-between px-4 md:px-5 py-4 shrink-0 flex-wrap gap-3 border-b border-black/[0.055]">
@@ -1277,19 +1277,19 @@ function PoliciesPage() {
                 </div>
               </div>
             ) : activePolicies.length === 0 ? (
-              <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
-                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-[#087f70]/[0.02] py-10 px-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-[24px] bg-[#087f70]/[0.06] flex items-center justify-center mb-7">
-                    <ShieldCheck className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
+              <div className="flex-1 flex justify-center items-center py-10 px-6 bg-white">
+                <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+                  <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
+                    <ShieldCheck className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
                   </div>
-                  <h2 className="text-xl font-bold text-[#0b100e] mb-2">No policies created yet</h2>
-                  <p className="text-sm text-[#68726d] max-w-xs leading-relaxed mb-9">
-                    Policies help you automate expense approvals and enforce spending limits.
+                  <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No policies created yet</h2>
+                  <p className="text-[11px] text-[#77837e] max-w-sm leading-5 mb-6">
+                    Policies help you automate expense approvals and enforce spending limits. Create your first expense policy to get started.
                   </p>
                   {canCreatePolicy && (
                     <button
                       onClick={() => setIsCreatePolicyOpen(true)}
-                      className="h-12 px-7 rounded-full bg-[#087f70] text-white text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
+                      className="h-9 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[10px] font-semibold flex items-center gap-2"
                     >
                       <PlusCircle className="w-4 h-4" strokeWidth={2} />
                       Create First Policy
@@ -1329,19 +1329,19 @@ function PoliciesPage() {
                 </div>
               </div>
             ) : liveExpenseCategories.length === 0 ? (
-              <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
-                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-[#087f70]/[0.02] py-10 px-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-[24px] bg-[#087f70]/[0.06] flex items-center justify-center mb-7">
-                    <Tag className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
+              <div className="flex-1 flex justify-center items-center py-10 px-6 bg-white">
+                <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+                  <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
+                    <Tag className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
                   </div>
-                  <h2 className="text-xl font-bold text-[#0b100e] mb-2">No expense categories</h2>
-                  <p className="text-sm text-[#68726d] max-w-xs leading-relaxed mb-9">
-                    Expense categories help you organize and control spending across your company.
+                  <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No expense categories</h2>
+                  <p className="text-[11px] text-[#77837e] max-w-sm leading-5 mb-6">
+                    Expense categories help you organize and control spending across your company. Create your first category to get started.
                   </p>
                   {canManageCategories && (
                     <button
                       onClick={() => setIsAddCategoryOpen(true)}
-                      className="h-12 px-7 rounded-full bg-[#087f70] text-white text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
+                      className="h-9 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[10px] font-semibold flex items-center gap-2"
                     >
                       <PlusCircle className="w-4 h-4" strokeWidth={2} />
                       Create First Category
@@ -1374,13 +1374,13 @@ function PoliciesPage() {
         {activeTab === "archived" && (
           <>
             {archivedPolicies.length === 0 ? (
-              <div className="border-t border-black/[0.06] flex justify-center items-center py-10 px-6">
-                <div className="w-full max-w-[660px] rounded-[1.5rem] border border-dashed border-black/[0.06] bg-primary/[0.02] py-10 px-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-[24px] bg-primary/[0.06] flex items-center justify-center mb-7">
-                    <Archive className="w-7 h-7 text-[#68726d]" strokeWidth={1.5} />
+              <div className="flex-1 flex justify-center items-center py-10 px-6 bg-white">
+                <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+                  <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
+                    <Archive className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
                   </div>
-                  <h2 className="text-xl font-bold text-foreground mb-2">No archived policies</h2>
-                  <p className="text-sm text-[#68726d] max-w-xs leading-relaxed">
+                  <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No archived policies</h2>
+                  <p className="text-[11px] text-[#77837e] max-w-sm leading-5">
                     Policies that you archive will appear here for future reference.
                   </p>
                 </div>

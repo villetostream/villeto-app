@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Pencil, Camera, Trash2, Loader2 } from "lucide-react";
+import { Pencil, Camera, Trash2, Loader2, CheckCircle2, Users, ShieldCheck } from "lucide-react";
+import { HugeiconsIcon } from '@hugeicons/react';
+import { CreditCardIcon, Invoice04Icon, Store01Icon, ShoppingCart01Icon, Invoice03Icon } from '@hugeicons/core-free-icons';
 import { useAuthStore } from "@/stores/auth-stores";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -21,6 +23,9 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { ProcurementPageHeader, ProcurementSection, ProcurementWorkspaceHeader, ProcurementMetric } from "@/components/procurement/ProcurementWorkspace";
+import { UserProfileModal } from "@/components/dashboard/people/modals/UserProfileModal";
 import { useUpdateCompanyDetailsApi } from "@/queries/companies/update-company-details";
 import { useOnboardingStore } from "@/stores/useVilletoStore";
 import { getCurrencyConfig } from "@/lib/utils/currency";
@@ -51,6 +56,12 @@ function parseCompanyData(value: unknown): CompanyData {
     currency: getOptionalString(record.currency),
     spendLimit,
     expectedMonthlySpend: getOptionalString(record.expectedMonthlySpend),
+    accountType: getOptionalString(record.accountType),
+    productModules: asArray(record.productModules).map(v => getString(v)).filter(Boolean),
+    status: getOptionalString(record.status),
+    address: getOptionalString(record.address),
+    registrationId: getOptionalString(record.registrationId),
+    taxId: getOptionalString(record.taxId),
   };
 }
 
@@ -240,7 +251,7 @@ function MyProfileTab() {
         });
       });
     }
-  }, [user]);
+  }, [user?.userId]); // Use userId to prevent form reset on object reference changes
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -276,190 +287,199 @@ function MyProfileTab() {
     notifySetupGuide("account-details");
   };
 
-  const _Field = ({
-    label,
-    value,
-    field,
-    disabled,
-    type = "text",
-  }: {
-    label: string;
-    value: string;
-    field: keyof ProfileFormData;
-    disabled?: boolean;
-    type?: string;
-  }) => (
-    <div className="space-y-1.5">
-      <label className="text-sm font-medium text-foreground">
-        {label}
-        {!disabled && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      <Input
-        type={type}
-        value={value}
-        disabled={!isEditing || disabled}
-        onChange={(e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))}
-        className={cn(
-          "bg-muted/30 border-border h-11",
-          (!isEditing || disabled) && "opacity-70 cursor-default"
-        )}
-      />
-    </div>
-  );
-
   const accountHolderName = `${form.firstName} ${form.lastName}`.trim() || user?.email;
+  const roleName = String(user?.villetoRole?.name || user?.position || "—");
+  const formattedRole = roleName !== "—" ? roleName.charAt(0).toUpperCase() + roleName.slice(1).toLowerCase().replace(/_/g, ' ') : "—";
 
   return (
-    <div className="bg-white rounded-[14px] border border-black/[0.06] p-6" data-tour="account-details-section">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-[15px] font-semibold text-[#0b100e]">My Profile Details</h2>
-        {!isEditing ? (
-          <Button
-            onClick={() => setIsEditing(true)}
-            className="bg-[#087f70] text-white hover:bg-[#076b5e] h-9 px-4 gap-2 text-[13px] font-semibold rounded-[8px]"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            Edit Details
-          </Button>
-        ) : (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsEditing(false)}
-              className="h-9 px-4 text-[13px] font-medium text-[#68726d] border-black/[0.12] rounded-[8px] hover:bg-[#f9faf9]"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="bg-[#087f70] text-white hover:bg-[#076b5e] h-9 px-4 text-[13px] font-semibold rounded-[8px]"
-            >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Changes"}
-            </Button>
-          </div>
-        )}
+    <div className="space-y-5" data-tour="account-details-section">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ProcurementMetric 
+          label="Active Profile" 
+          value={user?.firstName || "—"} 
+          detail={user?.email || "—"} 
+          icon={<CheckCircle2 className="size-4" />} 
+          tone="teal" 
+        />
+        <ProcurementMetric 
+          label="Role" 
+          value={formattedRole} 
+          detail={user?.jobTitle || user?.position || "No title"} 
+          icon={<ShieldCheck className="size-4" />} 
+          tone="blue" 
+        />
+        <ProcurementMetric 
+          label="Account Status" 
+          value="Active" 
+          detail="Good standing" 
+          icon={<CheckCircle2 className="size-4" />} 
+          tone="amber" 
+        />
+        <ProcurementMetric 
+          label="Last Active" 
+          value="Just now" 
+          detail="Online" 
+          icon={<CheckCircle2 className="size-4" />} 
+          tone="rose" 
+        />
       </div>
 
-      {/* Avatar */}
-      <div className="mb-8 relative w-20">
-        <div className="w-20 h-20 rounded-full overflow-hidden bg-[#f9faf9] border border-black/[0.08]">
-          {avatarPreview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-[#087f70] bg-[#f0faf8]">
-              {(user?.firstName?.[0] || "U").toUpperCase()}
+      <ProcurementSection 
+        title="Personal Details"
+        description="Manage your profile information and contact details."
+        action={!isEditing ? { label: "Edit details", onClick: () => setIsEditing(true) } : undefined}
+      >
+        <div className="p-5">
+          {isEditing && (
+            <div className="flex items-center justify-end gap-2 mb-6 border-b border-black/[0.04] pb-5">
+              <Button
+                variant="outline"
+                onClick={() => setIsEditing(false)}
+                className="h-8 px-4 text-[12px] font-medium text-[#68726d] border-black/[0.12] rounded-[8px] hover:bg-[#f9faf9]"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="bg-[#087f70] text-white hover:bg-[#076b5e] h-8 px-4 text-[12px] font-semibold rounded-[8px]"
+              >
+                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : null} 
+                Save Changes
+              </Button>
             </div>
           )}
-        </div>
-        <button
-          onClick={() => avatarInputRef.current?.click()}
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-[#087f70] flex items-center justify-center border-2 border-white"
-        >
-          <Camera className="w-3.5 h-3.5 text-white" />
-        </button>
-        <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-      </div>
 
-      {/* Personal Details + Bank Details side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6">
-        {/* Personal Details Card */}
-        <div className="border border-black/[0.06] rounded-[12px] p-5">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-[#84908a] mb-5">Personal Details</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+          {/* Avatar */}
+          <div className="mb-6 relative w-20">
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-[#f9faf9] border border-black/[0.08]">
+              {avatarPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-[#087f70] bg-[#f0faf8]">
+                  {(user?.firstName?.[0] || "U").toUpperCase()}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-[#087f70] flex items-center justify-center border-2 border-white transition-transform hover:scale-105"
+            >
+              <Camera className="w-3.5 h-3.5 text-white" />
+            </button>
+            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-5">
             <div className="space-y-1">
-              <p className="text-[11px] text-[#84908a]">First Name</p>
+              <p className="text-[11px] font-medium text-[#84908a]">First Name</p>
               {isEditing ? (
                 <Input
                   value={form.firstName}
                   onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))}
-                  className="h-10 text-[13px] border-black/[0.12] bg-[#f9faf9] rounded-[8px]"
+                  className="h-9 text-[13px] border-black/[0.12] bg-[#f9faf9] rounded-[8px]"
                 />
               ) : (
                 <p className="text-[13px] font-semibold text-[#0b100e]">{form.firstName || "—"}</p>
               )}
             </div>
             <div className="space-y-1">
-              <p className="text-[11px] text-[#84908a]">Last Name</p>
+              <p className="text-[11px] font-medium text-[#84908a]">Last Name</p>
               {isEditing ? (
                 <Input
                   value={form.lastName}
                   onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
-                  className="h-10 text-[13px] border-black/[0.12] bg-[#f9faf9] rounded-[8px]"
+                  className="h-9 text-[13px] border-black/[0.12] bg-[#f9faf9] rounded-[8px]"
                 />
               ) : (
                 <p className="text-[13px] font-semibold text-[#0b100e]">{form.lastName || "—"}</p>
               )}
             </div>
-            <div className="col-span-2 space-y-1">
-              <p className="text-[11px] text-[#84908a]">Email Address</p>
+            <div className="space-y-1 lg:col-span-1 sm:col-span-2">
+              <p className="text-[11px] font-medium text-[#84908a]">Email Address</p>
               <p className="text-[13px] font-semibold text-[#0b100e]">{form.email || "—"}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[11px] text-[#84908a]">Country</p>
+              <p className="text-[11px] font-medium text-[#84908a]">Country</p>
               <p className="text-[13px] font-semibold text-[#0b100e]">{form.country || "—"}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[11px] text-[#84908a]">City</p>
+              <p className="text-[11px] font-medium text-[#84908a]">City</p>
               {isEditing ? (
                 <Input
                   value={form.city}
                   onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
-                  className="h-10 text-[13px] border-black/[0.12] bg-[#f9faf9] rounded-[8px]"
+                  className="h-9 text-[13px] border-black/[0.12] bg-[#f9faf9] rounded-[8px]"
                 />
               ) : (
                 <p className="text-[13px] font-semibold text-[#0b100e]">{form.city || "—"}</p>
               )}
             </div>
-          </div>
-        </div>
-
-        {/* Bank Details Card */}
-        <div className="border border-black/[0.06] rounded-[12px] p-5 min-w-[280px]">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-[#84908a] mb-5">Bank Details</p>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-5">
+            
+            <div className="col-span-1 sm:col-span-2 lg:col-span-3 border-t border-black/[0.04] pt-4 mt-2 mb-1" />
+            
             <div className="space-y-1">
-              <p className="text-[11px] text-[#84908a]">Account Number</p>
-              <p className="text-[13px] font-semibold text-[#0b100e]">{bankDetails?.accountNumber || "—"}</p>
+              <p className="text-[11px] font-medium text-[#84908a]">Position</p>
+              <p className="text-[13px] font-semibold text-[#0b100e]">{user?.position || "—"}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[11px] text-[#84908a]">Bank Name</p>
-              <p className="text-[13px] font-semibold text-[#0b100e]">{bankDetails?.bankName || "—"}</p>
+              <p className="text-[11px] font-medium text-[#84908a]">Job Title</p>
+              <p className="text-[13px] font-semibold text-[#0b100e]">{user?.jobTitle || "—"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[11px] font-medium text-[#84908a]">Employment Type</p>
+              <p className="text-[13px] font-semibold text-[#0b100e] capitalize">{user?.employmentType?.replaceAll("_", " ").toLowerCase() || "—"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[11px] font-medium text-[#84908a]">Last Active</p>
+              <p className="text-[13px] font-semibold text-[#0b100e]">{user?.lastLoginAt ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(user.lastLoginAt)) : "—"}</p>
             </div>
           </div>
-          <Button
-            onClick={() => setBankModalOpen(true)}
-            data-tour="update-details-button"
-            className="bg-[#087f70] text-white hover:bg-[#076b5e] h-10 px-5 text-[13px] font-semibold rounded-[8px]"
-          >
-            Update Details
-          </Button>
         </div>
-      </div>
+      </ProcurementSection>
 
-      {/* Delete Account */}
-      <div className="mt-6 rounded-[12px] bg-[#fff5f5] border border-[#d33d44]/20 p-5">
-        <h3 className="text-[13px] font-semibold text-[#0b100e] mb-3">Delete Account</h3>
-        <div className="flex items-start gap-2 mb-3">
-          <div className="w-4 h-4 rounded-full border border-[#d33d44]/40 flex items-center justify-center shrink-0 mt-0.5">
-            <span className="text-[10px] text-[#d33d44] font-bold">i</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <ProcurementSection 
+          title="Bank Details"
+          description="Used for expense reimbursements"
+          action={{ label: "Update details", onClick: () => setBankModalOpen(true) }}
+        >
+          <div className="p-5">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+              <div className="space-y-1">
+                <p className="text-[11px] font-medium text-[#84908a]">Account Number</p>
+                <p className="text-[13px] font-semibold text-[#0b100e]">{bankDetails?.accountNumber || "—"}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[11px] font-medium text-[#84908a]">Bank Name</p>
+                <p className="text-[13px] font-semibold text-[#0b100e]">{bankDetails?.bankName || "—"}</p>
+              </div>
+            </div>
           </div>
-          <p className="text-[12px] text-[#68726d]">
-            After making a deletion request, you will have 1 month to recover your account.
-          </p>
-        </div>
-        <p className="text-[12px] text-[#68726d] mb-4">
-          To permanently delete your Villeto account, click the button below. You cannot reverse this action.
-        </p>
-        <button className="flex items-center gap-2 text-[13px] text-[#d33d44] font-semibold border border-[#d33d44]/30 rounded-[8px] px-4 py-2 hover:bg-[#d33d44]/5 transition-colors">
-          <Trash2 className="w-4 h-4" />
-          Delete Account
-        </button>
+        </ProcurementSection>
+
+        <ProcurementSection 
+          title="Account Management"
+          description="Permanent actions"
+        >
+          <div className="p-5">
+            <div className="flex items-start gap-2 mb-3">
+              <div className="w-4 h-4 rounded-full border border-[#d33d44]/40 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-[10px] text-[#d33d44] font-bold">i</span>
+              </div>
+              <p className="text-[12px] text-[#68726d]">
+                After making a deletion request, you will have 1 month to recover your account.
+              </p>
+            </div>
+            <button className="flex items-center gap-2 text-[12px] text-[#d33d44] font-semibold border border-[#d33d44]/30 rounded-[8px] px-4 py-2 hover:bg-[#fff5f5] transition-colors mt-4">
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete Account
+            </button>
+          </div>
+        </ProcurementSection>
       </div>
 
-      {/* Bank Details Modal */}
       <BankDetailsModal
         open={bankModalOpen}
         onClose={() => setBankModalOpen(false)}
@@ -473,26 +493,32 @@ function MyProfileTab() {
 // ─── Notifications tab ────────────────────────────────────────────────────────
 function NotificationsTab() {
   return (
-    <div className="bg-white rounded-[14px] border border-black/[0.06] p-6">
-      <h2 className="text-[15px] font-semibold text-[#0b100e] mb-6">Notification Preferences</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div>
-          <h3 className="text-[13px] font-semibold text-[#0b100e] mb-3">Email Notifications</h3>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <ProcurementSection 
+        title="Email Notifications"
+        description="Updates sent directly to your inbox"
+      >
+        <div className="p-5">
           <NotifRow label="Expense submissions" defaultOn />
           <NotifRow label="Approval updates" defaultOn />
           <NotifRow label="Card transactions" />
           <NotifRow label="Monthly reports" defaultOn />
           <NotifRow label="Policy violation alerts" defaultOn />
         </div>
-        <div>
-          <h3 className="text-[13px] font-semibold text-[#0b100e] mb-3">In-App Notifications</h3>
+      </ProcurementSection>
+      
+      <ProcurementSection 
+        title="In-App Notifications"
+        description="Alerts shown while you are actively using Villeto"
+      >
+        <div className="p-5">
           <NotifRow label="Card alerts" defaultOn />
           <NotifRow label="Spending limit warnings" defaultOn />
           <NotifRow label="Pending approvals" defaultOn />
           <NotifRow label="Submission reminders" />
           <NotifRow label="Team activity" />
         </div>
-      </div>
+      </ProcurementSection>
     </div>
   );
 }
@@ -519,6 +545,12 @@ interface CompanyData {
     upper: number;
   };
   expectedMonthlySpend?: string;
+  accountType?: string;
+  productModules?: string[];
+  status?: string;
+  address?: string;
+  registrationId?: string;
+  taxId?: string;
 }
 
 interface AdminEntry {
@@ -626,6 +658,7 @@ function CompanyProfileTab() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
   const [isSavingLogo, setIsSavingLogo] = useState(false);
+  const [selectedAdminId, setSelectedAdminId] = useState<string | null>(null);
 
   // Edit states
   const [isEditingInfo, setIsEditingInfo] = useState(false);
@@ -661,10 +694,10 @@ function CompanyProfileTab() {
     if (storeLogo) {
       queueMicrotask(() => setLogoPreview(storeLogo));
     }
-  }, [user]);
+  }, [user?.company?.logoUrl, user?.company?.logo]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.userId) return;
     if (!companyId) {
       queueMicrotask(() => setIsLoading(false));
       return;
@@ -753,7 +786,16 @@ function CompanyProfileTab() {
     queueMicrotask(() => {
       void fetchData();
     });
-  }, [user, companyId, axios, onboarding?.businessSnapshot?.businessName, onboarding?.businessSnapshot?.contactNumber, onboarding?.businessSnapshot?.countryOfRegistration, onboarding?.businessSnapshot?.website, onboarding?.monthlySpend]);
+  }, [
+    user?.userId, 
+    companyId, 
+    axios, 
+    onboarding?.businessSnapshot?.businessName, 
+    onboarding?.businessSnapshot?.contactNumber, 
+    onboarding?.businessSnapshot?.countryOfRegistration, 
+    onboarding?.businessSnapshot?.website, 
+    onboarding?.monthlySpend
+  ]);
 
   const handleSaveInfo = async () => {
     setIsSaving(true);
@@ -877,72 +919,95 @@ function CompanyProfileTab() {
   const currBankStatus = companyData?.bankStatus || (onboarding?.bankConnected ? "Connected" : "Not connected");
 
   return (
-    <div className="space-y-4 pt-2">
-      <div className="flex items-center">
-         <h1 className="text-[18px] sm:text-xl font-bold text-[#0b100e]">Company Details</h1>
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ProcurementMetric 
+          label="Profile Completion" 
+          value={`${completionPct}%`} 
+          detail={completionPct === 100 ? "Ready to go" : "Requires attention"} 
+          icon={<CheckCircle2 className="size-4" />} 
+          tone="amber" 
+        />
+        <ProcurementMetric 
+          label="Team Size" 
+          value={realCompanySize || companyData?.companySize || "—"} 
+          detail="Active users" 
+          icon={<Users className="size-4" />} 
+          tone="blue" 
+        />
+        <ProcurementMetric 
+          label="Expected Spend" 
+          value={expectedSpend} 
+          detail="Monthly limit" 
+          icon={<HugeiconsIcon icon={CreditCardIcon} className="size-4" />} 
+          tone="teal" 
+        />
+        <ProcurementMetric 
+          label="Bank Status" 
+          value={currBankStatus} 
+          detail={currBankStatus === "Connected" ? "Active link" : "Not configured"} 
+          icon={<HugeiconsIcon icon={Store01Icon} className="size-4" />} 
+          tone="rose" 
+        />
       </div>
 
       {/* Header card */}
-      <div className="bg-white rounded-[14px] border border-black/[0.06] px-5 sm:px-8 py-5 sm:py-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <LogoUploader 
-              currentLogo={logoPreview || undefined} 
-              companyName={businessName}
-              onLogoChange={handleLogoChange} 
-            />
-            <div className="flex flex-col min-w-0">
-              <h2 className="text-[18px] sm:text-[22px] font-bold text-[#0b100e] leading-none mb-1.5 truncate">{businessName}</h2>
-              <p className="text-[13px] text-[#68726d]">{location}</p>
-              {pendingLogoFile && (
-                <Button size="sm" onClick={handleSaveLogo} disabled={isSavingLogo}
-                  className="mt-3 h-8 px-4 text-[13px] font-semibold bg-[#087f70] text-white hover:bg-[#076b5e] w-fit rounded-[8px]">
-                  {isSavingLogo ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : null}
-                  {isSavingLogo ? "Saving..." : "Save Logo"}
-                </Button>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-row sm:flex-col sm:text-right sm:min-w-[200px] items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-0 border-t border-black/[0.06] sm:border-0 pt-4 sm:pt-0">
-            <div className="flex-1 sm:flex-none">
-              <p className="text-[13px] font-semibold text-[#0b100e] mb-1">Profile Completion</p>
-              <div className="flex items-center gap-2 sm:justify-end mb-0 sm:mb-2">
-                <div className="flex-1 sm:flex-none h-2 bg-[#f0faf8] rounded-full overflow-hidden sm:w-32">
-                  <div className="h-full bg-[#087f70] rounded-full transition-all" style={{ width: `${completionPct}%` }} />
-                </div>
-                <span className="text-[11px] font-semibold text-[#0b100e]">{completionPct}%</span>
+      <ProcurementSection 
+        title="Company Overview"
+        action={{ label: "Finish setup", onClick: () => {} }}
+      >
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <LogoUploader 
+                currentLogo={logoPreview || undefined} 
+                companyName={businessName}
+                onLogoChange={handleLogoChange} 
+              />
+              <div className="flex flex-col min-w-0">
+                <h2 className="text-[18px] sm:text-[22px] font-bold text-[#0b100e] leading-none mb-1.5 truncate">{businessName}</h2>
+                <p className="text-[13px] text-[#68726d]">{location}</p>
+                {pendingLogoFile && (
+                  <Button size="sm" onClick={handleSaveLogo} disabled={isSavingLogo}
+                    className="mt-3 h-8 px-4 text-[13px] font-semibold bg-[#087f70] text-white hover:bg-[#076b5e] w-fit rounded-[8px]">
+                    {isSavingLogo ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : null}
+                    {isSavingLogo ? "Saving..." : "Save Logo"}
+                  </Button>
+                )}
               </div>
             </div>
-            <Button size="sm" className="h-8 px-4 text-[13px] font-semibold bg-[#0b100e] text-white hover:bg-black/90 rounded-[8px] shrink-0">
-              Finish setup
-            </Button>
+            <div className="flex flex-row sm:flex-col sm:text-right sm:min-w-[200px] items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-0 pt-4 sm:pt-0">
+              <div className="flex-1 sm:flex-none">
+                <p className="text-[13px] font-semibold text-[#0b100e] mb-1">Profile Completion</p>
+                <div className="flex items-center gap-2 sm:justify-end mb-0 sm:mb-2">
+                  <div className="flex-1 sm:flex-none h-2 bg-[#f0faf8] rounded-full overflow-hidden sm:w-32 border border-black/[0.04]">
+                    <div className="h-full bg-[#087f70] rounded-full transition-all" style={{ width: `${completionPct}%` }} />
+                  </div>
+                  <span className="text-[11px] font-semibold text-[#0b100e]">{completionPct}%</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </ProcurementSection>
 
       {/* Two-column body: single column on mobile, side-by-side on lg+ */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
         <div className="space-y-5">
-          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#84908a]">Profile Information</h2>
-              {!isEditingInfo ? (
-                <button 
-                  onClick={() => setIsEditingInfo(true)}
-                  className="text-[#087f70] hover:text-[#076b5e] transition-colors cursor-pointer p-1.5 rounded-[6px] hover:bg-[#f0faf8]"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              ) : (
-                <div className="flex gap-2">
-                  <button onClick={() => setIsEditingInfo(false)} className="text-[13px] font-medium text-[#68726d] hover:text-[#0b100e]">Cancel</button>
-                  <button onClick={handleSaveInfo} disabled={isSaving} className="text-[13px] font-bold text-[#087f70] hover:text-[#076b5e] disabled:opacity-50">
-                    {isSaving ? "Saving..." : "Save"}
+          <ProcurementSection 
+            title="Profile Information"
+            action={!isEditingInfo ? { label: "Edit info", onClick: () => setIsEditingInfo(true) } : undefined}
+          >
+            <div className="p-5">
+              {isEditingInfo && (
+                <div className="flex gap-2 justify-end mb-6 border-b border-black/[0.04] pb-5">
+                  <button onClick={() => setIsEditingInfo(false)} className="px-4 h-8 rounded-[8px] text-[12px] font-medium text-[#68726d] border border-black/[0.12] hover:bg-[#f9faf9]">Cancel</button>
+                  <button onClick={handleSaveInfo} disabled={isSaving} className="px-4 h-8 rounded-[8px] text-[12px] font-bold text-white bg-[#087f70] hover:bg-[#076b5e] disabled:opacity-50">
+                    {isSaving ? "Saving..." : "Save Changes"}
                   </button>
                 </div>
               )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
               <InfoRow 
                 label="Business Name" 
                 value={isEditingInfo ? infoForm.businessName : businessName} 
@@ -1004,29 +1069,105 @@ function CompanyProfileTab() {
                 value={realCompanySize || companyData?.companySize} 
                 disabled // Read only as requested
               />
+              
+              <div className="col-span-1 sm:col-span-2 border-t border-black/[0.04] pt-4 mt-2 mb-1" />
+              
+              <InfoRow 
+                label="Account Type" 
+                value={companyData?.accountType} 
+                disabled 
+                renderEdit={() => (
+                   <span className="rounded-full bg-[#f0faf8] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[#087f70]">
+                     {companyData?.accountType || "Enterprise"}
+                   </span>
+                )}
+              />
+              <div className="space-y-3 min-w-0 col-span-1 sm:col-span-2 mt-2">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-[#84908a]">Product Modules</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {companyData?.productModules?.length ? companyData.productModules.map((m, i) => {
+                    const PRODUCT_INFO: Record<string, { title: string, desc: string, icon: any }> = {
+                      "CORPORATE_CARDS": { title: "Corporate Cards", desc: "Smart cards with spend controls", icon: CreditCardIcon },
+                      "EXPENSE_MANAGEMENT": { title: "Expense Management", desc: "Automated tracking + approvals", icon: Invoice04Icon },
+                      "VENDOR_PAYMENTS": { title: "Vendor Payments", desc: "Pay suppliers locally & globally", icon: Store01Icon },
+                      "PROCUREMENT": { title: "Procurement", desc: "Control all your purchases in one place", icon: ShoppingCart01Icon },
+                      "ACCOUNTS_PAYABLE_RECEIVABLE": { title: "Accounts Payable/Receivable", desc: "Simplify invoices & collections", icon: Invoice03Icon },
+                    };
+                    const info = PRODUCT_INFO[m] || { 
+                      title: m.replace(/_/g, ' ').replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()), 
+                      desc: "Active module", 
+                      icon: Invoice04Icon 
+                    };
+                    
+                    return (
+                      <div key={i} className="flex items-center justify-between rounded-[10px] border border-[#0ea894]/40 bg-[#f0faf8] p-4 shadow-[0_4px_16px_rgba(14,168,148,0.04)]">
+                        <div className="flex items-center gap-4">
+                          <div className="flex size-10 shrink-0 items-center justify-center rounded-[8px] bg-[#e7f6f2]">
+                            <HugeiconsIcon icon={info.icon} className="size-5 text-[#087f70]" />
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-semibold text-[#0b100e]">{info.title}</p>
+                            <p className="mt-0.5 text-[12px] text-[#84908a]">{info.desc}</p>
+                          </div>
+                        </div>
+                        <div className="flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-[#0ea894] bg-[#0ea894]">
+                          <svg className="size-2.5 text-white" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    <span className="text-[13px] font-semibold text-[#0b100e]">—</span>
+                  )}
+                </div>
+              </div>
+              <InfoRow 
+                label="Status" 
+                value={companyData?.status} 
+                disabled 
+                renderEdit={() => (
+                   <span className={cn(
+                     "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest inline-block",
+                     companyData?.status === "active" ? "bg-[#e8f8f5] text-[#087f70]" : "bg-[#f4f7f5] text-[#68726d]"
+                   )}>
+                     {companyData?.status || "Unknown"}
+                   </span>
+                )}
+              />
+              <InfoRow 
+                label="Address" 
+                value={companyData?.address} 
+                disabled 
+              />
+              <InfoRow 
+                label="Registration ID" 
+                value={companyData?.registrationId} 
+                disabled 
+              />
+              <InfoRow 
+                label="Tax ID" 
+                value={companyData?.taxId} 
+                disabled 
+              />
             </div>
           </div>
+          </ProcurementSection>
+        </div>
 
-          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#84908a]">Financial Snapshot</h2>
-              {!isEditingFinancials ? (
-                <button 
-                  onClick={() => setIsEditingFinancials(true)}
-                  className="text-[#087f70] hover:text-[#076b5e] transition-colors cursor-pointer p-1.5 rounded-[6px] hover:bg-[#f0faf8]"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              ) : (
-                <div className="flex gap-2">
-                  <button onClick={() => setIsEditingFinancials(false)} className="text-[13px] font-medium text-[#68726d] hover:text-[#0b100e]">Cancel</button>
-                  <button onClick={handleSaveFinancials} disabled={isSaving} className="text-[13px] font-bold text-[#087f70] hover:text-[#076b5e] disabled:opacity-50">
+        <div className="space-y-5">
+          <ProcurementSection 
+            title="Financial Snapshot"
+            action={!isEditingFinancials ? { label: "Edit financials", onClick: () => setIsEditingFinancials(true) } : undefined}
+          >
+            <div className="p-5">
+              {isEditingFinancials && (
+                <div className="flex gap-2 justify-end mb-6 border-b border-black/[0.04] pb-5">
+                  <button onClick={() => setIsEditingFinancials(false)} className="px-4 h-8 rounded-[8px] text-[12px] font-medium text-[#68726d] border border-black/[0.12] hover:bg-[#f9faf9]">Cancel</button>
+                  <button onClick={handleSaveFinancials} disabled={isSaving} className="px-4 h-8 rounded-[8px] text-[12px] font-bold text-white bg-[#087f70] hover:bg-[#076b5e] disabled:opacity-50">
                     {isSaving ? "Saving..." : "Save"}
                   </button>
                 </div>
               )}
-            </div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+              <div className="grid grid-cols-1 gap-x-8 gap-y-4">
               <InfoRow 
                 label="Expected Monthly Spend" 
                 value={isEditingFinancials ? config.spendingRanges[financialsForm.spendIndex]?.label : expectedSpend} 
@@ -1083,17 +1224,19 @@ function CompanyProfileTab() {
                 </span>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="mt-4 text-[13px] font-semibold h-8 border-[#087f70]/30 text-[#087f70] hover:bg-[#f0faf8] rounded-[8px]">
+            <Button variant="outline" size="sm" className="mt-5 w-full text-[13px] font-semibold h-8 border-[#087f70]/30 text-[#087f70] hover:bg-[#f0faf8] rounded-[8px]">
               Manage connection
             </Button>
-          </div>
-        </div>
+            </div>
+          </ProcurementSection>
 
-        <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-[#84908a] mb-4">Administrators &amp; Owners</h2>
-          {admins.length === 0 ? (
-            <p className="text-[13px] text-[#68726d] py-4 text-center">No admins found</p>
-          ) : (
+          <ProcurementSection 
+            title="Administrators & Owners"
+          >
+            <div className="p-5">
+              {admins.length === 0 ? (
+                <p className="text-[13px] text-[#68726d] py-4 text-center">No admins found</p>
+              ) : (
             <div className="space-y-3 mb-5">
               {admins.map((admin) => (
                 <div key={admin.userId} className="flex items-center justify-between">
@@ -1106,20 +1249,30 @@ function CompanyProfileTab() {
                       </p>
                     </div>
                   </div>
-                  <button className="text-[13px] font-semibold text-[#087f70] hover:text-[#076b5e]">Manage</button>
+                  <button onClick={() => setSelectedAdminId(admin.userId)} className="text-[13px] font-semibold text-[#087f70] hover:text-[#076b5e]">Manage</button>
                 </div>
               ))}
             </div>
+              )}
+              <div className="flex gap-2 pt-4 border-t border-black/[0.04] mt-2">
+                <Button variant="outline" size="sm" className="flex-1 h-8 text-[12px] font-semibold border-black/[0.12] text-[#0b100e] hover:bg-[#f9faf9] rounded-[8px]" onClick={() => router.push("/people")}>
+                  Permissions
+                </Button>
+                <Button size="sm" className="flex-1 h-8 text-[12px] font-semibold bg-white border border-[#087f70]/30 text-[#087f70] hover:bg-[#f0faf8] rounded-[8px]"
+                  onClick={() => router.push("/people/invite/leadership")}>
+                  Invite Admin
+                </Button>
+              </div>
+            </div>
+          </ProcurementSection>
+
+          {selectedAdminId && (
+            <UserProfileModal 
+              isOpen={!!selectedAdminId} 
+              onClose={() => setSelectedAdminId(null)} 
+              userId={selectedAdminId} 
+            />
           )}
-          <div className="flex gap-2 pt-2 border-t border-black/[0.06]">
-            <Button variant="outline" size="sm" className="flex-1 h-8 text-[13px] font-semibold border-black/[0.12] text-[#0b100e] hover:bg-[#f9faf9] rounded-[8px]" onClick={() => router.push("/people")}>
-              View Permission
-            </Button>
-            <Button size="sm" className="flex-1 h-8 text-[13px] font-semibold bg-white border border-[#087f70]/30 text-[#087f70] hover:bg-[#f0faf8] rounded-[8px]"
-              onClick={() => router.push("/people/invite/leadership")}>
-              Invite Admin
-            </Button>
-          </div>
         </div>
       </div>
     </div>
@@ -1149,35 +1302,47 @@ export default function PersonalSettingsPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-6 px-4 sm:px-6">
+    <div className="pb-12">
       <Tabs value={defaultTab} onValueChange={handleTabChange}>
-        <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide mb-6">
-          <TabsTrigger value="my-profile" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-6 text-[13px] font-semibold h-full">
-            My Profile
-          </TabsTrigger>
-          {canSeeCompany && (
-            <TabsTrigger value="company-profile" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-6 text-[13px] font-semibold h-full">
-              Company Profile
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="notifications" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-6 text-[13px] font-semibold h-full">
-            Notifications
-          </TabsTrigger>
-        </TabsList>
+        <div className="sticky -top-3 sm:-top-5 lg:-top-6 z-20 bg-[#f4f7f5] -mx-3 px-3 sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6 -mt-3 pt-5 sm:-mt-5 sm:pt-7 lg:-mt-6 lg:pt-8 pb-4 mb-6 border-b border-transparent shadow-none">
+          <div className="max-w-7xl mx-auto">
+            <ProcurementPageHeader 
+              title="Settings" 
+              description="Manage your personal preferences, company details, and notifications."
+            />
+            <div className="mt-6">
+              <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide">
+                <TabsTrigger value="my-profile" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-6 text-[13px] font-semibold h-full">
+                  My Profile
+                </TabsTrigger>
+                {canSeeCompany && (
+                  <TabsTrigger value="company-profile" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-6 text-[13px] font-semibold h-full">
+                    Company Profile
+                  </TabsTrigger>
+                )}
+                <TabsTrigger value="notifications" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-6 text-[13px] font-semibold h-full">
+                  Notifications
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </div>
+        </div>
 
-        <TabsContent value="my-profile">
-          <MyProfileTab />
-        </TabsContent>
-
-        {canSeeCompany && (
-          <TabsContent value="company-profile">
-            <CompanyProfileTab />
+        <div className="max-w-7xl mx-auto">
+          <TabsContent value="my-profile" className="m-0">
+            <MyProfileTab />
           </TabsContent>
-        )}
 
-        <TabsContent value="notifications">
-          <NotificationsTab />
-        </TabsContent>
+          {canSeeCompany && (
+            <TabsContent value="company-profile" className="m-0">
+              <CompanyProfileTab />
+            </TabsContent>
+          )}
+
+          <TabsContent value="notifications" className="m-0">
+            <NotificationsTab />
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   );

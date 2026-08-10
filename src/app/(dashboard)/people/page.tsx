@@ -14,6 +14,7 @@ import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departmen
 import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import { InviteEmployeesWarningModal } from "@/components/dashboard/people/modals/InviteEmployeesWarningModal";
+import { AddEmployeeModal } from "@/components/dashboard/people/invite/AddEmployeeModal";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useAuthStore } from "@/stores/auth-stores";
 import { asRecord, isRecord, pickString } from "@/lib/types/api-error";
@@ -79,6 +80,7 @@ function People() {
     };
 
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+    const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
 
     // Register dynamic header CTA button
     const { setAction, clearAction } = useHeaderActionStore();
@@ -114,13 +116,22 @@ function People() {
         } else if (activeTab === "directory") {
             if (canManageUsers) {
                 setAction({
-                    label: "Upload Directory",
+                    label: "Add to Directory",
                     dataTourId: "upload-directory-button",
-                    iconName: "upload",
-                    onClick: () => {
-                        sessionStorage.setItem("uploadDirReferrer", "directory");
-                        router.push("/people/invite/employees?step=upload");
-                    },
+                    iconName: "plus",
+                    items: [
+                        {
+                            label: "Add an Employee",
+                            onClick: () => setIsAddEmployeeModalOpen(true),
+                        },
+                        {
+                            label: "Upload CSV or XLSX",
+                            onClick: () => {
+                                sessionStorage.setItem("uploadDirReferrer", "directory");
+                                router.push("/people/invite/employees?step=upload");
+                            }
+                        }
+                    ],
                     secondaryAction: {
                         label: "Invite users",
                         iconName: "plus",
@@ -147,7 +158,7 @@ function People() {
     }, [activeTab, setAction, clearAction, router, canManageUsers]);
 
     return (
-        <div className="space-y-6 h-full">
+        <div className="flex flex-col space-y-6 h-full pb-2">
             {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                     {statCards.map((stat) => (
@@ -170,8 +181,8 @@ function People() {
                 </div>
 
                 {/* Tabs */}
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col min-h-0">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
                         <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex border border-black/[0.05]">
                                 <PermissionGuard resource="user" action="manage">
                                     <TabsTrigger
@@ -206,15 +217,15 @@ function People() {
                             <div id="tab-actions" className="flex items-center gap-2" />
                         </div>
     
-                        <TabsContent value="all-users" className="mt-6">
+                        <TabsContent value="all-users" className="mt-6 flex-1 min-h-0 flex flex-col">
                             <AllUsersTab />
                         </TabsContent>
     
-                        <TabsContent value="roles" className="mt-6">
+                        <TabsContent value="roles" className="mt-6 flex-1 min-h-0 flex flex-col">
                             <RolesTab />
                         </TabsContent>
     
-                        <TabsContent value="directory" className="mt-6">
+                        <TabsContent value="directory" className="mt-6 flex-1 min-h-0 flex flex-col">
                             <DirectoryTab />
                         </TabsContent>
                     </Tabs>
@@ -234,6 +245,11 @@ function People() {
                                 : "/people/invite/employees?step=upload"
                         );
                     }}
+                />
+
+                <AddEmployeeModal 
+                    isOpen={isAddEmployeeModalOpen} 
+                    onClose={() => setIsAddEmployeeModalOpen(false)} 
                 />
             </div>
         );

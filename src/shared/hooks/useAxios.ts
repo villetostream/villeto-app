@@ -110,6 +110,7 @@ export function useAxios(): AxiosInstance {
                         return instance(originalRequest);
                     } catch (refreshError) {
                         processQueue(refreshError, null);
+                        useAuthStore.getState().logout();
                         router.replace("/login");
                         return Promise.reject(error);
                     } finally {

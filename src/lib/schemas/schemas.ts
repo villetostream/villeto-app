@@ -53,9 +53,9 @@ const stripProtocol = (url: string) => {
 
 export const customHttpUrlSchema = z
   .string()
-  .optional()
+  .min(1, "Website URL is required")
   .refine((url) => {
-    if (!url) return true; // Optional field, empty is valid
+    if (!url) return false;
 
     // Basic length check
     if (url.length < 3) return false;

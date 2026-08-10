@@ -64,7 +64,7 @@ function dataTableReducer(
     case "RESET_TABLE": {
       const {
         initialPage = 1,
-        initialPageSize = 10,
+        initialPageSize = 5,
         initialSortBy = [],
         initialSearch = "",
         initialFilterBy = {},
@@ -89,7 +89,7 @@ function dataTableReducer(
 export function useDataTable(options?: UseDataTableOptions) {
   const {
     initialPage = 1,
-    initialPageSize = 10,
+    initialPageSize = 5,
     initialSortBy = [],
     initialSearch = "",
     initialFilterBy = {},

@@ -558,7 +558,7 @@ function VendorTable({
   );
 
   return (
-    <div className="space-y-4 mt-4">
+    <div className="space-y-4 mt-4 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
       {/* Portal search into tab-actions slot (same as People/Policies), fallback inline */}
       {portalTarget ? createPortal(searchBar, portalTarget) : searchBar}
 
@@ -566,12 +566,13 @@ function VendorTable({
       {filtered.length === 0 ? (
         <VendorEmptyState filtered={vendors.length > 0} />
       ) : (
-        <div className="rounded-[14px] border border-black/[0.08] overflow-hidden bg-white shadow-sm">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[#f9faf9] border-b border-black/[0.08]">
-                {["VENDOR NAME", "REG NO.", "EMAIL", "INVITED ON", "STATUS", "LAST UPDATED", "ACTION"].map((h) => (
-                  <th key={h} className="px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap">
+        <div className="rounded-[14px] border border-black/[0.08] overflow-hidden bg-white shadow-sm flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-auto bg-white min-h-0">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-[#f9faf9] shadow-[0_1px_0_rgba(0,0,0,0.08)]">
+                <tr className="border-b border-black/[0.08]">
+                  {["VENDOR NAME", "REG NO.", "EMAIL", "INVITED ON", "STATUS", "LAST UPDATED", "ACTION"].map((h) => (
+                    <th key={h} className="px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap bg-[#f9faf9]">
                     {h}
                   </th>
                 ))}
@@ -592,10 +593,11 @@ function VendorTable({
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
 
           {/* Pagination row */}
-          <div className="px-5 py-3 border-t border-black/[0.08] flex items-center justify-between text-[13px] text-[#68726d] bg-[#f9faf9]">
+          <div className="px-5 py-3 border-t border-black/[0.08] flex items-center justify-between text-[13px] text-[#68726d] bg-[#f9faf9] shrink-0">
             <span>Showing {paginatedData.length} entries on page {currentPage} of {totalPages}</span>
             <div className="flex items-center gap-1">
               <button
@@ -802,11 +804,11 @@ function VendorPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
       <InviteVendorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} onSuccess={() => fetchVendors()} />
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
         {statCards.map((s) => (
           <StatsCard
             key={s.title}
@@ -821,9 +823,9 @@ function VendorPage() {
       </div>
 
       {/* Tabs + Table */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+          <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
             <TabsTrigger value="all"          className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">All Vendors</TabsTrigger>
             <TabsTrigger value="verified"     className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">Approved</TabsTrigger>
             <TabsTrigger value="invited"      className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">Invited</TabsTrigger>
@@ -836,7 +838,7 @@ function VendorPage() {
         </div>
 
         {["all", "verified", "invited", "under_review", "rejected"].map((tab) => (
-          <TabsContent key={tab} value={tab}>
+          <TabsContent key={tab} value={tab} className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden m-0">
             <VendorTable
               vendors={tab === activeTab ? filteredByTab : []}
               isLoading={isLoading}

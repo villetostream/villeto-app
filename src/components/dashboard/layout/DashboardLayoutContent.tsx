@@ -75,6 +75,17 @@ export default function DashboardLayoutContent({
       const { role, _company, companyId, ...userData } = responseData || {};
 
       if (userData) {
+        if (
+          userData.isActive === false ||
+          userData.status === "DELETED" ||
+          userData.status === "deleted" ||
+          userData.deletedAt
+        ) {
+          useAuthStore.getState().logout();
+          router.replace("/login");
+          return;
+        }
+
         const currentUser = useAuthStore.getState().user;
         login({
           ...currentUser,
