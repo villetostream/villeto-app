@@ -784,7 +784,7 @@ export function UserSection() {
                     onClick={() => {
                       window.dispatchEvent(new CustomEvent("villeto:invite-button-clicked"));
                     }}
-                    className="h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold flex items-center gap-2 hover:bg-[#076b5e] transition-colors cursor-pointer whitespace-nowrap">
+                    className="h-9 px-4 rounded-[8px] bg-primary text-primary-foreground text-[13px] font-semibold flex items-center gap-2 hover:bg-primary-hover transition-colors cursor-pointer whitespace-nowrap">
                     {headerAction.iconName === "upload" ? (
                       <HugeiconsIcon icon={Upload04Icon} className="w-4 h-4" />
                     ) : (
