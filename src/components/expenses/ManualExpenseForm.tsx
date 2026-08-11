@@ -42,6 +42,10 @@ import { getApiErrorMessage, isPolicyViolationError, isDuplicateReceiptError, ge
 import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 import { CompanyExpenseItemModal } from "@/components/expenses/company/CompanyExpenseItemModal";
 import { PolicyJustificationDrawer, type PolicyRequiredAction } from "@/components/expenses/PolicyJustificationDrawer";
+import {
+  extractedReceiptValues,
+  uploadAndExtractReceipt,
+} from "@/lib/receipt-extraction";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -173,6 +177,12 @@ export function ManualExpenseForm({
   const [duplicateErrorsByIndex, setDuplicateErrorsByIndex] = useState<Record<number, DuplicateReceiptItem[]>>({});
   const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateReceiptItem | null>(null);
   const [pendingReceiptByIndex, setPendingReceiptByIndex] = useState<Record<number, string>>({});
+  const [receiptExtractionIds, setReceiptExtractionIds] = useState<
+    Array<string | undefined>
+  >([]);
+  const [pendingExtractionByIndex, setPendingExtractionByIndex] = useState<
+    Record<number, string>
+  >({});
   // ACTION_REQUIRED policy state
   const [requiredActionsByIndex, setRequiredActionsByIndex] = useState<Record<number, PolicyRequiredAction>>({});
   const [justificationsByIndex, setJustificationsByIndex] = useState<Record<number, string>>({});
@@ -329,8 +339,19 @@ export function ManualExpenseForm({
       shouldDirty: true,
     });
     form.clearErrors(`expenses.${expenseIndex}.receipt`);
+    const pendingExtractionId = pendingExtractionByIndex[expenseIndex];
+    setReceiptExtractionIds((previous) => {
+      const next = [...previous];
+      next[expenseIndex] = pendingExtractionId;
+      return next;
+    });
     setPendingReceiptByIndex((prev) => {
       const next = { ...prev };
+      delete next[expenseIndex];
+      return next;
+    });
+    setPendingExtractionByIndex((previous) => {
+      const next = { ...previous };
       delete next[expenseIndex];
       return next;
     });
@@ -339,6 +360,11 @@ export function ManualExpenseForm({
   const cancelPendingReceipt = (expenseIndex: number) => {
     setPendingReceiptByIndex((prev) => {
       const next = { ...prev };
+      delete next[expenseIndex];
+      return next;
+    });
+    setPendingExtractionByIndex((previous) => {
+      const next = { ...previous };
       delete next[expenseIndex];
       return next;
     });
@@ -476,8 +502,57 @@ export function ManualExpenseForm({
     }
 
     try {
-      const base64 = await fileToBase64(file);
-      setPendingReceiptByIndex((prev) => ({ ...prev, [expenseIndex]: base64 }));
+      const toastId = toast.loading("Reading receipt…");
+      try {
+        const extraction = await uploadAndExtractReceipt(axios, file);
+        const extracted = extractedReceiptValues(extraction);
+        setPendingReceiptByIndex((previous) => ({
+          ...previous,
+          [expenseIndex]: extraction.receiptUrl,
+        }));
+        setPendingExtractionByIndex((previous) => ({
+          ...previous,
+          [expenseIndex]: extraction.expenseReceiptExtractionId,
+        }));
+        if (extracted.merchantName) {
+          form.setValue(`expenses.${expenseIndex}.vendor`, extracted.merchantName, {
+            shouldDirty: true,
+          });
+          if (!form.getValues(`expenses.${expenseIndex}.title`)) {
+            form.setValue(`expenses.${expenseIndex}.title`, extracted.merchantName, {
+              shouldDirty: true,
+            });
+          }
+        }
+        if (extracted.amount > 0) {
+          form.setValue(`expenses.${expenseIndex}.amount`, extracted.amount, {
+            shouldDirty: true,
+          });
+        }
+        form.setValue(
+          `expenses.${expenseIndex}.transactionDate`,
+          extracted.transactionDate,
+          { shouldDirty: true },
+        );
+        toast.success("Receipt details added. Review them before saving.", {
+          id: toastId,
+        });
+      } catch (error) {
+        logger.error("Receipt extraction failed:", error);
+        const base64 = await fileToBase64(file);
+        setPendingReceiptByIndex((previous) => ({
+          ...previous,
+          [expenseIndex]: base64,
+        }));
+        setPendingExtractionByIndex((previous) => {
+          const next = { ...previous };
+          delete next[expenseIndex];
+          return next;
+        });
+        toast.warning("Receipt attached. Enter its details manually.", {
+          id: toastId,
+        });
+      }
     } catch {
       toast.error("Failed to upload receipt. Please try again.");
     } finally {
@@ -613,6 +688,7 @@ export function ManualExpenseForm({
         amount: number;
         transactionDate: string;
         receiptImage?: string;
+        receiptExtractionId?: string;
         justification?: string;
       } = {
         title: expense.title,
@@ -622,6 +698,10 @@ export function ManualExpenseForm({
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
+
+      if (receiptExtractionIds[idx]) {
+        expenseObj.receiptExtractionId = receiptExtractionIds[idx];
+      }
 
       // Only attach justification when the backend explicitly required it for this expense
       // (i.e. there is an active ACTION_REQUIRED entry for this index)
@@ -684,6 +764,7 @@ export function ManualExpenseForm({
         amount: number;
         transactionDate: string;
         receiptImage?: string;
+        receiptExtractionId?: string;
         expenseId?: string;
         justification?: string;
       } = {
@@ -694,6 +775,10 @@ export function ManualExpenseForm({
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
+
+      if (receiptExtractionIds[idx]) {
+        expenseObj.receiptExtractionId = receiptExtractionIds[idx];
+      }
 
       // Include expenseId for existing expenses (from reportDetail)
       if (isEditMode && reportDetail?.expenses?.[idx]) {

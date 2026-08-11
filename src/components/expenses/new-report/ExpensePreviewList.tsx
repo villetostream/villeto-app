@@ -22,6 +22,7 @@ export interface ExpenseItem {
   category: string;
   amount: number;
   receiptImage: string;
+  receiptExtractionId?: string;
   merchantName?: string;
   description?: string;
   transactionDate?: Date;
