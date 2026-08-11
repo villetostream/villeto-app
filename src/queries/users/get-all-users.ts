@@ -42,6 +42,46 @@ export interface UseUserListOptions extends Omit<UseQueryOptions<Response, Error
     params?: UserListParams;
 }
 
+async function fetchAllUsersLoop(axiosInstance: any, apiUrl: string, params: any) {
+    if (params?.limit !== 1000) {
+        const response = await axiosInstance.get(apiUrl, { params });
+        return response.data;
+    }
+
+    // Intercept limit=1000 and fetch all pages
+    const fetchParams = { ...params, page: 1, limit: 100 };
+    const response = await axiosInstance.get(apiUrl, { params: fetchParams });
+    const firstPageData = response.data;
+    
+    const totalPages = firstPageData?.meta?.totalPages || 1;
+    let allData = firstPageData?.data || [];
+    
+    if (totalPages > 1) {
+        const promises = [];
+        for (let i = 2; i <= totalPages; i++) {
+            promises.push(axiosInstance.get(apiUrl, { params: { ...fetchParams, page: i } }));
+        }
+        const results = await Promise.all(promises);
+        results.forEach(res => {
+            if (res.data?.data) {
+                allData = [...allData, ...res.data.data];
+            }
+        });
+    }
+    
+    return {
+        ...firstPageData,
+        data: allData,
+        meta: {
+            ...firstPageData.meta,
+            totalCount: allData.length,
+            limit: allData.length,
+            totalPages: 1,
+            currentPage: 1
+        }
+    };
+}
+
 /** Generic base hook — kept for any consumer that still calls it directly */
 export const useGetAllUsersApi = (
     options?: UseUserListOptions
@@ -52,8 +92,7 @@ export const useGetAllUsersApi = (
         queryKey: [QUERY_KEYS.USERS, options?.params],
         queryFn: async () => {
             const apiUrl = `${API_KEYS.USER.USERS}`;
-            const response = await axiosInstance.get(apiUrl, { params: options?.params });
-            return response.data;
+            return fetchAllUsersLoop(axiosInstance, apiUrl, options?.params);
         },
         staleTime: STALE_TIMES.NORMAL,
         ...options,
@@ -69,8 +108,7 @@ export const useGetInvitedUsersApi = (
     return useQuery<Response, Error>({
         queryKey: [QUERY_KEYS.INVITED_USERS, options?.params],
         queryFn: async () => {
-            const response = await axiosInstance.get(API_KEYS.USER.INVITED_USERS, { params: options?.params });
-            return response.data;
+            return fetchAllUsersLoop(axiosInstance, API_KEYS.USER.INVITED_USERS, options?.params);
         },
         staleTime: STALE_TIMES.NORMAL,
         ...options,
@@ -86,8 +124,7 @@ export const useGetDirectoryUsersApi = (
     return useQuery<Response, Error>({
         queryKey: [QUERY_KEYS.DIRECTORY_USERS, options?.params],
         queryFn: async () => {
-            const response = await axiosInstance.get(API_KEYS.USER.DIRECTORY_USERS, { params: options?.params });
-            return response.data;
+            return fetchAllUsersLoop(axiosInstance, API_KEYS.USER.DIRECTORY_USERS, options?.params);
         },
         staleTime: STALE_TIMES.NORMAL,
         ...options,
@@ -103,8 +140,7 @@ export const useGetUninvitedUsersApi = (
     return useQuery<Response, Error>({
         queryKey: [QUERY_KEYS.UNINVITED_USERS, options?.params],
         queryFn: async () => {
-            const response = await axiosInstance.get(API_KEYS.USER.UNINVITED_USERS, { params: options?.params });
-            return response.data;
+            return fetchAllUsersLoop(axiosInstance, API_KEYS.USER.UNINVITED_USERS, options?.params);
         },
         staleTime: STALE_TIMES.NORMAL,
         ...options,

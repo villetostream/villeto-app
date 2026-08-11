@@ -710,20 +710,19 @@ function PoliciesPage() {
 
   const queryClient = useQueryClient();
 
-  // Pagination state for the policies table
   const policyTableProps = useDataTable({
     initialPage: 1,
     initialPageSize: 20,
     totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
-    manualPagination: true,
+    manualPagination: false,
   });
   const setPolicyTotalItems = policyTableProps.setTotalItems;
 
   const policiesApi = useGetPoliciesApi({ 
-    page: policyTableProps.page, 
-    limit: policyTableProps.pageSize, 
+    page: 1, 
+    limit: 1000, 
     excludeDrafts: false 
   }, { enabled: canReadPolicies });
 
@@ -799,14 +798,6 @@ function PoliciesPage() {
     });
   }, [policiesApi.data?.data, liveExpenseCategories]);
 
-  useEffect(() => {
-    if (policiesApi.data?.meta?.totalCount !== undefined) {
-      setPolicyTotalItems(policiesApi.data.meta.totalCount);
-    } else if (policiesApi.data?.data) {
-      setPolicyTotalItems(policiesApi.data.data.length);
-    }
-  }, [policiesApi.data, setPolicyTotalItems]);
-
   // Register dynamic header CTA button
   const { setAction, clearAction } = useHeaderActionStore();
 
@@ -862,6 +853,10 @@ function PoliciesPage() {
             p.createdBy.toLowerCase().includes(q)
     );
   }, [activePolicies, search]);
+
+  useEffect(() => {
+    setPolicyTotalItems(filteredPolicies.length);
+  }, [filteredPolicies.length, setPolicyTotalItems]);
 
   const filteredCategories = useMemo(() => {
     const q = search.toLowerCase();
@@ -1212,12 +1207,12 @@ function PoliciesPage() {
         {/* Tab row */}
         <div className="flex items-center justify-between px-4 md:px-5 py-4 shrink-0 flex-wrap gap-3 border-b border-black/[0.055]">
           {/* Pill tabs */}
-          <div className="flex max-w-full overflow-x-auto bg-[#eaf0ed] rounded-[10px] p-1">
+          <div className="flex max-w-full overflow-x-auto bg-[#f5f7f6] rounded-[10px] p-1 h-10">
             <button
               data-tour="policies-tab"
               onClick={() => { switchTab("policies"); setSearch(""); }}
-              className={`h-8 px-4 text-[10px] rounded-[7px] transition-all whitespace-nowrap ${
-                activeTab === "policies" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
+              className={`h-full px-6 text-[13px] rounded-[6px] transition-all whitespace-nowrap ${
+                activeTab === "policies" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-semibold hover:text-[#0b100e]"
               }`}
             >
               Policies
@@ -1226,8 +1221,8 @@ function PoliciesPage() {
               <button
                 data-tour="expense-category-tab"
                 onClick={() => { switchTab("expense"); setSearch(""); }}
-                className={`h-8 px-4 text-[10px] rounded-[7px] transition-all whitespace-nowrap ${
-                  activeTab === "expense" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
+                className={`h-full px-6 text-[13px] rounded-[6px] transition-all whitespace-nowrap ${
+                  activeTab === "expense" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-semibold hover:text-[#0b100e]"
                 }`}
               >
                 Expense Category
@@ -1235,8 +1230,8 @@ function PoliciesPage() {
             )}
             <button
               onClick={() => { switchTab("archived"); setSearch(""); }}
-              className={`h-8 px-4 text-[10px] rounded-[7px] transition-all whitespace-nowrap ${
-                activeTab === "archived" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-medium hover:text-[#0b100e]"
+              className={`h-full px-6 text-[13px] rounded-[6px] transition-all whitespace-nowrap ${
+                activeTab === "archived" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-semibold hover:text-[#0b100e]"
               }`}
             >
               Archived
@@ -1251,16 +1246,16 @@ function PoliciesPage() {
                 placeholder={activeTab === "expense" ? "Search categories" : "Search policies"}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-9 w-full rounded-[9px] border border-black/[0.07] bg-white pl-9 pr-4 text-[10px] placeholder:text-[#929c97] focus:outline-none focus:border-[#0ea894] transition-colors sm:w-[220px]"
+                className="h-10 w-full rounded-[9px] border border-black/[0.07] bg-white pl-9 pr-4 text-[13px] placeholder:text-[#929c97] focus:outline-none focus:border-[#0ea894] transition-colors sm:w-[220px]"
               />
             </div>
             <button
               type="button"
               onClick={() => activeTab === "expense" ? expCatApi.refetch() : policiesApi.refetch()}
               disabled={activeTab === "expense" ? expCatApi.isRefetching : policiesApi.isRefetching}
-              className="flex size-9 shrink-0 items-center justify-center rounded-[9px] border border-black/[0.07] bg-white text-[#68726d] hover:bg-[#f4f8f6] hover:text-[#087f70] transition-colors"
+              className="flex size-10 shrink-0 items-center justify-center rounded-[9px] border border-black/[0.07] bg-white text-[#68726d] hover:bg-[#f4f8f6] hover:text-[#087f70] transition-colors"
             >
-              <RefreshCcw className={`w-3.5 h-3.5 ${(activeTab === "expense" ? expCatApi.isRefetching : policiesApi.isRefetching) ? "animate-spin" : ""}`} />
+              <RefreshCcw className={`w-4 h-4 ${(activeTab === "expense" ? expCatApi.isRefetching : policiesApi.isRefetching) ? "animate-spin" : ""}`} />
               <span className="sr-only">Refresh policy data</span>
             </button>
           </div>
@@ -1277,19 +1272,19 @@ function PoliciesPage() {
                 </div>
               </div>
             ) : activePolicies.length === 0 ? (
-              <div className="flex-1 flex justify-center items-center py-10 px-6 bg-white">
-                <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+              <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
+                <div className="flex flex-col items-center text-center max-w-sm">
                   <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
                     <ShieldCheck className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
                   </div>
                   <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No policies created yet</h2>
-                  <p className="text-[11px] text-[#77837e] max-w-sm leading-5 mb-6">
+                  <p className="text-[13px] text-[#77837e] leading-5 mb-6">
                     Policies help you automate expense approvals and enforce spending limits. Create your first expense policy to get started.
                   </p>
                   {canCreatePolicy && (
                     <button
                       onClick={() => setIsCreatePolicyOpen(true)}
-                      className="h-9 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[10px] font-semibold flex items-center gap-2"
+                      className="h-10 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[13px] font-semibold flex items-center gap-2"
                     >
                       <PlusCircle className="w-4 h-4" strokeWidth={2} />
                       Create First Policy
@@ -1303,6 +1298,7 @@ function PoliciesPage() {
                   data={filteredPolicies}
                   columns={policyColumns}
                   height="auto"
+                  manualPagination={false}
                   emptyState={
                     <EmptyState 
                       icon={<Search className="w-6 h-6" />}
@@ -1311,7 +1307,7 @@ function PoliciesPage() {
                     />
                   }
                   onRowClick={(row) => setDetailPolicy(row)}
-                  paginationProps={{ ...policyTableProps.paginationProps, total: filteredPolicies.length }}
+                  paginationProps={policyTableProps.paginationProps}
                 />
               </div>
             )}
@@ -1329,19 +1325,19 @@ function PoliciesPage() {
                 </div>
               </div>
             ) : liveExpenseCategories.length === 0 ? (
-              <div className="flex-1 flex justify-center items-center py-10 px-6 bg-white">
-                <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+              <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
+                <div className="flex flex-col items-center text-center max-w-sm">
                   <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
                     <Tag className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
                   </div>
                   <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No expense categories</h2>
-                  <p className="text-[11px] text-[#77837e] max-w-sm leading-5 mb-6">
+                  <p className="text-[13px] text-[#77837e] leading-5 mb-6">
                     Expense categories help you organize and control spending across your company. Create your first category to get started.
                   </p>
                   {canManageCategories && (
                     <button
                       onClick={() => setIsAddCategoryOpen(true)}
-                      className="h-9 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[10px] font-semibold flex items-center gap-2"
+                      className="h-10 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[13px] font-semibold flex items-center gap-2"
                     >
                       <PlusCircle className="w-4 h-4" strokeWidth={2} />
                       Create First Category
@@ -1374,13 +1370,13 @@ function PoliciesPage() {
         {activeTab === "archived" && (
           <>
             {archivedPolicies.length === 0 ? (
-              <div className="flex-1 flex justify-center items-center py-10 px-6 bg-white">
-                <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+              <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
+                <div className="flex flex-col items-center text-center max-w-sm">
                   <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
                     <Archive className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
                   </div>
                   <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No archived policies</h2>
-                  <p className="text-[11px] text-[#77837e] max-w-sm leading-5">
+                  <p className="text-[13px] text-[#77837e] leading-5">
                     Policies that you archive will appear here for future reference.
                   </p>
                 </div>

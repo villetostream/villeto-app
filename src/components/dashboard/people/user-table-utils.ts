@@ -32,10 +32,14 @@ export function getUserRoleId(u: AppUser): string | undefined {
 
 export function getUserDepartmentId(u: AppUser): string | undefined {
   if (u.department && typeof u.department === "object") {
-    return u.department.departmentId;
+    const dept = u.department as any;
+    if (typeof dept.departmentId === "string") return dept.departmentId;
+    if (typeof dept.id === "string") return dept.id;
+    if (typeof dept._id === "string") return dept._id;
   }
   if (typeof u.departmentId === "string") return u.departmentId;
-  if (typeof u.department === "string") return u.department;
+  const anyUser = u as any;
+  if (typeof anyUser.department === "string") return anyUser.department;
   return undefined;
 }
 
@@ -64,5 +68,6 @@ export function formatDepartmentOptionLabel(dept: Department): string {
 }
 
 export function getDepartmentOptionValue(dept: Department): string {
-  return dept.departmentId;
+  const d = dept as any;
+  return d.departmentId || d.id || d._id || d.code || "Unknown";
 }

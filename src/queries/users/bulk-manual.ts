@@ -55,6 +55,9 @@ export const useSubmitManualEmployee = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USERS] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DIRECTORY_USERS] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.INVITED_USERS] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.UNINVITED_USERS] });
         },
     });
 };

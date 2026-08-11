@@ -53,9 +53,12 @@ export const useUpdateUserApi = () => {
             return res.data;
         },
         onSuccess: (_data, variables) => {
-            // Refresh the individual user record and the invited users list
+            // Refresh the individual user record and all list views
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER, variables.id] });
             queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.INVITED_USERS] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DIRECTORY_USERS] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.UNINVITED_USERS] });
+            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USERS] });
         },
     });
 };

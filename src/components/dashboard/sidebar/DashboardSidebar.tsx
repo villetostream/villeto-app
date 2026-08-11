@@ -469,12 +469,12 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   return (
     <Sidebar collapsible="icon" className="border-r border-white/[0.06] !bg-[#0b1f1a] text-white [&_[data-slot=sidebar-inner]]:!bg-[#0b1f1a]">
       {/* ── Header: Logo + Toggle ── */}
-      <SidebarHeader className="border-b border-white/[0.07] px-0! py-0! space-y-0 bg-[#0b1f1a]">
-        <div className="flex flex-col">
+      <SidebarHeader className="border-b border-white/[0.07] !p-0 space-y-0 bg-[#0b1f1a]">
+        <div className={cn("flex flex-col", isExpanded ? "pl-4 pr-6" : "px-2")}>
           <div
             className={cn(
               "flex items-center h-[72px] transition-all duration-300",
-              isExpanded ? "justify-between px-4" : "justify-center"
+              isExpanded ? "justify-between" : "justify-center"
             )}
           >
             {isExpanded ? (
@@ -502,7 +502,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
           </div>
 
           {/* ── Company Selector ── */}
-          <div className={cn("px-3 pb-3", !isExpanded && "flex justify-center px-2")}>
+          <div className="pb-4 flex justify-center">
             {isExpanded ? (
               <div className="flex items-center gap-2.5 rounded-[11px] border border-white/[0.08] bg-white/[0.05] px-3 py-2.5 w-full">
                 <div className="flex-shrink-0 w-8 h-8 overflow-hidden rounded-[8px] ring-1 ring-white/10">
@@ -526,7 +526,8 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
 
       {/* ── Nav Content ── */}
       <SidebarContent className={cn(
-        "px-2.5 py-3 overflow-y-auto bg-[#0b1f1a]",
+        "py-3 overflow-y-auto bg-[#0b1f1a]",
+        isExpanded ? "px-4" : "px-2",
         "scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent",
         "group-data-[state=collapsed]:[scrollbar-width:none] group-data-[state=collapsed]:[&::-webkit-scrollbar]:hidden"
       )}>
@@ -547,7 +548,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
       </SidebarContent>
 
       {/* ── Footer: Logout ── */}
-      <SidebarFooter className="border-t border-white/[0.07] bg-[#0b1f1a] px-2.5 py-3">
+      <SidebarFooter className={cn("border-t border-white/[0.07] bg-[#0b1f1a] py-3", isExpanded ? "pl-4 pr-6" : "px-2")}>
         <CollapsedNavTooltip label="Log out" show={!isExpanded}>
           <button
             onClick={() => setShowLogoutModal(true)}

@@ -11,7 +11,7 @@ const RoleTable = () => {
     const router = useRouter();
     const tableprops = useTableData();
     const depts = useGetAllRolesApi(
-        { page: tableprops.page, limit: tableprops.pageSize },
+        { page: 1, limit: 1000 },
     );
     const roles = useMemo(
         () => (depts?.data?.data ?? []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")),
@@ -40,16 +40,16 @@ const RoleTable = () => {
     }, [roles, tableprops.globalSearch, tableprops.filterBy]);
 
     useEffect(() => {
-        const total = depts.data?.meta?.totalCount ?? filteredRoles.length;
-        tableprops.setTotalItems(total);
-    }, [depts.data?.meta?.totalCount, filteredRoles.length, tableprops.setTotalItems]);
+        tableprops.setTotalItems(filteredRoles.length);
+    }, [filteredRoles.length, tableprops.setTotalItems]);
 
     return (
         <DataTable
             data={filteredRoles}
             isLoading={depts.isLoading}
+            manualPagination={false}
             columns={columns}
-            paginationProps={{ ...tableprops.paginationProps, total: depts.data?.meta?.totalCount ?? filteredRoles.length }}
+            paginationProps={tableprops.paginationProps}
             enableRowSelection={false}
             enableColumnVisibility={true}
             selectedDataIds={tableprops.selectedDataIds}
@@ -95,6 +95,6 @@ export const useTableData = () => {
         totalItems: 0,
         manualSorting: false,
         manualFiltering: false,
-        manualPagination: true,
+        manualPagination: false,
     });
 };

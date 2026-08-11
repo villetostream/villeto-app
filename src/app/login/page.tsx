@@ -81,8 +81,8 @@ export default function LoginPage() {
       </header>
 
       {/* Form area */}
-      <div className="mx-auto flex w-full max-w-[590px] flex-1 min-h-0 flex-col justify-center px-6 py-10 sm:px-10 lg:py-14 xl:px-14">
-        <div className="max-w-[470px]">
+      <div className="mx-auto flex w-full max-w-[560px] flex-1 min-h-0 flex-col justify-center px-6 py-10 sm:px-10 lg:py-14">
+        <div className="w-full">
           <span className="inline-flex items-center gap-2 rounded-full bg-[#e7f6f2] px-3 py-1.5 text-[11px] font-semibold text-[#087f70]">
             <Lock className="size-3.5" /> Secure workspace login
           </span>

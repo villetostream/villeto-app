@@ -1305,7 +1305,7 @@ export default function PersonalSettingsPage() {
     <div className="pb-12">
       <Tabs value={defaultTab} onValueChange={handleTabChange}>
         <div className="sticky -top-3 sm:-top-5 lg:-top-6 z-20 bg-[#f4f7f5] -mx-3 px-3 sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6 -mt-3 pt-5 sm:-mt-5 sm:pt-7 lg:-mt-6 lg:pt-8 pb-4 mb-6 border-b border-transparent shadow-none">
-          <div className="max-w-7xl mx-auto">
+          <div className="w-full">
             <ProcurementPageHeader 
               title="Settings" 
               description="Manage your personal preferences, company details, and notifications."
@@ -1328,7 +1328,7 @@ export default function PersonalSettingsPage() {
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full">
           <TabsContent value="my-profile" className="m-0">
             <MyProfileTab />
           </TabsContent>

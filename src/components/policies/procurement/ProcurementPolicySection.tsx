@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Clock,
   Eye,
@@ -58,20 +58,19 @@ export function ProcurementPolicySection({
   onCreateClick: () => void;
 }) {
   const [search, setSearch] = useState("");
-  const [page] = useState(1);
   const [detailPolicy, setDetailPolicy] = useState<ProcurementPolicyApiRecord | null>(null);
-
-  const { data, isLoading, refetch, isRefetching } = useGetProcurementPolicies(page, 50);
-  const policies = useMemo<ProcurementPolicyApiRecord[]>(() => data?.data ?? [], [data?.data]);
 
   const tableProps = useDataTable({
     initialPage: 1,
     initialPageSize: 10,
-    totalItems: data?.meta?.totalCount ?? 0,
+    totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
     manualPagination: false,
   });
+
+  const { data, isLoading, refetch, isRefetching } = useGetProcurementPolicies(1, 1000);
+  const policies = useMemo<ProcurementPolicyApiRecord[]>(() => data?.data ?? [], [data?.data]);
 
   const approvedCount = useMemo(() => policies.filter((p) => ["approved", "active"].includes(p.status)).length, [policies]);
   const pendingCount  = useMemo(() => policies.filter((p) => p.status === "pending").length, [policies]);
@@ -90,6 +89,10 @@ export function ProcurementPolicySection({
       (p) => !q || p.name.toLowerCase().includes(q)
     );
   }, [policies, search]);
+
+  useEffect(() => {
+    tableProps.setTotalItems(filteredPolicies.length);
+  }, [filteredPolicies.length, tableProps.setTotalItems]);
 
   const columns = useMemo<ColumnDef<ProcurementPolicyApiRecord>[]>(
     () => [
@@ -166,7 +169,7 @@ export function ProcurementPolicySection({
       {/* Main card */}
       <div className="bg-white rounded-[15px] border border-black/[0.07] shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] overflow-hidden flex flex-col flex-1 min-h-0 mt-5">
         <div className="flex items-center justify-between px-4 md:px-5 py-4 shrink-0 flex-wrap gap-3 border-b border-black/[0.055]">
-          <div><h2 className="text-[13px] font-semibold text-[#14231e]">Procurement policies</h2><p className="mt-0.5 text-[9px] text-[#8b9591]">Approval, sourcing, vendor, and purchase-order controls</p></div>
+          <div><h2 className="text-sm font-semibold text-[#14231e]">Procurement policies</h2><p className="mt-0.5 text-xs text-[#8b9591]">Approval, sourcing, vendor, and purchase-order controls</p></div>
           <div className="flex w-full items-center gap-2 sm:w-auto">
             <div className="relative flex-1 sm:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#68726d]" />
@@ -174,18 +177,18 @@ export function ProcurementPolicySection({
                 placeholder="Search policies…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-9 w-full rounded-[9px] border border-black/[0.07] bg-white pl-9 pr-4 text-[10px] placeholder:text-[#929c97] focus:outline-none focus:border-[#0ea894] transition-colors sm:w-[220px]"
+                className="h-10 w-full rounded-[9px] border border-black/[0.07] bg-white pl-9 pr-4 text-[13px] placeholder:text-[#929c97] focus:outline-none focus:border-[#0ea894] transition-colors sm:w-[220px]"
               />
             </div>
             <button
               onClick={() => refetch()}
               disabled={isRefetching}
-              className="flex size-9 shrink-0 items-center justify-center rounded-[9px] border border-black/[0.07] bg-white text-[#68726d] hover:bg-[#f4f8f6] hover:text-[#087f70] transition-colors"
+              className="flex size-10 shrink-0 items-center justify-center rounded-[9px] border border-black/[0.07] bg-white text-[#68726d] hover:bg-[#f4f8f6] hover:text-[#087f70] transition-colors"
             >
               {isRefetching ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <RefreshCcw className="w-3.5 h-3.5" />
+                <RefreshCcw className="w-4 h-4" />
               )}
               <span className="sr-only">Refresh procurement policies</span>
             </button>
@@ -197,17 +200,17 @@ export function ProcurementPolicySection({
             <Loader2 className="w-6 h-6 animate-spin text-[#68726d]" />
           </div>
         ) : policies.length === 0 ? (
-          <div className="flex justify-center items-center py-10 px-6">
-            <div className="w-full max-w-[580px] rounded-[15px] border border-dashed border-black/[0.08] bg-[#f9fbfa] py-12 px-8 flex flex-col items-center text-center">
+          <div className="flex-1 flex justify-center items-center py-16 px-6 overflow-y-auto">
+            <div className="flex flex-col items-center text-center max-w-sm">
               <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
                 <FileText className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
               </div>
               <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No procurement policies yet</h2>
-              <p className="text-[11px] text-[#77837e] max-w-sm leading-5 mb-6">
+              <p className="text-[13px] text-[#77837e] leading-5 mb-6">
                 Create your first procurement policy to define how your organisation handles purchasing requests, vendor assignments, and purchase orders.
               </p>
               {canCreate && (
-                <button onClick={onCreateClick} className="h-9 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[10px] font-semibold flex items-center gap-2">
+                <button onClick={onCreateClick} className="h-10 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[13px] font-semibold flex items-center gap-2">
                   <FileText className="w-4 h-4" strokeWidth={2} />
                   Create First Policy
                 </button>
@@ -217,6 +220,7 @@ export function ProcurementPolicySection({
         ) : (
           <div className="flex-1 overflow-hidden flex flex-col">
             <DataTable
+              manualPagination={true}
               data={filteredPolicies}
               columns={columns}
               height="auto"
@@ -230,7 +234,7 @@ export function ProcurementPolicySection({
                 </div>
               }
               onRowClick={(row) => setDetailPolicy(row)}
-              paginationProps={{ ...tableProps.paginationProps, total: filteredPolicies.length }}
+              paginationProps={tableProps.paginationProps}
             />
           </div>
         )}
