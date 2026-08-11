@@ -7,6 +7,7 @@ import {
   CheckCircle2, Loader2, Pencil, Search, ArrowLeft,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
@@ -530,15 +531,22 @@ export default function EditPurchaseOrderPage() {
     return { subtotal: acc.subtotal + sub, tax: acc.tax + tax, total: acc.total + sub + tax };
   }, { subtotal: 0, tax: 0, total: 0 });
 
-  const handleSaveItem = (payload: LocalItem) => {
-    if (editingItem) {
-      setLineItems(prev => prev.map((it, i) => i === editingItem.index ? payload : it));
-      setEditingItem(null);
-      toast.success("Item updated");
-    } else {
-      setLineItems(prev => [...prev, payload]);
-      toast.success("Item added");
-    }
+  const handleAddItems = async (items: any[]) => {
+    setLineItems(prev => [...prev, ...items.map(it => ({
+      ...it,
+      localId: crypto.randomUUID()
+    }))]);
+    setShowModal(false);
+  };
+
+  const handleEditItem = async (item: any) => {
+    if (!editingItem) return;
+    setLineItems(prev => {
+      const copy = [...prev];
+      copy[editingItem.index] = { ...copy[editingItem.index], ...item };
+      return copy;
+    });
+    setEditingItem(null);
     setShowModal(false);
   };
 
@@ -627,9 +635,9 @@ export default function EditPurchaseOrderPage() {
 
   return (
     <>
-      <div className="max-w-5xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="sticky -top-3 sm:-top-5 lg:-top-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 z-40 bg-[#f4f7f5] flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-[#0b100e]">Edit Purchase Order</h1>
             <p className="text-sm text-[#68726d] mt-0.5">Draft — {(po as any).poNumber}</p>
@@ -801,15 +809,27 @@ export default function EditPurchaseOrderPage() {
       </div>
 
       {/* Add/Edit Item Modal */}
-      {showModal && (
-        <LineItemModal
-          initial={editingItem?.item}
-          onClose={() => setShowModal(false)}
-          onSave={handleSaveItem}
-          departments={departments}
-          currency={currency}
-        />
-      )}
+      <LineItemBatchModal
+        open={showModal}
+        onClose={() => { setShowModal(false); setEditingItem(null); }}
+        currency={currency}
+        onSaveAll={handleAddItems}
+        saving={false}
+        editInitial={editingItem ? {
+          name: editingItem.item.name || "",
+          description: editingItem.item.description || "",
+          categoryId: editingItem.item.categoryId || "",
+          categoryName: "",
+          quantity: editingItem.item.quantity || 0,
+          unitPrice: editingItem.item.unitPrice,
+          taxAmount: editingItem.item.taxAmount || 0,
+          sku: editingItem.item.sku || "",
+          unitOfMeasure: editingItem.item.unitOfMeasure || "unit",
+          accountingResolutionStatus: "unresolved",
+        } : null}
+        onEditSaved={handleEditItem}
+        editSaving={false}
+      />
 
       {/* Delete Item Confirm */}
       <AlertDialog open={!!itemToDelete} onOpenChange={val => !val && setItemToDelete(null)}>

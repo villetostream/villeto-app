@@ -7,6 +7,7 @@ import {
   CheckCircle2, Loader2, Pencil, Search, ChevronLeft
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
@@ -560,15 +561,22 @@ export default function NewPurchaseOrderPage() {
     setStep(2);
   };
 
-  const handleSaveItem = (payload: LocalItem) => {
-    if (editingItem) {
-      setLineItems(prev => prev.map((it, i) => i === editingItem.index ? payload : it));
-      setEditingItem(null);
-      toast.success("Item updated");
-    } else {
-      setLineItems(prev => [...prev, payload]);
-      toast.success("Item added");
-    }
+  const handleAddItems = async (items: any[]) => {
+    setLineItems(prev => [...prev, ...items.map(it => ({
+      ...it,
+      id: crypto.randomUUID()
+    }))]);
+    setShowModal(false);
+  };
+
+  const handleEditItem = async (item: any) => {
+    if (!editingItem) return;
+    setLineItems(prev => {
+      const copy = [...prev];
+      copy[editingItem.index] = { ...copy[editingItem.index], ...item };
+      return copy;
+    });
+    setEditingItem(null);
     setShowModal(false);
   };
 
@@ -595,10 +603,9 @@ export default function NewPurchaseOrderPage() {
   return (
     <>
       {step === 1 && (
-        <div className="max-w-5xl mx-auto space-y-5">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="w-full space-y-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sticky -top-3 sm:-top-5 lg:-top-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 z-40 bg-[#f4f7f5]">
             <div>
-              <button type="button" onClick={() => router.push("/procurement/purchase-order")} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]"><ChevronLeft className="size-3.5" /> Purchase orders</button>
               <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Create purchase order</h1>
               <p className="mt-1 text-[12px] text-[#68726d]">Define the supplier commitment, entity, and delivery expectation.</p>
             </div>
@@ -669,8 +676,8 @@ export default function NewPurchaseOrderPage() {
             </div>
 
             <div className="pt-1 flex justify-end">
-              <button type="button" onClick={handleSaveHeader}
-                className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
+              <button type="button" onClick={handleSaveHeader} disabled={!vendorId || !priority || !effectiveLegalEntityId || !deliveryDate}
+                className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
                 Continue
               </button>
             </div>
@@ -679,10 +686,9 @@ export default function NewPurchaseOrderPage() {
       )}
 
       {step === 2 && (
-        <div className="flex flex-col h-full max-w-5xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 shrink-0">
+        <div className="flex flex-col h-full w-full">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 sticky -top-3 sm:-top-5 lg:-top-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 z-40 bg-[#f4f7f5]">
             <div>
-              <button type="button" onClick={() => router.push("/procurement/purchase-order")} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]"><ChevronLeft className="size-3.5" /> Purchase orders</button>
               <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Build the purchase order</h1>
               <p className="mt-1 text-[12px] text-[#68726d]">Add the exact items, quantities, categories, and pricing.</p>
             </div>
@@ -847,15 +853,28 @@ export default function NewPurchaseOrderPage() {
         </div>
       )}
 
-      {showModal && (
-        <LineItemModal
-          initial={editingItem?.item}
-          onClose={() => setShowModal(false)}
-          onSave={handleSaveItem}
-          departments={departments}
-          currency={currency}
-        />
-      )}
+      {/* Add/Edit Item Modal */}
+      <LineItemBatchModal
+        open={showModal}
+        onClose={() => { setShowModal(false); setEditingItem(null); }}
+        currency={currency}
+        onSaveAll={handleAddItems}
+        saving={false}
+        editInitial={editingItem ? {
+          name: editingItem.item.name || "",
+          description: editingItem.item.description || "",
+          categoryId: editingItem.item.categoryId || "",
+          categoryName: "",
+          quantity: editingItem.item.quantity || 0,
+          unitPrice: editingItem.item.unitPrice,
+          taxAmount: editingItem.item.taxAmount || 0,
+          sku: editingItem.item.sku || "",
+          unitOfMeasure: editingItem.item.unitOfMeasure || "unit",
+          accountingResolutionStatus: "unresolved",
+        } : null}
+        onEditSaved={handleEditItem}
+        editSaving={false}
+      />
 
       <AlertDialog open={!!itemToDelete} onOpenChange={(val) => !val && setItemToDelete(null)}>
         <AlertDialogContent>

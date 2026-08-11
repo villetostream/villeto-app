@@ -684,11 +684,10 @@ export default function NewPurchaseRequestPage() {
           STEP 1 — Plain layout, no scroll, fits viewport
           ════════════════════════════════════════════════ */}
       {step === 1 && (
-        <div className="max-w-5xl mx-auto space-y-5">
+        <div className="w-full space-y-5">
           {/* Title + stepper */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sticky -top-3 sm:-top-5 lg:-top-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 z-40 bg-[#f4f7f5]">
             <div>
-              <button type="button" onClick={() => router.push("/procurement/purchase-request")} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]"><ChevronLeft className="size-3.5" /> Purchase requests</button>
               <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Create purchase request</h1>
               <p className="mt-1 text-[12px] text-[#68726d]">Capture the need, ownership, entity, and expected timing.</p>
             </div>
@@ -774,7 +773,7 @@ export default function NewPurchaseRequestPage() {
             </div>
 
             <div className="pt-1 flex justify-end">
-              <button type="button" onClick={handleSaveHeader} disabled={headerSaving}
+              <button type="button" onClick={handleSaveHeader} disabled={headerSaving || !title.trim() || !priority || !effectiveLegalEntityId || !departmentId || !neededByDate}
                 className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
                 {headerSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save & Continue
@@ -788,12 +787,11 @@ export default function NewPurchaseRequestPage() {
           STEP 2 — Sticky title + scrollable table + sticky Submit
           ════════════════════════════════════════════════════════════ */}
       {step === 2 && (
-        <div className="flex flex-col h-full max-w-5xl mx-auto">
+        <div className="flex flex-col h-full w-full">
 
           {/* Sticky page header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 shrink-0">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 sticky -top-3 sm:-top-5 lg:-top-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 z-40 bg-[#f4f7f5]">
             <div>
-              <button type="button" onClick={() => router.push("/procurement/purchase-request")} className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#087f70] hover:text-[#065f55]"><ChevronLeft className="size-3.5" /> Purchase requests</button>
               <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Build the request</h1>
               <p className="mt-1 text-[12px] text-[#68726d]">Add quantities, categories, vendors, and accounting context.</p>
             </div>
