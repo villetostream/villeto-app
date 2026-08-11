@@ -40,6 +40,8 @@ export function useAxios(): AxiosInstance {
       withCredentials: true,
       headers: {
         "Content-Type": "application/json",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
     });

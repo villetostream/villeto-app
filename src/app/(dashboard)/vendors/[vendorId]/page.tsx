@@ -10,6 +10,7 @@ import { useAuthStore } from "@/stores/auth-stores";
 import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { asArray, asRecord, getString, isRecord, pickString } from "@/lib/types/api-error";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default withPermissions(VendorDetailsPage, [
   { resource: "vendor", action: "read_company" },
@@ -20,6 +21,7 @@ function VendorDetailsPage() {
   const { vendorId } = useParams() as { vendorId: string };
   const router = useRouter();
   const axiosInstance = useAxios();
+  const queryClient = useQueryClient();
   const can = useAuthStore(s => s.can);
 
   const [vendor, setVendor] = useState<Record<string, unknown> | null>(null);
@@ -69,6 +71,7 @@ function VendorDetailsPage() {
     try {
       await axiosInstance.patch(`/vendors/${vendorId}/review`, { decision, decisionNote: note });
       fetchVendor();
+      queryClient.invalidateQueries({ queryKey: ["vendors"] });
       if (decision === "rejected") { setRejectModalOpen(false); setRejectReason(""); }
       toast.success(decision === "approved" ? "Vendor approved successfully" : "Vendor rejected");
     } catch (err) {
@@ -84,6 +87,7 @@ function VendorDetailsPage() {
     try {
       await axiosInstance.patch(`/vendors/${vendorId}/status`, { status: statusPayload });
       fetchVendor();
+      queryClient.invalidateQueries({ queryKey: ["vendors"] });
       toast.success(`Vendor ${statusPayload === "Active" ? "activated" : "deactivated"} successfully`);
     } catch (err) {
       logger.error(`Failed to update vendor status to ${statusPayload}`, err);

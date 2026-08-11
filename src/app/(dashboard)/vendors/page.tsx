@@ -12,6 +12,7 @@ import { useAxios } from "@/hooks/useAxios";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useGetAllVendors } from "@/queries/vendors/get-all-vendors";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   MoreHorizontal,
@@ -643,77 +644,61 @@ function VendorPage() {
   const can = useAuthStore(s => s.can);
   const canInviteVendor = can("vendor", "invite");
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [vendors, setVendors]     = useState<Vendor[]>([]);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
   const [page, setPage] = useState(1);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [_selectedVendorId, _setSelectedVendorId] = useState<string | null>(null);
 
   const axiosInstance = useAxios();
+  const vendorsApi = useGetAllVendors();
+  const isLoading = vendorsApi.isLoading;
 
-  const fetchVendors = async () => {
-    setIsLoading(true);
-    try {
-      const res = await axiosInstance.get("/vendors");
-      const json = res.data;
+  const vendors = useMemo(() => {
+    const json = vendorsApi.data;
+    if (!json) return [];
+    
+    return (json.data || []).map((raw: unknown) => {
+      const v = asRecord(raw);
+      let computedStatus: VendorStatus = "invited";
       
-      const mappedVendors: Vendor[] = (json.data || []).map((raw: unknown) => {
-        const v = asRecord(raw);
-        let computedStatus: VendorStatus = "invited";
-        
-        const status = getString(v.status);
-        const onboardingStatus = getString(v.onboardingStatus);
-        const approvalStatus = getString(v.approvalStatus);
-        const normalizedStatus = status.toLowerCase();
+      const status = getString(v.status);
+      const onboardingStatus = getString(v.onboardingStatus);
+      const approvalStatus = getString(v.approvalStatus);
+      const normalizedStatus = status.toLowerCase();
 
-        if (approvalStatus === "rejected") {
-          computedStatus = "rejected";
-        } else if (approvalStatus === "approved") {
-          if (normalizedStatus === "active") {
-            computedStatus = "active";
-          } else if (v.deactivatedAt) {
-            computedStatus = "deactivated"; // Stage 6
-          } else {
-            computedStatus = "approved"; // Stage 4
-          }
+      if (approvalStatus === "rejected") {
+        computedStatus = "rejected";
+      } else if (approvalStatus === "approved") {
+        if (normalizedStatus === "active") {
+          computedStatus = "active";
+        } else if (v.deactivatedAt) {
+          computedStatus = "deactivated"; // Stage 6
         } else {
-          // approvalStatus === "pending" — use onboardingStatus to distinguish
-          if (!onboardingStatus || onboardingStatus === "invited") {
-            // null/undefined onboardingStatus means just invited, not yet started
-            computedStatus = "invited";
-          } else if (onboardingStatus === "submitted") {
-            computedStatus = "pending";          // ready for admin review
-          } else {
-            computedStatus = "onboarding";       // in_progress states
-          }
+          computedStatus = "approved"; // Stage 4
         }
-        
-        return {
-          id: getString(v.vendorId),
-          vendorName: pickString(v, "legalName", "displayName") || "Unknown",
-          regNo: getString(v.taxId) || "N/A",
-          email: getString(v.email),
-          invitedOn: v.invitationSentAt ? new Date(getString(v.invitationSentAt)).toLocaleDateString() : "N/A",
-          status: computedStatus,
-          lastUpdated: v.updatedAt ? new Date(getString(v.updatedAt)).toLocaleDateString() : "N/A"
-        };
-      });
+      } else {
+        // approvalStatus === "pending" — use onboardingStatus to distinguish
+        if (!onboardingStatus || onboardingStatus === "invited") {
+          // null/undefined onboardingStatus means just invited, not yet started
+          computedStatus = "invited";
+        } else if (onboardingStatus === "submitted") {
+          computedStatus = "pending";          // ready for admin review
+        } else {
+          computedStatus = "onboarding";       // in_progress states
+        }
+      }
       
-      setVendors(mappedVendors);
-    } catch (err) {
-      logger.error("Error fetching vendors:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      void fetchVendors();
+      return {
+        id: getString(v.vendorId),
+        vendorName: pickString(v, "legalName", "displayName") || "Unknown",
+        regNo: getString(v.taxId) || "N/A",
+        email: getString(v.email),
+        invitedOn: v.invitationSentAt ? new Date(getString(v.invitationSentAt)).toLocaleDateString() : "N/A",
+        status: computedStatus,
+        lastUpdated: v.updatedAt ? new Date(getString(v.updatedAt)).toLocaleDateString() : "N/A"
+      };
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [vendorsApi.data]);
 
   // Sync tab to URL and reset page
   useEffect(() => {
@@ -749,7 +734,7 @@ function VendorPage() {
     total:    vendors.length,
     verified: vendors.filter((v) => v.status === "active" || v.status === "approved").length,
     pending:  vendors.filter((v) => v.status === "pending").length,
-    rejected: vendors.filter((v) => v.status === "rejected" || v.status === "flagged").length,
+    rejected: vendors.filter((v) => (v.status as string) === "rejected" || (v.status as string) === "flagged").length,
   }), [vendors]);
 
   // Filter vendors by tab
@@ -806,7 +791,7 @@ function VendorPage() {
 
   return (
     <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
-      <InviteVendorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} onSuccess={() => fetchVendors()} />
+      <InviteVendorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} onSuccess={() => vendorsApi.refetch()} />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">

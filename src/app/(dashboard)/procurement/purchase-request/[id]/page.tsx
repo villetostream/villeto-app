@@ -975,7 +975,7 @@ function CreatePOView({
     <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
       {/* ── Page Header — outside scroll area so action buttons stay in view ── */}
       <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
-        <div className="max-w-6xl mx-auto w-full flex items-start justify-between gap-4 flex-wrap">
+        <div className="w-full flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
@@ -1842,7 +1842,7 @@ function PRDetailPage() {
       <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
         {/* Global Page Header — transparent with exact original padding */}
         <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
-          <div className="max-w-6xl mx-auto w-full flex items-start justify-between gap-4 flex-wrap">
+          <div className="w-full flex items-start justify-between gap-4 flex-wrap">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
