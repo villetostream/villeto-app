@@ -41,6 +41,7 @@ interface OCRData {
   transactionDate: string;
   category: string;
   description: string;
+  receiptExtractionId: string;
 }
 // Custom debounce hook
 export function useDebounce<T>(value: T, delay: number): T {
@@ -71,6 +72,7 @@ const expenseItemSchema = z.object({
   // Base64 data-url for the uploaded receipt image (set from upload step).
   // NOTE: Receipt is required for final "Submit", but optional for "Save as Draft".
   receipt: z.string().optional(),
+  receiptExtractionId: z.string().uuid().optional(),
   splits: z.array(splitExpenseSchema).optional(),
 });
 
@@ -108,6 +110,7 @@ type PersonalExpenseRow = {
   hasReceipt: boolean;
   status: PersonalExpenseStatus;
   receiptImage?: string;
+  receiptExtractionId?: string;
   reportName?: string;
   title?: string;
   description?: string;
@@ -170,7 +173,10 @@ export function ExpenseForm() {
   const router = useRouter();
   const ocrDataParam = searchParams.get("ocr");
   // Parse OCR data if available
-  const _ocrData: OCRData[] = ocrDataParam ? JSON.parse(ocrDataParam) : [];
+  const _ocrData = useMemo<OCRData[]>(
+    () => (ocrDataParam ? JSON.parse(ocrDataParam) : []),
+    [ocrDataParam],
+  );
 
   const defaultExpense = useMemo(
     () => ({
@@ -201,11 +207,20 @@ export function ExpenseForm() {
         setFiles(parsedImages);
 
         const initialExpenses = parsedImages.map(
-          (receipt: string, _index: number) => {
+          (receipt: string, index: number) => {
+            const extracted = _ocrData[index];
             return {
               ...defaultExpense,
-              title: "",
+              title: extracted?.vendor || "",
+              vendor: extracted?.vendor || "",
+              amount: extracted?.amount || 0,
+              transactionDate: extracted?.transactionDate
+                ? new Date(extracted.transactionDate)
+                : new Date(),
+              category: extracted?.category || "",
+              description: extracted?.description || "",
               receipt,
+              receiptExtractionId: extracted?.receiptExtractionId,
             };
           },
         );
@@ -216,7 +231,7 @@ export function ExpenseForm() {
       }
     }, 0);
     return () => clearTimeout(timeoutId);
-  }, [ocrDataParam, form, defaultExpense]);
+  }, [_ocrData, form, defaultExpense]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -352,6 +367,7 @@ export function ExpenseForm() {
             hasReceipt: Boolean(receiptImage),
             status,
             receiptImage,
+            receiptExtractionId: expense.receiptExtractionId,
             reportName: reportName || undefined,
             description: expense.description || undefined,
             title: expense.title,
@@ -421,6 +437,7 @@ export function ExpenseForm() {
             hasReceipt: Boolean(receiptImage),
             status,
             receiptImage,
+            receiptExtractionId: expense.receiptExtractionId,
             reportName: reportName || undefined,
             description: expense.description || undefined,
             title: expense.title,

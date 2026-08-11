@@ -30,6 +30,12 @@ import {
   getPolicyExpenseResults,
 } from "@/lib/types/api-error";
 import { invalidatePersonalExpenseQueries } from "@/lib/react-query/expenses";
+import {
+  dataUrlToFile,
+  extractedReceiptValues,
+  type ReceiptExtraction,
+  uploadAndExtractReceipt,
+} from "@/lib/receipt-extraction";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -64,6 +70,7 @@ interface ExpenseDetail {
   transactionDate?: string;
   description?: string;
   receiptImage?: string;
+  receiptExtractionId?: string;
   policyViolations?: { type: string; message: string; ruleType?: string; limitChecks?: any[] }[] | null;
   justification?: string;
 }
@@ -178,12 +185,6 @@ function deriveFreshViolations(expenses: ExpenseItem[]): PolicyCheckResult[] {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Simulated OCR (replace with actual backend endpoint)
-const simulateOCR = async (_: string) => {
-  await new Promise((r) => setTimeout(r, 1000));
-  return { merchantName: "", amount: 0, category: "", transactionDate: new Date().toISOString() };
-};
-
 export default function NewReportPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -196,7 +197,6 @@ export default function NewReportPage() {
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
 
@@ -240,13 +240,11 @@ export default function NewReportPage() {
   }, [axios]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleReceiptsUpload = async (receipts: { base64: string; name: string }[], isSplit?: boolean) => {
-    setIsProcessing(true);
-    try {
-      const ocrResults = await Promise.all(receipts.map((r) => simulateOCR(r.base64)));
-      let currentNames = [...expenses.map((e) => e.name)];
-      const newExpenses: ExpenseItem[] = ocrResults.map((result, i) => {
-        let name = result.merchantName;
+  const handleReceiptsUpload = (receipts: ReceiptExtraction[], isSplit?: boolean) => {
+      const currentNames = [...expenses.map((expense) => expense.name)];
+      const newExpenses: ExpenseItem[] = receipts.map((receipt, index) => {
+        const extracted = extractedReceiptValues(receipt);
+        let name = extracted.merchantName;
         if (!name) {
           let counter = 1;
           name = `Expense ${counter}`;
@@ -257,32 +255,28 @@ export default function NewReportPage() {
         }
         currentNames.push(name);
         return {
-          id: `expense-${Date.now()}-${i}`,
+          id: `expense-${Date.now()}-${index}`,
           name,
-        category: result.category || "",
-        amount: 0,
-        receiptImage: receipts[i].base64,
-        merchantName: result.merchantName,
-        transactionDate: new Date(result.transactionDate),
-        fileName: receipts[i].name,
-        isSplit: !!isSplit,
-      };
-    });
+          category: "",
+          amount: extracted.amount,
+          receiptImage: receipt.receiptUrl,
+          receiptExtractionId: receipt.expenseReceiptExtractionId,
+          merchantName: extracted.merchantName,
+          transactionDate: extracted.transactionDate,
+          fileName: receipt.filename,
+          isSplit: !!isSplit,
+        };
+      });
       setExpenses((prev) => [...prev, ...newExpenses]);
       toast.success(`${receipts.length} receipt(s) scanned successfully`);
-    } catch (error) {
-      logger.error("Error processing receipts:", error);
-      toast.error("Failed to process receipts");
-    } finally {
-      setIsProcessing(false);
-    }
   };
 
   const handleAddExpense = (
     data: ExpenseDetailFormData,
     receiptImage?: string,
     isSplit?: boolean,
-    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
+    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> },
+    receiptExtractionId?: string,
   ) => {
     // Prevent duplicate expense names (case-insensitive)
     const isDuplicate = expenses.some(
@@ -303,6 +297,7 @@ export default function NewReportPage() {
         merchantName: data.merchantName,
         description: data.description,
         receiptImage: receiptImage || "",
+        receiptExtractionId,
         transactionDate: data.transactionDate ?? new Date(),
         isSplit: !!isSplit,
         ...(splitData && {
@@ -334,20 +329,35 @@ export default function NewReportPage() {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
   };
 
-  const handleSaveExpense = (
+  const handleSaveExpense = async (
     expenseId: string,
     data: ExpenseDetailFormData,
     newReceipt?: string,
     justification?: string,
     splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
   ) => {
+    let resolvedReceipt = newReceipt;
+    let replacementExtractionId: string | undefined;
+    if (newReceipt?.startsWith("data:")) {
+      try {
+        const extraction = await uploadAndExtractReceipt(
+          axios,
+          dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
+        );
+        resolvedReceipt = extraction.receiptUrl;
+        replacementExtractionId = extraction.expenseReceiptExtractionId;
+      } catch (error) {
+        logger.error("Replacement receipt extraction failed:", error);
+        toast.warning("Receipt attached, but its details could not be read automatically.");
+      }
+    }
     // Check if amount, category, or receipt changed BEFORE updating state (while old value is still in closure)
     const currentExpense = expenses.find((e) => e.id === expenseId);
     const amountOrCategoryChanged = !!(currentExpense &&
       (
         currentExpense.amount !== data.amount ||
         currentExpense.category !== data.category ||
-        (newReceipt !== undefined && newReceipt !== currentExpense.receiptImage) // receipt added or replaced
+        (resolvedReceipt !== undefined && resolvedReceipt !== currentExpense.receiptImage) // receipt added or replaced
       ));
 
     setExpenses((prev) =>
@@ -363,7 +373,10 @@ export default function NewReportPage() {
           policyViolations: null, // Clear so the alert icon disappears
           // Keep existing justification unless a new one is explicitly provided
           justification: justification !== undefined ? justification : e.justification,
-          ...(newReceipt !== undefined && { receiptImage: newReceipt }),
+          ...(resolvedReceipt !== undefined && {
+            receiptImage: resolvedReceipt,
+            receiptExtractionId: replacementExtractionId,
+          }),
           ...(splitData && {
             splitParticipants: splitData.participants,
             splitAllocationMode: splitData.allocationMode,
@@ -385,10 +398,33 @@ export default function NewReportPage() {
   };
 
 
-  const handleChangeReceipt = (newReceipt: string) => {
+  const handleChangeReceipt = async (newReceipt: string) => {
     if (selectedReceiptId) {
+      let resolvedReceipt = newReceipt;
+      let receiptExtractionId: string | undefined;
+      if (newReceipt.startsWith("data:")) {
+        try {
+          const extraction = await uploadAndExtractReceipt(
+            axios,
+            dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
+          );
+          resolvedReceipt = extraction.receiptUrl;
+          receiptExtractionId = extraction.expenseReceiptExtractionId;
+        } catch (error) {
+          logger.error("Receipt replacement extraction failed:", error);
+          toast.warning("Receipt updated, but its details could not be read automatically.");
+        }
+      }
       setExpenses((prev) =>
-        prev.map((e) => (e.id === selectedReceiptId ? { ...e, receiptImage: newReceipt } : e))
+        prev.map((expense) =>
+          expense.id === selectedReceiptId
+            ? {
+                ...expense,
+                receiptImage: resolvedReceipt,
+                receiptExtractionId,
+              }
+            : expense,
+        )
       );
       toast.success("Receipt updated");
     }
@@ -462,7 +498,7 @@ export default function NewReportPage() {
     newReceipt?: string,
     justification?: string
   ) => {
-    handleSaveExpense(expenseId, data, newReceipt, justification);
+    await handleSaveExpense(expenseId, data, newReceipt, justification);
     setIsDetailModalOpen(false);
     setSelectedExpenseId(null);
     // Note: We no longer auto-submit here. The user will be returned to the report view
@@ -556,6 +592,9 @@ export default function NewReportPage() {
         if (expense.receiptImage?.startsWith("data:")) {
           const b64 = extractBase64(expense.receiptImage);
           if (b64) payload.receiptImage = b64;
+        }
+        if (expense.receiptExtractionId) {
+          payload.receiptExtractionId = expense.receiptExtractionId;
         }
         return payload;
       });
@@ -918,15 +957,6 @@ export default function NewReportPage() {
         isRechecking={isRecheckingPolicy}
       />
 
-      {/* Processing overlay */}
-      {isProcessing && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
-          <div className="bg-white rounded-[14px] p-6 flex items-center gap-3 shadow-xl">
-            <Loader2 className="h-6 w-6 animate-spin text-[#087f70]" />
-            <span className="text-[14px] font-semibold text-[#0b100e]">Processing receipts...</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
