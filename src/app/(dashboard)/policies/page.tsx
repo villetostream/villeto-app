@@ -710,20 +710,19 @@ function PoliciesPage() {
 
   const queryClient = useQueryClient();
 
-  // Pagination state for the policies table
   const policyTableProps = useDataTable({
     initialPage: 1,
     initialPageSize: 20,
     totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
-    manualPagination: true,
+    manualPagination: false,
   });
   const setPolicyTotalItems = policyTableProps.setTotalItems;
 
   const policiesApi = useGetPoliciesApi({ 
-    page: policyTableProps.page, 
-    limit: policyTableProps.pageSize, 
+    page: 1, 
+    limit: 1000, 
     excludeDrafts: false 
   }, { enabled: canReadPolicies });
 
@@ -800,12 +799,8 @@ function PoliciesPage() {
   }, [policiesApi.data?.data, liveExpenseCategories]);
 
   useEffect(() => {
-    if (policiesApi.data?.meta?.totalCount !== undefined) {
-      setPolicyTotalItems(policiesApi.data.meta.totalCount);
-    } else if (policiesApi.data?.data) {
-      setPolicyTotalItems(policiesApi.data.data.length);
-    }
-  }, [policiesApi.data, setPolicyTotalItems]);
+    setPolicyTotalItems(filteredPolicies.length);
+  }, [filteredPolicies.length, setPolicyTotalItems]);
 
   // Register dynamic header CTA button
   const { setAction, clearAction } = useHeaderActionStore();
@@ -1303,6 +1298,7 @@ function PoliciesPage() {
                   data={filteredPolicies}
                   columns={policyColumns}
                   height="auto"
+                  manualPagination={false}
                   emptyState={
                     <EmptyState 
                       icon={<Search className="w-6 h-6" />}
@@ -1311,7 +1307,7 @@ function PoliciesPage() {
                     />
                   }
                   onRowClick={(row) => setDetailPolicy(row)}
-                  paginationProps={{ ...policyTableProps.paginationProps, total: filteredPolicies.length }}
+                  paginationProps={policyTableProps.paginationProps}
                 />
               </div>
             )}

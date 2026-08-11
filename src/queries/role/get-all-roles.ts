@@ -81,6 +81,46 @@ export interface GetRolesParams {
  * Fetches a paginated list of all roles.
  * GET /roles?page=1&limit=20
  */
+async function fetchAllRolesLoop(axiosInstance: any, apiUrl: string, page: number, limit: number) {
+    if (limit !== 1000) {
+        const response = await axiosInstance.get(apiUrl);
+        return response.data;
+    }
+
+    // Intercept limit=1000 and fetch all pages
+    const firstUrl = API_KEYS.ROLE.ROLES_LIST(1, 100);
+    const response = await axiosInstance.get(firstUrl);
+    const firstPageData = response.data;
+    
+    const totalPages = firstPageData?.meta?.totalPages || 1;
+    let allData = firstPageData?.data || [];
+    
+    if (totalPages > 1) {
+        const promises = [];
+        for (let i = 2; i <= totalPages; i++) {
+            promises.push(axiosInstance.get(API_KEYS.ROLE.ROLES_LIST(i, 100)));
+        }
+        const results = await Promise.all(promises);
+        results.forEach(res => {
+            if (res.data?.data) {
+                allData = [...allData, ...res.data.data];
+            }
+        });
+    }
+    
+    return {
+        ...firstPageData,
+        data: allData,
+        meta: {
+            ...firstPageData.meta,
+            totalCount: allData.length,
+            limit: allData.length,
+            totalPages: 1,
+            currentPage: 1
+        }
+    };
+}
+
 export const useGetAllRolesApi = (
     { page = 1, limit = 20 }: GetRolesParams = {},
     options?: Omit<UseQueryOptions<PaginatedRolesResponse, Error>, "queryKey" | "queryFn">
@@ -90,8 +130,7 @@ export const useGetAllRolesApi = (
     return useQuery<PaginatedRolesResponse, Error>({
         queryKey: [QUERY_KEYS.ROLES, { page, limit }],
         queryFn: async () => {
-            const response = await axiosInstance.get(API_KEYS.ROLE.ROLES_LIST(page, limit));
-            return response.data;
+            return fetchAllRolesLoop(axiosInstance, API_KEYS.ROLE.ROLES_LIST(page, limit), page, limit);
         },
         staleTime: STALE_TIMES.STATIC,
         ...options,

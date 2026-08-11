@@ -715,7 +715,7 @@ function VendorPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync tab to URL
+  // Sync tab to URL and reset page
   useEffect(() => {
     const currentTab = searchParams.get("tab") || "all";
     if (currentTab !== activeTab) {
@@ -723,6 +723,7 @@ function VendorPage() {
       params.set("tab", activeTab);
       router.replace(`?${params.toString()}`, { scroll: false });
     }
+    setPage(1); // Reset page when tab changes to avoid empty pages
   }, [activeTab, router, searchParams]);
 
   // Header CTA — only show "Invite Vendor" to users who can actually invite.

@@ -36,11 +36,11 @@ export function DirectoryTab() {
         totalItems: 0, 
         manualSorting: false,
         manualFiltering: true,
-        manualPagination: true,
+        manualPagination: false,
     });
 
-    const page = tableProps.paginationProps.page;
-    const limit = tableProps.paginationProps.pageSize || 20;
+    const page = 1;
+    const limit = 1000;
 
     const filters = tableProps.filterBy || {};
     const status = filters.status && filters.status !== "all" ? (filters.status as string) : undefined;
@@ -56,7 +56,6 @@ export function DirectoryTab() {
             status,
             employeeStatus,
             roleId,
-            departmentId,
             invited,
         }
     });
@@ -73,6 +72,21 @@ export function DirectoryTab() {
 
     const users = useMemo(() => {
         let data = usersApi?.data?.data ?? [];
+        
+        if (departmentId) {
+            const selectedDept = depts?.data?.data?.find(d => getDepartmentOptionValue(d) === departmentId);
+            data = data.filter((u) => {
+                const uDeptId = getUserDepartmentId(u);
+                if (uDeptId === departmentId) return true;
+                
+                if (selectedDept && typeof uDeptId === "string") {
+                    const deptName = formatDepartmentOptionLabel(selectedDept);
+                    if (uDeptId.toLowerCase() === deptName.toLowerCase()) return true;
+                }
+                return false;
+            });
+        }
+        
         if (debouncedSearch) {
             const query = debouncedSearch.toLowerCase();
             data = data.filter((u) => {
@@ -87,15 +101,14 @@ export function DirectoryTab() {
             });
         }
         return data;
-    }, [usersApi.data?.data, debouncedSearch]);
+    }, [usersApi.data?.data, debouncedSearch, departmentId]);
 
     const totalCount = usersApi?.data?.meta?.totalCount ?? 0;
 
-    const isLoading = usersApi.isLoading || depts.isLoading || roles.isLoading;
-
+    const isLoading = usersApi.isLoading;
     useEffect(() => {
-        tableProps.setTotalItems(totalCount);
-    }, [totalCount, tableProps.setTotalItems]);
+        tableProps.setTotalItems(users.length);
+    }, [users.length, tableProps.setTotalItems]);
 
     // Empty state
     if (!isLoading && totalCount === 0 && !tableProps.globalSearch && Object.keys(tableProps.filterBy || {}).length === 0) {
@@ -130,16 +143,17 @@ export function DirectoryTab() {
         <div className="space-y-4 flex-1 flex flex-col min-h-0 overflow-hidden">
             <DataTable
                 data={users}
-                isLoading={isLoading}
+                isLoading={usersApi.isLoading || depts.isLoading || roles.isLoading}
+                manualPagination={false}
                 emptyState={
                     <EmptyState 
                         icon={<Users className="w-6 h-6" />}
-                        title="No directory members found"
+                        title="No users found"
                         description="Try adjusting your filters or search query to find what you're looking for."
                     />
                 }
                 columns={directoryColumns}
-                paginationProps={{ ...tableProps.paginationProps, total: totalCount }}
+                paginationProps={tableProps.paginationProps}
                 enableRowSelection={false}
                 enableColumnVisibility={true}
                 selectedDataIds={tableProps.selectedDataIds}

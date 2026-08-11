@@ -76,11 +76,11 @@ export function AllUsersTab() {
         totalItems: 0,
         manualSorting: false,
         manualFiltering: true,
-        manualPagination: true,
+        manualPagination: false,
     });
 
-    const page = tableprops.paginationProps.page;
-    const limit = tableprops.paginationProps.pageSize || 20;
+    const page = 1;
+    const limit = 1000;
 
     const filters = tableprops.filterBy || {};
     const status = filters.status && filters.status !== "all" ? (filters.status as string) : undefined;
@@ -95,7 +95,6 @@ export function AllUsersTab() {
             status,
             employeeStatus,
             roleId,
-            departmentId,
         }
     });
 
@@ -125,6 +124,21 @@ export function AllUsersTab() {
 
     const users = useMemo(() => {
         let data = usersApi?.data?.data ?? [];
+        
+        if (departmentId) {
+            const selectedDept = depts?.data?.data?.find(d => getDepartmentOptionValue(d) === departmentId);
+            data = data.filter((u) => {
+                const uDeptId = getUserDepartmentId(u);
+                if (uDeptId === departmentId) return true;
+                
+                if (selectedDept && typeof uDeptId === "string") {
+                    const deptName = formatDepartmentOptionLabel(selectedDept);
+                    if (uDeptId.toLowerCase() === deptName.toLowerCase()) return true;
+                }
+                return false;
+            });
+        }
+        
         if (debouncedSearch) {
             const query = debouncedSearch.toLowerCase();
             data = data.filter((u) => {
@@ -139,19 +153,18 @@ export function AllUsersTab() {
             });
         }
         return data;
-    }, [usersApi.data?.data, debouncedSearch]);
-
-    const totalCount = usersApi?.data?.meta?.totalCount ?? 0;
+    }, [usersApi.data?.data, debouncedSearch, departmentId]);
 
     useEffect(() => {
-        tableprops.setTotalItems(totalCount);
-    }, [totalCount, tableprops.setTotalItems]);
+        tableprops.setTotalItems(users.length);
+    }, [users.length, tableprops.setTotalItems]);
 
     return (
         <div className="space-y-4 flex-1 flex flex-col min-h-0 overflow-hidden">
             <DataTable
                 data={users}
                 isLoading={usersApi.isLoading || depts.isLoading || roles.isLoading}
+                manualPagination={false}
                 emptyState={
                     <EmptyState 
                         icon={<Users className="w-6 h-6" />}
@@ -160,7 +173,7 @@ export function AllUsersTab() {
                     />
                 }
                 columns={tableColumns}
-                paginationProps={{ ...tableprops.paginationProps, total: totalCount }}
+                paginationProps={tableprops.paginationProps}
                 enableRowSelection={false}
                 enableColumnVisibility={true}
                 selectedDataIds={tableprops.selectedDataIds}

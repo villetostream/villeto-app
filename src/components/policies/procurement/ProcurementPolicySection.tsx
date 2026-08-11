@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Clock,
   Eye,
@@ -58,20 +58,19 @@ export function ProcurementPolicySection({
   onCreateClick: () => void;
 }) {
   const [search, setSearch] = useState("");
-  const [page] = useState(1);
   const [detailPolicy, setDetailPolicy] = useState<ProcurementPolicyApiRecord | null>(null);
-
-  const { data, isLoading, refetch, isRefetching } = useGetProcurementPolicies(page, 50);
-  const policies = useMemo<ProcurementPolicyApiRecord[]>(() => data?.data ?? [], [data?.data]);
 
   const tableProps = useDataTable({
     initialPage: 1,
     initialPageSize: 10,
-    totalItems: data?.meta?.totalCount ?? 0,
+    totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
     manualPagination: false,
   });
+
+  const { data, isLoading, refetch, isRefetching } = useGetProcurementPolicies(1, 1000);
+  const policies = useMemo<ProcurementPolicyApiRecord[]>(() => data?.data ?? [], [data?.data]);
 
   const approvedCount = useMemo(() => policies.filter((p) => ["approved", "active"].includes(p.status)).length, [policies]);
   const pendingCount  = useMemo(() => policies.filter((p) => p.status === "pending").length, [policies]);
@@ -90,6 +89,10 @@ export function ProcurementPolicySection({
       (p) => !q || p.name.toLowerCase().includes(q)
     );
   }, [policies, search]);
+
+  useEffect(() => {
+    tableProps.setTotalItems(filteredPolicies.length);
+  }, [filteredPolicies.length, tableProps.setTotalItems]);
 
   const columns = useMemo<ColumnDef<ProcurementPolicyApiRecord>[]>(
     () => [
@@ -217,6 +220,7 @@ export function ProcurementPolicySection({
         ) : (
           <div className="flex-1 overflow-hidden flex flex-col">
             <DataTable
+              manualPagination={true}
               data={filteredPolicies}
               columns={columns}
               height="auto"
@@ -230,7 +234,7 @@ export function ProcurementPolicySection({
                 </div>
               }
               onRowClick={(row) => setDetailPolicy(row)}
-              paginationProps={{ ...tableProps.paginationProps, total: filteredPolicies.length }}
+              paginationProps={tableProps.paginationProps}
             />
           </div>
         )}
