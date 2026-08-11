@@ -74,7 +74,7 @@ export default function LegalEntitiesPage() {
   };
 
   return (
-    <div className="space-y-6 pb-12 max-w-7xl mx-auto">
+    <div className="space-y-6 pb-12 h-full">
       <ProcurementPageHeader 
         title="Legal Entities" 
         description="Entity readiness and base currency control procurement and accounting workflows."

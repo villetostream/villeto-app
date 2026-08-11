@@ -51,8 +51,8 @@ export default function Page() {
         <div className="flex items-center gap-3"><span className="hidden text-[11px] font-medium text-[#737d78] sm:inline">Account setup</span><span className="rounded-full border border-black/[0.08] bg-[#f5f7f6] px-3 py-1.5 text-[10px] font-semibold text-[#303834]">1 of 2</span></div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[590px] flex-1 min-h-0 flex-col justify-center px-6 py-10 sm:px-10 lg:py-14 xl:px-14">
-        <div className="max-w-[470px]">
+      <div className="mx-auto flex w-full max-w-[560px] flex-1 min-h-0 flex-col justify-center px-6 py-10 sm:px-10 lg:py-14">
+        <div className="w-full">
           <span className="inline-flex items-center gap-2 rounded-full bg-[#e7f6f2] px-3 py-1.5 text-[11px] font-semibold text-[#087f70]"><ShieldCheck className="size-3.5" /> Secure account setup</span>
           <h1 className="mt-6 text-[clamp(2.1rem,4vw,3.25rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-[#0b100e]">Start with your work email.</h1>
           <p className="mt-4 max-w-[44ch] text-[14px] leading-6 text-[#66706b] sm:text-[15px]">We&apos;ll find your existing company or help you create a new Villeto account.</p>

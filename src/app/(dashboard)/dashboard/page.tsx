@@ -122,7 +122,7 @@ export default function DashboardPage() {
 
   return (
     <PermissionGuard>
-      <div className="space-y-6 pb-12 max-w-7xl mx-auto">
+      <div className="space-y-6 pb-12 h-full">
         
         {/* 1. Welcome Hero */}
         <section className="relative overflow-hidden rounded-[20px] bg-[#091512] px-6 py-8 text-white shadow-[0_20px_60px_-20px_rgba(4,43,36,0.5)] md:px-10 md:py-9 border border-white/[0.04]">

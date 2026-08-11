@@ -95,7 +95,7 @@ export default function AccountingPage() {
       <section className="flex flex-col gap-5 border-b border-black/[0.07] pb-5 pt-1 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-2xl">
           <h1 className="text-[25px] font-semibold tracking-[-0.035em] text-[#10231d] md:text-[28px]">Accounting control center</h1>
-          <p className="mt-2 text-[12px] leading-5 text-[#718079]">
+          <p className="mt-2 text-sm leading-5 text-[#718079]">
             Review the AP subledger, fiscal periods, immutable journals, obligations, and account balances for each legal entity.
           </p>
         </div>
@@ -265,23 +265,23 @@ export default function AccountingPage() {
 
 function ReadinessBadge({ value }: { value: string }) {
   const ready = value !== "provisional";
-  return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[8px] font-semibold uppercase tracking-wide ${ready ? "bg-[#e8f8f5] text-[#087f70]" : "bg-[#fff6df] text-[#9a650b]"}`}>{value.replaceAll("_", " ")}</span>;
+  return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${ready ? "bg-[#e8f8f5] text-[#087f70]" : "bg-[#fff6df] text-[#9a650b]"}`}>{value.replaceAll("_", " ")}</span>;
 }
 
 function OverviewMetric({ label, value, detail, icon }: { label: string; value: string; detail: string; icon: React.ReactNode }) {
   return (
     <div className="border-b border-black/[0.06] p-5 last:border-b-0 lg:border-b-0 lg:border-r lg:last:border-r-0">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="text-[10px] font-medium text-[#84918b]">{label}</p><p className="mt-2 text-[20px] font-semibold tracking-[-0.035em] text-[#15231e]">{value}</p></div>
-        <span className="flex size-8 items-center justify-center rounded-[9px] bg-[#eff7f4] text-[#087f70] [&>svg]:size-3.5">{icon}</span>
+        <div><p className="text-[12px] font-medium text-[#84918b]">{label}</p><p className="mt-2 text-[22px] font-semibold tracking-[-0.035em] text-[#15231e]">{value}</p></div>
+        <span className="flex size-8 items-center justify-center rounded-[9px] bg-[#eff7f4] text-[#087f70] [&>svg]:size-4">{icon}</span>
       </div>
-      <p className="mt-2 text-[9px] text-[#96a09c]">{detail}</p>
+      <p className="mt-2 text-[11px] text-[#96a09c]">{detail}</p>
     </div>
   );
 }
 
 function AccountingTab({ value, icon, children }: { value: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return <TabsTrigger value={value} className="h-8 flex-none rounded-[7px] px-3 text-[10px] font-semibold text-[#69766f] data-[state=active]:bg-white data-[state=active]:text-[#10231d] data-[state=active]:shadow-sm [&>svg]:size-3.5">{icon}{children}</TabsTrigger>;
+  return <TabsTrigger value={value} className="h-8 flex-none rounded-[7px] px-4 text-[13px] font-semibold text-[#69766f] data-[state=active]:bg-white data-[state=active]:text-[#10231d] data-[state=active]:shadow-sm [&>svg]:size-4">{icon}{children}</TabsTrigger>;
 }
 
 function AccountingPanel({ title, description, empty, isLoading, aside, children }: { title: string; description: string; empty: string; isLoading: boolean; aside?: React.ReactNode; children: React.ReactNode }) {
@@ -291,33 +291,33 @@ function AccountingPanel({ title, description, empty, isLoading, aside, children
   return (
     <section className="overflow-hidden rounded-[15px] border border-black/[0.07] bg-white shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)]">
       <div className="flex items-center justify-between gap-4 border-b border-black/[0.06] px-5 py-4">
-        <div><h2 className="text-[13px] font-semibold text-[#14231e]">{title}</h2><p className="mt-0.5 text-[10px] text-[#84908a]">{description}</p></div>
+        <div><h2 className="text-[15px] font-semibold text-[#14231e]">{title}</h2><p className="mt-0.5 text-[12px] text-[#84908a]">{description}</p></div>
         {aside}
       </div>
-      {isLoading ? <div className="flex items-center justify-center gap-2 py-16 text-[11px] text-[#7d8984]"><Loader2 className="size-4 animate-spin text-[#087f70]" /> Loading accounting data</div> : hasRows ? children : <div className="flex flex-col items-center py-16 text-center"><span className="flex size-10 items-center justify-center rounded-[11px] bg-[#eff7f4] text-[#087f70]"><FileText className="size-4" /></span><p className="mt-3 text-[11px] font-medium text-[#6d7974]">{empty}</p></div>}
+      {isLoading ? <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-[#7d8984]"><Loader2 className="size-4 animate-spin text-[#087f70]" /> Loading accounting data</div> : hasRows ? children : <div className="flex flex-col items-center py-16 text-center"><span className="flex size-10 items-center justify-center rounded-[11px] bg-[#eff7f4] text-[#087f70]"><FileText className="size-4" /></span><p className="mt-3 text-[13px] font-medium text-[#6d7974]">{empty}</p></div>}
     </section>
   );
 }
 
 function AccountingTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
-  return <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left"><thead className="bg-[#fafcfb]"><tr>{headers.map((header) => <th key={header} className="px-5 py-3 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#8a9590]">{header}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
+  return <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left"><thead className="bg-[#fafcfb]"><tr>{headers.map((header) => <th key={header} className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[#8a9590]">{header}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
 }
 
 function PrimaryCell({ title, detail }: { title: string; detail: string }) {
-  return <td className="max-w-xs px-5 py-3.5"><p className="truncate text-[11px] font-semibold text-[#17251f]">{title}</p><p className="mt-0.5 truncate text-[9px] text-[#929c97]">{detail}</p></td>;
+  return <td className="max-w-xs px-5 py-3.5"><p className="truncate text-[13px] font-semibold text-[#17251f]">{title}</p><p className="mt-0.5 truncate text-[11px] text-[#929c97]">{detail}</p></td>;
 }
 
 function TextCell({ value, capitalize = false, strong = false }: { value: string; capitalize?: boolean; strong?: boolean }) {
-  return <td className={`px-5 py-3.5 text-[10px] text-[#67736e] ${capitalize ? "capitalize" : ""} ${strong ? "font-semibold text-[#26342e]" : ""}`}>{value}</td>;
+  return <td className={`px-5 py-3.5 text-[13px] text-[#67736e] ${capitalize ? "capitalize" : ""} ${strong ? "font-semibold text-[#26342e]" : ""}`}>{value}</td>;
 }
 
 function StatusPill({ value }: { value: string }) {
   const normalized = value.toLowerCase();
   const positive = ["active", "open", "posted", "settled", "paid", "completed"].includes(normalized);
   const warning = ["pending", "draft", "partially_paid", "outstanding"].includes(normalized);
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-[8px] font-semibold capitalize ${positive ? "bg-[#e8f8f5] text-[#087f70]" : warning ? "bg-[#fff6df] text-[#9a650b]" : "bg-[#f0f3f2] text-[#65716c]"}`}>{value.replaceAll("_", " ")}</span>;
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize ${positive ? "bg-[#e8f8f5] text-[#087f70]" : warning ? "bg-[#fff6df] text-[#9a650b]" : "bg-[#f0f3f2] text-[#65716c]"}`}>{value.replaceAll("_", " ")}</span>;
 }
 
 function AccountingEmpty({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) {
-  return <section className="flex flex-col items-center rounded-[16px] border border-dashed border-black/[0.09] bg-white px-6 py-20 text-center"><span className="flex size-12 items-center justify-center rounded-[14px] bg-[#e8f8f5] text-[#087f70] [&>svg]:size-5">{icon}</span><h2 className="mt-4 text-[15px] font-semibold text-[#16251f]">{title}</h2><p className="mt-1.5 max-w-md text-[11px] leading-5 text-[#7b8782]">{detail}</p></section>;
+  return <section className="flex flex-col items-center rounded-[16px] border border-dashed border-black/[0.09] bg-white px-6 py-20 text-center"><span className="flex size-12 items-center justify-center rounded-[14px] bg-[#e8f8f5] text-[#087f70] [&>svg]:size-5">{icon}</span><h2 className="mt-4 text-[16px] font-semibold text-[#16251f]">{title}</h2><p className="mt-1.5 max-w-md text-[13px] leading-5 text-[#7b8782]">{detail}</p></section>;
 }
