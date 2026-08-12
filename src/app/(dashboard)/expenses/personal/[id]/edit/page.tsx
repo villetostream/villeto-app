@@ -17,6 +17,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import { logger } from "@/lib/logger";
 import { getApiErrorMessage, isPolicyViolationError, applyPolicyViolationErrorToExpenses, getPolicyExpenseResults } from "@/lib/types/api-error";
+import {
+  dataUrlToFile,
+  extractedReceiptValues,
+  getReceiptExtraction,
+  type ReceiptExtraction,
+  uploadAndExtractReceipt,
+} from "@/lib/receipt-extraction";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -35,6 +42,7 @@ interface DraftDetail {
     expenseCategoryId: string;
     description?: string;
     receiptImage?: string;
+    receiptExtractionId?: string;
   }>;
   expenses?: Array<{
     title: string;
@@ -44,24 +52,9 @@ interface DraftDetail {
     expenseCategoryId: string;
     description?: string;
     receiptImage?: string;
+    receiptExtractionId?: string;
   }>;
 }
-
-// Simulated OCR function
-const simulateOCR = async (_receiptBase64: string): Promise<{
-  merchantName: string;
-  amount: number;
-  category: string;
-  transactionDate: string;
-}> => {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  return {
-    merchantName: "",
-    amount: 0,
-    category: "",
-    transactionDate: new Date().toISOString(),
-  };
-};
 
 // ─── Humanize backend receipt policy messages ────────────────────────────────
 function humanizeReceiptMessage(message: string): string {
@@ -108,7 +101,6 @@ export default function EditReportPage() {
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   // Modal states
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
@@ -163,7 +155,7 @@ export default function EditReportPage() {
 
         // Map existing expenses to local state (handle both expenses and expensesPayload)
         const rawExpenses = reportData.expenses || reportData.expensesPayload || [];
-        const mappedExpenses: ExpenseItem[] = rawExpenses.map((e: any, index: number) => {
+        const mappedExpenses: ExpenseItem[] = await Promise.all(rawExpenses.map(async (e: any, index: number) => {
           // Find the category name since backend only returns category ID
           const categoryName = categoriesResponse.data?.data?.find((c: ExpenseCategory) => c.categoryId === e.expenseCategoryId)?.name || "Uncategorized";
 
@@ -171,6 +163,17 @@ export default function EditReportPage() {
           let receiptImage = e.receiptImage || "";
           if (receiptImage && !receiptImage.startsWith("data:") && !receiptImage.startsWith("http")) {
             receiptImage = `data:image/jpeg;base64,${receiptImage}`;
+          }
+          if (!receiptImage && e.receiptExtractionId) {
+            try {
+              const extraction = await getReceiptExtraction(
+                axios,
+                e.receiptExtractionId,
+              );
+              receiptImage = extraction.receiptUrl;
+            } catch (error) {
+              logger.warn("Could not restore extracted receipt preview", error);
+            }
           }
 
           return {
@@ -182,8 +185,9 @@ export default function EditReportPage() {
             description: e.description || "",
             transactionDate: new Date(e.transactionDate),
             receiptImage,
+            receiptExtractionId: e.receiptExtractionId,
           };
-        });
+        }));
 
         setExpenses(mappedExpenses);
         
@@ -207,16 +211,11 @@ export default function EditReportPage() {
   }, [reportId, axios, router]);
 
   // Handle receipt upload (New expenses)
-  const handleReceiptsUpload = async (receipts: { base64: string; name: string }[], isSplit?: boolean) => {
-    setIsProcessing(true);
-    try {
-      const ocrResults = await Promise.all(
-        receipts.map((receipt) => simulateOCR(receipt.base64))
-      );
-
-      let currentNames = [...expenses.map((e) => e.name)];
-      const newExpenses: ExpenseItem[] = ocrResults.map((result, index) => {
-        let name = result.merchantName;
+  const handleReceiptsUpload = (receipts: ReceiptExtraction[], isSplit?: boolean) => {
+      const currentNames = [...expenses.map((e) => e.name)];
+      const newExpenses: ExpenseItem[] = receipts.map((receipt, index) => {
+        const extracted = extractedReceiptValues(receipt);
+        let name = extracted.merchantName;
         if (!name) {
           let counter = 1;
           name = `Expense ${counter}`;
@@ -229,24 +228,19 @@ export default function EditReportPage() {
         return {
           id: `new-${Date.now()}-${index}`, // Temporary ID for new items
           name,
-        category: result.category || "",
-        amount: 0,
-        receiptImage: receipts[index].base64,
-        merchantName: result.merchantName,
-        transactionDate: new Date(result.transactionDate),
-        fileName: receipts[index].name,
-        isSplit: !!isSplit,
-      };
-    });
+          category: "",
+          amount: extracted.amount,
+          receiptImage: receipt.receiptUrl,
+          receiptExtractionId: receipt.expenseReceiptExtractionId,
+          merchantName: extracted.merchantName,
+          transactionDate: extracted.transactionDate,
+          fileName: receipt.filename,
+          isSplit: !!isSplit,
+        };
+      });
 
       setExpenses((prev) => [...prev, ...newExpenses]);
       toast.success(`${receipts.length} receipt(s) scanned successfully`);
-    } catch (error) {
-      logger.error("Error processing receipts:", error);
-      toast.error("Failed to process receipts");
-    } finally {
-      setIsProcessing(false);
-    }
   };
 
   // Handle manual expense addition
@@ -254,7 +248,8 @@ export default function EditReportPage() {
     data: ExpenseDetailFormData,
     receiptImage?: string,
     isSplit?: boolean,
-    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
+    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> },
+    receiptExtractionId?: string,
   ) => {
     const newExpense: ExpenseItem = {
       id: `new-${Date.now()}`,
@@ -264,6 +259,7 @@ export default function EditReportPage() {
       merchantName: data.merchantName,
       description: data.description,
       receiptImage: receiptImage || "",
+      receiptExtractionId,
       transactionDate: data.transactionDate ?? new Date(),
       isSplit: !!isSplit,
       ...(splitData && {
@@ -283,13 +279,28 @@ export default function EditReportPage() {
     );
   };
 
-  const handleSaveExpense = (
+  const handleSaveExpense = async (
     expenseId: string,
     data: ExpenseDetailFormData,
     newReceipt?: string,
     justification?: string,
     splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
   ) => {
+    let resolvedReceipt = newReceipt;
+    let replacementExtractionId: string | undefined;
+    if (newReceipt?.startsWith("data:")) {
+      try {
+        const extraction = await uploadAndExtractReceipt(
+          axios,
+          dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
+        );
+        resolvedReceipt = extraction.receiptUrl;
+        replacementExtractionId = extraction.expenseReceiptExtractionId;
+      } catch (error) {
+        logger.error("Replacement receipt extraction failed:", error);
+        toast.warning("Receipt attached, but its details could not be read automatically.");
+      }
+    }
     setExpenses((prev) =>
       prev.map((exp) =>
         exp.id === expenseId
@@ -303,7 +314,10 @@ export default function EditReportPage() {
               transactionDate: data.transactionDate ?? exp.transactionDate,
               policyViolations: null,
               ...(justification !== undefined && { justification }),
-              ...(newReceipt !== undefined && { receiptImage: newReceipt }),
+              ...(resolvedReceipt !== undefined && {
+                receiptImage: resolvedReceipt,
+                receiptExtractionId: replacementExtractionId,
+              }),
               ...(splitData && {
                 splitParticipants: splitData.participants,
                 splitAllocationMode: splitData.allocationMode,
@@ -393,7 +407,9 @@ export default function EditReportPage() {
 
     // Validation
     if (status === "pending") {
-      const missingReceipts = activeExpenses.filter((exp) => !exp.receiptImage);
+      const missingReceipts = activeExpenses.filter(
+        (expense) => !expense.receiptImage && !expense.receiptExtractionId,
+      );
       if (missingReceipts.length > 0) {
         toast.error("All expenses must have receipts before submitting");
         return;
@@ -458,6 +474,9 @@ export default function EditReportPage() {
         const base64 = extractBase64(expense.receiptImage);
         if (base64) {
             payload.receiptImage = base64;
+        }
+        if (expense.receiptExtractionId) {
+          payload.receiptExtractionId = expense.receiptExtractionId;
         }
 
         return payload;
@@ -765,12 +784,36 @@ export default function EditReportPage() {
         isOpen={isReceiptModalOpen}
         onClose={() => { setIsReceiptModalOpen(false); setSelectedReceiptId(null); }}
         receiptImage={expenses.find((e) => e.id === selectedReceiptId)?.receiptImage || ""}
-        onChangeReceipt={(newReceipt) => {
-            if (selectedReceiptId) {
-                setExpenses(prev => prev.map(e => e.id === selectedReceiptId ? { ...e, receiptImage: newReceipt } : e));
-                toast.success("Receipt updated");
+          onChangeReceipt={async (newReceipt) => {
+            if (!selectedReceiptId) return;
+            let resolvedReceipt = newReceipt;
+            let receiptExtractionId: string | undefined;
+            if (newReceipt.startsWith("data:")) {
+              try {
+                const extraction = await uploadAndExtractReceipt(
+                  axios,
+                  dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
+                );
+                resolvedReceipt = extraction.receiptUrl;
+                receiptExtractionId = extraction.expenseReceiptExtractionId;
+              } catch (error) {
+                logger.error("Receipt replacement extraction failed:", error);
+                toast.warning("Receipt updated, but its details could not be read automatically.");
+              }
             }
-        }}
+            setExpenses((previous) =>
+              previous.map((expense) =>
+                expense.id === selectedReceiptId
+                  ? {
+                      ...expense,
+                      receiptImage: resolvedReceipt,
+                      receiptExtractionId,
+                    }
+                  : expense,
+              ),
+            );
+            toast.success("Receipt updated");
+          }}
       />
       
       {/* Delete Expense Confirmation */}
@@ -799,15 +842,6 @@ export default function EditReportPage() {
         onEditExpense={handlePolicyEditExpense}
         isRechecking={isSubmittingReport}
       />
-
-      {isProcessing && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
-          <div className="bg-white rounded-[14px] p-6 flex items-center gap-3 shadow-xl">
-            <Loader2 className="h-6 w-6 animate-spin text-[#087f70]" />
-            <span className="text-[14px] font-semibold text-[#0b100e]">Processing receipts...</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

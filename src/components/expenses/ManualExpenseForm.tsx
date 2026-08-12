@@ -42,6 +42,10 @@ import { getApiErrorMessage, isPolicyViolationError, isDuplicateReceiptError, ge
 import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 import { CompanyExpenseItemModal } from "@/components/expenses/company/CompanyExpenseItemModal";
 import { PolicyJustificationDrawer, type PolicyRequiredAction } from "@/components/expenses/PolicyJustificationDrawer";
+import {
+  extractedReceiptValues,
+  uploadAndExtractReceipt,
+} from "@/lib/receipt-extraction";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -67,6 +71,9 @@ const expenseItemSchema = z.object({
   category: z.string().min(1, "Category is required"),
   description: z.string().optional(),
   receipt: z.string().optional(),
+  receiptExtractionId: z.string().optional(),
+  pendingReceipt: z.string().optional(),
+  pendingExtractionId: z.string().optional(),
   splits: z.array(splitExpenseSchema).optional(),
 });
 
@@ -172,7 +179,6 @@ export function ManualExpenseForm({
   const [policyErrorsByIndex, setPolicyErrorsByIndex] = useState<Record<number, string>>({});
   const [duplicateErrorsByIndex, setDuplicateErrorsByIndex] = useState<Record<number, DuplicateReceiptItem[]>>({});
   const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateReceiptItem | null>(null);
-  const [pendingReceiptByIndex, setPendingReceiptByIndex] = useState<Record<number, string>>({});
   // ACTION_REQUIRED policy state
   const [requiredActionsByIndex, setRequiredActionsByIndex] = useState<Record<number, PolicyRequiredAction>>({});
   const [justificationsByIndex, setJustificationsByIndex] = useState<Record<number, string>>({});
@@ -238,6 +244,9 @@ export function ManualExpenseForm({
       category: "",
       description: "",
       receipt: "",
+      receiptExtractionId: "",
+      pendingReceipt: "",
+      pendingExtractionId: "",
     }),
     [],
   );
@@ -316,8 +325,15 @@ export function ManualExpenseForm({
     ) as Array<`expenses.${number}.receipt`>;
   const receipts = useWatch({ control: form.control, name: receiptFieldsNames });
 
+  const pendingReceiptFieldsNames = Array(fields.length)
+    .fill(null)
+    .map(
+      (_, index) => `expenses.${index}.pendingReceipt`,
+    ) as Array<`expenses.${number}.pendingReceipt`>;
+  const pendingReceipts = useWatch({ control: form.control, name: pendingReceiptFieldsNames });
+
   const confirmPendingReceipt = (expenseIndex: number) => {
-    const pending = pendingReceiptByIndex[expenseIndex];
+    const pending = form.getValues(`expenses.${expenseIndex}.pendingReceipt`);
     if (!pending) return;
     setFiles((prev) => {
       const next = [...(prev ?? [])];
@@ -329,23 +345,20 @@ export function ManualExpenseForm({
       shouldDirty: true,
     });
     form.clearErrors(`expenses.${expenseIndex}.receipt`);
-    setPendingReceiptByIndex((prev) => {
-      const next = { ...prev };
-      delete next[expenseIndex];
-      return next;
-    });
+    const pendingExtractionId = form.getValues(`expenses.${expenseIndex}.pendingExtractionId`);
+    form.setValue(`expenses.${expenseIndex}.receiptExtractionId`, pendingExtractionId || "", { shouldDirty: true });
+    
+    form.setValue(`expenses.${expenseIndex}.pendingReceipt`, "", { shouldDirty: true });
+    form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", { shouldDirty: true });
   };
 
   const cancelPendingReceipt = (expenseIndex: number) => {
-    setPendingReceiptByIndex((prev) => {
-      const next = { ...prev };
-      delete next[expenseIndex];
-      return next;
-    });
+    form.setValue(`expenses.${expenseIndex}.pendingReceipt`, "", { shouldDirty: true });
+    form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", { shouldDirty: true });
   };
 
   const renderReceiptPanel = (index: number) => {
-    const pending = pendingReceiptByIndex[index];
+    const pending = pendingReceipts[index];
     const hasCommitted = hasReceiptSrc(files[index] || receipts?.[index]);
     const inputId = `receipt-input-${index}`;
 
@@ -476,8 +489,44 @@ export function ManualExpenseForm({
     }
 
     try {
-      const base64 = await fileToBase64(file);
-      setPendingReceiptByIndex((prev) => ({ ...prev, [expenseIndex]: base64 }));
+      const toastId = toast.loading("Reading receipt…");
+      try {
+        const extraction = await uploadAndExtractReceipt(axios, file);
+        const extracted = extractedReceiptValues(extraction);
+        form.setValue(`expenses.${expenseIndex}.pendingReceipt`, extraction.receiptUrl, { shouldDirty: true });
+        form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, extraction.expenseReceiptExtractionId, { shouldDirty: true });
+        if (extracted.merchantName) {
+          form.setValue(`expenses.${expenseIndex}.vendor`, extracted.merchantName, {
+            shouldDirty: true,
+          });
+          if (!form.getValues(`expenses.${expenseIndex}.title`)) {
+            form.setValue(`expenses.${expenseIndex}.title`, extracted.merchantName, {
+              shouldDirty: true,
+            });
+          }
+        }
+        if (extracted.amount > 0) {
+          form.setValue(`expenses.${expenseIndex}.amount`, extracted.amount, {
+            shouldDirty: true,
+          });
+        }
+        form.setValue(
+          `expenses.${expenseIndex}.transactionDate`,
+          extracted.transactionDate,
+          { shouldDirty: true },
+        );
+        toast.success("Receipt details added. Review them before saving.", {
+          id: toastId,
+        });
+      } catch (error) {
+        logger.error("Receipt extraction failed:", error);
+        const base64 = await fileToBase64(file);
+        form.setValue(`expenses.${expenseIndex}.pendingReceipt`, base64, { shouldDirty: true });
+        form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", { shouldDirty: true });
+        toast.warning("Receipt attached. Enter its details manually.", {
+          id: toastId,
+        });
+      }
     } catch {
       toast.error("Failed to upload receipt. Please try again.");
     } finally {
@@ -613,6 +662,7 @@ export function ManualExpenseForm({
         amount: number;
         transactionDate: string;
         receiptImage?: string;
+        receiptExtractionId?: string;
         justification?: string;
       } = {
         title: expense.title,
@@ -622,6 +672,10 @@ export function ManualExpenseForm({
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
+
+      if (expense.receiptExtractionId || expense.pendingExtractionId) {
+        expenseObj.receiptExtractionId = expense.receiptExtractionId || expense.pendingExtractionId;
+      }
 
       // Only attach justification when the backend explicitly required it for this expense
       // (i.e. there is an active ACTION_REQUIRED entry for this index)
@@ -684,6 +738,7 @@ export function ManualExpenseForm({
         amount: number;
         transactionDate: string;
         receiptImage?: string;
+        receiptExtractionId?: string;
         expenseId?: string;
         justification?: string;
       } = {
@@ -694,6 +749,10 @@ export function ManualExpenseForm({
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
+
+      if (expense.receiptExtractionId) {
+        expenseObj.receiptExtractionId = expense.receiptExtractionId;
+      }
 
       // Include expenseId for existing expenses (from reportDetail)
       if (isEditMode && reportDetail?.expenses?.[idx]) {

@@ -715,10 +715,12 @@ export default function NewPurchaseRequestPage() {
                   placeholder="Select priority"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Legal entity <span className="text-[#d33d44]">*</span></label>
-                <SelectDropdown value={effectiveLegalEntityId} onChange={selectLegalEntity} options={legalEntityOptions} placeholder="Select legal entity" />
-              </div>
+              {legalEntities.length > 1 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-[#0b100e]">Legal entity <span className="text-[#d33d44]">*</span></label>
+                  <SelectDropdown value={effectiveLegalEntityId} onChange={selectLegalEntity} options={legalEntityOptions} placeholder="Select legal entity" />
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-[#0b100e]">Expected Date <span className="text-[#d33d44]">*</span></label>
                 <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
@@ -744,12 +746,11 @@ export default function NewPurchaseRequestPage() {
                   </PopoverContent>
                 </Popover>
               </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Currency</label>
-              <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">{currency || "Select a legal entity"}</div>
-              <p className="text-xs text-[#68726d]">Locked to the legal entity base currency.</p>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[#0b100e]">Currency</label>
+                <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">{currency || "Select a legal entity"}</div>
+                <p className="text-xs text-[#68726d]">Locked to the legal entity base currency.</p>
+              </div>
             </div>
 
             <div className="space-y-1.5">

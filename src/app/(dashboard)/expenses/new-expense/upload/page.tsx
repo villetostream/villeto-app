@@ -12,22 +12,12 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
-
-// Simulated OCR data - in real app this would come from an OCR service
-const simulateOCR = (fileName: string): Promise<OCRData> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // Simulate extracted data based on "receipt" content
-      resolve({
-        vendor: "StarBucks Coffee",
-        amount: 45.99,
-        transactionDate: new Date().toISOString(),
-        category: "Meals & Entertainment",
-        description: `Receipt from ${fileName}`,
-      });
-    }, 1500);
-  });
-};
+import { useAxios } from "@/hooks/useAxios";
+import {
+  extractedReceiptValues,
+  type ReceiptExtraction,
+  uploadAndExtractReceipt,
+} from "@/lib/receipt-extraction";
 
 interface OCRData {
   vendor: string;
@@ -35,6 +25,7 @@ interface OCRData {
   transactionDate: string;
   category: string;
   description: string;
+  receiptExtractionId: string;
 }
 
 function restoreFilesFromSession(): File[] {
@@ -63,6 +54,7 @@ function restoreFilesFromSession(): File[] {
 }
 
 export default function UploadReceipt() {
+  const axios = useAxios();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isDragging, setIsDragging] = useState(false);
@@ -127,6 +119,7 @@ export default function UploadReceipt() {
       // Update sessionStorage if we're removing a file
       if (updated.length === 0) {
         sessionStorage.removeItem("uploadedReceipts");
+        sessionStorage.removeItem("uploadedReceiptExtractions");
         sessionStorage.removeItem("uploadedFileMetadata");
       } else {
         // Update metadata to match remaining files
@@ -151,21 +144,24 @@ export default function UploadReceipt() {
               "uploadedReceipts",
               JSON.stringify(updatedReceipts),
             );
+            const storedExtractions = sessionStorage.getItem(
+              "uploadedReceiptExtractions",
+            );
+            if (storedExtractions) {
+              const extractions = JSON.parse(storedExtractions);
+              sessionStorage.setItem(
+                "uploadedReceiptExtractions",
+                JSON.stringify(
+                  extractions.filter((_: unknown, i: number) => i !== index),
+                ),
+              );
+            }
           } catch (error) {
             logger.error("Error updating receipts:", error);
           }
         }
       }
       return updated;
-    });
-  };
-
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
     });
   };
 
@@ -180,18 +176,18 @@ export default function UploadReceipt() {
     try {
       let ocrData: OCRData[] = [];
       let receiptImages: string[] = [];
+      let extractions: ReceiptExtraction[] = [];
 
       // Check if receipts are already stored in sessionStorage (navigating back scenario)
       const storedReceipts = sessionStorage.getItem("uploadedReceipts");
-      if (storedReceipts) {
+      const storedExtractions = sessionStorage.getItem(
+        "uploadedReceiptExtractions",
+      );
+
+      if (storedReceipts && storedExtractions) {
         try {
           receiptImages = JSON.parse(storedReceipts);
-          // Use existing receipts, only simulate OCR if we have valid file names
-          if (files.length > 0 && files[0].name) {
-            ocrData = await Promise.all(
-              files.map((file) => simulateOCR(file.name)),
-            );
-          }
+          extractions = JSON.parse(storedExtractions);
         } catch (error) {
           logger.error("Error parsing stored receipts:", error);
           // Fall through to process files normally
@@ -200,22 +196,34 @@ export default function UploadReceipt() {
 
       // If no stored receipts, process files normally
       if (receiptImages.length === 0 && files.length > 0) {
-        // Simulate OCR for each file
-        ocrData = await Promise.all(
-          files.map((file) => simulateOCR(file.name)),
+        extractions = await Promise.all(
+          files.map((file) => uploadAndExtractReceipt(axios, file)),
         );
 
-        // Convert files to base64 for storage (only for real files)
-        receiptImages = await Promise.all(
-          files.map((file) => fileToBase64(file)),
-        );
+        receiptImages = extractions.map((extraction) => extraction.receiptUrl);
       }
+
+      ocrData = extractions.map((extraction) => {
+        const values = extractedReceiptValues(extraction);
+        return {
+          vendor: values.merchantName,
+          amount: values.amount,
+          transactionDate: values.transactionDate.toISOString(),
+          category: "",
+          description: `Receipt from ${extraction.filename}`,
+          receiptExtractionId: extraction.expenseReceiptExtractionId,
+        };
+      });
 
       // Store images and file metadata in sessionStorage
       if (receiptImages.length > 0) {
         sessionStorage.setItem(
           "uploadedReceipts",
           JSON.stringify(receiptImages),
+        );
+        sessionStorage.setItem(
+          "uploadedReceiptExtractions",
+          JSON.stringify(extractions),
         );
         // Store file metadata for restoration when navigating back
         const fileMetadata = files.map((file) => ({

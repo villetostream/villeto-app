@@ -50,7 +50,18 @@ export function useAxios(): AxiosInstance {
         });
 
         instance.interceptors.response.use(
-            (response) => response,
+            (response) => {
+                // If the backend returned a 2xx HTTP status but the JSON payload indicates a 401 error
+                const data = response.data;
+                if (data && (data.status === 401 || data.statusCode === 401 || data.data?.statusCode === 401)) {
+                   const error: any = new Error(data.message || "Unauthorized");
+                   error.response = response;
+                   error.config = response.config;
+                   error.response.status = 401;
+                   return Promise.reject(error);
+                }
+                return response;
+            },
             async (error) => {
                 const originalRequest = error.config;
 
@@ -111,11 +122,31 @@ export function useAxios(): AxiosInstance {
                     } catch (refreshError) {
                         processQueue(refreshError, null);
                         useAuthStore.getState().logout();
-                        router.replace("/login");
-                        return Promise.reject(error);
+                        if (
+                          typeof window !== "undefined" &&
+                          !window.location.pathname.startsWith("/login")
+                        ) {
+                          window.location.href = "/login";
+                        }
+                        return Promise.reject(refreshError);
                     } finally {
                         isRefreshing = false;
                     }
+                } else if (
+                    error.response?.status === 401 &&
+                    originalRequest._retry &&
+                    !SKIP_REFRESH_URLS.some((url) => originalRequest.url.includes(url)) &&
+                    !isOnboardingPath
+                ) {
+                    // We already retried and still got 401. Log out and redirect.
+                    useAuthStore.getState().logout();
+                    if (
+                      typeof window !== "undefined" &&
+                      !window.location.pathname.startsWith("/login")
+                    ) {
+                      window.location.href = "/login";
+                    }
+                    return Promise.reject(error);
                 }
 
                 const shouldShowToast =

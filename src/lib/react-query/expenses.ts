@@ -23,9 +23,9 @@ interface ExpenseItemPayload {
   description: string;
   expenseCategoryId: string;
   amount: number;
-  /** ISO 8601 string — the actual date the transaction occurred (from the receipt/user input) */
   transactionDate: string;
   receiptImage?: string;
+  receiptExtractionId?: string;
   isSplit?: boolean;
   splitParticipants?: string[];
   splitAllocationMode?: "equal" | "manual";

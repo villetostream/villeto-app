@@ -1933,9 +1933,9 @@ function PRDetailPage() {
         )}
 
         {/* 2-Column Content */}
-        <div className="flex flex-1 gap-6 items-start min-h-0">
+        <div className="flex flex-col lg:flex-row flex-1 gap-6 items-start min-h-0">
           {/* Left Column */}
-          <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          <div className="flex-1 flex flex-col w-full min-w-0 h-full overflow-hidden">
             <div className="shrink-0 space-y-4 mb-4 pr-1">
               {/* Info Cards */}
               <div className="flex gap-4">
@@ -2281,7 +2281,7 @@ function PRDetailPage() {
         </div>
 
         {/* Right Sidebar */}
-        <div className="w-[300px] shrink-0 h-full overflow-y-auto pr-1 space-y-4 pb-4">
+        <div className="w-full lg:w-[300px] shrink-0 lg:h-full lg:overflow-y-auto pr-1 space-y-4 pb-4">
 
           {/* Manager Override Banner */}
           {showOverrideBanner && (

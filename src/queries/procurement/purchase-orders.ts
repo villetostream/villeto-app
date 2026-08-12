@@ -123,7 +123,6 @@ export interface CreatePurchaseOrderPayload {
   deliveryDate: string;
   currency?: string;
   notes?: string;
-  lineItems: POLineItemPayload[];
 }
 
 export const useCreatePurchaseOrder = () => {
@@ -179,6 +178,36 @@ export const useAddPOLineItems = (id: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, id] });
+    },
+  });
+};
+
+export const useUpdatePOLineItem = (poId: string, lineItemId: string) => {
+  const axios = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: POLineItemPayload) => {
+      const response = await axios.patch(`${PROCUREMENT_KEYS.PO_LINE_ITEMS(poId)}/${lineItemId}`, payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, poId] });
+    },
+  });
+};
+
+export const useDeletePOLineItem = (poId: string) => {
+  const axios = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (lineItemId: string) => {
+      const response = await axios.delete(`${PROCUREMENT_KEYS.PO_LINE_ITEMS(poId)}/${lineItemId}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, poId] });
     },
   });
 };
@@ -265,6 +294,24 @@ export const useCancelPurchaseOrder = () => {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, variables.id] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
+    },
+  });
+};
+
+// ── Delete Purchase Order (Draft) ───────────────────────────────────────────
+
+export const useDeletePurchaseOrder = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // TODO: Implement real endpoint when backend pushes code
+      // For now, simulate a successful deletion
+      console.warn("delete purchase order endpoint not ready. simulating success.");
+      return Promise.resolve({ success: true, id });
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
     },
   });

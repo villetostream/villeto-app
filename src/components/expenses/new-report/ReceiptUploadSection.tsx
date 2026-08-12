@@ -7,9 +7,16 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ImagePlus, X, Users } from "lucide-react";
 import { ExpenseForm, type ExpenseDetailFormData, type SplitParticipant } from "./ExpenseForm";
+import { useAxios } from "@/hooks/useAxios";
+import {
+  type ReceiptExtraction,
+  dataUrlToFile,
+  uploadAndExtractReceipt,
+} from "@/lib/receipt-extraction";
+import { toast } from "sonner";
 
 interface ReceiptUploadSectionProps {
-  onReceiptsUpload: (receipts: { base64: string; name: string }[], isSplit?: boolean) => void;
+  onReceiptsUpload: (receipts: ReceiptExtraction[], isSplit?: boolean) => void;
   onAddExpense: (
     data: ExpenseDetailFormData,
     receiptImage?: string,
@@ -18,7 +25,8 @@ interface ReceiptUploadSectionProps {
       participants: SplitParticipant[];
       allocationMode: "equal" | "manual";
       allocations: Record<string, string>;
-    }
+    },
+    receiptExtractionId?: string,
   ) => void;
   categories: { categoryId: string; name: string }[];
   /** Names of expenses already added to the report — used to prevent duplicates */
@@ -38,6 +46,7 @@ export function ReceiptUploadSection({
   categories,
   existingExpenseNames = [],
 }: ReceiptUploadSectionProps) {
+  const axios = useAxios();
   // Which tab is active — the existing scan/manual flow lives under "individual",
   // "split" is a UI-only duplicate that does not touch any endpoint.
   const [activeTab, setActiveTab] = useState<ExpenseTab>("individual");
@@ -81,14 +90,6 @@ export function ReceiptUploadSection({
     setIsDragging(false);
   }, []);
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
-    });
-  };
 
   const queueFiles = useCallback((incoming: File[]) => {
     const imageFiles = incoming.filter((file) => file.type.startsWith("image/"));
@@ -135,16 +136,27 @@ export function ReceiptUploadSection({
     if (pendingReceipts.length === 0) return;
     setIsUploading(true);
     try {
-      const processedFiles = await Promise.all(
-        pendingReceipts.map(async ({ file }) => ({
-          base64: await fileToBase64(file),
-          name: file.name,
-        })),
+      const results = await Promise.allSettled(
+        pendingReceipts.map(({ file }) =>
+          uploadAndExtractReceipt(axios, file),
+        ),
       );
-      onReceiptsUpload(processedFiles, isSplitTab);
-      clearPending();
+      const completed = results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+      );
+      const failed = results.length - completed.length;
+      if (completed.length > 0) {
+        onReceiptsUpload(completed, isSplitTab);
+        clearPending();
+      }
+      if (failed > 0) {
+        toast.error(
+          `${failed} receipt${failed === 1 ? "" : "s"} could not be read. Try again or enter the expense manually.`,
+        );
+      }
     } catch (error) {
       logger.error("Error processing files:", error);
+      toast.error("Receipts could not be processed. Try again or enter them manually.");
     } finally {
       setIsUploading(false);
     }
@@ -217,8 +229,34 @@ export function ReceiptUploadSection({
           formId={isSplitTab ? "split-expense-form" : "manual-expense-form"}
           categories={categories}
           mode={isSplitTab ? "split" : "individual"}
-          onSave={(data, receipt, splitData) => {
-            onAddExpense(data, receipt, isSplitTab, splitData);
+          onSave={async (data, receipt, splitData) => {
+            let resolvedReceipt = receipt;
+            let extractionId: string | undefined;
+            if (receipt?.startsWith("data:")) {
+              setIsUploading(true);
+              try {
+                const extraction = await uploadAndExtractReceipt(
+                  axios,
+                  dataUrlToFile(receipt, `receipt-${Date.now()}.jpg`),
+                );
+                resolvedReceipt = extraction.receiptUrl;
+                extractionId = extraction.expenseReceiptExtractionId;
+              } catch (error) {
+                logger.error("Receipt extraction failed during manual entry:", error);
+                toast.warning(
+                  "The receipt was attached, but its details could not be read automatically.",
+                );
+              } finally {
+                setIsUploading(false);
+              }
+            }
+            onAddExpense(
+              data,
+              resolvedReceipt,
+              isSplitTab,
+              splitData,
+              extractionId,
+            );
             setShowManualForm(false);
           }}
           onCancel={() => setShowManualForm(false)}
