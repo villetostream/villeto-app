@@ -19,6 +19,7 @@ import { useAuthStore, User } from "@/stores/auth-stores";
 import { useAxios } from "@/hooks/useAxios";
 import { useRouter } from "next/navigation";
 import DashboardModals from "@/components/dashboard/layout/DashboardModals";
+import IdleSessionManager from "./IdleSessionManager";
 import VilletoTourGuide from "@/components/tour/VilletoTourGuide";
 import VilletoSetupGuide from "@/components/tour/VilletoSetupGuide";
 import { useTourStore } from "@/stores/useTourStore";
@@ -178,6 +179,9 @@ export default function DashboardLayoutContent({
           </main>
         </div>
       </SidebarProvider>
+
+      {/* Idle timeout manager */}
+      <IdleSessionManager />
 
       {/* System-level modals (force-password reset, etc.) */}
       <DashboardModals />
