@@ -33,7 +33,7 @@ import { CapabilityGroup } from "@/queries/role/get-all-roles";
 import toast from "react-hot-toast";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import SuccessModal from "@/components/modals/SuccessModal";
-
+import { useAuthStore } from "@/stores/auth-stores";
 import { cn } from "@/lib/utils";
 
 // ── Capability Group Card (expandable) ────────────────────────────────────
@@ -156,6 +156,9 @@ function CreateRolePage() {
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [selectedCapabilityKeys, setSelectedCapabilityKeys] = useState<string[]>([]);
     const [initialCapabilityKeys, setInitialCapabilityKeys] = useState<string[]>([]);
+
+    const { user } = useAuthStore();
+    const isCurrentUserOwner = (user?.companyRole?.name || (user as any)?.villetoRole?.name)?.toLowerCase() === "owner";
 
     // Data fetching
     const allPermissions = useGetAllPermissionsApi();
@@ -496,17 +499,40 @@ function CreateRolePage() {
                             >
                                 Cancel
                             </Button>
-                            <Button
-                                type="button"
-                                className="px-12 h-[46px] rounded-[10px] text-[13px] font-semibold bg-[#0ea894] hover:bg-[#0c9785] text-white shadow-[0_8px_20px_-10px_rgba(14,168,148,0.7)] hover:translate-y-[-1px] transition-all disabled:opacity-50 disabled:shadow-none disabled:translate-y-0"
-                                disabled={isLoading || (isEditMode && !isDirty && JSON.stringify([...selectedCapabilityKeys].sort()) === JSON.stringify([...initialCapabilityKeys].sort()))}
-                                onClick={handleDirectSubmit}
-                            >
-                                {isLoading
-                                    ? (isEditMode ? "Updating…" : "Creating…")
-                                    : (isEditMode ? "Update Role" : "Create Role")
+                            
+                            {(() => {
+                                const isTargetOwner = roleData?.data?.data?.name?.toLowerCase() === "owner";
+                                const blockedFromEditing = isTargetOwner && !isCurrentUserOwner;
+                                
+                                if (blockedFromEditing) {
+                                    return (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm text-red-500 font-medium">Only Owners can modify this role</span>
+                                            <Button
+                                                type="button"
+                                                disabled
+                                                className="px-12 h-[46px] rounded-[10px] text-[13px] font-semibold bg-[#0ea894] hover:bg-[#0c9785] text-white opacity-50"
+                                            >
+                                                Update Role
+                                            </Button>
+                                        </div>
+                                    );
                                 }
-                            </Button>
+
+                                return (
+                                    <Button
+                                        type="button"
+                                        className="px-12 h-[46px] rounded-[10px] text-[13px] font-semibold bg-[#0ea894] hover:bg-[#0c9785] text-white shadow-[0_8px_20px_-10px_rgba(14,168,148,0.7)] hover:translate-y-[-1px] transition-all disabled:opacity-50 disabled:shadow-none disabled:translate-y-0"
+                                        disabled={isLoading || (isEditMode && !isDirty && JSON.stringify([...selectedCapabilityKeys].sort()) === JSON.stringify([...initialCapabilityKeys].sort()))}
+                                        onClick={handleDirectSubmit}
+                                    >
+                                        {isLoading
+                                            ? (isEditMode ? "Updating…" : "Creating…")
+                                            : (isEditMode ? "Update Role" : "Create Role")
+                                        }
+                                    </Button>
+                                );
+                            })()}
                         </div>
                     </form>
                 </main>

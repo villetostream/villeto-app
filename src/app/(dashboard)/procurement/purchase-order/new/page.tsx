@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
-  CheckCircle2, Loader2, Pencil, Search, ChevronLeft
+  CheckCircle2, Loader2, Pencil, Search,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
@@ -14,6 +14,11 @@ import { format } from "date-fns";
 import { useAuthStore } from "@/stores/auth-stores";
 import {
   useCreatePurchaseOrder,
+  useAddPOLineItems,
+  useUpdatePOLineItem,
+  useDeletePOLineItem,
+  usePurchaseOrder,
+  useSubmitPurchaseOrderForApproval,
   type CreatePurchaseOrderPayload,
   type POLineItemPayload,
 } from "@/queries/procurement/purchase-orders";
@@ -22,7 +27,6 @@ import {
   useGetVendors,
   type PRPriority,
 } from "@/queries/procurement/purchase-requests";
-import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { isPRPriority } from "@/lib/types/purchase-request-helpers";
@@ -149,314 +153,6 @@ function VendorDropdown({ value, onChange }: { value: string; onChange: (v: stri
   );
 }
 
-// ─── Two-Step Category Dropdown ───────────────────────────────────────────────
-
-function CategoryDropdown({ value, onChange }: { value: string; onChange: (id: string, name: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  const { data: catData, isLoading } = useGetProcurementCategories();
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch("");
-      }
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 50);
-  }, [open]);
-
-  const rawCategories = useMemo(() => catData?.data || [], [catData?.data]);
-  const selectedName = useMemo(() => {
-    if (!value) return "";
-    const all = rawCategories.flatMap(c => [c, ...(c.children || [])]);
-    return all.find(c => c.categoryId === value)?.name ?? "Selected";
-  }, [value, rawCategories]);
-  const q = search.trim().toLowerCase();
-
-  const searchResults = q
-    ? rawCategories.flatMap(cat => {
-        const results: { id: string; name: string; parentName?: string }[] = [];
-        if (cat.name.toLowerCase().includes(q)) results.push({ id: cat.categoryId, name: cat.name });
-        (cat.children || []).forEach(sub => {
-          if (sub.name.toLowerCase().includes(q)) results.push({ id: sub.categoryId, name: sub.name, parentName: cat.name });
-        });
-        return results;
-      })
-    : [];
-
-  const close = () => { setOpen(false); setSearch(""); setExpandedId(null); };
-  const handleSelect = (id: string, name: string) => { onChange(id, name); close(); };
-
-  return (
-    <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen(v => !v)}
-        className="w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between cursor-pointer hover:border-[#087f70]/60 focus:outline-none transition-colors">
-        <span className={value ? "text-[#0b100e]" : "text-[#68726d]"}>
-          {value ? selectedName || "Selected" : "Select category..."}
-        </span>
-        <ChevronDown className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      {open && (
-        <div className="absolute left-0 right-0 z-50 bg-white border border-black/[0.06] rounded-[12px] shadow-xl mt-1 overflow-hidden">
-          <div className="p-2 border-b border-black/[0.06]">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#68726d]" />
-              <input ref={searchRef} value={search} onChange={e => { setSearch(e.target.value); setExpandedId(null); }}
-                placeholder="Search categories..."
-                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-black/[0.06] focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
-              {search && (
-                <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#68726d] hover:text-[#0b100e]">
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="w-4 h-4 animate-spin text-[#68726d]" />
-            </div>
-          ) : q ? (
-            <div className="max-h-56 overflow-y-auto py-1">
-              {searchResults.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-[#68726d] text-center">
-                  <span className="block font-medium text-[#0b100e]">No matches for &quot;{search}&quot;</span>
-                </div>
-              ) : (
-                searchResults.map(r => (
-                  <button key={r.id} type="button" onClick={() => handleSelect(r.id, r.name)}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors flex items-baseline gap-2 ${value === r.id ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
-                    <span>{r.name}</span>
-                    {r.parentName && <span className="text-xs text-[#68726d] font-normal">in {r.parentName}</span>}
-                  </button>
-                ))
-              )}
-            </div>
-          ) : (
-            <div className="max-h-56 overflow-y-auto py-1">
-              {rawCategories.length === 0 ? (
-                <p className="text-sm text-[#68726d] px-4 py-3">No categories yet</p>
-              ) : (
-                rawCategories.map(cat => {
-                  const isExpanded = expandedId === cat.categoryId;
-                  const subs = cat.children || [];
-                  const isSelected = value === cat.categoryId;
-                  return (
-                    <div key={cat.categoryId}>
-                      <div className="flex items-center">
-                        <button type="button" onClick={() => handleSelect(cat.categoryId, cat.name)}
-                          className={`flex-1 text-left px-4 py-2.5 text-sm font-medium hover:bg-[#f9faf9] transition-colors ${isSelected ? "text-[#087f70]" : "text-[#0b100e]"}`}>
-                          {cat.name}
-                          {isSelected && <span className="ml-2 text-xs font-normal text-[#68726d]">(selected)</span>}
-                        </button>
-                        <button type="button" onClick={() => setExpandedId(isExpanded ? null : cat.categoryId)}
-                          className={`w-9 h-9 flex items-center justify-center mr-1 rounded-lg transition-colors ${isExpanded ? "text-[#087f70] bg-[#f0faf8]" : "text-[#68726d] hover:bg-[#f9faf9]"}`}
-                          title={`${subs.length} subcategory${subs.length !== 1 ? "s" : ""}`}>
-                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
-                        </button>
-                      </div>
-
-                      {isExpanded && (
-                        <div className="bg-[#f9faf9] border-t border-b border-border/40">
-                          {subs.map(sub => (
-                            <button key={sub.categoryId} type="button" onClick={() => handleSelect(sub.categoryId, sub.name)}
-                              className={`w-full text-left pl-7 pr-4 py-2 text-sm flex items-center gap-2 hover:bg-[#f9faf9] transition-colors ${value === sub.categoryId ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
-                              <span className="w-1 h-1 rounded-full bg-muted-foreground/50 shrink-0" />
-                              {sub.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Add / Edit Line Item Modal ───────────────────────────────────────────────
-
-interface LocalItem extends POLineItemPayload {
-  id: string; // purely for local list management
-}
-
-function LineItemModal({
-  onClose, onSave, initial, departments, currency,
-}: {
-  onClose: () => void;
-  onSave: (data: LocalItem) => void;
-  initial?: LocalItem;
-  departments: { label: string; value: string }[];
-  currency: string;
-}) {
-  const [form, setForm] = useState<Partial<LocalItem>>(initial || {
-    quantity: 1, unitPrice: 0, taxAmount: 0, unitOfMeasure: "unit",
-  });
-  
-  const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
-  const qty = form.quantity || 0;
-  const price = form.unitPrice || 0;
-  const subtotal = qty * price;
-
-  const set = (k: keyof LocalItem, v: string | number) =>
-    setForm(p => ({ ...p, [k]: v }));
-
-  const handleSave = () => {
-    if (!form.name?.trim()) { toast.error("Item name is required"); return; }
-    if (!form.quantity || form.quantity <= 0) { toast.error("Quantity must be > 0"); return; }
-    if (!form.unitPrice || form.unitPrice < 0) { toast.error("Unit price must be >= 0"); return; }
-    if (!form.departmentId) { toast.error("Department is required"); return; }
-    
-    const payload: LocalItem = {
-      id: initial?.id || crypto.randomUUID(),
-      name: form.name,
-      description: form.description || undefined,
-      quantity: form.quantity,
-      unitPrice: form.unitPrice,
-      taxAmount: form.taxAmount || 0,
-      sku: form.sku || undefined,
-      unitOfMeasure: form.unitOfMeasure || undefined,
-      categoryId: form.categoryId || undefined,
-      departmentId: form.departmentId,
-      accountingResolutionStatus: "unresolved",
-    };
-    onSave(payload);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] bg-white z-10 shrink-0 rounded-t-2xl">
-          <h3 className="text-base font-bold text-[#0b100e]">{initial ? "Edit Line Item" : "Add Line Item"}</h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
-            <X className="w-4 h-4 text-[#68726d]" />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-4 overflow-y-auto flex-1">
-          {/* Name */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[#0b100e]">Item Name <span className="text-[#d33d44]">*</span></label>
-            <input type="text" value={form.name || ""} onChange={e => set("name", e.target.value)}
-              placeholder="e.g. Dell XPS Laptop"
-              className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Category */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Category</label>
-              <CategoryDropdown
-                value={form.categoryId || ""}
-                onChange={(id) => setForm(p => ({ ...p, categoryId: id }))}
-              />
-            </div>
-            
-            {/* Department */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Department <span className="text-[#d33d44]">*</span></label>
-              <SelectDropdown
-                value={form.departmentId || ""}
-                onChange={(v) => set("departmentId", v)}
-                options={departments}
-                placeholder="Select dept"
-              />
-            </div>
-          </div>
-
-          {/* Qty + Unit Price */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Quantity <span className="text-[#d33d44]">*</span></label>
-              <input type="number" min={1} value={form.quantity || ""}
-                onChange={e => set("quantity", Number(e.target.value))} placeholder="0"
-                className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Unit Price <span className="text-[#d33d44]">*</span></label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">
-                  {currencySymbol}
-                </span>
-                <input type="number" min={0} value={form.unitPrice || ""}
-                  onChange={e => set("unitPrice", Number(e.target.value))} placeholder="0.00"
-                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            {/* Tax Amount */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Tax Amount</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">
-                  {currencySymbol}
-                </span>
-                <input type="number" min={0} value={form.taxAmount || ""}
-                  onChange={e => set("taxAmount", Number(e.target.value))} placeholder="0.00"
-                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
-              </div>
-            </div>
-            
-            {/* Unit of Measure */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Unit of Measure</label>
-              <input type="text" value={form.unitOfMeasure || ""} onChange={e => set("unitOfMeasure", e.target.value)}
-                placeholder="unit / box / kg"
-                className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[#0b100e]">Description <span className="text-[#68726d] font-normal">(optional)</span></label>
-            <textarea value={form.description || ""}
-              onChange={e => set("description", e.target.value)}
-              placeholder="Brief description of this item"
-              rows={3}
-              className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors" />
-          </div>
-
-          {/* Subtotal preview */}
-          {subtotal > 0 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-[#f9faf9] rounded-[12px]">
-              <span className="text-sm text-[#68726d]">Line Subtotal</span>
-              <span className="text-sm font-semibold text-[#0b100e]">
-                {currencySymbol}{subtotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="px-6 py-4 border-t border-black/[0.06] bg-white z-10 shrink-0 rounded-b-2xl">
-          <button type="button" onClick={handleSave} disabled={!(form.name || "").trim() || !form.categoryId || !form.departmentId || form.quantity! <= 0 || form.unitPrice! <= 0}
-            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-            {initial ? "Save Changes" : "Add Item"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Step Indicator ───────────────────────────────────────────────────────────
 
 function StepIndicator({ step }: { step: 1 | 2 }) {
@@ -487,31 +183,37 @@ function StepIndicator({ step }: { step: 1 | 2 }) {
 
 export default function NewPurchaseOrderPage() {
   const router = useRouter();
-  const user = useAuthStore(s => s.user);
 
   // Step state
   const [step, setStep] = useState<1 | 2>(1);
+  const [purchaseOrderId, setPurchaseOrderId] = useState<string | null>(null);
 
   // PO Header form
   const [vendorId, setVendorId] = useState("");
   const [priority, setPriority] = useState<PRPriority | "">("");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [legalEntityId, setLegalEntityId] = useState("");
-  const [departmentId, setDepartmentId] = useState("");
   const [notes, setNotes] = useState("");
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [headerSaving, setHeaderSaving] = useState(false);
 
   // Line items
-  const [lineItems, setLineItems] = useState<LocalItem[]>([]);
+  const [savedLineItems, setSavedLineItems] = useState<any[]>([]);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
-  const [editingItem, setEditingItem] = useState<{ item: LocalItem; index: number } | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<{ item: LocalItem; index: number } | null>(null);
+  const [editingItem, setEditingItem] = useState<{ item: any; index: number } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ item: any; index: number } | null>(null);
+  const [panelSaving, setPanelSaving] = useState(false);
 
   // API Hooks
   const createPO = useCreatePurchaseOrder();
-  const { data: deptData } = useGetAllDepartmentsApi();
+  const addLineItem = useAddPOLineItems(purchaseOrderId || "");
+  const updateLineItem = useUpdatePOLineItem(purchaseOrderId || "", editingItem?.item?.purchaseOrderLineItemId || editingItem?.item?.id || "");
+  const deleteLineItem = useDeletePOLineItem(purchaseOrderId || "");
+  const submitPO = useSubmitPurchaseOrderForApproval(purchaseOrderId || "");
+  const { refetch: refetchPO } = usePurchaseOrder(purchaseOrderId || "");
+
   const { data: catData } = useGetProcurementCategories();
   const { data: vendorData } = useGetVendors();
   const { data: legalEntityData } = useLegalEntities();
@@ -523,11 +225,6 @@ export default function NewPurchaseOrderPage() {
     return categories.find(c => c.categoryId === categoryId)?.name || null;
   };
 
-  const departments: { label: string; value: string }[] = (deptData?.data || []).map(d => ({
-    label: d.departmentName,
-    value: d.departmentId,
-  }));
-  
   const rawVendors = vendorData?.data || [];
   const getVendorName = (vid: string) => {
     const v = rawVendors.find(v => v.vendorId === vid);
@@ -552,49 +249,103 @@ export default function NewPurchaseOrderPage() {
     setLegalEntityId(id);
   };
 
-  const handleSaveHeader = () => {
+  const handleSaveHeader = async () => {
     if (!vendorId) { toast.error("Vendor is required"); return; }
     if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
     if (!deliveryDate) { toast.error("Delivery date is required"); return; }
     if (!effectiveLegalEntityId) { toast.error("Legal entity is required"); return; }
 
-    setStep(2);
+    setHeaderSaving(true);
+    try {
+      const payload: CreatePurchaseOrderPayload = {
+        legalEntityId: effectiveLegalEntityId,
+        vendorId,
+        priority: priority as any,
+        deliveryDate,
+        currency,
+        notes: notes || undefined,
+      };
+      const res = await createPO.mutateAsync(payload);
+      const id = res.data?.purchaseOrderId || res.data?.id;
+      if (!id) throw new Error("Purchase Order ID not returned");
+      setPurchaseOrderId(id);
+      setSavedLineItems(res.data?.lineItems || []);
+      setStep(2);
+      toast.success("Draft PO saved! Now add your line items.");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to create PO"));
+    } finally {
+      setHeaderSaving(false);
+    }
   };
 
-  const handleAddItems = async (items: any[]) => {
-    setLineItems(prev => [...prev, ...items.map(it => ({
-      ...it,
-      id: crypto.randomUUID()
-    }))]);
-    setShowModal(false);
+  const handleAddItems = async (payloads: POLineItemPayload[]) => {
+    if (!purchaseOrderId) return;
+    setPanelSaving(true);
+    try {
+      await addLineItem.mutateAsync({ lineItems: payloads });
+      const refetched = await refetchPO();
+      const items = refetched.data?.data?.lineItems || [];
+      if (items.length > 0) setSavedLineItems(items);
+      toast.success(`${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`);
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to add items"));
+      throw err;
+    } finally {
+      setPanelSaving(false);
+    }
   };
 
-  const handleEditItem = async (item: any) => {
-    if (!editingItem) return;
-    setLineItems(prev => {
-      const copy = [...prev];
-      copy[editingItem.index] = { ...copy[editingItem.index], ...item };
-      return copy;
-    });
-    setEditingItem(null);
-    setShowModal(false);
+  const handleEditItem = async (payload: POLineItemPayload) => {
+    if (!purchaseOrderId || !editingItem) return;
+    setPanelSaving(true);
+    try {
+      await updateLineItem.mutateAsync(payload);
+      const refetched = await refetchPO();
+      const items = refetched.data?.data?.lineItems || [];
+      if (items.length > 0) setSavedLineItems(items);
+      setEditingItem(null);
+      setShowModal(false);
+      toast.success("Item updated");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to update item"));
+      throw err;
+    } finally {
+      setPanelSaving(false);
+    }
   };
 
-  const confirmDeleteItem = () => {
-    if (!itemToDelete) return;
-    setLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
-    setItemToDelete(null);
-    toast.success("Item removed");
+  const confirmDeleteItem = async () => {
+    if (!purchaseOrderId || !itemToDelete) return;
+    try {
+      const lineItemId = itemToDelete.item.purchaseOrderLineItemId || itemToDelete.item.id;
+      if (!lineItemId) throw new Error("Item ID is missing");
+      await deleteLineItem.mutateAsync(lineItemId);
+      const refetched = await refetchPO();
+      const items = refetched.data?.data?.lineItems;
+      if (items) {
+        setSavedLineItems(items);
+      } else {
+        setSavedLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
+      }
+      toast.success("Item removed");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to remove item"));
+    } finally {
+      setItemToDelete(null);
+    }
   };
 
-  const openEditModal = (item: LocalItem, index: number) => {
+  const openEditModal = (item: any, index: number) => {
     setEditingItem({ item, index });
     setShowModal(true);
   };
 
-  const totals = lineItems.reduce((acc, item) => {
-    const sub = item.quantity * item.unitPrice;
+  const totals = savedLineItems.reduce((acc, item) => {
+    const qty = item.quantity || 0;
+    const price = item.unitPrice || 0;
     const tax = item.taxAmount || 0;
+    const sub = qty * price;
     return { subtotal: acc.subtotal + sub, tax: acc.tax + tax, total: acc.total + sub + tax };
   }, { subtotal: 0, tax: 0, total: 0 });
 
@@ -630,10 +381,12 @@ export default function NewPurchaseOrderPage() {
                   placeholder="Select priority"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Legal entity <span className="text-[#d33d44]">*</span></label>
-                <SelectDropdown value={effectiveLegalEntityId} onChange={selectLegalEntity} options={legalEntityOptions} placeholder="Select legal entity" />
-              </div>
+              {legalEntities.length > 1 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-[#0b100e]">Legal entity <span className="text-[#d33d44]">*</span></label>
+                  <SelectDropdown value={effectiveLegalEntityId} onChange={selectLegalEntity} options={legalEntityOptions} placeholder="Select legal entity" />
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-[#0b100e]">Delivery Date <span className="text-[#d33d44]">*</span></label>
                 <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
@@ -659,12 +412,11 @@ export default function NewPurchaseOrderPage() {
                   </PopoverContent>
                 </Popover>
               </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Currency</label>
-              <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">{currency || "Select a legal entity"}</div>
-              <p className="text-xs text-[#68726d]">Locked to the legal entity base currency.</p>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[#0b100e]">Currency</label>
+                <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">{currency || "Select a legal entity"}</div>
+                <p className="text-xs text-[#68726d]">Locked to the legal entity base currency.</p>
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -676,9 +428,10 @@ export default function NewPurchaseOrderPage() {
             </div>
 
             <div className="pt-1 flex justify-end">
-              <button type="button" onClick={handleSaveHeader} disabled={!vendorId || !priority || !effectiveLegalEntityId || !deliveryDate}
-                className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
-                Continue
+              <button type="button" onClick={handleSaveHeader} disabled={!vendorId || !priority || !effectiveLegalEntityId || !deliveryDate || headerSaving}
+                className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
+                {headerSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                Save & Continue
               </button>
             </div>
           </div>
@@ -700,9 +453,9 @@ export default function NewPurchaseOrderPage() {
             <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-semibold text-[#0b100e]">PO Details</h2>
-                <button type="button" onClick={() => setStep(1)} className="flex items-center gap-1.5 text-xs text-[#087f70] bg-[#f0faf8] hover:bg-[#f0faf8] px-3 py-1 rounded-full font-medium transition-colors">
-                  <Pencil className="w-3.5 h-3.5" /> Edit Details
-                </button>
+                <div className="flex items-center gap-1.5 text-xs bg-[#f0faf8] text-[#087f70] px-3 py-1 rounded-full font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Saved as draft
+                </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
@@ -725,7 +478,7 @@ export default function NewPurchaseOrderPage() {
                 <h2 className="text-base font-semibold text-[#0b100e] flex items-center gap-2">
                   PO Items
                   <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold text-[#0b100e] px-1.5">
-                    {lineItems.length}
+                    {savedLineItems.length}
                   </span>
                 </h2>
                 <button type="button" onClick={() => { setEditingItem(null); setShowModal(true); }}
@@ -734,7 +487,7 @@ export default function NewPurchaseOrderPage() {
                 </button>
               </div>
 
-              {lineItems.length === 0 ? (
+              {savedLineItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <p className="text-sm text-[#68726d]">No items yet. Click &quot;Add Item&quot; to get started.</p>
                   <button type="button" onClick={() => { setEditingItem(null); setShowModal(true); }}
@@ -753,11 +506,11 @@ export default function NewPurchaseOrderPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {lineItems.map((item, i) => {
+                      {savedLineItems.map((item, i) => {
                         const catName = getCategoryName(item.categoryId);
-                        const sub = item.quantity * item.unitPrice;
+                        const sub = (item.quantity || 0) * (item.unitPrice || 0);
                         return (
-                          <tr key={item.id} className="border-b border-border/40 last:border-0 hover:bg-[#f9faf9] transition-colors">
+                          <tr key={item.id || item.purchaseOrderLineItemId} className="border-b border-border/40 last:border-0 hover:bg-[#f9faf9] transition-colors">
                             <td className="px-5 py-3.5 font-semibold text-[#0b100e]">{item.name}</td>
                             <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
                             <td className="px-5 py-3.5">
@@ -822,32 +575,20 @@ export default function NewPurchaseOrderPage() {
           </div>
 
           <div className="shrink-0 border-t border-black/[0.06] bg-white py-4 flex items-center justify-end">
-            <button type="button" disabled={lineItems.length === 0 || createPO.isPending}
+            <button type="button" disabled={savedLineItems.length === 0 || submitPO.isPending}
               onClick={async () => {
-                if (!vendorId || !deliveryDate) return;
+                if (!purchaseOrderId) return;
                 try {
-                  const payload: CreatePurchaseOrderPayload = {
-                    legalEntityId: effectiveLegalEntityId,
-                    vendorId,
-                    priority: priority as any,
-                    deliveryDate,
-                    currency,
-                    notes: notes || undefined,
-                    lineItems: lineItems.map(it => {
-                      const { id, ...rest } = it;
-                      return rest;
-                    }),
-                  };
-                  await createPO.mutateAsync(payload);
-                  toast.success("Purchase Order created successfully!");
+                  await submitPO.mutateAsync();
+                  toast.success("Purchase order submitted for approval!");
                   router.push("/procurement/purchase-order");
                 } catch (err: unknown) {
-                  toast.error(getApiErrorMessage(err, "Failed to create PO"));
+                  toast.error(getApiErrorMessage(err, "Failed to submit"));
                 }
               }}
-              className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
-              {createPO.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Continue
+              className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
+              {submitPO.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              Submit Order
             </button>
           </div>
         </div>
@@ -858,13 +599,13 @@ export default function NewPurchaseOrderPage() {
         open={showModal}
         onClose={() => { setShowModal(false); setEditingItem(null); }}
         currency={currency}
-        onSaveAll={handleAddItems}
-        saving={false}
+        onSaveAll={handleAddItems as any}
+        saving={panelSaving}
         editInitial={editingItem ? {
           name: editingItem.item.name || "",
           description: editingItem.item.description || "",
           categoryId: editingItem.item.categoryId || "",
-          categoryName: "",
+          categoryName: getCategoryName(editingItem.item.categoryId) || "",
           quantity: editingItem.item.quantity || 0,
           unitPrice: editingItem.item.unitPrice,
           taxAmount: editingItem.item.taxAmount || 0,
@@ -872,8 +613,9 @@ export default function NewPurchaseOrderPage() {
           unitOfMeasure: editingItem.item.unitOfMeasure || "unit",
           accountingResolutionStatus: "unresolved",
         } : null}
-        onEditSaved={handleEditItem}
-        editSaving={false}
+        onEditSaved={handleEditItem as any}
+        editSaving={panelSaving}
+        persistKey={`po-draft-${purchaseOrderId}`}
       />
 
       <AlertDialog open={!!itemToDelete} onOpenChange={(val) => !val && setItemToDelete(null)}>

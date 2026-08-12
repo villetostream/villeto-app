@@ -17,6 +17,8 @@ import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import { useDeleteRoleApi } from "@/queries/role/delete-role";
 import toast from "react-hot-toast";
 import { useState } from "react";
+import { useAuthStore } from "@/stores/auth-stores";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 const columnHelper = createColumnHelper<Role>();
 
 export const columns: ColumnDef<Role, unknown>[] = [
@@ -86,6 +88,14 @@ function ActionCell({ role }: { role: Role }) {
     const roleId = role.roleId;
     const { mutateAsync: deleteRole } = useDeleteRoleApi();
     const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
+    
+    const { user } = useAuthStore();
+    const isCurrentUserOwner = (user?.companyRole?.name || (user as any)?.villetoRole?.name)?.toLowerCase() === "owner";
+    const isTargetOwner = role.name?.toLowerCase() === "owner";
+    const hasAssignedUsers = Number(role.totalAssignedUsers) > 0;
+    
+    const canUpdate = !isTargetOwner || isCurrentUserOwner;
+    const canDelete = !isTargetOwner && !hasAssignedUsers;
 
     const handleDelete = async () => {
         try {
@@ -118,30 +128,62 @@ function ActionCell({ role }: { role: Role }) {
                     </DropdownMenuItem>
                     
                     <PermissionGuard resource="role" action="manage">
-                        <DropdownMenuItem asChild>
-                            <Link 
-                                href={`/people/create-role?id=${roleId}`}
-                                className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-slate-50 text-[#475467]"
-                            >
-                                <Edit2 className="w-5 h-5 text-slate-500" />
-                                <span className="font-medium">Update Role</span>
-                            </Link>
-                        </DropdownMenuItem>
+                        {canUpdate ? (
+                            <DropdownMenuItem asChild>
+                                <Link 
+                                    href={`/people/create-role?id=${roleId}`}
+                                    className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-slate-50 text-[#475467]"
+                                >
+                                    <Edit2 className="w-5 h-5 text-slate-500" />
+                                    <span className="font-medium">Update Role</span>
+                                </Link>
+                            </DropdownMenuItem>
+                        ) : (
+                            <TooltipProvider>
+                                <Tooltip delayDuration={200}>
+                                    <TooltipTrigger asChild>
+                                        <div className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-not-allowed opacity-50 text-[#475467] w-full" onClick={(e) => e.stopPropagation()}>
+                                            <Edit2 className="w-5 h-5 text-slate-500" />
+                                            <span className="font-medium">Update Role</span>
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left" className="z-[10000]">
+                                        <p>Only Owners can modify this role</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
                     </PermissionGuard>
 
                     <div className="h-[1px] bg-[#F2F4F7] my-1 mx-2" />
                     
                     <PermissionGuard resource="role" action="manage">
-                        <DropdownMenuItem 
-                            className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteModalOpen(true);
-                            }}
-                        >
-                            <Trash2 className="w-5 h-5" />
-                            <span className="font-medium">Delete Role</span>
-                        </DropdownMenuItem>
+                        {canDelete ? (
+                            <DropdownMenuItem 
+                                className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteModalOpen(true);
+                                }}
+                            >
+                                <Trash2 className="w-5 h-5" />
+                                <span className="font-medium">Delete Role</span>
+                            </DropdownMenuItem>
+                        ) : (
+                            <TooltipProvider>
+                                <Tooltip delayDuration={200}>
+                                    <TooltipTrigger asChild>
+                                        <div className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-not-allowed opacity-50 text-[#B42318] w-full" onClick={(e) => e.stopPropagation()}>
+                                            <Trash2 className="w-5 h-5" />
+                                            <span className="font-medium">Delete Role</span>
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left" className="z-[10000] max-w-xs text-center">
+                                        <p>{isTargetOwner ? "The Owner role cannot be deleted" : "Cannot delete a role that has active users assigned to it"}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
                     </PermissionGuard>
                 </DropdownMenuContent>
             </DropdownMenu>

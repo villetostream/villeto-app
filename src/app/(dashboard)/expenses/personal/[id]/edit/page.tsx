@@ -842,7 +842,6 @@ export default function EditReportPage() {
         onEditExpense={handlePolicyEditExpense}
         isRechecking={isSubmittingReport}
       />
-
     </div>
   );
 }

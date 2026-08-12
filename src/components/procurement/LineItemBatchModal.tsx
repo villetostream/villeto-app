@@ -153,17 +153,32 @@ interface FormState {
   description: string;
   categoryId: string;
   categoryName: string;
-  quantity: number | "";
-  unitPrice: number | "";
+  quantity: string;
+  unitPrice: string;
   unitOfMeasure: string;
   sku: string;
-  taxAmount: number | "";
+  taxAmount: string;
 }
 
 const EMPTY_FORM: FormState = {
   name: "", description: "", categoryId: "", categoryName: "",
   quantity: "", unitPrice: "", unitOfMeasure: "", sku: "", taxAmount: "",
 };
+
+function formatNumberInput(value: string) {
+  let numeric = value.replace(/[^0-9.]/g, '');
+  const parts = numeric.split('.');
+  if (parts.length > 2) numeric = parts[0] + '.' + parts.slice(1).join('');
+  if (!numeric) return '';
+  const [int, dec] = numeric.split('.');
+  const formattedInt = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return dec !== undefined ? `${formattedInt}.${dec}` : formattedInt;
+}
+
+function parseNumber(value: string) {
+  const num = parseFloat(value.replace(/,/g, ''));
+  return isNaN(num) ? undefined : num;
+}
 
 function currSym(currency: string): string {
   const map: Record<string, string> = { USD: "$", NGN: "₦", EUR: "€", GBP: "£", CAD: "CA$", AUD: "A$" };
@@ -208,11 +223,11 @@ export default function LineItemBatchModal({
           description: editInitial.description || "",
           categoryId: editInitial.categoryId || "",
           categoryName: editInitial.categoryName || "",
-          quantity: editInitial.quantity || "",
-          unitPrice: editInitial.unitPrice ?? "",
+          quantity: editInitial.quantity ? String(editInitial.quantity) : "",
+          unitPrice: editInitial.unitPrice !== undefined ? formatNumberInput(String(editInitial.unitPrice)) : "",
           unitOfMeasure: editInitial.unitOfMeasure || "",
           sku: editInitial.sku || "",
-          taxAmount: editInitial.taxAmount ?? "",
+          taxAmount: editInitial.taxAmount !== undefined ? formatNumberInput(String(editInitial.taxAmount)) : "",
         }
       : EMPTY_FORM
   );
@@ -225,11 +240,11 @@ export default function LineItemBatchModal({
             description: editInitial.description || "",
             categoryId: editInitial.categoryId || "",
             categoryName: editInitial.categoryName || "",
-            quantity: editInitial.quantity || "",
-            unitPrice: editInitial.unitPrice ?? "",
+            quantity: editInitial.quantity ? String(editInitial.quantity) : "",
+            unitPrice: editInitial.unitPrice !== undefined ? formatNumberInput(String(editInitial.unitPrice)) : "",
             unitOfMeasure: editInitial.unitOfMeasure || "",
             sku: editInitial.sku || "",
-            taxAmount: editInitial.taxAmount ?? "",
+            taxAmount: editInitial.taxAmount !== undefined ? formatNumberInput(String(editInitial.taxAmount)) : "",
           }
         : EMPTY_FORM
     );
@@ -240,10 +255,9 @@ export default function LineItemBatchModal({
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm(p => ({ ...p, [k]: v }));
 
-  const subtotal =
-    typeof form.quantity === "number" && typeof form.unitPrice === "number"
-      ? form.quantity * form.unitPrice
-      : 0;
+  const subtotalQty = parseNumber(form.quantity) || 0;
+  const subtotalPrice = parseNumber(form.unitPrice) || 0;
+  const subtotal = subtotalQty * subtotalPrice;
 
   // ── Staged items ──────────────────────────────────────────────────────────
   const [staged, setStaged] = useState<StagedItem[]>(() => {
@@ -273,7 +287,7 @@ export default function LineItemBatchModal({
   const validate = (): boolean => {
     const errs: typeof errors = {};
     if (!form.name.trim()) errs.name = "Item name is required";
-    if (form.quantity === "" || Number(form.quantity) <= 0) errs.quantity = "Quantity must be > 0";
+    if (form.quantity === "" || (parseNumber(form.quantity) || 0) <= 0) errs.quantity = "Quantity must be > 0";
     if (!form.categoryId) errs.categoryId = "Category is required";
     if (!form.unitOfMeasure.trim()) errs.unitOfMeasure = "Unit of Measure is required";
     setErrors(errs);
@@ -283,9 +297,9 @@ export default function LineItemBatchModal({
   const buildPayload = (): LineItemPayload => ({
     name: form.name.trim(),
     description: form.description.trim() || undefined,
-    quantity: Number(form.quantity),
-    unitPrice: form.unitPrice === "" ? undefined : Number(form.unitPrice),
-    taxAmount: form.taxAmount === "" ? undefined : Number(form.taxAmount),
+    quantity: parseNumber(form.quantity) || 0,
+    unitPrice: parseNumber(form.unitPrice),
+    taxAmount: parseNumber(form.taxAmount),
     sku: form.sku.trim() || undefined,
     unitOfMeasure: form.unitOfMeasure.trim() || undefined,
     categoryId: form.categoryId || undefined,
@@ -322,11 +336,11 @@ export default function LineItemBatchModal({
       description: item.description || "",
       categoryId: item.categoryId || "",
       categoryName: item.categoryName || "",
-      quantity: item.quantity,
-      unitPrice: item.unitPrice ?? "",
+      quantity: item.quantity ? String(item.quantity) : "",
+      unitPrice: item.unitPrice !== undefined ? formatNumberInput(String(item.unitPrice)) : "",
       unitOfMeasure: item.unitOfMeasure || "",
       sku: item.sku || "",
-      taxAmount: item.taxAmount ?? "",
+      taxAmount: item.taxAmount !== undefined ? formatNumberInput(String(item.taxAmount)) : "",
     });
     setStagingEditId(item._stagingId);
     setErrors({});
@@ -363,11 +377,11 @@ export default function LineItemBatchModal({
         description: form.description,
         categoryId: form.categoryId,
         categoryName: form.categoryName,
-        quantity: form.quantity as number,
-        unitPrice: form.unitPrice as number | undefined,
+        quantity: parseNumber(form.quantity) || 0,
+        unitPrice: parseNumber(form.unitPrice),
         unitOfMeasure: form.unitOfMeasure,
         sku: form.sku,
-        taxAmount: form.taxAmount as number | undefined,
+        taxAmount: parseNumber(form.taxAmount),
         _stagingId: `staging-auto-${Math.random().toString(36).substring(2)}`,
       };
       itemsToSave.push(autoStagedItem);
@@ -475,8 +489,8 @@ export default function LineItemBatchModal({
           <label className="text-sm font-medium text-[#0b100e]">
             Quantity <span className="text-[#d33d44]">*</span>
           </label>
-          <input type="number" min={1} value={form.quantity}
-            onChange={e => { set("quantity", e.target.value === "" ? "" : Number(e.target.value)); setErrors(p => ({ ...p, quantity: undefined })); }}
+          <input type="text" value={form.quantity}
+            onChange={e => { set("quantity", formatNumberInput(e.target.value)); setErrors(p => ({ ...p, quantity: undefined })); }}
             placeholder="0"
             className={`w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#087f70] transition-colors ${errors.quantity ? "border-destructive" : "border-black/[0.06]"}`}
           />
@@ -486,8 +500,8 @@ export default function LineItemBatchModal({
           <label className="text-sm font-medium text-[#0b100e]">Unit Price</label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">{sym}</span>
-            <input type="number" min={0} value={form.unitPrice}
-              onChange={e => set("unitPrice", e.target.value === "" ? "" : Number(e.target.value))}
+            <input type="text" value={form.unitPrice}
+              onChange={e => set("unitPrice", formatNumberInput(e.target.value))}
               placeholder="0.00"
               className="w-full h-10 pl-7 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors"
             />
@@ -495,17 +509,30 @@ export default function LineItemBatchModal({
         </div>
       </div>
 
-      {/* Unit of Measure */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-[#0b100e]">
-          Unit of Measure <span className="text-[#d33d44]">*</span>
-        </label>
-        <input type="text" value={form.unitOfMeasure}
-          onChange={e => { set("unitOfMeasure", e.target.value); setErrors(p => ({ ...p, unitOfMeasure: undefined })); }}
-          placeholder="e.g. unit, kg, box"
-          className={`w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#087f70] transition-colors ${errors.unitOfMeasure ? "border-destructive" : "border-black/[0.06]"}`}
-        />
-        {errors.unitOfMeasure && <p className="text-xs text-destructive">{errors.unitOfMeasure}</p>}
+      {/* Tax Amount + Unit of Measure */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-[#0b100e]">Tax Amount</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">{sym}</span>
+            <input type="text" value={form.taxAmount}
+              onChange={e => set("taxAmount", formatNumberInput(e.target.value))}
+              placeholder="0.00"
+              className="w-full h-10 pl-7 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors"
+            />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-[#0b100e]">
+            Unit of Measure <span className="text-[#d33d44]">*</span>
+          </label>
+          <input type="text" value={form.unitOfMeasure}
+            onChange={e => { set("unitOfMeasure", e.target.value); setErrors(p => ({ ...p, unitOfMeasure: undefined })); }}
+            placeholder="e.g. unit, kg, box"
+            className={`w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#087f70] transition-colors ${errors.unitOfMeasure ? "border-destructive" : "border-black/[0.06]"}`}
+          />
+          {errors.unitOfMeasure && <p className="text-xs text-destructive">{errors.unitOfMeasure}</p>}
+        </div>
       </div>
 
       {/* Description */}

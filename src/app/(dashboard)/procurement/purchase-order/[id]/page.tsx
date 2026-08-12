@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import EditPurchaseOrderPage from "./edit/page";
-import { AlertCircle, X, Loader2, XCircle, PackageCheck, Pencil } from "lucide-react";
+import { AlertCircle, X, Loader2, XCircle, PackageCheck, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   usePurchaseOrder,
   useIssuePurchaseOrder,
@@ -12,8 +11,14 @@ import {
   useSubmitPurchaseOrderForApproval,
   usePurchaseOrderApprovalDecision,
   useConfirmPOReceipt,
+  useAddPOLineItems,
+  useUpdatePOLineItem,
+  useDeletePOLineItem,
+  useDeletePurchaseOrder,
   type ConfirmReceiptPayload,
 } from "@/queries/procurement/purchase-orders";
+import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
+import EditPOHeaderModal from "@/components/procurement/EditPOHeaderModal";
 import { useAuthStore } from "@/stores/auth-stores";
 import { getPOStatusLabel } from "@/lib/constants/purchase-order-status";
 import {
@@ -27,6 +32,7 @@ import {
   buildPOEditUrl,
   buildPOListUrl,
 } from "@/lib/permissions/purchase-order-permissions";
+import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -36,6 +42,7 @@ import { toast } from "sonner";
 type WFStage =
   | "draft"
   | "pending_approval"
+  | "submitted"
   | "approved"
   | "rejected"
   | "ready_to_issue"
@@ -414,8 +421,11 @@ export default function PODetailPage() {
   const canReceivePO  = canPOReceive(can);
   const canUpdateDraft = canPOUpdateDraft(can);
 
-  type ModalType = "submit" | "issue" | "close" | "cancel" | "withdraw" | "approve" | "reject" | "receipt" | null;
+  type ModalType = "submit" | "issue" | "close" | "cancel" | "withdraw" | "approve" | "reject" | "receipt" | "delete_draft" | "edit_header" | "line_items" | "delete_line_item" | null;
   const [modal, setModal] = useState<ModalType>(null);
+  const [editingLineItem, setEditingLineItem] = useState<any>(null);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
+  const [overrideUnlocked, setOverrideUnlocked] = useState(false);
 
   const { data, isLoading, isFetching, isError } = usePurchaseOrder(id);
   // Use isFetching (not just isLoading) so we block rendering while React Query
@@ -429,6 +439,10 @@ export default function PODetailPage() {
   const cancelMut   = useCancelPurchaseOrder();
   const approvalMut = usePurchaseOrderApprovalDecision();
   const receiptMut  = useConfirmPOReceipt(id);
+  const addLineItemsMut = useAddPOLineItems(id);
+  const updateLineItemMut = useUpdatePOLineItem(id, editingLineItem?.purchaseOrderLineItemId || "");
+  const deleteLineItemMut = useDeletePOLineItem(id);
+  const deletePOMut = useDeletePurchaseOrder();
 
   const isPending = submitMut.isPending || issueMut.isPending || closeMut.isPending ||
     cancelMut.isPending || approvalMut.isPending || receiptMut.isPending;
@@ -523,11 +537,10 @@ export default function PODetailPage() {
   const isSubmitterView = isOwnScope || isOwnPO;
   const stage = (po.status || "").toLowerCase() as WFStage;
 
-  // Draft POs are handled by the edit page (early-returned above).
-  // Any PO that reaches this point has already been submitted.
-  if (stage === "draft") {
-    return <EditPurchaseOrderPage />;
-  }
+  // Render drafts inline without early return
+  // if (stage === "draft") {
+  //   return <EditPurchaseOrderPage />;
+  // }
 
   const isDelivered = stage === "partially_delivered" || stage === "delivered";
   const submitDateStr = po.createdAt ? format(new Date(po.createdAt), "MMM dd, yyyy") : "N/A";
@@ -548,6 +561,13 @@ export default function PODetailPage() {
   const isApproved = stage === "approved" || stage === "ready_to_issue" || stage === "issued" || stage === "acknowledged" || stage === "ready_for_delivery" || isDelivered || stage === "closed";
 
   // Workflow steps — updated to reflect draft→submitted→approved chain and backend timeline
+  const isCompanyScope = outerTab === "company";
+  const isSubmitted = stage === "pending_approval" || stage === "submitted";
+  const showOverrideBanner = isCompanyScope && !isOwnPO && (
+    (isSubmitted && canApprovePO) ||
+    ((isSubmitted || isApproved) && (canCancelPO || canApprovePO))
+  );
+
   const workflowSteps = [
     {
       label: "Created",
@@ -627,11 +647,9 @@ export default function PODetailPage() {
   ];
 
   // Derive which action buttons to show.
-  // NOTE: stage can never be "draft" here — draft POs are handled by the early return above.
-  const showEditDraft  = false; // drafts never reach this view
-  const showSubmit     = false; // drafts never reach this view
-  const showApprove    = stage === "pending_approval" && !isSubmitterView && canApprovePO;
-  const showReject     = stage === "pending_approval" && !isSubmitterView && canApprovePO;
+  const showEditDraft  = stage === "draft" && isSubmitterView && canUpdateDraft;
+  const showDeleteDraft = stage === "draft" && isSubmitterView && canUpdateDraft;
+  const showSubmit     = stage === "draft" && isSubmitterView && canUpdateDraft && (po.lineItems?.length || 0) > 0;
   const showIssue      = (stage === "ready_to_issue" || stage === "approved") && canIssuePO;
   const postApprovalStages: WFStage[] = [
     "approved",
@@ -643,12 +661,14 @@ export default function PODetailPage() {
     "partially_delivered",
     "delivered",
   ];
-  /** Withdraw (cancel endpoint) — submitter only, while pending approval */
-  const isCompanyScope = outerTab === "company";
-  const hasApprovePermission = canApprovePO; // Since PO doesn't have an explicit 'unlock' yet, we use approve permission for company scope
+  const hasApprovePermission = canApprovePO;
+  
+  const showApprove    = stage === "pending_approval" && !isSubmitterView && canApprovePO && (!isCompanyScope || overrideUnlocked);
+  const showReject     = stage === "pending_approval" && !isSubmitterView && canApprovePO && (!isCompanyScope || overrideUnlocked);
+  
   const showWithdraw = stage === "pending_approval" && (
     (isOwnScope && isOwnPO && canCancelPO) ||
-    (isCompanyScope && hasApprovePermission)
+    (isCompanyScope && hasApprovePermission && overrideUnlocked)
   );
   /** Neutral cancel for drafts — always false here (handled in the edit page) */
   const showCancelDraft = false;
@@ -719,6 +739,81 @@ export default function PODetailPage() {
         isPending={receiptMut.isPending}
         lineItems={po.lineItems || []}
       />
+      <ConfirmModal
+        open={modal === "delete_draft"}
+        onClose={() => setModal(null)}
+        onConfirm={async () => {
+          try {
+            await deletePOMut.mutateAsync(id);
+            toast.success("Draft purchase order deleted.");
+            router.push(listUrl);
+          } catch(e) {
+            displayExpertError(e, "Failed to delete PO");
+          }
+        }}
+        isPending={deletePOMut.isPending}
+        title="Delete Draft PO"
+        description="Are you sure you want to delete this draft? This action cannot be undone."
+        confirmLabel="Delete Draft"
+        variant="danger"
+      />
+      <ConfirmModal
+        open={modal === "delete_line_item"}
+        onClose={() => { setModal(null); setItemToDelete(null); }}
+        onConfirm={async () => {
+          if (!itemToDelete) return;
+          try {
+            await deleteLineItemMut.mutateAsync(itemToDelete.purchaseOrderLineItemId);
+            toast.success("Line item deleted");
+            setModal(null);
+            setItemToDelete(null);
+          } catch(e: any) {
+            toast.error(e?.response?.data?.message || "Failed to delete line item");
+          }
+        }}
+        isPending={deleteLineItemMut.isPending}
+        title="Delete Line Item"
+        description="Are you sure you want to delete this line item? This action cannot be undone."
+        confirmLabel="Delete Item"
+        variant="danger"
+      />
+      {po && modal === "edit_header" && (
+        <EditPOHeaderModal
+          open={true}
+          onClose={() => setModal(null)}
+          po={po}
+        />
+      )}
+      {po && modal === "line_items" && (
+        <LineItemBatchModal
+          open={true}
+          onClose={() => { setModal(null); setEditingLineItem(null); }}
+          currency={po.currency || "NGN"}
+          saving={addLineItemsMut.isPending}
+          onSaveAll={async (items) => {
+             await addLineItemsMut.mutateAsync({ 
+                lineItems: items.map(item => ({ ...item, unitPrice: item.unitPrice ?? 0 })) as any 
+             });
+             toast.success("Line items added successfully");
+             setModal(null);
+          }}
+          editInitial={editingLineItem ? {
+             _stagingId: "edit-current",
+             categoryName: (editingLineItem.category as any)?.name || "",
+             ...editingLineItem,
+          } : undefined}
+          editSaving={updateLineItemMut.isPending}
+          onEditSaved={async (payload) => {
+             if (editingLineItem?.purchaseOrderLineItemId) {
+                await updateLineItemMut.mutateAsync(payload as any);
+                toast.success("Line item updated");
+                setModal(null);
+                setEditingLineItem(null);
+             }
+          }}
+          persistKey={`po_${id}`}
+        />
+      )}
 
       {/* Layout */}
       <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
@@ -744,10 +839,15 @@ export default function PODetailPage() {
             <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
               {showEditDraft && (
                 <button
-                  onClick={() => router.push(buildPOEditUrl(id, outerTab, innerTab))}
+                  onClick={() => setModal("edit_header")}
                   className="h-9 px-4 rounded-lg border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors flex items-center gap-2"
                 >
-                  <Pencil className="w-4 h-4" /> Edit Draft
+                  <Pencil className="w-4 h-4" /> Edit PO Details
+                </button>
+              )}
+              {showDeleteDraft && (
+                <button onClick={() => setModal("delete_draft")} className="h-9 px-4 rounded-lg border border-red-300 text-[#d33d44] text-sm font-medium hover:bg-[#fff5f5] transition-colors">
+                  Delete Draft
                 </button>
               )}
               {showWithdraw && (
@@ -755,20 +855,10 @@ export default function PODetailPage() {
                   Withdraw PO
                 </button>
               )}
-              {showCancelDraft && (
-                <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors">
-                  Withdraw
-                </button>
-              )}
               {showSubmit && (
-                <>
-                  <button onClick={() => setModal("cancel")} className="h-9 px-4 rounded-lg border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors">
-                    Withdraw
-                  </button>
-                  <button onClick={() => setModal("submit")} className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-                    Submit for Approval
-                  </button>
-                </>
+                <button onClick={() => setModal("submit")} className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+                  Submit for Approval
+                </button>
               )}
               {showReject && (
                 <button onClick={() => setModal("reject")} className="h-9 px-4 rounded-lg border border-red-300 text-[#d33d44] text-sm font-medium hover:bg-[#fff5f5] transition-colors">
@@ -858,10 +948,21 @@ export default function PODetailPage() {
 
           {/* Line Items */}
           <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
-            <div className="px-6 py-4 border-b border-black/[0.06]">
+            <div className="px-6 py-4 border-b border-black/[0.06] flex items-center justify-between">
               <h2 className="text-base font-semibold text-[#0b100e]">
                 Line Items <span className="text-[#68726d] font-normal ml-1">{po.lineItems?.length || 0}</span>
               </h2>
+              {stage === "draft" && isSubmitterView && (
+                <button
+                  onClick={() => {
+                    setEditingLineItem(null);
+                    setModal("line_items");
+                  }}
+                  className="h-8 px-3 rounded-lg bg-[#f0faf8] text-[#087f70] text-xs font-semibold hover:bg-[#e0f5f0] transition-colors flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Items
+                </button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -872,6 +973,9 @@ export default function PODetailPage() {
                     <th className="px-6 py-3 text-center font-semibold text-[#0b100e]">Qty</th>
                     <th className="px-6 py-3 text-right font-semibold text-[#0b100e]">Unit Price</th>
                     <th className="px-6 py-3 text-right font-semibold text-[#0b100e]">Subtotal</th>
+                    {stage === "draft" && isSubmitterView && (
+                      <th className="px-6 py-3 w-20"></th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -885,10 +989,33 @@ export default function PODetailPage() {
                       <td className="px-6 py-4 text-center">{Number(item.quantity)}</td>
                       <td className="px-6 py-4 text-right">{formatCurrency(item.unitPrice, po.currency)}</td>
                       <td className="px-6 py-4 text-right text-[#0b100e] font-medium">{formatCurrency(item.subtotal as string, po.currency as string)}</td>
+                      {stage === "draft" && isSubmitterView && (
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => { setEditingLineItem(item); setModal("line_items"); }}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f5f7f6] transition-colors"
+                              title="Edit item"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setItemToDelete(item);
+                                setModal("delete_line_item");
+                              }}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors"
+                              title="Delete item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-[#68726d]">No line items attached</td>
+                      <td colSpan={stage === "draft" && isSubmitterView ? 6 : 5} className="px-6 py-8 text-center text-[#68726d]">No line items attached</td>
                     </tr>
                   )}
                 </tbody>
@@ -904,7 +1031,16 @@ export default function PODetailPage() {
         </div>
 
         {/* Right Sidebar */}
-        <div className="w-[300px] shrink-0 h-full overflow-y-auto pr-1 space-y-4 pb-4">
+        <div className="w-full lg:w-[300px] shrink-0 lg:h-full lg:overflow-y-auto pr-1 space-y-4 pb-4">
+          {/* Manager Override Banner */}
+          {showOverrideBanner && (
+            <ManagerOverrideBanner
+              isUnlocked={overrideUnlocked}
+              onUnlock={() => setOverrideUnlocked(true)}
+              onLock={() => setOverrideUnlocked(false)}
+            />
+          )}
+
           <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
             <div className="bg-[#1C2B36] rounded-t-2xl px-5 py-4">
               <h3 className="text-base font-bold text-white">Workflow Progress</h3>

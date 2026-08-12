@@ -47,7 +47,18 @@ export function useAxios(): AxiosInstance {
     });
 
     instance.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // If the backend returned a 2xx HTTP status but the JSON payload indicates a 401 error
+        const data = response.data;
+        if (data && (data.status === 401 || data.statusCode === 401 || data.data?.statusCode === 401)) {
+           const error: any = new Error(data.message || "Unauthorized");
+           error.response = response;
+           error.config = response.config;
+           error.response.status = 401;
+           return Promise.reject(error);
+        }
+        return response;
+      },
       async (error) => {
         const originalRequest = error.config;
 
@@ -55,67 +66,76 @@ export function useAxios(): AxiosInstance {
           typeof window !== "undefined" &&
           window.location.pathname.includes("onboarding");
 
-        if (
-          error.response?.status === 401 &&
-          !originalRequest._retry &&
-          !originalRequest.url.includes("auth") &&
-          !isOnboardingPath
-        ) {
-          if (isRefreshing) {
-            return new Promise(function(resolve, reject) {
-                failedQueue.push({ resolve, reject });
-            }).then(token => {
-                originalRequest.headers.Authorization = `Bearer ${token}`;
-                return instance(originalRequest);
-            }).catch(err => {
-                return Promise.reject(err);
-            });
-          }
+        const isAuthRequest = originalRequest.url?.includes("auth");
 
-          originalRequest._retry = true;
-          isRefreshing = true;
-
-          try {
-            const refreshResponse = await axios.post(
-              `${BASEURL}auth/refresh`,
-              {},
-              { withCredentials: true }
-            );
-            // Store the new token if the backend returns one in the body
-            const newToken =
-              refreshResponse.data?.data?.accessToken ||
-              refreshResponse.data?.accessToken ||
-              null;
-            if (newToken) {
-              useAuthStore.getState().setAccessToken(newToken);
-              originalRequest.headers = {
-                ...originalRequest.headers,
-                Authorization: `Bearer ${newToken}`,
-              };
-              // Restart proactive refresh with the new token's lifetime
-              const newExpiresInMs =
-                refreshResponse.data?.data?.accessTokenExpiresInMs ??
-                refreshResponse.data?.accessTokenExpiresInMs ??
-                3600000;
-              scheduleTokenRefresh(newExpiresInMs);
-
-              processQueue(null, newToken);
-            } else {
-              processQueue(new Error("No token returned"), null);
+        if (error.response?.status === 401 && !isAuthRequest && !isOnboardingPath) {
+          if (!originalRequest._retry) {
+            if (isRefreshing) {
+              return new Promise(function(resolve, reject) {
+                  failedQueue.push({ resolve, reject });
+              }).then(token => {
+                  originalRequest.headers.Authorization = `Bearer ${token}`;
+                  return instance(originalRequest);
+              }).catch(err => {
+                  return Promise.reject(err);
+              });
             }
-            return instance(originalRequest);
-          } catch (refreshError) {
-            processQueue(refreshError, null);
+
+            originalRequest._retry = true;
+            isRefreshing = true;
+
+            try {
+              const refreshResponse = await axios.post(
+                `${BASEURL}auth/refresh`,
+                {},
+                { withCredentials: true }
+              );
+              // Store the new token if the backend returns one in the body
+              const newToken =
+                refreshResponse.data?.data?.accessToken ||
+                refreshResponse.data?.accessToken ||
+                null;
+              if (newToken) {
+                useAuthStore.getState().setAccessToken(newToken);
+                originalRequest.headers = {
+                  ...originalRequest.headers,
+                  Authorization: `Bearer ${newToken}`,
+                };
+                // Restart proactive refresh with the new token's lifetime
+                const newExpiresInMs =
+                  refreshResponse.data?.data?.accessTokenExpiresInMs ??
+                  refreshResponse.data?.accessTokenExpiresInMs ??
+                  3600000;
+                scheduleTokenRefresh(newExpiresInMs);
+
+                processQueue(null, newToken);
+              } else {
+                processQueue(new Error("No token returned"), null);
+              }
+              return instance(originalRequest);
+            } catch (refreshError) {
+              processQueue(refreshError, null);
+              useAuthStore.getState().logout();
+              if (
+                typeof window !== "undefined" &&
+                !window.location.pathname.startsWith("/login")
+              ) {
+                window.location.href = "/login";
+              }
+              return Promise.reject(refreshError);
+            } finally {
+              isRefreshing = false;
+            }
+          } else {
+            // We already retried and still got 401, or something else is wrong.
             useAuthStore.getState().logout();
             if (
               typeof window !== "undefined" &&
               !window.location.pathname.startsWith("/login")
             ) {
-              router.replace("/login");
+              window.location.href = "/login";
             }
-            return Promise.reject(refreshError);
-          } finally {
-            isRefreshing = false;
+            return Promise.reject(error);
           }
         }
 

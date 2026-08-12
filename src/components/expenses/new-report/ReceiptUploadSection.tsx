@@ -90,6 +90,7 @@ export function ReceiptUploadSection({
     setIsDragging(false);
   }, []);
 
+
   const queueFiles = useCallback((incoming: File[]) => {
     const imageFiles = incoming.filter((file) => file.type.startsWith("image/"));
     if (imageFiles.length === 0) return;

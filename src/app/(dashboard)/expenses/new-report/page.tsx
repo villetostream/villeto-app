@@ -267,6 +267,7 @@ export default function NewReportPage() {
           isSplit: !!isSplit,
         };
       });
+
       setExpenses((prev) => [...prev, ...newExpenses]);
       toast.success(`${receipts.length} receipt(s) scanned successfully`);
   };
@@ -956,7 +957,6 @@ export default function NewReportPage() {
         onEditExpense={handlePolicyEditExpense}
         isRechecking={isRecheckingPolicy}
       />
-
     </div>
   );
 }

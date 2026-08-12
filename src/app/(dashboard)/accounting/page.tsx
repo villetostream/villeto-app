@@ -35,7 +35,12 @@ const formatDate = (value?: string) =>
     ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value))
     : "Not set";
 
-export default function AccountingPage() {
+interface PageProps {
+  params: Promise<{}>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default function AccountingPage(props: PageProps) {
   const entitiesQuery = useLegalEntities();
   const entities = entitiesQuery.data?.data || [];
   const [selectedId, setSelectedId] = useState("");

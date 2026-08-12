@@ -353,10 +353,10 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
                 {isGroupActive && isExpanded && <span className="absolute left-0 h-5 w-[3px] rounded-r-full bg-[#38d5bc]" />}
                 <span className={cn("relative shrink-0 flex size-8 items-center justify-center rounded-[8px] transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0", isGroupActive ? "bg-[#24bda7]/20 [&>svg]:text-[#55e2cc]" : "bg-white/[0.04] [&>svg]:text-white/55 group-hover/nav:[&>svg]:text-white/85")}>
                   {item.icon}
-                  {isExpanded && renderBadge(item.badge)}
                   {!isExpanded && renderBadge(item.badge, true)}
                 </span>
                 <span className="flex-1 text-left group-data-[collapsible=icon]:hidden">{item.label}</span>
+                {isExpanded && renderBadge(item.badge)}
                 <ChevronDown
                   className={cn(
                     "size-3.5 shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden",

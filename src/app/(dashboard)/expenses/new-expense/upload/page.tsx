@@ -183,6 +183,7 @@ export default function UploadReceipt() {
       const storedExtractions = sessionStorage.getItem(
         "uploadedReceiptExtractions",
       );
+
       if (storedReceipts && storedExtractions) {
         try {
           receiptImages = JSON.parse(storedReceipts);
@@ -198,6 +199,7 @@ export default function UploadReceipt() {
         extractions = await Promise.all(
           files.map((file) => uploadAndExtractReceipt(axios, file)),
         );
+
         receiptImages = extractions.map((extraction) => extraction.receiptUrl);
       }
 

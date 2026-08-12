@@ -1443,9 +1443,8 @@ export default function PolicyCreationModal({
                             </div>
 
                             {/* Management Level / Job Grade selector */}
-                            {managementGradeOptions.length > 0 && (
-                              <div>
-                                <SectionLabel>Select management level(s) / job grade(s)</SectionLabel>
+                            <div>
+                              <SectionLabel>Select management level(s) / job grade(s)</SectionLabel>
                                 <MultiDropdown
                                   placeholder="Select management level(s) / job grade(s)"
                                   values={selectedRoles}
@@ -1471,7 +1470,6 @@ export default function PolicyCreationModal({
                                   </div>
                                 )}
                               </div>
-                            )}
 
                             {/*
                               Nudge — only visible when neither field has a selection yet.
