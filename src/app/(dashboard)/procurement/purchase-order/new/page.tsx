@@ -30,7 +30,10 @@ import {
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { isPRPriority } from "@/lib/types/purchase-request-helpers";
-import { useLegalEntities } from "@/queries/legal-entities";
+import {
+  isProcurementReadyLegalEntity,
+  useLegalEntities,
+} from "@/queries/legal-entities";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -231,7 +234,9 @@ export default function NewPurchaseOrderPage() {
     return v ? v.displayName || v.legalName : "Unknown Vendor";
   };
 
-  const legalEntities = (legalEntityData?.data || []).filter(entity => entity.status === "active");
+  const legalEntities = (legalEntityData?.data || []).filter(
+    isProcurementReadyLegalEntity,
+  );
   const legalEntityOptions = legalEntities.map(entity => ({
     label: `${entity.legalName} (${entity.baseCurrency})`,
     value: entity.legalEntityId,
@@ -240,6 +245,7 @@ export default function NewPurchaseOrderPage() {
   const effectiveLegalEntityId =
     legalEntityId ||
     (legalEntities.length === 1 ? legalEntities[0].legalEntityId : "");
+  const requiresLegalEntitySelection = legalEntities.length > 1;
   const currency =
     legalEntities.find(
       (entity) => entity.legalEntityId === effectiveLegalEntityId,
@@ -253,12 +259,13 @@ export default function NewPurchaseOrderPage() {
     if (!vendorId) { toast.error("Vendor is required"); return; }
     if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
     if (!deliveryDate) { toast.error("Delivery date is required"); return; }
-    if (!effectiveLegalEntityId) { toast.error("Legal entity is required"); return; }
+    if (legalEntities.length === 0) { toast.error("No procurement-ready legal entity is available"); return; }
+    if (requiresLegalEntitySelection && !effectiveLegalEntityId) { toast.error("Select the legal entity for this purchase order"); return; }
 
     setHeaderSaving(true);
     try {
       const payload: CreatePurchaseOrderPayload = {
-        legalEntityId: effectiveLegalEntityId,
+        legalEntityId: effectiveLegalEntityId || undefined,
         vendorId,
         priority: priority as any,
         deliveryDate,
@@ -428,7 +435,7 @@ export default function NewPurchaseOrderPage() {
             </div>
 
             <div className="pt-1 flex justify-end">
-              <button type="button" onClick={handleSaveHeader} disabled={!vendorId || !priority || !effectiveLegalEntityId || !deliveryDate || headerSaving}
+              <button type="button" onClick={handleSaveHeader} disabled={!vendorId || !priority || legalEntities.length === 0 || (requiresLegalEntitySelection && !effectiveLegalEntityId) || !deliveryDate || headerSaving}
                 className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
                 {headerSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save & Continue

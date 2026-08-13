@@ -24,6 +24,15 @@ export interface LegalEntity {
   readinessBlockers: string[];
 }
 
+export function isProcurementReadyLegalEntity(entity: LegalEntity) {
+  return (
+    entity.status === "active" &&
+    (entity.readinessStatus === "procurement_ready" ||
+      entity.readinessStatus === "accounting_ready" ||
+      entity.readinessStatus === "payment_workflow_ready")
+  );
+}
+
 export interface LegalEntityInput {
   code: string;
   legalName: string;
