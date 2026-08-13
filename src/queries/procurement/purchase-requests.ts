@@ -126,7 +126,7 @@ interface ApiResponse<T> {
 // ── Create Purchase Request Header ────────────────────────────────────────
 
 export interface CreatePurchaseRequestPayload {
-  legalEntityId: string;
+  legalEntityId?: string;
   title: string;
   description?: string;
   priority: PRPriority;

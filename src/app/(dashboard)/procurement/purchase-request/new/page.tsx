@@ -30,7 +30,10 @@ import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departmen
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { isPRPriority, toApiLineItemPayload } from "@/lib/types/purchase-request-helpers";
-import { useLegalEntities } from "@/queries/legal-entities";
+import {
+  isProcurementReadyLegalEntity,
+  useLegalEntities,
+} from "@/queries/legal-entities";
 
 function cleanLineItemPayload(payload: LineItemPayload): LineItemPayload {
   return toApiLineItemPayload(payload);
@@ -495,7 +498,9 @@ export default function NewPurchaseRequestPage() {
     value: d.departmentId,
   }));
 
-  const legalEntities = (legalEntityData?.data || []).filter(entity => entity.status === "active");
+  const legalEntities = (legalEntityData?.data || []).filter(
+    isProcurementReadyLegalEntity,
+  );
   const legalEntityOptions = legalEntities.map(entity => ({
     label: `${entity.legalName} (${entity.baseCurrency})`,
     value: entity.legalEntityId,
@@ -504,6 +509,7 @@ export default function NewPurchaseRequestPage() {
   const effectiveLegalEntityId =
     legalEntityId ||
     (legalEntities.length === 1 ? legalEntities[0].legalEntityId : "");
+  const requiresLegalEntitySelection = legalEntities.length > 1;
   const currency =
     legalEntities.find(
       (entity) => entity.legalEntityId === effectiveLegalEntityId,
@@ -520,12 +526,13 @@ export default function NewPurchaseRequestPage() {
     if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
     if (!neededByDate) { toast.error("Expected date is required"); return; }
     if (!departmentId) { toast.error("Department is required"); return; }
-    if (!effectiveLegalEntityId) { toast.error("Legal entity is required"); return; }
+    if (legalEntities.length === 0) { toast.error("No procurement-ready legal entity is available"); return; }
+    if (requiresLegalEntitySelection && !effectiveLegalEntityId) { toast.error("Select the legal entity for this request"); return; }
 
     setHeaderSaving(true);
     try {
       const res = await createPR.mutateAsync({
-        legalEntityId: effectiveLegalEntityId,
+        legalEntityId: effectiveLegalEntityId || undefined,
         title: title.trim(),
         description: description.trim() || undefined,
         priority,
@@ -774,7 +781,7 @@ export default function NewPurchaseRequestPage() {
             </div>
 
             <div className="pt-1 flex justify-end">
-              <button type="button" onClick={handleSaveHeader} disabled={headerSaving || !title.trim() || !priority || !effectiveLegalEntityId || !departmentId || !neededByDate}
+              <button type="button" onClick={handleSaveHeader} disabled={headerSaving || !title.trim() || !priority || legalEntities.length === 0 || (requiresLegalEntitySelection && !effectiveLegalEntityId) || !departmentId || !neededByDate}
                 className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
                 {headerSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save & Continue
