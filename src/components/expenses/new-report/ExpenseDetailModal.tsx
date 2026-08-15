@@ -221,7 +221,9 @@ export function ExpenseDetailModal({
                         </div>
                       )}
                       <p className="text-xs text-red-500 mt-2">
-                        Adjust the expense details (e.g. reduce the amount) to resolve this block before saving.
+                        {v.ruleType === "RECEIPT_REQUIRED" || /receipt is required/i.test(v.message)
+                          ? "Upload a receipt to resolve this block before saving."
+                          : "Adjust the expense details (e.g. reduce the amount) to resolve this block before saving."}
                       </p>
                     </div>
                   </div>

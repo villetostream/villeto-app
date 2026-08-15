@@ -337,9 +337,11 @@ export default function NewReportPage() {
     justification?: string,
     splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
   ) => {
+    const currentExpense = expenses.find((expense) => expense.id === expenseId);
     let resolvedReceipt = newReceipt;
-    let replacementExtractionId: string | undefined;
+    let replacementExtractionId = currentExpense?.receiptExtractionId;
     if (newReceipt?.startsWith("data:")) {
+      replacementExtractionId = undefined;
       try {
         const extraction = await uploadAndExtractReceipt(
           axios,
@@ -353,7 +355,6 @@ export default function NewReportPage() {
       }
     }
     // Check if amount, category, or receipt changed BEFORE updating state (while old value is still in closure)
-    const currentExpense = expenses.find((e) => e.id === expenseId);
     const amountOrCategoryChanged = !!(currentExpense &&
       (
         currentExpense.amount !== data.amount ||
