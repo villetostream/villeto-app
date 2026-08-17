@@ -6,11 +6,12 @@ import { toast } from "sonner";
 import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
 import { useInvoiceAction, useProcurementInvoices } from "@/queries/procurement/invoices";
 import { useAuthStore } from "@/stores/auth-stores";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 const money = (value: number, code: string) => new Intl.NumberFormat(undefined, { style: "currency", currency: code }).format(value);
 const badge: Record<string, string> = { submitted: "bg-[#edf4ff] text-[#3b67b0]", under_review: "bg-[#fff6df] text-[#a46709]", approved: "bg-[#e8f8f5] text-[#087f70]", rejected: "bg-[#fff0f1] text-[#b93643]", paid: "bg-[#e9f7ed] text-[#287c43]" };
 
-export default function ProcurementInvoicesPage() {
+function ProcurementInvoicesPage() {
   const can = useAuthStore((state) => state.can);
   const { data, isLoading, isError, refetch } = useProcurementInvoices();
   const action = useInvoiceAction();
@@ -37,3 +38,7 @@ export default function ProcurementInvoicesPage() {
     </ProcurementSection>
   </div>;
 }
+
+export default withPermissions(ProcurementInvoicesPage, [
+  { resource: "procurement.vendor_invoice", action: "read_company" },
+]);

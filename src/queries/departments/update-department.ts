@@ -1,8 +1,8 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { CreateDepartmentPayload } from "./create-department";
-
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
 
 export interface Response {
@@ -22,6 +22,7 @@ export interface Response {
 
 export const useUpdateDepartmentApi = () => {
     const axiosInstance = useAxios();
+    const queryClient = useQueryClient();
 
     return useMutation<Response, Error, CreateDepartmentPayload>({
         retry: false,
@@ -30,5 +31,11 @@ export const useUpdateDepartmentApi = () => {
             const res = await axiosInstance.patch(`${API_KEYS.DEPARTMENT.DEPARTMENTS}${id}`, latestPayload);
             return res.data;
         },
+        onSuccess: (_data, variables) => {
+            if (variables.id) {
+                queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.department(variables.id) });
+            }
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.departments });
+        }
     });
 };

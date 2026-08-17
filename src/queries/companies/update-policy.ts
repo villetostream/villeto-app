@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { Policy, PolicyRule, PolicyScope } from "./get-policies";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
@@ -11,10 +11,10 @@ export interface UpdatePolicyPayload {
   description?: string;
   rules?: PolicyRule[];
   scope?: PolicyScope;
-  approvers?: string[];
   expenseCategories?: string[];
   status?: "active" | "draft";
   override_policy?: boolean;
+  policyId?: string;
 }
 
 interface UpdatePolicyResponse {
@@ -39,9 +39,9 @@ export const useUpdatePolicyApi = () => {
     },
     onSuccess: (_data, { id }) => {
       // Invalidate both list and the specific policy cache
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES, id] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policy(id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.categories });
     },
   });
 };

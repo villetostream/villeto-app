@@ -7,8 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
 import { Search, Download, ChevronDown } from "lucide-react";
 import { asRecord, getString, pickString } from "@/lib/types/api-error";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
-export default function VendorTransactionsPage() {
+function VendorTransactionsPage() {
   const { vendorId } = useParams() as { vendorId: string };
   const _router = useRouter();
   const axiosInstance = useAxios();
@@ -173,3 +174,7 @@ export default function VendorTransactionsPage() {
     </div>
   );
 }
+
+export default withPermissions(VendorTransactionsPage, [
+  { resource: "vendor", action: "read_company" },
+]);

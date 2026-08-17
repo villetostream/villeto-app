@@ -11,6 +11,8 @@ import {
   ShieldCheck,
   Loader2,
   ShoppingCart,
+  Pencil,
+  Archive,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -27,19 +29,29 @@ import { ProcurementPolicyDetailsModal } from "./ProcurementPolicyDetailsModal";
 import { POLICY_GROUPS } from "./constants";
 import { useGetProcurementPolicies } from "@/queries/procurement/policies";
 import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
+import { useAuthStore } from "@/stores/auth-stores";
+import { Button } from "@/components/ui/button";
 
 const groupLabel = (group: string) =>
   POLICY_GROUPS.find((item) => item.value === group)?.title ?? group;
 
+/** Short "TYPE" label for the table TYPE column */
+const typeShortLabel = (group: string) => {
+  if (group === "pr_submission") return "PR Submission";
+  if (group === "pr_to_po")      return "PR → PO";
+  if (group === "po_submission")  return "Direct PO";
+  return groupLabel(group);
+};
+
 const formatDate = (iso: string) =>
-  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     approved: "bg-success/10 text-success",
-    active: "bg-success/10 text-success",
-    pending: "bg-pending/10 text-pending",
-    draft: "bg-draft/10 text-draft",
+    active:   "bg-success/10 text-success",
+    pending:  "bg-pending/10 text-pending",
+    draft:    "bg-draft/10 text-draft",
     inactive: "bg-[#f9faf9]/60 text-[#68726d]",
   };
   const cls = map[status?.toLowerCase()] ?? "bg-[#f9faf9]/60 text-[#68726d]";
@@ -77,10 +89,10 @@ export function ProcurementPolicySection({
   const draftCount    = useMemo(() => policies.filter((p) => p.status === "draft").length, [policies]);
 
   const summary: PolicySummaryItem[] = [
-    { label: "Active", value: approvedCount, detail: "Currently enforced", icon: ShieldCheck, tone: "teal" },
-    { label: "Pending", value: pendingCount, detail: "Waiting for approval", icon: Clock, tone: "amber" },
-    { label: "Drafts", value: draftCount, detail: "Still being configured", icon: FileText, tone: "slate" },
-    { label: "Total", value: policies.length, detail: "Procurement controls", icon: ShoppingCart, tone: "blue" },
+    { label: "Active",   value: approvedCount,      detail: "Currently enforced",       icon: ShieldCheck, tone: "teal" },
+    { label: "Pending",  value: pendingCount,        detail: "Waiting for approval",     icon: Clock,       tone: "amber" },
+    { label: "Drafts",   value: draftCount,          detail: "Still being configured",   icon: FileText,    tone: "slate" },
+    { label: "Total",    value: policies.length,     detail: "Procurement controls",     icon: ShoppingCart,tone: "blue" },
   ];
 
   const filteredPolicies = useMemo(() => {
@@ -94,6 +106,10 @@ export function ProcurementPolicySection({
     tableProps.setTotalItems(filteredPolicies.length);
   }, [filteredPolicies.length, tableProps.setTotalItems]);
 
+  const { can } = useAuthStore.getState();
+  const canUpdate     = can("policy", "update");
+  const canDeactivate = can("policy", "deactivate");
+
   const columns = useMemo<ColumnDef<ProcurementPolicyApiRecord>[]>(
     () => [
       {
@@ -102,27 +118,31 @@ export function ProcurementPolicySection({
         cell: ({ row }) => (
           <div>
             <p className="text-sm font-bold text-[#0b100e]">{row.original.name}</p>
-            <p className="text-xs text-[#68726d]">Priority {row.original.priority}</p>
+            {row.original.description && (
+              <p className="text-xs text-[#68726d] truncate max-w-[200px]">{row.original.description}</p>
+            )}
           </div>
         ),
       },
       {
         accessorKey: "policyGroup",
-        header: "Policy Group",
-        cell: ({ row }) => <span className="text-sm">{groupLabel(row.original.policyGroup)}</span>,
+        header: "Type",
+        cell: ({ row }) => (
+          <span className="text-sm text-[#0b100e]">{typeShortLabel(row.original.policyGroup)}</span>
+        ),
       },
       {
         accessorKey: "scopeType",
-        header: "Scope",
+        header: "Applied To",
         cell: ({ row }) => (
           <span className="text-sm capitalize">
-            {row.original.scopeType === "company" ? "Entire Company" : "Specific"}
+            {row.original.scopeType === "company" ? "All Employees" : "Specific"}
           </span>
         ),
       },
       {
         accessorKey: "createdAt",
-        header: "Created",
+        header: "Date",
         cell: ({ row }) => (
           <span className="text-sm text-[#68726d] tabular-nums">
             {formatDate(row.original.createdAt)}
@@ -141,25 +161,43 @@ export function ProcurementPolicySection({
           <div className="flex items-center justify-end gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="w-8 h-8 flex items-center justify-center rounded-[8px] text-[#68726d] hover:text-[#0b100e] hover:bg-[#f9faf9] transition-colors cursor-pointer">
+                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-[#f9faf9]/60 transition-colors cursor-pointer">
                   <MoreHorizontal className="w-5 h-5" />
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
                 <DropdownMenuItem
                   onClick={() => setDetailPolicy(row.original)}
-                  className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9] transition-colors cursor-pointer"
+                  className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
                 >
                   <Eye className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
                   View Details
                 </DropdownMenuItem>
+                {canUpdate && (
+                  <DropdownMenuItem
+                    onClick={() => setDetailPolicy(row.original)}
+                    className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
+                  >
+                    <Pencil className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
+                    Edit
+                  </DropdownMenuItem>
+                )}
+                {canDeactivate && (
+                  <DropdownMenuItem
+                    onClick={() => setDetailPolicy(row.original)}
+                    className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors cursor-pointer"
+                  >
+                    <Archive className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
+                    Archive Policy
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         ),
       },
     ],
-    []
+    [canUpdate, canDeactivate]
   );
 
   return (

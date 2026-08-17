@@ -346,7 +346,7 @@ function DataTable<Data extends object, Value = unknown>(
         enableColumnVisibility={enableColumnVisibility}
         table={table as unknown as TanStackTable<object>}
       />
-      <div className="rounded-md border bg-white flex-1 min-h-0 flex flex-col">
+      <div className="rounded-[12px] overflow-hidden border border-black/[0.06] bg-white flex-1 min-h-0 flex flex-col">
         <Table wrapperClassName="flex-1 overflow-auto" className="min-w-full divide-y divide-gray-200">
           <TableHead className="bg-gray-50 sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (

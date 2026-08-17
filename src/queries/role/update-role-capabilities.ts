@@ -1,6 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
 interface UpdateCapabilitiesPayload {
     roleId: string;
@@ -15,6 +16,7 @@ interface Response {
 
 export const useUpdateRoleCapabilitiesApi = () => {
     const axiosInstance = useAxios();
+    const queryClient = useQueryClient();
 
     return useMutation<Response, Error, UpdateCapabilitiesPayload>({
         retry: false,
@@ -24,6 +26,12 @@ export const useUpdateRoleCapabilitiesApi = () => {
                 { capabilityGroupKeys }
             );
             return res.data;
+        },
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.role(variables.roleId) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.roles });
+            // Invalidate all capability group queries across modules
+            queryClient.invalidateQueries({ queryKey: ["people", "roles", "capabilities"] });
         },
     });
 };

@@ -101,6 +101,19 @@ export const useAuthStore = create<AuthState>()(
 
             logout: () => {
                 clearTokenRefresh(); // cancel any pending proactive refresh
+                
+                if (typeof window !== "undefined") {
+                    try {
+                        for (let i = 0; i < localStorage.length; i++) {
+                            const key = localStorage.key(i);
+                            if (key && (key.startsWith("line_item_staging:") || key.startsWith("bill_line_item_staging:"))) {
+                                localStorage.removeItem(key);
+                                i--; // Adjust index since we removed an item
+                            }
+                        }
+                    } catch { /* ignore */ }
+                }
+
                 set({
                     user: null,
                     companyPermissions: [],

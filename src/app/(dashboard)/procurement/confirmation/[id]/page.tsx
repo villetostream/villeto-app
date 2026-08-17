@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronUp, ChevronDown as ChevronDownIcon } from "lucide-react";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 function WorkflowStep({ label, person, badge, badgeColor, timestamp, done, pending }: {
   label: string; person?: string; badge?: string; badgeColor?: string; timestamp?: string; done?: boolean; pending?: boolean;
@@ -31,7 +32,7 @@ function WorkflowStep({ label, person, badge, badgeColor, timestamp, done, pendi
 
 interface ConfItem { name: string; description: string; delivered: number; confirmedQty: number; }
 
-export default function ConfirmationDetailPage() {
+function ConfirmationDetailPage() {
   const [confirmed, setConfirmed] = useState(false);
   const [items, setItems] = useState<ConfItem[]>([
     { name: "MacBook Pro 2026", description: "14' screen display, 32gb ram and 1tb storage", delivered: 12, confirmedQty: 0 },
@@ -167,3 +168,9 @@ export default function ConfirmationDetailPage() {
     </div>
   );
 }
+
+export default withPermissions(ConfirmationDetailPage, [
+  { resource: "procurement.purchase_order", action: "read_own" },
+  { resource: "procurement.purchase_order", action: "read_department" },
+  { resource: "procurement.purchase_order", action: "read_company" },
+]);

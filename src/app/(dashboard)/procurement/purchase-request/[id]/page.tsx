@@ -655,7 +655,7 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Expected Date</label>
+              <label className="text-sm font-medium text-[#0b100e]">Need by Date</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <button type="button" className={`w-full h-10 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}>
@@ -1011,19 +1011,21 @@ function CreatePOView({
           <div className="flex gap-4">
             <InfoCard label="Department" value={departmentName || pr.departmentId || "—"} />
             <InfoCard label="Priority" value={PRIORITY_LABELS[pr.priority] || pr.priority} />
-            <InfoCard label="Expected Date" value={formatDate(pr.neededByDate)} />
+            <InfoCard label="Need by Date" value={formatDate(pr.neededByDate)} />
           </div>
 
-          {/* Instructions */}
-          <div className="flex items-start gap-3 px-4 py-3 rounded-[12px] bg-sky-50 border border-sky-200">
-            <div className="w-5 h-5 rounded-full bg-sky-500 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-white text-[10px] font-bold">i</span>
+          {/* Instructions — hidden once all items are assigned */}
+          {assignedCount < lineItems.length && (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-[12px] bg-sky-50 border border-sky-200">
+              <div className="w-5 h-5 rounded-full bg-sky-500 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-white text-[10px] font-bold">i</span>
+              </div>
+              <p className="text-sm text-sky-800 leading-relaxed">
+                Assign a <strong>vendor</strong> to each line item. Items sharing the same vendor are
+                automatically grouped into <strong>one Purchase Order</strong>. Different vendors create separate POs.
+              </p>
             </div>
-            <p className="text-sm text-sky-800 leading-relaxed">
-              Assign a <strong>vendor</strong> to each line item. Items sharing the same vendor are
-              automatically grouped into <strong>one Purchase Order</strong>. Different vendors create separate POs.
-            </p>
-          </div>
+          )}
 
           {/* Progress */}
           <div className="bg-white rounded-[12px] border border-black/[0.06] px-5 py-4">
@@ -1341,7 +1343,7 @@ function PRDetailPage() {
   const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isConvertingPartially, setIsConvertingPartially] = useState(false);
   const pr: PurchaseRequestDetail | undefined = data?.data;
-  const departments = (deptData?.data || []).map(d => ({ label: d.departmentName, value: d.departmentId }));
+  const departments = (deptData?.data || []).map(d => ({ label: d.departmentName || d.name || "Unknown", value: d.departmentId }));
   
   // Try to find the category name across all parent and child categories
   const allCategories = useMemo(() => {
@@ -1941,7 +1943,7 @@ function PRDetailPage() {
               <div className="flex gap-4">
                 <InfoCard label="Department" value={deptNameFallback} />
                 <InfoCard label="Priority" value={PRIORITY_LABELS[pr.priority] || pr.priority} />
-                <InfoCard label="Expected Date" value={formatDate(pr.neededByDate)} />
+                <InfoCard label="Need by Date" value={formatDate(pr.neededByDate)} />
                 <InfoCard label="Currency" value={pr.currency} />
               </div>
             </div>

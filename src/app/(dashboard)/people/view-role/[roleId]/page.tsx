@@ -128,15 +128,19 @@ function ViewRolePage() {
     const roleName = role.name?.replace(/_/g, ' ') || "Role";
     const totalUsers = role.totalAssignedUsers || 0;
 
-    // Capability groups from capabilitiesByModule
-    const capModules: CapabilitiesByModule = role.capabilitiesByModule ?? {};
-    const hasCapabilities = Object.values(capModules).some(m => m.capabilityGroups?.length > 0);
+    // Capability groups from capabilitiesByModule (could be object or array depending on API)
+    const rawCapModules: any = role.capabilitiesByModule ?? {};
+    const capArray = Array.isArray(rawCapModules)
+        ? rawCapModules
+        : Object.entries(rawCapModules).map(([mod, data]: [string, any]) => ({ module: mod, ...data }));
+
+    const hasCapabilities = capArray.some(m => m.capabilityGroups?.length > 0);
 
     // Flat individual permissions (directly assigned, not from groups)
     const directPermissions = role.permissions ?? [];
     const hasDirectPermissions = directPermissions.length > 0;
 
-    // Group direct permissions by resource for display
+    // Group direct permissions by resource for display and sort alphabetically
     const groupPermissionsByResource = (perms: Permission[]) => {
         const map: Record<string, { resource: string; permissions: Permission[] }> = {};
         for (const p of perms) {
@@ -144,9 +148,24 @@ function ViewRolePage() {
             if (!map[res]) map[res] = { resource: res, permissions: [] };
             map[res].permissions.push(p);
         }
-        return Object.values(map);
+        const groups = Object.values(map);
+        // Sort resources alphabetically
+        groups.sort((a, b) => a.resource.localeCompare(b.resource));
+        // Sort permissions within each resource alphabetically
+        for (const group of groups) {
+            group.permissions.sort((a, b) => formatPermissionName(a.name).localeCompare(formatPermissionName(b.name)));
+        }
+        return groups;
     };
     const permissionGroups = groupPermissionsByResource(directPermissions);
+
+    const sortedCapModules = capArray
+        .map(data => {
+            const moduleName = data.module || "Unknown";
+            const sortedGroups = [...(data.capabilityGroups || [])].sort((a, b) => a.name.localeCompare(b.name));
+            return { moduleName, capabilityGroups: sortedGroups };
+        })
+        .sort((a, b) => a.moduleName.localeCompare(b.moduleName));
 
     return (
         <div className="p-6 pt-0 space-y-6">
@@ -170,8 +189,10 @@ function ViewRolePage() {
                         <Button
                             variant="outline"
                             size="sm"
-                            className="gap-2 h-9 rounded-[8px] border-[#0ea894]/30 text-[#087f70] hover:bg-[#e7f6f2] hover:border-[#0ea894]/50 bg-white text-[13px] font-semibold"
-                            onClick={() => router.push(`/people/create-role?id=${roleId}`)}
+                            onClick={() => {
+                                sessionStorage.setItem("rolesReturnPath", `/people/view-role/${roleId}`);
+                                router.push(`/people/create-role?id=${roleId}`);
+                            }}
                         >
                             <Edit2 className="w-3.5 h-3.5" />
                             Edit Role
@@ -227,9 +248,9 @@ function ViewRolePage() {
 
                         {hasCapabilities ? (
                             <div className="space-y-8">
-                                {Object.entries(capModules).map(([moduleName, modData]) =>
-                                    modData.capabilityGroups?.length > 0 ? (
-                                        <ModuleSection key={moduleName} moduleName={moduleName} groups={modData.capabilityGroups} />
+                                {sortedCapModules.map(({ moduleName, capabilityGroups }) =>
+                                    capabilityGroups?.length > 0 ? (
+                                        <ModuleSection key={moduleName} moduleName={moduleName} groups={capabilityGroups} />
                                     ) : null
                                 )}
                             </div>
@@ -260,9 +281,12 @@ function ViewRolePage() {
                             <div className="border border-black/[0.08] rounded-[12px] p-5 space-y-6 bg-white">
                                 {permissionGroups.map(group => (
                                     <div key={group.resource} className="space-y-3">
-                                        <h3 className="text-[11px] font-bold text-[#84908a] uppercase tracking-[0.1em]">
-                                            {formatPermissionName(group.resource)}
-                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-[11px] font-bold text-[#84908a] uppercase tracking-[0.1em]">
+                                                {formatPermissionName(group.resource)}
+                                            </h3>
+                                            <div className="flex-1 h-px bg-black/[0.06]" />
+                                        </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-8">
                                             {group.permissions.map((p) => (
                                                 <div key={p.permissionId} className="flex items-center gap-3">

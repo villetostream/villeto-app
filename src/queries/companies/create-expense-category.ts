@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
 interface ExpenseCategory {
     name: string;
@@ -38,7 +38,7 @@ export const useCreateExpenseCategoryApi = () => {
             return res.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES] });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.categories });
         }
     });
 };

@@ -11,6 +11,10 @@ import type {
 export const DEPARTMENT_OPTIONS = ["Engineering", "Finance", "HR", "Marketing", "Sales"];
 export const ROLE_OPTIONS = ["Manager", "Employee", "Admin", "Director"];
 export const LOCATION_OPTIONS = ["New York", "London", "Remote", "Lagos", "Berlin"];
+export const USER_OPTIONS = ["john.doe@example.com", "jane.smith@example.com", "user-id-to-exempt"];
+export const JOB_GRADE_OPTIONS = ["JG1", "JG2", "job-grade-id-to-exempt"];
+export const MANAGEMENT_LEVEL_OPTIONS = ["C-Level", "VP", "management-level-id-to-exempt"];
+export const POSITION_OPTIONS = ["ADMIN", "CONTROLLING_OFFICER"];
 
 // ─── Policy Groups ─────────────────────────────────────────────────────────────
 

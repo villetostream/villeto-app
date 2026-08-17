@@ -4,7 +4,7 @@ import {
     type UseQueryResult,
 } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { API_KEYS } from "@/lib/constants/apis";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 
@@ -108,7 +108,7 @@ export const useGetOnboardingDetailsApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.ONBOARDINGDETAILS, payload],
+        queryKey: QUERY_KEYS.onboarding.details(payload),
         queryFn: async () => {
             const apiUrl = `${API_KEYS.ONBOARDING.ONBOARDING}/${payload}`;
             const response = await axiosInstance.get(apiUrl);

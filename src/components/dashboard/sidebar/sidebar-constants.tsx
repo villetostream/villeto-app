@@ -112,17 +112,54 @@ export const navigationItems: NavItem[] = [
   {
     icon: <DocumentText />,
     label: "Policies",
-    href: "/policies",
+    href: "/policies/expense-policy",
     permissions: [{ resource: "policy", action: "read_company" }],
     section: "MANAGEMENT",
+    subItems: [
+      {
+        label: "Expense Policy",
+        href: "/policies/expense-policy",
+        permissions: [{ resource: "policy", action: "read_company" }],
+      },
+      {
+        label: "Procurement Policy",
+        href: "/policies/procurement-policy",
+        permissions: [{ resource: "policy", action: "read_company" }],
+      },
+      {
+        label: "Policy Governance",
+        href: "/policies/governance",
+        permissions: [{ resource: "policy", action: "update_approval_setting" }],
+      },
+    ],
   },
   {
     icon: <HugeiconsIcon icon={InvoiceIcon} />,
     label: "Bill Pay",
     href: "/bill-pay",
-    permissions: [],
-    comingSoon: true,
+    permissions: [
+      { resource: "bill_pay.invoice", action: "view" },
+      { resource: "bill_pay.intake", action: "view" },
+    ],
     section: "MANAGEMENT",
+    subItems: [
+      {
+        label: "All Bills & Invoices",
+        href: "/bill-pay",
+        permissions: [
+          { resource: "bill_pay.invoice", action: "view" },
+          { resource: "bill_pay.intake", action: "view" },
+        ],
+      },
+      {
+        label: "Payments",
+        href: "/bill-pay/payments",
+        permissions: [
+          { resource: "bill_pay.payment", action: "schedule" },
+          { resource: "bill_pay.payment", action: "initiate" },
+        ],
+      },
+    ],
   },
   {
     icon: <Calculator />,

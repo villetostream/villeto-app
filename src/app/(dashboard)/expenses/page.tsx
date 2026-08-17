@@ -294,7 +294,7 @@ export default function Reimbursements() {
               <div id="tab-actions" className="flex items-center gap-2" />
             </div>
             {companyExpenseStatusTabs.map(t => (
-              <TabsContent key={t.key} value={t.key} className="flex-1 flex flex-col min-h-0 overflow-hidden mt-4">
+              <TabsContent key={t.key} value={t.key} className="flex-1 flex flex-col min-h-0 overflow-hidden mt-2">
                 <ExpenseTable
                   actionButton={<></>}
                   statusFilter={t.filter}
@@ -354,7 +354,7 @@ export default function Reimbursements() {
             <div id="tab-actions" className="flex items-center gap-2" />
           </div>
           {expenseStatusTabs.map(t => (
-            <TabsContent key={t.key} value={t.key} className="flex-1 flex flex-col min-h-0 overflow-hidden mt-4">
+            <TabsContent key={t.key} value={t.key} className="flex-1 flex flex-col min-h-0 overflow-hidden mt-2">
               <ExpenseTable
                 statusFilter={t.filter}
                 data={personalExpenses as ExpenseTableRow[]}

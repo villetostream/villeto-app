@@ -1,7 +1,7 @@
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { Role } from "./get-all-roles";
 
@@ -26,7 +26,7 @@ export const useGetARoleApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.ROLE, payload],
+        queryKey: QUERY_KEYS.people.role(payload as string),
         queryFn: async () => {
             const apiUrl = API_KEYS.ROLE.ROLE_DETAIL(payload.toString());
             const response = await axiosInstance.get(apiUrl);

@@ -8,7 +8,6 @@ export const WIZARD_STEPS = [
   "Configure",
   "Scope",
   "Rules",
-  "Approval",
   "Review",
 ] as const;
 

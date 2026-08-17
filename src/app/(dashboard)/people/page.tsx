@@ -217,15 +217,15 @@ function People() {
                             <div id="tab-actions" className="flex items-center gap-2" />
                         </div>
     
-                        <TabsContent value="all-users" className="mt-3 flex-1 min-h-0 flex flex-col">
+                        <TabsContent value="all-users" className="mt-2 flex-1 min-h-0 flex flex-col">
                             <AllUsersTab />
                         </TabsContent>
     
-                        <TabsContent value="roles" className="mt-3 flex-1 min-h-0 flex flex-col">
+                        <TabsContent value="roles" className="mt-2 flex-1 min-h-0 flex flex-col">
                             <RolesTab />
                         </TabsContent>
     
-                        <TabsContent value="directory" className="mt-3 flex-1 min-h-0 flex flex-col">
+                        <TabsContent value="directory" className="mt-2 flex-1 min-h-0 flex flex-col">
                             <DirectoryTab />
                         </TabsContent>
                     </Tabs>

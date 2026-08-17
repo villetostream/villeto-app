@@ -1,7 +1,7 @@
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { User } from "@/features/auth/types";
 
@@ -27,7 +27,7 @@ export const useGetAUsersApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.USER, payload],
+        queryKey: QUERY_KEYS.people.user(payload as string),
         queryFn: async () => {
             const apiUrl = `${API_KEYS.USER.USERS}${payload}`;
             const response = await axiosInstance.get(apiUrl);

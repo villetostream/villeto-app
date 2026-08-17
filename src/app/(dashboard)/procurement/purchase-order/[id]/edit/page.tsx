@@ -19,6 +19,7 @@ import {
   useCancelPurchaseOrder,
   type POLineItemPayload,
 } from "@/queries/procurement/purchase-orders";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   useGetProcurementCategories,
   useGetVendors,
@@ -438,7 +439,7 @@ function CancelPOModal({
 
 // ─── Main Edit Page ───────────────────────────────────────────────────────────
 
-export default function EditPurchaseOrderPage() {
+function EditPurchaseOrderPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -515,7 +516,7 @@ export default function EditPurchaseOrderPage() {
     if (!categoryId) return null;
     return categories.find(c => c.categoryId === categoryId)?.name || null;
   };
-  const departments: { label: string; value: string }[] = (deptData?.data || []).map(d => ({ label: d.departmentName, value: d.departmentId }));
+  const departments: { label: string; value: string }[] = (deptData?.data || []).map(d => ({ label: d.departmentName || d.name, value: d.departmentId }));
   const rawVendors = vendorData?.data || [];
   const getVendorName = (vid: string) => {
     const v = rawVendors.find(v => v.vendorId === vid);
@@ -857,3 +858,8 @@ export default function EditPurchaseOrderPage() {
     </>
   );
 }
+
+export default withPermissions(EditPurchaseOrderPage, [
+  { resource: "procurement.purchase_order", action: "update_draft" },
+]);
+

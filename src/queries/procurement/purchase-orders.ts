@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { PurchaseOrderRecord } from "@/lib/types/purchase-request-helpers";
 
@@ -49,7 +49,7 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
   const axios = useAxios();
 
   return useQuery<PaginatedPurchaseOrdersResponse, Error, TData>({
-    queryKey: [QUERY_KEYS.PURCHASE_ORDERS, page, limit, status, vendorId, search, scope],
+    queryKey: [...QUERY_KEYS.procurement.purchaseOrders, page, limit, status, vendorId, search, scope],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("page", page.toString());
@@ -79,7 +79,7 @@ export const usePurchaseOrder = (id: string) => {
   const axios = useAxios();
 
   return useQuery({
-    queryKey: [QUERY_KEYS.PURCHASE_ORDER, id],
+    queryKey: QUERY_KEYS.procurement.purchaseOrder(id),
     queryFn: async () => {
       const response = await axios.get<PurchaseOrderDetailResponse>(
         PROCUREMENT_KEYS.PURCHASE_ORDER(id)
@@ -117,7 +117,7 @@ export interface POLineItemPayload {
 }
 
 export interface CreatePurchaseOrderPayload {
-  legalEntityId: string;
+  legalEntityId?: string;
   vendorId: string;
   priority?: "low" | "medium" | "urgent";
   deliveryDate: string;
@@ -135,7 +135,7 @@ export const useCreatePurchaseOrder = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };
@@ -159,8 +159,8 @@ export const useUpdatePurchaseOrder = (id: string) => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, id] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };
@@ -177,7 +177,7 @@ export const useAddPOLineItems = (id: string) => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, id] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
     },
   });
 };
@@ -192,7 +192,7 @@ export const useUpdatePOLineItem = (poId: string, lineItemId: string) => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, poId] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(poId) });
     },
   });
 };
@@ -207,7 +207,7 @@ export const useDeletePOLineItem = (poId: string) => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, poId] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(poId) });
     },
   });
 };
@@ -224,8 +224,8 @@ export const useSubmitPurchaseOrderForApproval = (id: string) => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, id] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };
@@ -257,8 +257,8 @@ export const usePurchaseOrderApprovalDecision = () => {
       return response.data;
     },
     onSuccess: (_data, { id }) => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, id] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };
@@ -275,8 +275,8 @@ export const useIssuePurchaseOrder = () => {
       return response.data;
     },
     onSuccess: (_data, id: string) => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, id] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };
@@ -293,8 +293,8 @@ export const useCancelPurchaseOrder = () => {
       return response.data;
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, variables.id] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(variables.id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };
@@ -312,7 +312,7 @@ export const useDeletePurchaseOrder = () => {
       return Promise.resolve({ success: true, id });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };
@@ -329,8 +329,8 @@ export const useClosePurchaseOrder = () => {
       return response.data;
     },
     onSuccess: (_data, id: string) => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, id] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };
@@ -360,8 +360,8 @@ export const useConfirmPOReceipt = (id: string) => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDER, id] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_ORDERS] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };

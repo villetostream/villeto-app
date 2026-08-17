@@ -1,7 +1,7 @@
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import type { Permission } from "@/features/auth/types";
 import { AppUser } from "../departments/get-all-departments";
@@ -128,7 +128,7 @@ export const useGetAllRolesApi = (
     const axiosInstance = useAxios();
 
     return useQuery<PaginatedRolesResponse, Error>({
-        queryKey: [QUERY_KEYS.ROLES, { page, limit }],
+        queryKey: [...QUERY_KEYS.people.roles, { page, limit }],
         queryFn: async () => {
             return fetchAllRolesLoop(axiosInstance, API_KEYS.ROLE.ROLES_LIST(page, limit), page, limit);
         },
@@ -151,7 +151,7 @@ export const useGetCompanyRolesApi = (
     const axiosInstance = useAxios();
 
     return useQuery<PaginatedRolesResponse, Error>({
-        queryKey: [QUERY_KEYS.ROLES, { page, limit }],
+        queryKey: [...QUERY_KEYS.people.roles, { page, limit }],
         queryFn: async () => {
             const response = await axiosInstance.get(API_KEYS.ROLE.ROLES_COMPANY(page, limit));
             return response.data;

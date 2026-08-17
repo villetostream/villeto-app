@@ -58,7 +58,7 @@ function AddSingleUser() {
         return (
             allDepts?.data?.data
                 .map((dept: Department) => ({
-                    label: dept.departmentName,
+                    label: (dept as any).departmentName || dept.name || "Unknown Department",
                     value: dept.departmentId.toString(),
                 })) || []
         );

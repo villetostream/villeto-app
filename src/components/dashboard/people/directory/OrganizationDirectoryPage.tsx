@@ -358,8 +358,8 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                   <TableHead className="w-[50px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">S/N</TableHead>
                   <TableHead className="w-[250px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">DETAILS</TableHead>
                   <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">DEPARTMENT</TableHead>
-                  <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">JOB TITLE</TableHead>
                   <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">REPORTS TO</TableHead>
+                  <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">JOB TITLE</TableHead>
                   <TableHead className="w-[150px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider text-center">CORPORATE CARD</TableHead>
                 </TableRow>
               </TableHeader>
@@ -398,8 +398,8 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                         </div>
                       </TableCell>
                       <TableCell className="capitalize px-4 py-2.5 text-[#181D27]">{dept}</TableCell>
-                      <TableCell className="text-sm px-4 py-2.5 text-[#181D27]">{formatName(value)}</TableCell>
                       <TableCell className="font-medium px-4 py-2.5 text-[#181D27]">{managerName}</TableCell>
+                      <TableCell className="text-sm px-4 py-2.5 text-[#181D27]">{formatName(value)}</TableCell>
                       <TableCell className="px-4 py-2.5">
                         <div className="flex justify-center">
                           <Switch

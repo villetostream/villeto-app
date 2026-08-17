@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
 interface Response {
     message: string;
@@ -19,8 +19,8 @@ export const useDeleteCategoryApi = () => {
             return res.data;
         },
         onSuccess: () => {
-            qc.invalidateQueries({ queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES] });
-            qc.invalidateQueries({ queryKey: [QUERY_KEYS.PROCUREMENT_CATEGORIES] });
+            qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.categories });
+            qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.categories });
         },
     });
 };

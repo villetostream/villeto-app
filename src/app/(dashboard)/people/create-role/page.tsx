@@ -192,8 +192,13 @@ function CreateRolePage() {
     // Group flat permissions by resource (for Advanced tab), sorted alphabetically
     const permissionGroups = useMemo(() => {
         if (!allPermissions.data?.data) return [];
-        return groupPermissionsByResource(allPermissions.data.data)
+        const groups = groupPermissionsByResource(allPermissions.data.data)
             .sort((a, b) => a.resource.localeCompare(b.resource));
+        
+        for (const group of groups) {
+            group.permissions.sort((a, b) => formatPermissionName(a.name).localeCompare(formatPermissionName(b.name)));
+        }
+        return groups;
     }, [allPermissions.data]);
 
     // Group capabilities by module, sorted alphabetically within each module
@@ -209,6 +214,10 @@ function CreateRolePage() {
         }
         return map;
     }, [allCapabilities]);
+
+    const sortedModules = useMemo(() => {
+        return Object.keys(capabilitiesByModule).sort((a, b) => a.localeCompare(b));
+    }, [capabilitiesByModule]);
 
     // Pre-fill form in edit mode
     useEffect(() => {
@@ -413,8 +422,9 @@ function CreateRolePage() {
                                                 </button>
                                             </div>
                                         )}
-                                        {Object.entries(capabilitiesByModule).map(([mod, groups]) =>
-                                            groups.length > 0 ? (
+                                        {sortedModules.map((mod) => {
+                                            const groups = capabilitiesByModule[mod];
+                                            return groups.length > 0 ? (
                                                 <CapabilityModuleSection
                                                     key={mod}
                                                     moduleName={mod}
@@ -422,8 +432,8 @@ function CreateRolePage() {
                                                     selectedKeys={selectedCapabilityKeys}
                                                     onToggle={handleCapabilityToggle}
                                                 />
-                                            ) : null
-                                        )}
+                                            ) : null;
+                                        })}
                                         {(allCapabilities ?? []).length === 0 && (
                                             <p className="text-sm text-slate-400 text-center py-8">
                                                 No capability groups available. Check your API connection.

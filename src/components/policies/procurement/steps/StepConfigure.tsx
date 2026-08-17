@@ -17,6 +17,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { PolicyDraft } from "../types";
+import { PRIORITY_OPTIONS } from "../types";
 
 type Props = Pick<
   PolicyDraft,
@@ -156,59 +157,26 @@ export function StepConfigure({
 
       {/* Priority */}
       <div>
-        <label className="block text-sm font-semibold text-foreground mb-1">
+        <label className="block text-sm font-semibold text-foreground mb-2">
           Priority
         </label>
-        <p className="text-xs text-[#68726d] mb-2">
-          Lower numbers run first. Default is 100.
-        </p>
-        <Input
-          type="number"
-          min={1}
-          max={999}
-          value={priority}
-          onChange={(e) => onChange({ priority: Number(e.target.value) || 100 })}
-          className="h-11 rounded-[14px] w-40"
-        />
+        <Select
+          value={String(priority)}
+          onValueChange={(v) => onChange({ priority: Number(v) })}
+        >
+          <SelectTrigger className="h-11 w-48 rounded-[14px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PRIORITY_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={String(opt.value)}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Requires Approval */}
-      <div className="rounded-[24px] border border-black/[0.06] bg-white p-5">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-semibold text-foreground">Policy requires approval</p>
-          <Switch
-            checked={requiresApproval}
-            onCheckedChange={(v) =>
-              onChange({ requiresApproval: v, approvalMode: v ? "sequential" : "none" })
-            }
-          />
-        </div>
-        <p className="text-xs text-[#68726d] mb-4">
-          When enabled, this policy must be approved before it becomes active.
-        </p>
-
-        {requiresApproval && (
-          <div>
-            <label className="block text-[11px] text-[#68726d] mb-1.5">
-              Approval mode
-            </label>
-            <Select
-              value={approvalMode}
-              onValueChange={(v) =>
-                onChange({ approvalMode: v as PolicyDraft["approvalMode"] })
-              }
-            >
-              <SelectTrigger className="h-11 w-full rounded-[14px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sequential">Sequential — approvers sign off in order</SelectItem>
-                <SelectItem value="parallel">Parallel — all approvers notified at once</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

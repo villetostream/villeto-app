@@ -19,6 +19,7 @@ import {
   useGetExpensePolicyDraft,
   useDeleteExpensePolicyDraft,
 } from "@/queries/companies/expense-policy-drafts";
+import { useGetJobGradesApi, useGetManagementLevelsApi, type JobGrade, type ManagementLevel } from "@/queries/companies/get-company-references";
 import SimpleAddExpenseCategoryDialog from "@/components/policies/SimpleAddExpenseCategoryDialog";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -35,14 +36,13 @@ export interface CreatedPolicyData {
   categories: string[];
   /**
    * "all"      → every employee
-   * "specific" → filtered by selectedDepts and/or selectedRoles
+   * "specific" → filtered by selectedDepts and/or selectedRoles (job grades + management levels)
    */
   scope: "all" | "specific";
   selectedRoles: string[];
   selectedDepts: string[];
   location: string;
   rules: PolicyRule[];
-  approvers: string[];
 }
 
 export interface PolicyRule {
@@ -71,8 +71,7 @@ interface DropdownOption {
   1 = Name
   2 = Scope
   3 = Rules
-  4 = Approvers
-  5 = Preview
+  4 = Preview
 */
 
 const RULE_TYPE_LABELS: Record<RuleType, { label: string; amountLabel: string }> = {
@@ -473,7 +472,7 @@ function NumberInput({ value, onChange, placeholder = "0.00" }: {
 
 /* ─── 3-step bar ──────────────────────────────────────────── */
 function ThreeStepBar({ current }: { current: 1 | 2 | 3 }) {
-  const steps = [{ n: 1, label: "Scope" }, { n: 2, label: "Rules" }, { n: 3, label: "Approvers" }] as const;
+  const steps = [{ n: 1, label: "Scope" }, { n: 2, label: "Rules" }, { n: 3, label: "Review" }] as const;
   return (
     <div className="flex items-center">
       {steps.map(({ n, label }, i) => (
@@ -639,16 +638,17 @@ function RuleCard({
    Preview
 ───────────────────────────────────────────────────────────── */
 function Preview({
-  policyName, categories, scope, selectedRoles, managementGradeOptions,
+  policyName, categories, scope, selectedRoles,
+  managementGradeOptions,
   selectedDepts, departmentOptions,
-  location, rules, approvers, expenseCategoryOptions, adminOptions,
+  location, rules, expenseCategoryOptions,
 }: {
   policyName: string; categories: string[]; scope: "all" | "specific";
-  selectedRoles: string[]; managementGradeOptions: DropdownOption[];
+  selectedRoles: string[];
+  managementGradeOptions: DropdownOption[];
   selectedDepts: string[]; departmentOptions: DropdownOption[];
-  location: string; rules: PolicyRule[]; approvers: string[];
+  location: string; rules: PolicyRule[];
   expenseCategoryOptions: DropdownOption[];
-  adminOptions: DropdownOption[];
 }) {
   const currencySymbol = useAuthStore(state => state.getCurrencySymbol());
 
@@ -656,6 +656,7 @@ function Preview({
     if (scope === "all") return "All employees, all departments";
     const deptNames = selectedDepts.map((d: string) => departmentOptions.find((o: DropdownOption) => o.value === d)?.label ?? d);
     const roleNames = selectedRoles.map((r: string) => managementGradeOptions.find((o: DropdownOption) => o.value === r)?.label ?? r);
+
     const listFmt = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
     const deptPart = deptNames.length > 0 ? listFmt.format(deptNames) : "All departments";
     const rolePart = roleNames.length > 0 ? listFmt.format(roleNames) : "All employees";
@@ -736,27 +737,6 @@ function Preview({
           </div>
         </div>
       )}
-
-      {approvers.filter(Boolean).length > 0 && (
-        <div className="rounded-[24px] border border-black/[0.06] bg-white p-4">
-          <div className="flex items-center gap-1.5 mb-3">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <p className="text-[11px] font-semibold text-[#84908a] uppercase tracking-wider">Approvers</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {approvers.filter(Boolean).map((a, i) => (
-              <div key={i} className="flex items-center gap-2 h-8 pl-2 pr-3 rounded-full bg-[#f9faf9] border border-gray-100">
-                <div className="w-5 h-5 rounded-full bg-[#087f70]/15 flex items-center justify-center">
-                  <UserCircle className="w-3.5 h-3.5 text-[#087f70]" />
-                </div>
-                <span className="text-xs font-medium text-[#0b100e]">
-                  {adminOptions.find(o => o.value === a)?.label ?? (typeof a === "string" ? a : "User")}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -817,7 +797,7 @@ const mkRule = (type: RuleType = "spend_limit"): PolicyRule => ({
    MAIN MODAL
 ═══════════════════════════════════════════════════════════ */
 export default function PolicyCreationModal({
-  open, onOpenChange, onSuccess, policyId, initialDraftId,
+  open, onOpenChange, onSuccess, policyId, initialDraftId, initialStep
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -825,8 +805,9 @@ export default function PolicyCreationModal({
   policyId?: string | null;
   /** Pass an existing draftId to resume editing a saved draft */
   initialDraftId?: string | null;
+  initialStep?: 1 | 2 | 3 | 4;
 }) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Step 1
   const [policyName, setPolicyName] = useState("");
@@ -851,9 +832,6 @@ export default function PolicyCreationModal({
   const [showAddRule, setShowAddRule] = useState(false);
   const addRuleRef = useRef<HTMLButtonElement>(null);
 
-  // Step 4 — Approvers (multi-select IDs)
-  const [approvers, setApprovers] = useState<string[]>([]);
-
   // Draft tracking — persists the draftId across "Save as Draft" calls
   // so subsequent saves within the same session do a PATCH instead of POST.
   const [draftId, setDraftId] = useState<string | null>(initialDraftId ?? null);
@@ -864,6 +842,8 @@ export default function PolicyCreationModal({
   const invitedUsersApi  = useGetInvitedUsersApi({ enabled: open });
   const directoryUsersApi = useGetDirectoryUsersApi({ enabled: open && scope === "specific" });
   const departmentsApi   = useGetAllDepartmentsApi({ enabled: open });
+  const jobGradesApi = useGetJobGradesApi({ enabled: open });
+  const managementLevelsApi = useGetManagementLevelsApi({ enabled: open });
   // Expense categories are viewed within the context of Expense / Policies.
   const expCatApi        = useGetExpenseCategoriesApi({ enabled: open });
 
@@ -882,11 +862,10 @@ export default function PolicyCreationModal({
   const isLoading      = createPolicyMutation.isPending || updatePolicyMutation.isPending;
 
   const reset = () => {
-    setStep(1); setPolicyName(""); setScope("all");
+    setStep(initialStep || 1); setPolicyName(""); setScope("all");
     setSelectedRoles([]); setSelectedDepts([]);
     setCategories([]); setLocation(resolveDefaultLocation(userCountry));
     setRules([mkRule("spend_limit"), mkRule("receipt_requirement")]);
-    setApprovers([]);
     setDraftId(initialDraftId ?? null);
   };
 
@@ -894,6 +873,7 @@ export default function PolicyCreationModal({
   const [syncedDetails, setSyncedDetails] = useState<any>(undefined);
   if (open && isEditing && detailsData && detailsData !== syncedDetails) {
     setSyncedDetails(detailsData);
+    if (initialStep) setStep(initialStep);
     const data = detailsData;
     setPolicyName(data.name || "");
     
@@ -904,8 +884,13 @@ export default function PolicyCreationModal({
     setScope(scopeType);
 
     if (scopeType === "specific") {
-      setSelectedDepts(dataAny.scope?.departments || dataAny.applicableDepartments || []);
-      setSelectedRoles(dataAny.scope?.userRoles || dataAny.applicableRoles || []);
+      const extractIds = (arr: any[]) => (arr || []).map(item => typeof item === 'string' ? item : (item?.id || item?.departmentId || item?.jobGradeId || item?.managementLevelId || item?.value || '')).filter(Boolean);
+      
+      setSelectedDepts(extractIds(dataAny.scope?.departments || dataAny.applicableDepartments || []));
+      setSelectedRoles([
+        ...extractIds(dataAny.scope?.jobGradeIds || dataAny.applicableJobGrades || []),
+        ...extractIds(dataAny.scope?.managementLevelIds || dataAny.applicableManagementLevels || [])
+      ]);
       setLocation(dataAny.scope?.location || dataAny.location || "");
     } else {
       setLocation(dataAny.scope?.location || dataAny.location || "");
@@ -913,8 +898,6 @@ export default function PolicyCreationModal({
 
     const categoryIds = (data.expenseCategories || []).map((c: any) => typeof c === 'string' ? c : (c?.categoryId || c?.id || ''));
     setCategories(categoryIds);
-    const approverIds = (data.approvers || []).map((a: any) => typeof a === 'string' ? a : (a?.userId || a?.id || '')).filter(Boolean);
-    setApprovers(approverIds);
 
     if (data.rules?.length) {
       setRules(data.rules.map((r: any, ruleIndex: number) => {
@@ -967,130 +950,36 @@ export default function PolicyCreationModal({
       };
     }), [expCatApi.data?.data]);
 
-  const managementGradeOptions = useMemo<DropdownOption[]>(() => {
-    const users = (directoryUsersApi.data?.data as any[]) ?? [];
-    const depts = (departmentsApi.data?.data as Department[]) ?? [];
-    const uniqueOptions = new Map<string, DropdownOption>();
-    
-    const getDeptId = (u: any): string | null => {
-      if (u.departmentId) return String(u.departmentId);
-      if (u.department && typeof u.department === "object" && (u.department.departmentId || u.department.id)) {
-         return String(u.department.departmentId || u.department.id);
-      }
-      const deptName = u.department && typeof u.department === "object" 
-         ? (u.department.departmentName || u.department.name) 
-         : (typeof u.department === "string" ? u.department : null);
-      if (deptName) {
-         const found = depts.find(d => d.departmentName?.toLowerCase() === deptName.toLowerCase());
-         if (found) return String(found.departmentId);
-      }
-      return null;
-    };
+  const jobGradeOptions = useMemo<DropdownOption[]>(() => {
+    const grades = (jobGradesApi.data?.data?.jobGrades as JobGrade[]) ?? [];
+    return grades.map(g => ({
+      value: g.jobGradeId,
+      label: g.name || g.code,
+      subLabel: "Job Grade"
+    })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [jobGradesApi.data?.data?.jobGrades]);
 
-    users.forEach(u => {
-      // Cross-filter: if a department is selected, only show grades/levels belonging to users in that department
-      if (selectedDepts.length > 0) {
-        const uDeptId = getDeptId(u);
-        if (!uDeptId || !selectedDepts.includes(uDeptId)) return;
-      }
-      
-      const ml = u.managementLevel;
-      if (ml) {
-        const val = ml;
-        if (!uniqueOptions.has(val)) {
-          uniqueOptions.set(val, { 
-            value: val, 
-            label: ml.charAt(0).toUpperCase() + ml.slice(1).toLowerCase().replace(/_/g, " "),
-            subLabel: "Management Level"
-          });
-        }
-      }
-      
-      const jg = u.jobGrade?.code || (typeof u.jobGrade === "string" ? u.jobGrade : null);
-      if (jg) {
-        const val = jg;
-        if (!uniqueOptions.has(val)) {
-          uniqueOptions.set(val, { 
-            value: val, 
-            label: jg,
-            subLabel: "Job Grade"
-          });
-        }
-      }
-    });
-    
-    return Array.from(uniqueOptions.values()).sort((a, b) => a.label.localeCompare(b.label));
-  }, [directoryUsersApi.data?.data, departmentsApi.data?.data, selectedDepts]);
+  const managementLevelOptions = useMemo<DropdownOption[]>(() => {
+    const levels = (managementLevelsApi.data?.data?.managementLevels as ManagementLevel[]) ?? [];
+    return levels.map(l => ({
+      value: l.managementLevelId,
+      label: l.name || l.code,
+      subLabel: "Management Level"
+    })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [managementLevelsApi.data?.data?.managementLevels]);
+
+  const managementGradeOptions = useMemo<DropdownOption[]>(() => {
+    return [...jobGradeOptions, ...managementLevelOptions];
+  }, [jobGradeOptions, managementLevelOptions]);
 
   const currentUserId = useAuthStore(state => state.user?.userId);
 
-  const adminOptions = useMemo<DropdownOption[]>(() =>
-    (invitedUsersApi.data?.data ?? [])
-      .filter((u: AppUser) =>
-        u.userId !== currentUserId &&
-        (u.position ?? u.villetoRole?.name) !== Roles.EMPLOYEE
-      )
-      .map((u: AppUser) => {
-        const rawRole = u.position ?? u.villetoRole?.name ?? "";
-        const villetoRoleName = rawRole
-          ? rawRole.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
-          : "Administrator";
-
-        const jobTitle = u.jobTitle || (u as any).role?.name || "";
-
-        return {
-          label: `${u.firstName} ${u.lastName}`,
-          value: u.userId,
-          sideBadge: villetoRoleName,
-          ...(jobTitle && { subLabel: jobTitle }),
-        };
-      }), [invitedUsersApi.data?.data, currentUserId]);
-
   const departmentOptions = useMemo<DropdownOption[]>(() => {
-    const allDepts = (departmentsApi.data?.data ?? []).map((d: Department) => ({
-      label: d.departmentName,
+    return (departmentsApi.data?.data ?? []).map((d: Department) => ({
+      label: d.departmentName || d.name || "Unknown Department",
       value: String(d.departmentId),
     }));
-
-    if (selectedRoles.length === 0) return allDepts;
-
-    // Cross-filter: if management levels/job grades are selected, only show departments that have them
-    const users = (directoryUsersApi.data?.data as any[]) ?? [];
-    const validDeptIds = new Set<string>();
-    
-    const getDeptId = (u: any): string | null => {
-      if (u.departmentId) return String(u.departmentId);
-      if (u.department && typeof u.department === "object" && (u.department.departmentId || u.department.id)) {
-         return String(u.department.departmentId || u.department.id);
-      }
-      const deptName = u.department && typeof u.department === "object" 
-         ? (u.department.departmentName || u.department.name) 
-         : (typeof u.department === "string" ? u.department : null);
-      if (deptName) {
-         const found = allDepts.find(d => d.label.toLowerCase() === deptName.toLowerCase());
-         if (found) return found.value;
-      }
-      return null;
-    };
-    
-    users.forEach(u => {
-      const uDeptId = getDeptId(u);
-      if (!uDeptId) return;
-      
-      const ml = u.managementLevel;
-      const jg = u.jobGrade?.code || (typeof u.jobGrade === "string" ? u.jobGrade : null);
-      
-      if ((ml && selectedRoles.includes(ml)) || (jg && selectedRoles.includes(jg))) {
-        validDeptIds.add(uDeptId);
-      }
-    });
-
-    return allDepts.filter(d => validDeptIds.has(d.value));
-  }, [departmentsApi.data?.data, directoryUsersApi.data?.data, selectedRoles]);
-
-  const approverRequired = adminOptions.length > 0;
-  const approverFilled   = approvers.length > 0;
-  const togApprover = (v: string) => setApprovers((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
+  }, [departmentsApi.data?.data]);
 
   const togCat  = (v: string) => setCategories((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
   const togDept = (v: string) => setSelectedDepts((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
@@ -1118,9 +1007,9 @@ export default function PolicyCreationModal({
   }, [scope, selectedDepts, selectedRoles, departmentOptions, managementGradeOptions]);
 
   const handleClose   = () => { onOpenChange(false); reset(); };
-  const handleBack    = () => setStep((s) => (s > 1 ? (s - 1) as 1|2|3|4|5 : s));
+  const handleBack    = () => setStep((s) => (s > 1 ? (s - 1) as 1|2|3|4 : s));
   const handleForward = () => {
-    if (step < 5) setStep((s) => (s + 1) as 1|2|3|4|5);
+    if (step < 4) setStep((s) => (s + 1) as 1|2|3|4);
     else handleConfirm();
   };
 
@@ -1130,6 +1019,7 @@ export default function PolicyCreationModal({
     const formattedName = capitalizeName(policyName);
     
     return {
+      draftId: draftId || undefined,
       name: formattedName,
       description: formattedName,
       expenseCategories: categories,
@@ -1138,7 +1028,8 @@ export default function PolicyCreationModal({
         : {
             type: "specific" as const,
             departments: selectedDepts,
-            userRoles: selectedRoles,
+            jobGradeIds: selectedRoles.filter(r => jobGradeOptions.some(o => o.value === r)),
+            managementLevelIds: selectedRoles.filter(r => managementLevelOptions.some(o => o.value === r)),
             ...(location ? { location } : {}),
           },
       rules: rules
@@ -1170,7 +1061,6 @@ export default function PolicyCreationModal({
             enforcementAction,
           };
         }),
-      approvers: approvers.filter(Boolean),
       override_policy: false,
     };
   };
@@ -1180,37 +1070,7 @@ export default function PolicyCreationModal({
       toast.error("Please enter a policy name before saving as draft.");
       return;
     }
-    const currencyCode = getCurrencyConfig(userCountry).code;
-    const draftPayload = {
-      name: policyName.trim(),
-      override_policy: false,
-      description: policyName.trim(),
-      rules: rules
-        .filter(r => r.enforcement)
-        .map(r => {
-          const enforcementAction = r.enforcement === "warn" ? "soft_warn" : (r.enforcement as string);
-          if (r.type === "spend_limit") return {
-            type: "spend_limit" as const,
-            timeUnit: r.timeframe || "daily",
-            amount: r.amount ? parseFloat(r.amount) : 0,
-            currency: currencyCode,
-            enforcementAction,
-          };
-          const mode = r.receiptMode ?? "all";
-          return {
-            type: "receipt_requirement" as const,
-            receiptNeeded: true,
-            receiptAmountThreshold: mode === "threshold" && r.amount ? parseFloat(r.amount) : 0,
-            currency: currencyCode,
-            enforcementAction,
-          };
-        }),
-      scope: scope === "all"
-        ? { type: "all" as const, ...(location ? { location } : {}) }
-        : { type: "specific" as const, departments: selectedDepts, userRoles: selectedRoles, ...(location ? { location } : {}) },
-      approvers: approvers.filter(Boolean),
-      expenseCategories: categories,
-    };
+    const draftPayload = buildPayload();
 
     try {
       if (draftId) {
@@ -1237,12 +1097,12 @@ export default function PolicyCreationModal({
       
       if (isEditing && policyId) {
         const updatePayload: UpdatePolicyPayload = {
+          policyId: policyId,
           name: payload.name,
           description: payload.description,
           expenseCategories: payload.expenseCategories,
           scope: payload.scope,
           rules: payload.rules,
-          approvers: payload.approvers,
           override_policy: false,
         };
         await updatePolicyMutation.mutateAsync({ id: policyId, payload: updatePayload });
@@ -1255,7 +1115,7 @@ export default function PolicyCreationModal({
       onSuccess?.({
         name: policyName, categories, scope,
         selectedRoles, selectedDepts,
-        location, rules, approvers: approvers.filter(Boolean),
+        location, rules,
       });
       handleClose();
     } catch (error: unknown) {
@@ -1279,8 +1139,7 @@ export default function PolicyCreationModal({
     isLoading ||
     (step === 1 && !policyName.trim()) ||
     (step === 2 && !scopeValid) ||
-    (step === 3 && !rulesValid) ||
-    (step === 4 && approverRequired && !approverFilled);
+    (step === 3 && !rulesValid);
 
   if (!open) return null;
 
@@ -1290,7 +1149,7 @@ export default function PolicyCreationModal({
         <div className="absolute inset-0 bg-black/25 backdrop-blur-[2px]" onClick={handleClose} />
 
         <div className={`relative bg-white rounded-[1.75rem] shadow-2xl w-full flex flex-col ${
-          step === 1 ? "max-w-[460px]" : step === 5 ? "max-w-[560px]" : "max-w-[540px]"
+          step === 1 ? "max-w-[460px]" : step === 4 ? "max-w-[560px]" : "max-w-[540px]"
         }`} style={{ maxHeight: "92vh" }}>
 
           {isFetchingDetails && (
@@ -1336,8 +1195,7 @@ export default function PolicyCreationModal({
                     <h2 className="text-[20px] font-semibold text-[#0b100e] leading-tight">
                       {step === 2 && "Scope"}
                       {step === 3 && "Rules"}
-                      {step === 4 && "Approvers"}
-                      {step === 5 && "Review & confirm"}
+                      {step === 4 && "Review & confirm"}
                     </h2>
                   </div>
                   <button onClick={handleClose}
@@ -1443,33 +1301,42 @@ export default function PolicyCreationModal({
                             </div>
 
                             {/* Management Level / Job Grade selector */}
-                            <div>
-                              <SectionLabel>Select management level(s) / job grade(s)</SectionLabel>
+                            {managementGradeOptions.length > 0 && (
+                              <div>
+                                <SectionLabel>
+                                  {jobGradeOptions.length > 0 && managementLevelOptions.length > 0
+                                    ? "Select management level(s) / job grade(s)"
+                                    : jobGradeOptions.length > 0
+                                    ? "Select job grade(s)"
+                                    : "Select management level(s)"}
+                                </SectionLabel>
                                 <MultiDropdown
-                                  placeholder="Select management level(s) / job grade(s)"
+                                  placeholder={
+                                    jobGradeOptions.length > 0 && managementLevelOptions.length > 0
+                                      ? "Select management level(s) / job grade(s)"
+                                      : jobGradeOptions.length > 0
+                                      ? "Select job grade(s)"
+                                      : "Select management level(s)"
+                                  }
                                   values={selectedRoles}
                                   onToggle={togRole}
                                   options={managementGradeOptions}
-                                  isLoading={directoryUsersApi.isLoading}
+                                  isLoading={jobGradesApi.isLoading || managementLevelsApi.isLoading}
                                   searchable
                                 />
                                 {selectedRoles.length > 0 && (
                                   <div className="flex flex-wrap gap-1.5 mt-2">
-                                    {selectedRoles.map((r) => {
-                                      // Because managementGradeOptions is dynamically built and filtered, we should try to find it there first. 
-                                      // If it was filtered out, we just show the raw ID for now, or we could rebuild the original map. 
-                                      // But since roles are strings like "L4", falling back to 'r' actually looks fine (it just shows "L4").
-                                      return (
-                                        <Chip
-                                          key={r}
-                                          label={managementGradeOptions.find((o) => o.value === r)?.label ?? r}
-                                          onRemove={() => togRole(r)}
-                                        />
-                                      );
-                                    })}
+                                    {selectedRoles.map((r) => (
+                                      <Chip
+                                        key={r}
+                                        label={managementGradeOptions.find((o) => o.value === r)?.label ?? r}
+                                        onRemove={() => togRole(r)}
+                                      />
+                                    ))}
                                   </div>
                                 )}
                               </div>
+                            )}
 
                             {/*
                               Nudge — only visible when neither field has a selection yet.
@@ -1562,49 +1429,8 @@ export default function PolicyCreationModal({
                   </>
                 )}
 
-                {/* ══ STEP 4 — Approvers ══════════════════════ */}
+                {/* ══ STEP 4 — Preview ════════════════════════ */}
                 {step === 4 && (
-                  <div className="space-y-4">
-                    {approverRequired ? (
-                      <p className="text-sm text-[#68726d] leading-relaxed">
-                        Assign one or more administrators to review this policy before it goes live.
-                      </p>
-                    ) : (
-                      <div className="rounded-[14px] bg-amber-50 border border-amber-100 px-4 py-3">
-                        <p className="text-sm text-amber-700 font-medium">No other admins found</p>
-                        <p className="text-xs text-amber-600 mt-0.5">
-                          You appear to be the only admin. This policy will activate without a secondary review.
-                        </p>
-                      </div>
-                    )}
-                    {approverRequired && (
-                      <>
-                        <MultiDropdown
-                          placeholder="Select approver(s)"
-                          values={approvers}
-                          onToggle={togApprover}
-                          options={adminOptions}
-                          isLoading={invitedUsersApi.isLoading}
-                          searchable
-                        />
-                        {approvers.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {approvers.map((id) => (
-                              <Chip
-                                key={id}
-                                label={adminOptions.find((o) => o.value === id)?.label ?? id}
-                                onRemove={() => togApprover(id)}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* ══ STEP 5 — Preview ════════════════════════ */}
-                {step === 5 && (
                   <Preview
                     policyName={policyName}
                     categories={categories}
@@ -1615,9 +1441,7 @@ export default function PolicyCreationModal({
                     departmentOptions={departmentOptions}
                     location={location}
                     rules={rules}
-                    approvers={approvers}
                     expenseCategoryOptions={expenseCategoryOptions}
-                    adminOptions={adminOptions}
                   />
                 )}
               </div>
@@ -1630,7 +1454,7 @@ export default function PolicyCreationModal({
                     className="h-11 px-6 rounded-[14px] border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors">
                     Back
                   </button>
-                  {step < 5 && (
+                  {step < 4 && (
                     <button
                       type="button"
                       onClick={handleSaveDraft}
@@ -1646,7 +1470,7 @@ export default function PolicyCreationModal({
                   className="h-11 px-8 rounded-[14px] bg-[#087f70] text-white text-sm font-semibold hover:bg-[#087f70]/90 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 transition-all shadow-sm shadow-[#087f70]/20 flex items-center gap-2">
                   {isLoading
                     ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : step === 5 ? "Submit for approval" : "Continue"
+                    : step === 4 ? "Submit for approval" : "Continue"
                   }
                 </button>
               </div>

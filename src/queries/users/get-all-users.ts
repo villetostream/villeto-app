@@ -2,7 +2,7 @@
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { AppUser } from "../departments/get-all-departments";
 
@@ -89,7 +89,7 @@ export const useGetAllUsersApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.USERS, options?.params],
+        queryKey: [...QUERY_KEYS.people.users(), options?.params],
         queryFn: async () => {
             const apiUrl = `${API_KEYS.USER.USERS}`;
             return fetchAllUsersLoop(axiosInstance, apiUrl, options?.params);
@@ -106,7 +106,7 @@ export const useGetInvitedUsersApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.INVITED_USERS, options?.params],
+        queryKey: [...QUERY_KEYS.people.invitedUsers, options?.params],
         queryFn: async () => {
             return fetchAllUsersLoop(axiosInstance, API_KEYS.USER.INVITED_USERS, options?.params);
         },
@@ -122,7 +122,7 @@ export const useGetDirectoryUsersApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.DIRECTORY_USERS, options?.params],
+        queryKey: [...QUERY_KEYS.people.directoryUsers, options?.params],
         queryFn: async () => {
             return fetchAllUsersLoop(axiosInstance, API_KEYS.USER.DIRECTORY_USERS, options?.params);
         },
@@ -138,7 +138,7 @@ export const useGetUninvitedUsersApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.UNINVITED_USERS, options?.params],
+        queryKey: [...QUERY_KEYS.people.uninvitedUsers, options?.params],
         queryFn: async () => {
             return fetchAllUsersLoop(axiosInstance, API_KEYS.USER.UNINVITED_USERS, options?.params);
         },

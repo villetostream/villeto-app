@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { useGetVendors } from "@/queries/procurement/purchase-requests";
 import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import { POLICY_GROUPS, getActionDef, getConditionDef } from "../constants";
-import type { PolicyDraft, PolicyRule } from "../types";
+import { PRIORITY_OPTIONS, type ExceptionCategory, type PolicyDraft, type PolicyRule } from "../types";
 
 // ─── Rule evaluation ──────────────────────────────────────────────────────────
 
@@ -252,7 +252,8 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
               <div className="mt-2 space-y-1 text-xs text-[#68726d]">
                 {draft.categoryIds.length > 0 && <p>{draft.categoryIds.length} categor{draft.categoryIds.length === 1 ? "y" : "ies"} selected</p>}
                 {draft.departmentIds.length > 0 && <p>{draft.departmentIds.length} department{draft.departmentIds.length === 1 ? "" : "s"} selected</p>}
-                {draft.roleIds.length > 0 && <p>{draft.roleIds.length} role{draft.roleIds.length === 1 ? "" : "s"} selected</p>}
+                {draft.jobGradeIds.length > 0 && <p>{draft.jobGradeIds.length} job grade{draft.jobGradeIds.length === 1 ? "" : "s"} selected</p>}
+                {draft.managementLevelIds.length > 0 && <p>{draft.managementLevelIds.length} management level{draft.managementLevelIds.length === 1 ? "" : "s"} selected</p>}
                 {draft.vendorIds.length > 0 && <p>{draft.vendorIds.length} vendor{draft.vendorIds.length === 1 ? "" : "s"} selected</p>}
               </div>
             )}
@@ -308,18 +309,10 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
               </div>
               <div>
                 <p className="text-[#68726d]">Priority</p>
-                <p className="text-foreground font-medium">{draft.priority}</p>
+                <p className="text-foreground font-medium">
+                  {PRIORITY_OPTIONS.find((p) => p.value === draft.priority)?.label ?? draft.priority}
+                </p>
               </div>
-              <div>
-                <p className="text-[#68726d]">Requires approval</p>
-                <p className="text-foreground font-medium">{draft.requiresApproval ? `Yes (${draft.approvalMode})` : "No"}</p>
-              </div>
-              {draft.approverIds.length > 0 && (
-                <div className="col-span-2">
-                  <p className="text-[#68726d]">Approvers</p>
-                  <p className="text-foreground font-medium">{draft.approverIds.length} approver{draft.approverIds.length !== 1 ? "s" : ""} selected</p>
-                </div>
-              )}
             </div>
           </div>
         </div>

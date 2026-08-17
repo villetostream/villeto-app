@@ -10,13 +10,12 @@ import { StepPolicyGroup } from "./steps/StepPolicyGroup";
 import { StepConfigure } from "./steps/StepConfigure";
 import { StepScope } from "./steps/StepScope";
 import { StepRules } from "./steps/StepRules";
-import { StepApproval } from "./steps/StepApproval";
 import { StepReview } from "./steps/StepReview";
 import { emptyDraft } from "./types";
 import type { PolicyDraft } from "./types";
-import { useCreateProcurementPolicy } from "@/queries/procurement/policies";
+import { useCreateProcurementPolicy, useCreateProcurementPolicyDraft, useUpdateProcurementPolicyDraft } from "@/queries/procurement/policies";
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 5;
 
 export function ProcurementPolicyWizard({
   onCancel,
@@ -30,6 +29,8 @@ export function ProcurementPolicyWizard({
   const { setBackHandler, clearBackHandler } = useHeaderBackStore();
   const stepRef = useRef(step);
   const createPolicy = useCreateProcurementPolicy();
+  const createDraft = useCreateProcurementPolicyDraft();
+  const updateDraft = useUpdateProcurementPolicyDraft();
 
   useEffect(() => { stepRef.current = step; }, [step]);
 
@@ -59,8 +60,7 @@ export function ProcurementPolicyWizard({
           draft.rules.length > 0 &&
           draft.rules.every((r) => r.condition !== "" && r.enforcementAction !== "")
         );
-      case 5: return true; // approvers optional if requiresApproval is false
-      case 6: return true;
+      case 5: return true;
       default: return true;
     }
   };
@@ -96,6 +96,27 @@ export function ProcurementPolicyWizard({
     }
 
     setStep((s) => Math.min(TOTAL_STEPS, s + 1));
+  };
+
+  const saveDraft = async () => {
+    if (!canContinue()) {
+      toast.error(validationMessage());
+      return;
+    }
+    try {
+      if (draft.draftId) {
+        await updateDraft.mutateAsync({ draftId: draft.draftId, payload: draft });
+      } else {
+        const res = await createDraft.mutateAsync(draft);
+        if (res?.data?.draftId) {
+          patch({ draftId: res.data.draftId });
+        }
+      }
+      toast.success("Draft saved successfully.");
+      onComplete(); // Assuming we return to the main policies page after saving
+    } catch (e) {
+      toast.error("Failed to save draft.");
+    }
   };
 
   return (
@@ -134,6 +155,8 @@ export function ProcurementPolicyWizard({
               categoryIds={draft.categoryIds}
               departmentIds={draft.departmentIds}
               roleIds={draft.roleIds}
+              jobGradeIds={draft.jobGradeIds}
+              managementLevelIds={draft.managementLevelIds}
               vendorIds={draft.vendorIds}
               exceptions={draft.exceptions}
               onChange={patch}
@@ -146,20 +169,13 @@ export function ProcurementPolicyWizard({
               onChange={(rules) => patch({ rules })}
             />
           )}
-          {step === 5 && (
-            <StepApproval
-              approverIds={draft.approverIds}
-              requiresApproval={draft.requiresApproval}
-              onChange={(approverIds) => patch({ approverIds })}
-            />
-          )}
-          {step === 6 && <StepReview draft={draft} />}
+          {step === 5 && <StepReview draft={draft} />}
         </div>
       </div>
 
       {/* Footer navigation */}
       <div className="shrink-0 z-10 w-full bg-white">
-        <div className="max-w-5xl w-full mx-auto px-6 py-5 border-t border-black/[0.06] flex items-center justify-end gap-3">
+        <div className="max-w-5xl w-full mx-auto px-6 py-5 border-t border-black/[0.06] flex items-center justify-between">
           <button
             onClick={goBack}
             disabled={createPolicy.isPending}
@@ -167,22 +183,39 @@ export function ProcurementPolicyWizard({
           >
             Back
           </button>
-          <button
-            onClick={goNext}
-            disabled={!canContinue() || createPolicy.isPending}
-            className="h-11 px-7 min-w-[140px] rounded-[14px] bg-[#087f70] text-white hover:opacity-90 font-semibold text-sm transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
-          >
-            {createPolicy.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Creating…
-              </>
-            ) : step === TOTAL_STEPS ? (
-              "Create Policy"
-            ) : (
-              "Continue"
-            )}
-          </button>
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={saveDraft}
+              disabled={createPolicy.isPending || createDraft.isPending || updateDraft.isPending}
+              className="h-11 px-7 rounded-[14px] border border-black/[0.06] bg-white text-[#0b100e] hover:bg-[#f9faf9] font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {(createDraft.isPending || updateDraft.isPending) ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Save as Draft"
+              )}
+            </button>
+            <button
+              onClick={goNext}
+              disabled={!canContinue() || createPolicy.isPending || createDraft.isPending || updateDraft.isPending}
+              className="h-11 px-7 min-w-[140px] rounded-[14px] bg-[#087f70] text-white hover:opacity-90 font-semibold text-sm transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              {createPolicy.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creating…
+                </>
+              ) : step === TOTAL_STEPS ? (
+                "Create Policy"
+              ) : (
+                "Continue"
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

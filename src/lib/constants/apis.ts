@@ -132,6 +132,20 @@ export const PROCUREMENT_KEYS = {
   PROCUREMENT_POLICIES: "policy/procurement",
   PROCUREMENT_POLICY: (id: string) => `policy/procurement/${id}` as const,
   PROCUREMENT_POLICY_ACTION: (id: string, action: "approve" | "reject") => `policy/procurement/${id}/${action}` as const,
+  PROCUREMENT_POLICY_DRAFTS: "policy/procurement/drafts",
+  PROCUREMENT_POLICY_DRAFT_BY_ID: (draftId: string) => `policy/procurement/drafts/${draftId}` as const,
   // ── Approved Vendors (no pagination — returns all approved) ─────────────
   APPROVED_VENDORS: "vendors?approvalStatus=approved",
 } as const;
+
+export const POLICY_GOVERNANCE_KEYS = {
+  /** GET  /policy/approval-settings — list all targets */
+  APPROVAL_SETTINGS:         "policy/approval-settings",
+  /** GET  /policy/approval-settings/:target */
+  APPROVAL_SETTINGS_TARGET:  (target: string) => `policy/approval-settings/${target}` as const,
+  /** PUT  /policy/approval-settings/:target */
+  UPDATE_APPROVAL_SETTINGS:  (target: string) => `policy/approval-settings/${target}` as const,
+  /** GET  /policy/approval-settings/eligible-roles?target=:target */
+  ELIGIBLE_ROLES:            (target: string) => `policy/approval-settings/eligible-roles?target=${target}` as const,
+} as const;
+

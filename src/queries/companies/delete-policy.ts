@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -25,8 +25,8 @@ export const useDeletePolicyApi = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.categories });
     },
   });
 };

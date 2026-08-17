@@ -559,7 +559,7 @@ function VendorTable({
   );
 
   return (
-    <div className="space-y-4 mt-4 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
+    <div className="space-y-4 mt-2 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
       {/* Portal search into tab-actions slot (same as People/Policies), fallback inline */}
       {portalTarget ? createPortal(searchBar, portalTarget) : searchBar}
 

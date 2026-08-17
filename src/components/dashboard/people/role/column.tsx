@@ -132,6 +132,7 @@ function ActionCell({ role }: { role: Role }) {
                             <DropdownMenuItem asChild>
                                 <Link 
                                     href={`/people/create-role?id=${roleId}`}
+                                    onClick={() => sessionStorage.setItem("rolesReturnPath", `/people?tab=roles`)}
                                     className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-slate-50 text-[#475467]"
                                 >
                                     <Edit2 className="w-5 h-5 text-slate-500" />

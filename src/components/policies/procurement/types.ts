@@ -89,8 +89,17 @@ export interface PolicyRule {
 
 // ─── Exceptions (UI only) ─────────────────────────────────────────────────────
 
-export type ExceptionCategory = "department" | "role" | "location";
+export type ExceptionCategory = "user" | "department" | "role" | "jobGrade" | "managementLevel" | "position" | "location";
 export type ExceptionSelection = Record<ExceptionCategory, string[]>;
+
+// ─── Priorities ───────────────────────────────────────────────────────────────
+
+export const PRIORITY_OPTIONS = [
+  { label: "Critical", value: 1 },
+  { label: "High", value: 10 },
+  { label: "Medium", value: 50 },
+  { label: "Low", value: 100 },
+];
 
 // ─── Policy Draft (wizard state) ─────────────────────────────────────────────
 
@@ -102,6 +111,8 @@ export interface PolicyDraft {
   categoryIds: string[];
   departmentIds: string[];
   roleIds: string[];
+  jobGradeIds: string[];
+  managementLevelIds: string[];
   vendorIds: string[];
   exceptions: ExceptionSelection;
   rules: PolicyRule[];
@@ -111,6 +122,7 @@ export interface PolicyDraft {
   effectiveAt: string;
   expiresAt: string;
   priority: number;
+  draftId?: string;
 }
 
 export const emptyRule = (index: number): PolicyRule => ({
@@ -128,8 +140,10 @@ export const emptyDraft = (): PolicyDraft => ({
   categoryIds: [],
   departmentIds: [],
   roleIds: [],
+  jobGradeIds: [],
+  managementLevelIds: [],
   vendorIds: [],
-  exceptions: { department: [], role: [], location: [] },
+  exceptions: { department: [], role: [], location: [], user: [], jobGrade: [], managementLevel: [], position: [] },
   rules: [],
   requiresApproval: false,
   approvalMode: "none",
@@ -137,6 +151,7 @@ export const emptyDraft = (): PolicyDraft => ({
   effectiveAt: "",
   expiresAt: "",
   priority: 100,
+  draftId: undefined,
 });
 
 // ─── Display / list record (from API) ────────────────────────────────────────
