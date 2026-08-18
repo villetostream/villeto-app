@@ -7,6 +7,7 @@ import {
   Search, RefreshCcw,
   Eye, Archive, X, UserCircle, FileText, Clock, Tag, Loader2
 } from "lucide-react";
+import { ReviewPolicyModal } from "@/components/policies/ReviewPolicyModal";
 import PolicyCreationModal, { type CreatedPolicyData } from "@/components/policies/PolicyCreationModal";
 import SimpleAddExpenseCategoryDialog from "@/components/policies/SimpleAddExpenseCategoryDialog";
 import { ProcurementPolicySection } from "@/components/policies/procurement/ProcurementPolicySection";
@@ -41,6 +42,7 @@ import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
 import { useDeleteExpensePolicyDraft, useGetExpensePolicyDraft } from "@/queries/companies/expense-policy-drafts";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
+import { useGetEligibleRoles } from "@/queries/policies/governance";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { useAxios } from "@/hooks/useAxios";
@@ -80,6 +82,7 @@ interface Policy {
   dailyLimit: string;
   receiptRequired: boolean;
   archivedOn?: string;
+  approvalSetting?: any;
 }
 
 type ExpenseCategory = {
@@ -118,12 +121,15 @@ function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     active:   "bg-success/10 text-success",
     pending:  "bg-pending/10 text-pending",
+    pending_approval: "bg-pending/10 text-pending", // added pending_approval mapping
     draft:    "bg-draft/10 text-draft",
     inactive: "bg-slate-100 text-slate-500",
   };
+  const badgeLabel = status.toLowerCase() === "pending_approval" ? "Pending" : status;
+  
   return (
     <span className={`inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold capitalize ${map[status.toLowerCase()] ?? "bg-[#f9faf9] text-[#68726d]"}`}>
-      {status}
+      {badgeLabel}
     </span>
   );
 }
@@ -483,10 +489,12 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                       const isLimit = getString(r.type) === "spend_limit";
                       const isBlock = getString(r.enforcementAction) === "block";
                       const enforcement = isBlock ? "Hard Block" : "Soft Warning";
+                      const currencyCode = pickString(r, "currency") || "NGN";
+                      const currencySymbol = currencyCode === "NGN" ? "₦" : currencyCode;
                       const description = isLimit
-                        ? `Must not exceed ${pickString(r, "currency") || "NGN"} ${Number(r.amount || 0).toLocaleString()}/${mapTimeframe(getOptionalString(r.timeUnit) || getOptionalString(r.time_unit) || getOptionalString(r.timeframe) || (fullPolicy as any)?.spendLimitPeriod)}`
+                        ? `Must not exceed ${currencySymbol}${Number(r.amount || 0).toLocaleString()}/${mapTimeframe(getOptionalString(r.timeUnit) || getOptionalString(r.time_unit) || getOptionalString(r.timeframe) || (fullPolicy as any)?.spendLimitPeriod)}`
                         : (r.receiptAmountThreshold || r.threshold)
-                          ? `For transactions above ${pickString(r, "currency") || "NGN"} ${Number(r.receiptAmountThreshold || r.threshold).toLocaleString()}`
+                          ? `For transactions above ${currencySymbol}${Number(r.receiptAmountThreshold || r.threshold).toLocaleString()}`
                           : "Required for all transactions";
                       return (
                         <div key={i} className="rounded-[14px] border border-black/[0.06] p-3.5">
@@ -522,8 +530,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
         {/* ── Created / Approved by ── */}
         {!isLoading && (
           <div className="px-6 pt-3 pb-4 shrink-0">
-            <div className="flex justify-between gap-4">
-              {/* Created by */}
+            <div className="flex justify-between items-start gap-4">
               <div>
                 <p className="text-[11px] text-[#68726d] mb-1.5">Created by</p>
                 <p className="text-sm font-semibold text-[#0b100e] leading-tight">
@@ -604,74 +611,6 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
   );
 }
 
-/* ─── Review Policy Modal ────────────────────────────────────────────────────── */
-
-function ReviewPolicyModal({ policy, onClose, onApprove, onReject }: {
-  policy: Policy | null; onClose: () => void;
-  onApprove: (p: Policy) => void; onReject: (p: Policy) => void;
-}) {
-  if (!policy) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-[540px] overflow-hidden">
-        <div className="p-10">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-semibold text-foreground">Review Policy</h2>
-            <button onClick={onClose} className="w-10 h-10 rounded-full bg-[#f9faf9]/40 hover:bg-[#f9faf9]/80 flex items-center justify-center transition-all border border-black/[0.06]/50">
-              <X className="w-5 h-5 text-[#68726d]" />
-            </button>
-          </div>
-          <div className="h-px bg-border w-full my-6 opacity-60" />
-          <div className="rounded-[1.5rem] border border-black/[0.06]/60 bg-[#f9faf9]/10 p-7 space-y-6">
-            <div className="grid grid-cols-2 gap-y-6">
-              <div>
-                <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Policy Name</p>
-                <p className="text-base font-semibold text-foreground">{policy.name}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Expense Category</p>
-                <p className="text-base font-semibold text-foreground capitalize">{policy.category}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Applied To</p>
-                <p className="text-base font-semibold text-foreground capitalize">{policy.appliedTo}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Rules</p>
-                <p className="text-base font-semibold text-foreground">Daily Limit: ${policy.dailyLimit || "0"}</p>
-                {policy.receiptRequired && <p className="text-base font-semibold text-foreground">Receipt required</p>}
-              </div>
-            </div>
-            <div className="h-px bg-border/60" />
-            <div>
-              <p className="text-xs font-bold text-primary uppercase tracking-widest mb-2">Approver(s)</p>
-              <div className="flex flex-wrap gap-2">
-                {policy.approvers.length > 0 ? policy.approvers.map((a, i) => {
-                  const name = typeof a === "string" ? a : String(a);
-                  return (
-                    <div key={`${name}-${i}`} className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full border border-primary/10 text-sm font-medium text-foreground">
-                      <UserCircle className="w-4 h-4 text-primary opacity-60" />{name}
-                    </div>
-                  );
-                }) : <p className="text-sm text-[#68726d] italic">None assigned</p>}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center justify-center gap-3 mt-8">
-            <button onClick={() => { onReject(policy); onClose(); }}
-              className="h-12 px-10 rounded-[18px] border-[1.5px] border-destructive text-destructive font-bold text-sm hover:bg-destructive/5 transition-colors">
-              Reject
-            </button>
-            <button onClick={() => { onApprove(policy); onClose(); }}
-              className="h-12 px-10 rounded-[18px] bg-primary text-primary-foreground font-bold text-sm hover:opacity-90 transition-opacity shadow-lg shadow-primary/20">
-              Approve
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ─── Page ───────────────────────────────────────────────────────────────────── */
 
@@ -726,6 +665,9 @@ function PoliciesPage() {
   const can = useAuthStore(s => s.can);
   const canReadExpenseCategories = can('expense.category', 'read') || can('expense.category', 'manage');
   const canReadPolicies = can('policy', 'read') || can('policy', 'manage') || can('policy', 'create');
+
+  const { data: eligibleRolesData } = useGetEligibleRoles("expense_policy");
+  const eligibleRoles = eligibleRolesData?.data || [];
 
   const expCatApi = useGetExpenseCategoriesApi({ enabled: canReadExpenseCategories });
   const canManageCategories = can('expense.category', 'manage');
@@ -828,6 +770,8 @@ function PoliciesPage() {
         dailyLimit: getString(rules.find((r) => getString(r.type) === "spend_limit")?.amount) || "0",
         receiptRequired: !!rules.find((r) => getString(r.type) === "receipt_requirement")?.amount,
         archivedOn: p.deletedAt ? new Date(getString(p.deletedAt)).toLocaleDateString() : undefined,
+        approvalSetting: p.approvalSetting,
+        rules: rules,
       };
     });
   }, [policiesApi.data?.data, liveExpenseCategories]);
@@ -991,18 +935,33 @@ function PoliciesPage() {
     try {
       const res = await axios.get(API_KEYS.EXPENSE.POLICY_BY_ID(policy.id));
       const freshPolicy = asRecord(res.data?.data);
-      const freshApprovers = asArray(freshPolicy.approversRaw ?? freshPolicy.approvers);
-      const stillApprover = freshApprovers.some((rawApprover) => {
-        const a = asRecord(rawApprover);
-        return pickString(a, "userId", "id") === user?.userId;
-      });
+      const currentUserRoleId = user?.companyRole?.roleId || (user as any)?.villetoRole?.roleId || (user as any)?.role?.roleId || "";
+      
+      const { can } = useAuthStore.getState();
+      const hasGodModeApprove = can('policy', 'approve');
+
+      let stillApprover = false;
+      const approvalSetting = (freshPolicy as any).approvalSetting;
+      if (hasGodModeApprove) {
+        stillApprover = true;
+      } else if (approvalSetting?.allRolesCanApprove) {
+        stillApprover = true; // Assuming eligibleRoles check passed earlier
+      } else if (approvalSetting?.approverRoleIds?.length) {
+        stillApprover = approvalSetting.approverRoleIds.includes(currentUserRoleId);
+      } else {
+        const freshApprovers = asArray(freshPolicy.approversRaw ?? freshPolicy.approvers);
+        stillApprover = freshApprovers.some((rawApprover) => {
+          const a = asRecord(rawApprover);
+          return pickString(a, "userId", "id") === user?.userId;
+        });
+      }
 
       if (!stillApprover) {
         toast.error("You are no longer an approver for this policy.");
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
         return;
       }
-      setReviewPolicy(policy);
+      setReviewPolicy({ ...policy, ...freshPolicy } as any);
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Failed to load policy details. Please try again."));
     }
@@ -1048,16 +1007,38 @@ function PoliciesPage() {
       header: () => <div className="text-right w-full">Action</div>,
       cell: ({ row }) => {
         const policy = row.original;
-        const isApprover = policy.approversRaw.some((rawApprover) => {
-          const a = asRecord(rawApprover);
-          return pickString(a, "userId") === user?.userId;
-        }) || (user?.userId ? policy.approverIds?.includes(user.userId) : false);
         
+        let isApprover = false;
+        const currentUserRoleId = 
+          user?.companyRole?.roleId || 
+          (user as any)?.companyRole?.id || 
+          (user as any)?.villetoRole?.roleId || 
+          (user as any)?.villetoRole?.id || 
+          (user as any)?.role?.roleId || 
+          (user as any)?.role?.id || 
+          "";
+
         const { can } = useAuthStore.getState();
         const canUpdate = can('policy', 'update');
         const canDeactivate = can('policy', 'deactivate');
+        const canApprovePolicy = can('policy', 'approve');
+
+        if (canApprovePolicy) {
+          isApprover = true;
+        } else if (policy.approvalSetting?.allRolesCanApprove) {
+          isApprover = eligibleRoles.some(r => r.roleId === currentUserRoleId);
+        } else if (policy.approvalSetting?.approverRoleIds?.length) {
+          isApprover = policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
+        } else {
+          // Fallback to legacy approver logic
+          isApprover = (policy.approversRaw || []).some((rawApprover) => {
+            const a = asRecord(rawApprover);
+            return pickString(a, "userId") === user?.userId;
+          }) || (user?.userId ? (policy.approverIds?.includes(user.userId) ?? false) : false);
+        }
         
-        const showReviewOnly = policy.status === "inactive" && isApprover;
+        const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
+        const showReviewOnly = isPending && isApprover;
 
         return (
           <div className="flex items-center justify-end gap-2">
@@ -1527,12 +1508,12 @@ function PoliciesPage() {
         onArchive={(p) => { handleArchive(p); setDetailPolicy(null); }}
         onDeleteDraft={(draftId) => setDraftToDelete(draftId)}
       />
-      <ReviewPolicyModal
-        policy={reviewPolicy}
-        onClose={() => setReviewPolicy(null)}
-        onApprove={(p) => { handleApprove(p); setReviewPolicy(null); }}
-        onReject={(p) => { handleReject(p); setReviewPolicy(null); }}
-      />
+      {reviewPolicy && (
+        <ReviewPolicyModal
+          policy={reviewPolicy as any}
+          onClose={() => setReviewPolicy(null)}
+        />
+      )}
     </div>
   );
 }
