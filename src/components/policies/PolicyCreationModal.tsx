@@ -735,9 +735,9 @@ function Preview({
                   ? <span className="inline-flex items-center gap-1 text-[#087f70] font-medium text-xs"><span className="w-1.5 h-1.5 rounded-full bg-[#087f70] inline-block" />All transactions</span>
                   : rule.type === "receipt_requirement" && rule.receiptMode === "threshold"
                     ? rule.amount
-                      ? <span className="text-[#0b100e] tabular-nums">Above <span className="font-semibold">{currencySymbol}{rule.amount}</span></span>
+                      ? <span className="text-[#0b100e] tabular-nums">Above <span className="font-semibold">{currencySymbol}{Number(rule.amount).toLocaleString()}</span></span>
                       : <span className="text-gray-300">—</span>
-                    : rule.amount ? `${currencySymbol}${rule.amount}` : <span className="text-gray-300">—</span>
+                    : rule.amount ? `${currencySymbol}${Number(rule.amount).toLocaleString()}` : <span className="text-gray-300">—</span>
                 }
               </p>
               <div>

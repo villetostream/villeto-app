@@ -20,33 +20,43 @@ function StatusBadge({ status }: { status: string }) {
     approved: "bg-teal-50 text-teal-600",
     active:   "bg-teal-50 text-teal-600",
     pending:  "bg-amber-50 text-amber-600",
+    pending_approval: "bg-amber-50 text-amber-600",
     draft:    "bg-slate-50 text-slate-600",
     inactive: "bg-gray-100 text-gray-500",
   };
   const cls = map[status?.toLowerCase()] ?? "bg-gray-100 text-gray-500";
+  const badgeLabel = status?.toLowerCase() === "pending_approval" ? "Pending" : status;
   return (
     <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-[11px] font-semibold capitalize ${cls}`}>
-      {status ?? "—"}
+      {badgeLabel ?? "—"}
     </span>
   );
 }
 
+const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
+
 export function ProcurementPolicyDetailsModal({
   policyId,
+  isDraft = false,
+  isReviewMode = false,
   onClose,
   onEdit,
   onArchive,
   onSubmitDraft,
   onDeleteDraft,
-  isDraft,
+  onApprove,
+  onReject,
 }: {
   policyId: string | null;
+  isDraft?: boolean;
+  isReviewMode?: boolean;
   onClose: () => void;
   onEdit?: (p: ProcurementPolicyApiRecord) => void;
   onArchive?: (p: ProcurementPolicyApiRecord) => void;
   onSubmitDraft?: (p: ProcurementPolicyApiRecord) => void;
   onDeleteDraft?: (draftId: string) => void;
-  isDraft?: boolean;
+  onApprove?: (p: ProcurementPolicyApiRecord) => void;
+  onReject?: (p: ProcurementPolicyApiRecord) => void;
 }) {
   const canDeactivate = useAuthStore((s) => s.can)("policy", "deactivate");
   const canUpdate     = useAuthStore((s) => s.can)("policy", "update");
@@ -91,7 +101,7 @@ export function ProcurementPolicyDetailsModal({
                 <div className="flex-1 min-w-0 pr-10">
                   <div className="flex items-center gap-3 flex-wrap">
                     <h2 className="text-xl font-bold text-gray-900 leading-tight">
-                      {policy.name}
+                      {capitalizeName(policy.name)}
                     </h2>
                     <div className="flex items-center gap-1.5">
                       <StatusBadge status={policy.status} />
@@ -240,33 +250,56 @@ export function ProcurementPolicyDetailsModal({
 
             {/* ── Footer buttons ── */}
             <div className="px-6 pb-6 pt-1 shrink-0 flex gap-3">
-              {!isDraft && canDeactivate && onArchive && (
-                <button
-                  onClick={() => { onArchive(policy); onClose(); }}
-                  className="flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
-                >
-                  Move to Archive
-                </button>
-              )}
-              {canUpdate && onEdit && (
-                <button
-                  onClick={() => { onEdit(policy); onClose(); }}
-                  className={
-                    isDraft
-                      ? "flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
-                      : "flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-                  }
-                >
-                  Edit
-                </button>
-              )}
-              {isDraft && canUpdate && onSubmitDraft && (
-                <button
-                  onClick={() => { onSubmitDraft(policy); onClose(); }}
-                  className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-                >
-                  Submit
-                </button>
+              {isReviewMode ? (
+                <>
+                  {onReject && (
+                    <button
+                      onClick={() => { onReject(policy); onClose(); }}
+                      className="flex-1 h-11 rounded-full border border-red-500 text-red-500 text-sm font-semibold hover:bg-red-50 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  )}
+                  {onApprove && (
+                    <button
+                      onClick={() => { onApprove(policy); onClose(); }}
+                      className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                    >
+                      Approve
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  {!isDraft && canDeactivate && onArchive && (
+                    <button
+                      onClick={() => { onArchive(policy); onClose(); }}
+                      className="flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
+                    >
+                      Move to Archive
+                    </button>
+                  )}
+                  {canUpdate && onEdit && (
+                    <button
+                      onClick={() => { onEdit(policy); onClose(); }}
+                      className={
+                        isDraft
+                          ? "flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
+                          : "flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                      }
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {isDraft && canUpdate && onSubmitDraft && (
+                    <button
+                      onClick={() => { onSubmitDraft(policy); onClose(); }}
+                      className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                    >
+                      Submit
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </>

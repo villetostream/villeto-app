@@ -60,6 +60,13 @@ export interface Policy {
   deletedAt?: string | null;
   createdBy?: string;
   version?: number;
+  approvalSetting?: {
+    target: string;
+    approvalRequired: boolean;
+    allRolesCanApprove: boolean;
+    approverRoleIds: string[];
+    approverRoles: { roleId: string; name: string; templateKey: string }[];
+  };
 }
 
 interface GetPoliciesResponse {
@@ -152,6 +159,7 @@ export const useGetPoliciesApi = (
       return fetchAllPoliciesLoop(axiosInstance, params);
     },
     staleTime: STALE_TIMES.SLOW,
+    refetchInterval: 3000,
     ...options,
   });
 };

@@ -32,6 +32,9 @@ import { useGetProcurementPolicies, useDeleteProcurementPolicyDraft } from "@/qu
 import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { useApproveProcurementPolicy, useRejectProcurementPolicy } from "@/queries/procurement/approve-reject-policy";
+import { useGetEligibleRoles } from "@/queries/policies/governance";
 
 const groupLabel = (group: string) =>
   POLICY_GROUPS.find((item) => item.value === group)?.title ?? group;
@@ -52,16 +55,20 @@ function StatusBadge({ status }: { status: string }) {
     approved: "bg-success/10 text-success",
     active:   "bg-success/10 text-success",
     pending:  "bg-pending/10 text-pending",
+    pending_approval: "bg-pending/10 text-pending",
     draft:    "bg-draft/10 text-draft",
     inactive: "bg-[#f9faf9]/60 text-[#68726d]",
   };
   const cls = map[status?.toLowerCase()] ?? "bg-[#f9faf9]/60 text-[#68726d]";
+  const badgeLabel = status?.toLowerCase() === "pending_approval" ? "Pending" : status;
   return (
     <span className={`inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold capitalize ${cls}`}>
-      {status ?? "—"}
+      {badgeLabel ?? "—"}
     </span>
   );
 }
+
+const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
 
 export function ProcurementPolicySection({
   canCreate,
@@ -75,7 +82,7 @@ export function ProcurementPolicySection({
   onSubmitDraft?: (p: ProcurementPolicyApiRecord) => void;
 }) {
   const [search, setSearch] = useState("");
-  const [detailPolicy, setDetailPolicy] = useState<{ id: string; isDraft: boolean } | null>(null);
+  const [detailPolicy, setDetailPolicy] = useState<{ id: string; isDraft: boolean; isReviewMode?: boolean } | null>(null);
 
   const tableProps = useDataTable({
     initialPage: 1,
@@ -88,6 +95,12 @@ export function ProcurementPolicySection({
 
   const { data, isLoading, refetch, isRefetching } = useGetProcurementPolicies(1, 1000);
   const deleteDraftMutation = useDeleteProcurementPolicyDraft();
+  const approveMutation = useApproveProcurementPolicy();
+  const rejectMutation = useRejectProcurementPolicy();
+
+  const { data: eligibleRolesData } = useGetEligibleRoles("procurement_policy");
+  const eligibleRoles = useMemo(() => eligibleRolesData?.data || [], [eligibleRolesData?.data]);
+
   const policies = useMemo<ProcurementPolicyApiRecord[]>(() => data?.data ?? [], [data?.data]);
 
   const approvedCount = useMemo(() => policies.filter((p) => ["approved", "active"].includes(p.status)).length, [policies]);
@@ -123,7 +136,7 @@ export function ProcurementPolicySection({
         header: "Policy Name",
         cell: ({ row }) => (
           <div>
-            <p className="text-sm font-bold text-[#0b100e]">{row.original.name}</p>
+            <p className="text-sm font-bold text-[#0b100e]">{capitalizeName(row.original.name)}</p>
             {row.original.description && (
               <p className="text-xs text-[#68726d] truncate max-w-[200px]">{row.original.description}</p>
             )}
@@ -163,53 +176,91 @@ export function ProcurementPolicySection({
       {
         id: "actions",
         header: () => <div className="text-right w-full">Action</div>,
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-[#f9faf9]/60 transition-colors cursor-pointer">
-                  <MoreHorizontal className="w-5 h-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
-                <DropdownMenuItem
-                  onClick={() => setDetailPolicy({ id: row.original.procurementPolicyId, isDraft: row.original.status === "draft" })}
-                  className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
+        cell: ({ row }) => {
+          const policy = row.original;
+          let isApprover = false;
+          const { user } = useAuthStore.getState();
+          const currentUserRoleId = 
+            user?.companyRole?.roleId || 
+            (user as any)?.companyRole?.id || 
+            (user as any)?.villetoRole?.roleId || 
+            (user as any)?.villetoRole?.id || 
+            (user as any)?.role?.roleId || 
+            (user as any)?.role?.id || 
+            "";
+
+          const canApprovePolicy = useAuthStore.getState().can("policy", "approve");
+
+          if (canApprovePolicy) {
+            isApprover = true;
+          } else if ((policy as any).approvalSetting?.allRolesCanApprove) {
+            isApprover = eligibleRoles.some((r: any) => r.roleId === currentUserRoleId);
+          } else if ((policy as any).approvalSetting?.approverRoleIds?.length) {
+            isApprover = (policy as any).approvalSetting.approverRoleIds.includes(currentUserRoleId);
+          } else {
+            isApprover = (policy.approvers || []).some((a: any) => a.userId === user?.userId) || (user?.userId ? (policy as any).approverIds?.includes(user?.userId) : false);
+          }
+
+          const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
+          const showReviewOnly = isPending && isApprover;
+
+          return (
+            <div className="flex items-center justify-end gap-2">
+              {showReviewOnly ? (
+                <button
+                  onClick={() => setDetailPolicy({ id: policy.procurementPolicyId, isDraft: false, isReviewMode: true })}
+                  className="h-8 px-4 rounded-[12px] bg-[#087f70] text-white text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
                 >
-                  <Eye className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
-                  View Details
-                </DropdownMenuItem>
-                {canUpdate && onEdit && (
-                  <DropdownMenuItem
-                    onClick={() => onEdit(row.original)}
-                    className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
-                  >
-                    <Pencil className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
-                    Edit
-                  </DropdownMenuItem>
-                )}
-                {canDeactivate && row.original.status !== "draft" && (
-                  <DropdownMenuItem
-                    onClick={() => setDetailPolicy({ id: row.original.procurementPolicyId, isDraft: false })}
-                    className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors cursor-pointer"
-                  >
-                    <Archive className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
-                    Archive Policy
-                  </DropdownMenuItem>
-                )}
-                {canUpdate && row.original.status === "draft" && (
-                  <DropdownMenuItem
-                    onClick={() => deleteDraftMutation.mutateAsync(row.original.procurementPolicyId)}
-                    className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-[17px] h-[17px] text-red-500 shrink-0" strokeWidth={1.5} />
-                    Delete Draft
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ),
+                  Review
+                </button>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-[#f9faf9]/60 transition-colors cursor-pointer">
+                      <MoreHorizontal className="w-5 h-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
+                    <DropdownMenuItem
+                      onClick={() => setDetailPolicy({ id: row.original.procurementPolicyId, isDraft: row.original.status === "draft" })}
+                      className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
+                    >
+                      <Eye className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
+                      View Details
+                    </DropdownMenuItem>
+                    {canUpdate && onEdit && (
+                      <DropdownMenuItem
+                        onClick={() => onEdit(row.original)}
+                        className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
+                      >
+                        <Pencil className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
+                        Edit
+                      </DropdownMenuItem>
+                    )}
+                    {canDeactivate && row.original.status !== "draft" && (
+                      <DropdownMenuItem
+                        onClick={() => setDetailPolicy({ id: row.original.procurementPolicyId, isDraft: false })}
+                        className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors cursor-pointer"
+                      >
+                        <Archive className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
+                        Archive Policy
+                      </DropdownMenuItem>
+                    )}
+                    {canUpdate && row.original.status === "draft" && (
+                      <DropdownMenuItem
+                        onClick={() => deleteDraftMutation.mutateAsync(row.original.procurementPolicyId)}
+                        className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-[17px] h-[17px] text-red-500 shrink-0" strokeWidth={1.5} />
+                        Delete Draft
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          );
+        },
       },
     ],
     [canUpdate, canDeactivate, setDetailPolicy, onEdit, deleteDraftMutation]
@@ -296,6 +347,7 @@ export function ProcurementPolicySection({
       <ProcurementPolicyDetailsModal 
         policyId={detailPolicy?.id ?? null} 
         isDraft={detailPolicy?.isDraft}
+        isReviewMode={detailPolicy?.isReviewMode}
         onEdit={(p) => {
           if (onEdit) onEdit(p);
           setDetailPolicy(null);
@@ -310,6 +362,24 @@ export function ProcurementPolicySection({
         }}
         onDeleteDraft={async (draftId) => {
           await deleteDraftMutation.mutateAsync(draftId);
+          setDetailPolicy(null);
+        }}
+        onApprove={async (p) => {
+          try {
+            await approveMutation.mutateAsync({ id: p.procurementPolicyId });
+            toast.success("Policy approved successfully");
+          } catch (error: any) {
+            toast.error(error?.response?.data?.message || "Failed to approve policy");
+          }
+          setDetailPolicy(null);
+        }}
+        onReject={async (p) => {
+          try {
+            await rejectMutation.mutateAsync({ id: p.procurementPolicyId });
+            toast.success("Policy rejected");
+          } catch (error: any) {
+            toast.error(error?.response?.data?.message || "Failed to reject policy");
+          }
           setDetailPolicy(null);
         }}
         onClose={() => setDetailPolicy(null)} 
