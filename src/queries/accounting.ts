@@ -22,6 +22,18 @@ export function useAccountingData(legalEntityId?: string) {
   };
 }
 
+export function useObligations(legalEntityId?: string) {
+  const axios = useAxios();
+  return useQuery({
+    queryKey: ["accounting", "obligations", legalEntityId, 1, 100],
+    queryFn: async () =>
+      unwrap<Obligation[]>((await axios.get("accounting/obligations", {
+        params: { legalEntityId, page: 1, limit: 100 },
+      })).data),
+    enabled: Boolean(legalEntityId),
+  });
+}
+
 export function useProvisionAccounting() {
   const axios = useAxios();
   const client = useQueryClient();

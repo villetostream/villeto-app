@@ -13,12 +13,12 @@ const unwrap = <T,>(value: { data?: T } | T): T => value && typeof value === "ob
 export function useBillPayData(legalEntityId?: string) {
   const axios = useAxios();
   const enabled = Boolean(legalEntityId);
-  const get = async <T,>(path: string) => unwrap<T>((await axios.get(path, { params: { legalEntityId } })).data);
+  const get = async <T,>(path: string, limit = 20) => unwrap<T>((await axios.get(path, { params: { legalEntityId, page: 1, limit } })).data);
   return {
     requests: useQuery({ queryKey: ["bill-pay", "requests", legalEntityId], queryFn: () => get<PaymentRequest[]>("bill-pay/payment-requests"), enabled }),
     payments: useQuery({ queryKey: ["bill-pay", "payments", legalEntityId], queryFn: () => get<Payment[]>("bill-pay/payments"), enabled }),
-    funding: useQuery({ queryKey: ["bill-pay", "funding", legalEntityId], queryFn: () => get<FundingAccount[]>("bill-pay/funding-accounts"), enabled }),
-    beneficiaries: useQuery({ queryKey: ["bill-pay", "beneficiaries", legalEntityId], queryFn: () => get<Beneficiary[]>("bill-pay/beneficiaries"), enabled }),
+    funding: useQuery({ queryKey: ["bill-pay", "funding", legalEntityId], queryFn: () => get<FundingAccount[]>("bill-pay/funding-accounts", 100), enabled }),
+    beneficiaries: useQuery({ queryKey: ["bill-pay", "beneficiaries", legalEntityId], queryFn: () => get<Beneficiary[]>("bill-pay/beneficiaries", 100), enabled }),
     bankTransactions: useQuery({ queryKey: ["bill-pay", "bank", legalEntityId], queryFn: () => get<BankTransaction[]>("bill-pay/bank-transactions"), enabled }),
   };
 }
