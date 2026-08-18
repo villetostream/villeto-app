@@ -455,10 +455,27 @@ function NumberInput({ value, onChange, placeholder = "0.00" }: {
   value: string; onChange: (v: string) => void; placeholder?: string;
 }) {
   const currencySymbol = useAuthStore(state => state.getCurrencySymbol());
+
+  const formatDisplay = (val: string) => {
+    if (!val) return "";
+    const parts = val.split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return parts.join(".");
+  };
+
+  const handleChange = (raw: string) => {
+    let numeric = raw.replace(/[^0-9.]/g, "");
+    const parts = numeric.split(".");
+    if (parts.length > 2) {
+      numeric = parts[0] + "." + parts.slice(1).join("");
+    }
+    onChange(numeric);
+  };
+
   return (
     <div className="relative">
       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#84908a] text-sm pointer-events-none">{currencySymbol}</span>
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+      <input type="text" value={formatDisplay(value)} onChange={(e) => handleChange(e.target.value)} placeholder={placeholder}
         className="w-full h-12 rounded-[14px] border border-black/[0.06] bg-white pl-7 pr-8 text-sm font-medium text-[#0b100e] placeholder:text-[#68726d] focus:outline-none focus:border-[#087f70] transition-colors tabular-nums" />
       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
         <button type="button" onClick={() => onChange(String((parseFloat(value || "0") + 1).toFixed(2)))}
@@ -1462,7 +1479,7 @@ export default function PolicyCreationModal({
                       className="h-11 px-6 rounded-[14px] border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors disabled:opacity-40 flex items-center gap-2"
                     >
                       {isSavingDraft && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      Save as Draft
+                      {draftId ? "Save Changes" : "Save as Draft"}
                     </button>
                   )}
                 </div>

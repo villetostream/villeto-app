@@ -118,7 +118,9 @@ export const useUpdateExpensePolicyDraft = () => {
   >({
     retry: false,
     mutationFn: async ({ draftId, payload }) => {
-      const res = await axios.patch(API_KEYS.EXPENSE.POLICY_DRAFT_BY_ID(draftId), payload);
+      const p = { ...payload, draftId } as any;
+      delete p.expensePolicyId;
+      const res = await axios.patch(API_KEYS.EXPENSE.POLICY_DRAFT_BY_ID(draftId), p);
       return res.data;
     },
     onSuccess: (_data, { draftId }) => {

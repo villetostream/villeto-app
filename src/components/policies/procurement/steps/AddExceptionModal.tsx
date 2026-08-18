@@ -19,7 +19,6 @@ type LocalCategory = ExceptionCategory | "managementGrade";
 const CATEGORY_META: { value: LocalCategory; label: string; options: string[]; placeholder: string }[] = [
   { value: "department", label: "Department", options: DEPARTMENT_OPTIONS, placeholder: "Search departments..." },
   { value: "managementGrade", label: "Management Level / Job Grade", options: [...MANAGEMENT_LEVEL_OPTIONS, ...JOB_GRADE_OPTIONS], placeholder: "Search management levels or job grades..." },
-  { value: "position", label: "Position", options: POSITION_OPTIONS, placeholder: "Search positions..." },
   { value: "location", label: "Location", options: LOCATION_OPTIONS, placeholder: "Search locations..." },
 ];
 

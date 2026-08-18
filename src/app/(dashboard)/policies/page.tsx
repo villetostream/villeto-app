@@ -38,7 +38,7 @@ import { useGetExpenseCategoriesApi } from "@/queries/companies/get-expense-cate
 import { useDeleteCategoryApi } from "@/queries/companies/delete-category";
 import { useGetPoliciesApi } from "@/queries/companies/get-policies";
 import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
-import { useDeleteExpensePolicyDraft } from "@/queries/companies/expense-policy-drafts";
+import { useDeleteExpensePolicyDraft, useGetExpensePolicyDraft } from "@/queries/companies/expense-policy-drafts";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useQueryClient } from "@tanstack/react-query";
@@ -308,7 +308,12 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
 }) {
   const canDeactivate = useAuthStore(s => s.can)('policy', 'deactivate');
   const canUpdate = useAuthStore(s => s.can)('policy', 'update');
-  const { data: detailData, isLoading } = useGetPolicyDetailsApi(policy?.id || null);
+  const isDraft = policy?.status === "draft";
+  const { data: activeDetailData, isLoading: isActiveLoading } = useGetPolicyDetailsApi(isDraft ? null : policy?.id || null);
+  const { data: draftDetailData, isLoading: isDraftLoading } = useGetExpensePolicyDraft(isDraft ? policy?.id || null : null);
+  
+  const detailData = isDraft ? draftDetailData : activeDetailData;
+  const isLoading = isDraft ? isDraftLoading : isActiveLoading;
   const fullPolicy = detailData?.data;
 
   const rolesApi = useGetCompanyRolesApi({}, { enabled: !!policy });
@@ -347,7 +352,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
     if (!fullPolicy?.scope) return policy.appliedTo;
     const scope = fullPolicy.scope;
     const deptIds = scope.type === "specific" ? scope.departments || [] : [];
-    const roleIds = scope.type === "specific" ? scope.userRoles || fullPolicy.applicableRoles || [] : [];
+    const roleIds = scope.type === "specific" ? scope.userRoles || (fullPolicy as any).applicableRoles || [] : [];
     const depts = deptIds.map((d: string) => {
       const dept = asArray(departmentsApi.data?.data).filter(isRecord).find((o) => String(o.departmentId) === String(d));
       return dept ? pickString(dept, "departmentName") || d : d;
@@ -374,9 +379,9 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
 
   const policyName   = fullPolicy?.name   || policy.name;
   const policyStatus = fullPolicy?.status || policy.status;
-  const policyVersion = fullPolicy?.version || policy.version;
-  const approvers    = fullPolicy?.approvers || policy.approvers || [];
-  const createdAt    = fullPolicy?.createdAt;
+  const policyVersion = (fullPolicy as any)?.version || policy.version;
+  const approvers    = (fullPolicy as any)?.approvers || policy.approvers || [];
+  const createdAt    = (fullPolicy as any)?.createdAt;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -479,7 +484,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                       const isBlock = getString(r.enforcementAction) === "block";
                       const enforcement = isBlock ? "Hard Block" : "Soft Warning";
                       const description = isLimit
-                        ? `Must not exceed ${pickString(r, "currency") || "NGN"} ${Number(r.amount || 0).toLocaleString()}/${mapTimeframe(getOptionalString(r.timeUnit) || getOptionalString(r.time_unit) || getOptionalString(r.timeframe) || fullPolicy?.spendLimitPeriod)}`
+                        ? `Must not exceed ${pickString(r, "currency") || "NGN"} ${Number(r.amount || 0).toLocaleString()}/${mapTimeframe(getOptionalString(r.timeUnit) || getOptionalString(r.time_unit) || getOptionalString(r.timeframe) || (fullPolicy as any)?.spendLimitPeriod)}`
                         : (r.receiptAmountThreshold || r.threshold)
                           ? `For transactions above ${pickString(r, "currency") || "NGN"} ${Number(r.receiptAmountThreshold || r.threshold).toLocaleString()}`
                           : "Required for all transactions";
@@ -522,7 +527,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
               <div>
                 <p className="text-[11px] text-[#68726d] mb-1.5">Created by</p>
                 <p className="text-sm font-semibold text-[#0b100e] leading-tight">
-                  {formatUser(fullPolicy?.createdBy, policy.createdBy)}
+                  {formatUser((fullPolicy as any)?.createdBy, policy.createdBy)}
                 </p>
                 <p className="text-xs text-[#68726d] mt-0.5">{formatDate(createdAt, policy.date)}</p>
               </div>
@@ -714,6 +719,10 @@ function PoliciesPage() {
   const [editingStep, setEditingStep] = useState<1 | 2 | 3 | 4>(1);
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
 
+  const [editingProcurementPolicyId, setEditingProcurementPolicyId] = useState<string | null>(null);
+  const [editingProcurementDraftId, setEditingProcurementDraftId] = useState<string | null>(null);
+  const [procurementWizardStep, setProcurementWizardStep] = useState<number>(1);
+
   const can = useAuthStore(s => s.can);
   const canReadExpenseCategories = can('expense.category', 'read') || can('expense.category', 'manage');
   const canReadPolicies = can('policy', 'read') || can('policy', 'manage') || can('policy', 'create');
@@ -799,7 +808,7 @@ function PoliciesPage() {
       const rules = asArray(p.rules).filter(isRecord);
 
       return {
-        id: pickString(p, "policyId", "id") || Math.random().toString(),
+        id: pickString(p, "procurementPolicyId", "policyId", "id") || Math.random().toString(),
         name: getString(p.name),
         version: Number(p.version) || 1,
         category: getCatNames(asArray(p.expenseCategories)),
@@ -1200,6 +1209,9 @@ function PoliciesPage() {
       <div className="h-full flex flex-col">
         <div className="bg-white rounded-[1.25rem] flex-1 flex flex-col min-h-0 overflow-hidden">
           <ProcurementPolicyWizard
+            policyId={editingProcurementPolicyId}
+            initialDraftId={editingProcurementDraftId}
+            initialStep={procurementWizardStep}
             onCancel={() => setProcurementView("list")}
             onComplete={() => setProcurementView("list")}
           />
@@ -1215,7 +1227,24 @@ function PoliciesPage() {
       {policyType === "procurement" ? (
         <ProcurementPolicySection
           canCreate={canCreatePolicy}
-          onCreateClick={() => setProcurementView("create")}
+          onCreateClick={() => {
+            setEditingProcurementPolicyId(null);
+            setEditingProcurementDraftId(null);
+            setProcurementWizardStep(1);
+            setProcurementView("create");
+          }}
+          onEdit={(p) => {
+            setEditingProcurementPolicyId(p.status !== "draft" ? p.procurementPolicyId : null);
+            setEditingProcurementDraftId(p.status === "draft" ? p.procurementPolicyId : null);
+            setProcurementWizardStep(1);
+            setProcurementView("create");
+          }}
+          onSubmitDraft={(p) => {
+            setEditingProcurementPolicyId(null);
+            setEditingProcurementDraftId(p.procurementPolicyId);
+            setProcurementWizardStep(5);
+            setProcurementView("create");
+          }}
         />
       ) : (
       <>

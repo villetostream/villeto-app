@@ -338,11 +338,15 @@ export function StepReview({ draft }: { draft: PolicyDraft }) {
                   <div>
                     <label className="block text-[11px] text-[#68726d] mb-1">Amount</label>
                     <Input
-                      type="number"
-                      min={0}
-                      value={simAmount}
-                      onChange={(e) => setSimAmount(e.target.value)}
-                      className="h-10 rounded-[14px] text-sm"
+                      type="text"
+                      value={simAmount ? simAmount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") : ""}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9.]/g, "");
+                        const parts = raw.split(".");
+                        const numericStr = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
+                        setSimAmount(numericStr);
+                      }}
+                      className="h-10 rounded-[14px] text-sm tabular-nums"
                     />
                   </div>
                   <div>

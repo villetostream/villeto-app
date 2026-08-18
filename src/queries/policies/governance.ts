@@ -83,9 +83,9 @@ export const useUpdateApprovalSettings = (target: PolicyTarget) => {
       const res = await axios.put(POLICY_GOVERNANCE_KEYS.UPDATE_APPROVAL_SETTINGS(target), payload);
       return res.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.policyGovernance.all });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.policyGovernance.byTarget(target) });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.policyGovernance.all, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.policyGovernance.byTarget(target), refetchType: "all" });
     },
   });
 };

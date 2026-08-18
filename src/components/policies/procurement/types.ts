@@ -89,7 +89,7 @@ export interface PolicyRule {
 
 // ─── Exceptions (UI only) ─────────────────────────────────────────────────────
 
-export type ExceptionCategory = "user" | "department" | "role" | "jobGrade" | "managementLevel" | "position" | "location";
+export type ExceptionCategory = "user" | "department" | "role" | "jobGrade" | "managementLevel" | "location";
 export type ExceptionSelection = Record<ExceptionCategory, string[]>;
 
 // ─── Priorities ───────────────────────────────────────────────────────────────
@@ -123,6 +123,7 @@ export interface PolicyDraft {
   expiresAt: string;
   priority: number;
   draftId?: string;
+  procurementPolicyId?: string;
 }
 
 export const emptyRule = (index: number): PolicyRule => ({
@@ -143,7 +144,7 @@ export const emptyDraft = (): PolicyDraft => ({
   jobGradeIds: [],
   managementLevelIds: [],
   vendorIds: [],
-  exceptions: { department: [], role: [], location: [], user: [], jobGrade: [], managementLevel: [], position: [] },
+  exceptions: { department: [], role: [], location: [], user: [], jobGrade: [], managementLevel: [] },
   rules: [],
   requiresApproval: false,
   approvalMode: "none",

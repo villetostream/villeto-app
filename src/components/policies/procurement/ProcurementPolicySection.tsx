@@ -13,6 +13,7 @@ import {
   ShoppingCart,
   Pencil,
   Archive,
+  Trash2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -27,7 +28,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ColumnDef } from "@tanstack/react-table";
 import { ProcurementPolicyDetailsModal } from "./ProcurementPolicyDetailsModal";
 import { POLICY_GROUPS } from "./constants";
-import { useGetProcurementPolicies } from "@/queries/procurement/policies";
+import { useGetProcurementPolicies, useDeleteProcurementPolicyDraft } from "@/queries/procurement/policies";
 import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Button } from "@/components/ui/button";
@@ -65,12 +66,16 @@ function StatusBadge({ status }: { status: string }) {
 export function ProcurementPolicySection({
   canCreate,
   onCreateClick,
+  onEdit,
+  onSubmitDraft,
 }: {
   canCreate: boolean;
   onCreateClick: () => void;
+  onEdit?: (p: ProcurementPolicyApiRecord) => void;
+  onSubmitDraft?: (p: ProcurementPolicyApiRecord) => void;
 }) {
   const [search, setSearch] = useState("");
-  const [detailPolicy, setDetailPolicy] = useState<ProcurementPolicyApiRecord | null>(null);
+  const [detailPolicy, setDetailPolicy] = useState<{ id: string; isDraft: boolean } | null>(null);
 
   const tableProps = useDataTable({
     initialPage: 1,
@@ -82,6 +87,7 @@ export function ProcurementPolicySection({
   });
 
   const { data, isLoading, refetch, isRefetching } = useGetProcurementPolicies(1, 1000);
+  const deleteDraftMutation = useDeleteProcurementPolicyDraft();
   const policies = useMemo<ProcurementPolicyApiRecord[]>(() => data?.data ?? [], [data?.data]);
 
   const approvedCount = useMemo(() => policies.filter((p) => ["approved", "active"].includes(p.status)).length, [policies]);
@@ -167,28 +173,37 @@ export function ProcurementPolicySection({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
                 <DropdownMenuItem
-                  onClick={() => setDetailPolicy(row.original)}
+                  onClick={() => setDetailPolicy({ id: row.original.procurementPolicyId, isDraft: row.original.status === "draft" })}
                   className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
                 >
                   <Eye className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
                   View Details
                 </DropdownMenuItem>
-                {canUpdate && (
+                {canUpdate && onEdit && (
                   <DropdownMenuItem
-                    onClick={() => setDetailPolicy(row.original)}
+                    onClick={() => onEdit(row.original)}
                     className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
                   >
                     <Pencil className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
                     Edit
                   </DropdownMenuItem>
                 )}
-                {canDeactivate && (
+                {canDeactivate && row.original.status !== "draft" && (
                   <DropdownMenuItem
-                    onClick={() => setDetailPolicy(row.original)}
+                    onClick={() => setDetailPolicy({ id: row.original.procurementPolicyId, isDraft: false })}
                     className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors cursor-pointer"
                   >
                     <Archive className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
                     Archive Policy
+                  </DropdownMenuItem>
+                )}
+                {canUpdate && row.original.status === "draft" && (
+                  <DropdownMenuItem
+                    onClick={() => deleteDraftMutation.mutateAsync(row.original.procurementPolicyId)}
+                    className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-[17px] h-[17px] text-red-500 shrink-0" strokeWidth={1.5} />
+                    Delete Draft
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
@@ -197,7 +212,7 @@ export function ProcurementPolicySection({
         ),
       },
     ],
-    [canUpdate, canDeactivate]
+    [canUpdate, canDeactivate, setDetailPolicy, onEdit, deleteDraftMutation]
   );
 
   return (
@@ -271,14 +286,34 @@ export function ProcurementPolicySection({
                   />
                 </div>
               }
-              onRowClick={(row) => setDetailPolicy(row)}
+              onRowClick={(row) => setDetailPolicy({ id: row.procurementPolicyId, isDraft: row.status === "draft" })}
               paginationProps={tableProps.paginationProps}
             />
           </div>
         )}
       </div>
 
-      <ProcurementPolicyDetailsModal policy={detailPolicy} onClose={() => setDetailPolicy(null)} />
+      <ProcurementPolicyDetailsModal 
+        policyId={detailPolicy?.id ?? null} 
+        isDraft={detailPolicy?.isDraft}
+        onEdit={(p) => {
+          if (onEdit) onEdit(p);
+          setDetailPolicy(null);
+        }}
+        onSubmitDraft={(p) => {
+          if (onSubmitDraft) onSubmitDraft(p);
+          setDetailPolicy(null);
+        }}
+        onArchive={(p) => {
+          // Archiving procurement policies to be implemented
+          setDetailPolicy(null);
+        }}
+        onDeleteDraft={async (draftId) => {
+          await deleteDraftMutation.mutateAsync(draftId);
+          setDetailPolicy(null);
+        }}
+        onClose={() => setDetailPolicy(null)} 
+      />
     </>
   );
 }

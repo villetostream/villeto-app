@@ -13,24 +13,83 @@ import { StepRules } from "./steps/StepRules";
 import { StepReview } from "./steps/StepReview";
 import { emptyDraft } from "./types";
 import type { PolicyDraft } from "./types";
-import { useCreateProcurementPolicy, useCreateProcurementPolicyDraft, useUpdateProcurementPolicyDraft } from "@/queries/procurement/policies";
+import { useCreateProcurementPolicy, useUpdateProcurementPolicy, useCreateProcurementPolicyDraft, useUpdateProcurementPolicyDraft, useGetProcurementPolicyById, useGetProcurementPolicyDraftById } from "@/queries/procurement/policies";
+import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
 
 const TOTAL_STEPS = 5;
 
 export function ProcurementPolicyWizard({
+  policyId,
+  initialDraftId,
+  initialStep = 1,
   onCancel,
   onComplete,
 }: {
+  policyId?: string | null;
+  initialDraftId?: string | null;
+  initialStep?: number;
   onCancel: () => void;
   onComplete: () => void;
 }) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(initialStep);
   const [draft, setDraft] = useState<PolicyDraft>(emptyDraft());
   const { setBackHandler, clearBackHandler } = useHeaderBackStore();
   const stepRef = useRef(step);
   const createPolicy = useCreateProcurementPolicy();
+  const updatePolicy = useUpdateProcurementPolicy(policyId || "");
   const createDraft = useCreateProcurementPolicyDraft();
   const updateDraft = useUpdateProcurementPolicyDraft();
+
+  const { data: activeData, isLoading: isActiveLoading } = useGetProcurementPolicyById(policyId || "", {
+    enabled: !!policyId,
+  });
+  const { data: draftData, isLoading: isDraftLoading } = useGetProcurementPolicyDraftById(initialDraftId || "", {
+    enabled: !!initialDraftId,
+  });
+
+  const isLoading = isActiveLoading || isDraftLoading;
+
+  useEffect(() => {
+    const data = policyId ? activeData?.data : (initialDraftId ? draftData?.data : null);
+    if (data) {
+      setDraft({
+        policyGroup: data.policyGroup as any || null,
+        name: data.name || "",
+        description: data.description || "",
+        scopeType: (data.scopeType as "company" | "specific") || "company",
+        categoryIds: data.categories?.map((c) => c.id || c.categoryId) || [],
+        departmentIds: (data.departments || data.applicableDepartments)?.map((d) => d.id || d.departmentId) || [],
+        roleIds: data.applicableRoles?.map((r) => r.id || r.roleId) || [],
+        jobGradeIds: data.jobGrades?.map((jg) => jg.id || jg.jobGradeId) || [],
+        managementLevelIds: data.managementLevels?.map((ml) => ml.id || ml.managementLevelId) || [],
+        vendorIds: data.vendors?.map((v) => v.id || v.vendorId) || [],
+        exceptions: { department: [], role: [], location: [], user: [], jobGrade: [], managementLevel: [] },
+        rules: (data.rules || []).map((r, i): any => ({
+          id: `rule-${Date.now()}-${i}`,
+          criteriaLabel: r.criteria || "",
+          condition: r.condition || "",
+          enforcementAction: r.enforcementAction || "",
+          amount: r.amount,
+          currency: r.currency,
+          timeUnit: r.timeUnit as any,
+          minimumQuotes: r.minimumQuotes,
+          maxCount: r.maxCount,
+          allowedVendorIds: r.allowedVendorIds,
+          allowedRoleIds: r.allowedRoleIds,
+          allowedPositions: r.allowedPositions,
+          requiredAttachmentTypes: r.requiredAttachmentTypes,
+        })),
+        requiresApproval: !!data.requiresApproval,
+        approvalMode: (data.approvalMode as "none" | "sequential" | "parallel") || "none",
+        approverIds: data.approvers?.map((a) => a.id || a.userId) || [],
+        effectiveAt: data.effectiveAt || "",
+        expiresAt: data.expiresAt || "",
+        priority: data.priority ?? 100,
+        draftId: initialDraftId || undefined,
+        procurementPolicyId: policyId || undefined,
+      });
+    }
+  }, [activeData?.data, draftData?.data, policyId, initialDraftId]);
 
   useEffect(() => { stepRef.current = step; }, [step]);
 
@@ -69,7 +128,7 @@ export function ProcurementPolicyWizard({
     switch (step) {
       case 1: return "Please select a policy group to continue.";
       case 2: return "Please enter a policy name before continuing.";
-      case 4: return "Each rule must have a condition and enforcement action selected.";
+      case 4: return draft.rules.length === 0 ? "You must add at least one rule to continue." : "Each rule must have a condition and enforcement action selected.";
       default: return "";
     }
   };
@@ -83,13 +142,18 @@ export function ProcurementPolicyWizard({
     if (step >= TOTAL_STEPS) {
       // Submit to backend
       try {
-        await createPolicy.mutateAsync(draft);
-        toast.success("Procurement policy created successfully.");
+        if (policyId) {
+          await updatePolicy.mutateAsync(draft);
+          toast.success("Procurement policy updated successfully.");
+        } else {
+          await createPolicy.mutateAsync(draft);
+          toast.success("Procurement policy created successfully.");
+        }
         onComplete();
       } catch (err: unknown) {
         const message =
           (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          "Failed to create policy. Please try again.";
+          "Failed to save policy. Please try again.";
         toast.error(message);
       }
       return;
@@ -114,10 +178,21 @@ export function ProcurementPolicyWizard({
       }
       toast.success("Draft saved successfully.");
       onComplete(); // Assuming we return to the main policies page after saving
-    } catch (e) {
-      toast.error("Failed to save draft.");
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        "Failed to save draft. Please try again.";
+      toast.error(message);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-0 bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-[#087f70]" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
@@ -195,22 +270,24 @@ export function ProcurementPolicyWizard({
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Saving…
                 </>
+              ) : draft.draftId ? (
+                "Save Changes"
               ) : (
                 "Save as Draft"
               )}
             </button>
             <button
               onClick={goNext}
-              disabled={!canContinue() || createPolicy.isPending || createDraft.isPending || updateDraft.isPending}
+              disabled={!canContinue() || createPolicy.isPending || updatePolicy.isPending || createDraft.isPending || updateDraft.isPending}
               className="h-11 px-7 min-w-[140px] rounded-[14px] bg-[#087f70] text-white hover:opacity-90 font-semibold text-sm transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
             >
-              {createPolicy.isPending ? (
+              {(createPolicy.isPending || updatePolicy.isPending) ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Creating…
+                  Saving…
                 </>
               ) : step === TOTAL_STEPS ? (
-                "Create Policy"
+                policyId ? "Save Changes" : "Create Policy"
               ) : (
                 "Continue"
               )}

@@ -1343,7 +1343,7 @@ function PRDetailPage() {
   const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isConvertingPartially, setIsConvertingPartially] = useState(false);
   const pr: PurchaseRequestDetail | undefined = data?.data;
-  const departments = (deptData?.data || []).map(d => ({ label: d.departmentName || d.name || "Unknown", value: d.departmentId }));
+  const departments: { label: string; value: string }[] = (deptData?.data || []).map(d => ({ label: d.departmentName || d.name || "Unknown", value: d.departmentId }));
   
   // Try to find the category name across all parent and child categories
   const allCategories = useMemo(() => {

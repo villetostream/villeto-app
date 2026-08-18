@@ -33,11 +33,15 @@ export interface ProcurementPolicyApiRecord {
     allowedPositions?: string[];
     requiredAttachmentTypes?: string[];
   }[];
-  categoryIds?: string[];
-  departmentIds?: string[];
-  roleIds?: string[];
-  vendorIds?: string[];
-  approverIds?: string[];
+  categories?: any[];
+  departments?: any[];
+  applicableDepartments?: any[];
+  applicableRoles?: any[];
+  jobGrades?: any[];
+  managementLevels?: any[];
+  vendors?: any[];
+  approvers?: any[];
+  createdBy?: any;
   createdAt: string;
   updatedAt: string;
 }
@@ -141,8 +145,8 @@ export const useCreateProcurementPolicy = () => {
       const res = await axios.post(PROCUREMENT_KEYS.PROCUREMENT_POLICIES, buildPayload(draft));
       return res.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
     },
   });
 };
@@ -153,17 +157,37 @@ export const useUpdateProcurementPolicy = (id: string) => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (draft: PolicyDraft) => {
-      const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id), buildPayload(draft));
+      const payload = buildPayload(draft);
+      delete payload.draftId; // Ensure draftId is not sent when updating an active policy
+      payload.procurementPolicyId = id; // Add procurementPolicyId to payload
+      const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id), payload);
       return res.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policy(id) });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policy(id), refetchType: "all" });
     },
   });
 };
 
 // ─── Draft hooks ─────────────────────────────────────────────────────────────
+
+export const useGetProcurementPolicyDraftById = (
+  draftId: string,
+  options?: Omit<UseQueryOptions<PolicyDetailResponse, Error>, "queryKey" | "queryFn">
+) => {
+  const axios = useAxios();
+  return useQuery<PolicyDetailResponse, Error>({
+    queryKey: [...QUERY_KEYS.procurement.policy(draftId), "draft"],
+    queryFn: async () => {
+      const res = await axios.get(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId));
+      return res.data;
+    },
+    enabled: !!draftId,
+    staleTime: STALE_TIMES.NORMAL,
+    ...options,
+  });
+};
 
 export const useCreateProcurementPolicyDraft = () => {
   const axios = useAxios();
@@ -184,11 +208,28 @@ export const useUpdateProcurementPolicyDraft = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ draftId, payload }: { draftId: string; payload: PolicyDraft }) => {
-      const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId), buildPayload(payload));
+      const p = buildPayload(payload);
+      p.draftId = draftId; // Ensure draftId is sent
+      delete p.procurementPolicyId; // Ensure procurementPolicyId is not sent
+      const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId), p);
       return res.data;
     },
     onSuccess: () => {
       // invalidate drafts query if exists
+    },
+  });
+};
+
+export const useDeleteProcurementPolicyDraft = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (draftId: string) => {
+      const res = await axios.delete(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId));
+      return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
     },
   });
 };
@@ -202,8 +243,8 @@ export const useDeleteProcurementPolicy = () => {
       const res = await axios.delete(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id));
       return res.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
     },
   });
 };
@@ -217,8 +258,8 @@ export const useProcurementPolicyAction = () => {
       const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY_ACTION(id, action));
       return res.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
     },
   });
 };
@@ -228,6 +269,7 @@ export const useProcurementPolicyAction = () => {
 function buildPayload(draft: PolicyDraft) {
   return {
     draftId: draft.draftId,
+    procurementPolicyId: draft.procurementPolicyId,
     name: draft.name.trim(),
     description: draft.description.trim() || undefined,
     policyGroup: draft.policyGroup,
@@ -255,7 +297,6 @@ function buildPayload(draft: PolicyDraft) {
       departmentIds: draft.exceptions.department ?? [],
       jobGradeIds: draft.exceptions.jobGrade ?? [],
       managementLevelIds: draft.exceptions.managementLevel ?? [],
-      positions: draft.exceptions.position ?? [],
     },
     effectiveAt: draft.effectiveAt || undefined,
     expiresAt: draft.expiresAt || undefined,
