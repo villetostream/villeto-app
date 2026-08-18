@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
 interface BulkImportResponse {
     message: string;
@@ -25,10 +25,10 @@ export const useBulkImportApi = () => {
             return res.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USERS] });
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.DIRECTORY_USERS] });
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.INVITED_USERS] });
-            queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.UNINVITED_USERS] });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.users() });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.directoryUsers });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.invitedUsers });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.uninvitedUsers });
         },
     });
 };

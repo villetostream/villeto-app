@@ -4,9 +4,9 @@ import { useState } from "react";
 import { Check, ChevronsUpDown, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
-import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import { useGetProcurementCategories, type ProcurementCategory } from "@/queries/procurement/purchase-requests";
 import { useGetVendors } from "@/queries/procurement/purchase-requests";
+import { useGetJobGradesApi, useGetManagementLevelsApi } from "@/queries/companies/get-company-references";
 import { AddExceptionModal } from "./AddExceptionModal";
 import type { ScopeType, PolicyDraft, ExceptionSelection, ExceptionCategory } from "../types";
 
@@ -21,6 +21,7 @@ function PillPicker({
   isLoading,
   getId,
   getName,
+  getBadge,
 }: {
   label: string;
   placeholder: string;
@@ -30,6 +31,7 @@ function PillPicker({
   isLoading?: boolean;
   getId: (item: unknown) => string;
   getName: (item: unknown) => string;
+  getBadge?: (item: unknown) => string | undefined;
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -54,7 +56,14 @@ function PillPicker({
               key={getId(item)}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-primary/30 bg-primary/5 text-xs font-medium text-primary"
             >
-              {getName(item)}
+              <span className="flex items-center gap-1.5">
+                {getName(item)}
+                {getBadge?.(item) && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-[9px] font-semibold text-primary uppercase tracking-wide">
+                    {getBadge(item)}
+                  </span>
+                )}
+              </span>
               <button
                 type="button"
                 onClick={() => onToggle(getId(item))}
@@ -120,6 +129,11 @@ function PillPicker({
                         {isSelected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
                       </span>
                       {name}
+                      {getBadge?.(item) && (
+                        <span className="ml-auto px-1.5 py-0.5 rounded-full bg-[#f5f7f6] text-[10px] font-medium text-[#68726d] truncate">
+                          {getBadge(item)}
+                        </span>
+                      )}
                     </button>
                   );
                 })
@@ -172,6 +186,8 @@ type Props = {
   categoryIds: string[];
   departmentIds: string[];
   roleIds: string[];
+  jobGradeIds: string[];
+  managementLevelIds: string[];
   vendorIds: string[];
   exceptions: ExceptionSelection;
   onChange: (patch: Partial<PolicyDraft>) => void;
@@ -182,6 +198,8 @@ export function StepScope({
   categoryIds,
   departmentIds,
   roleIds,
+  jobGradeIds,
+  managementLevelIds,
   vendorIds,
   exceptions,
   onChange,
@@ -190,8 +208,9 @@ export function StepScope({
 
   const categoriesQ = useGetProcurementCategories({ enabled: scopeType === "specific" });
   const deptsQ = useGetAllDepartmentsApi({ enabled: scopeType === "specific" });
-  const rolesQ = useGetAllRolesApi({ limit: 100 }, { enabled: scopeType === "specific" });
   const vendorsQ = useGetVendors({ enabled: scopeType === "specific" });
+  const jobGradesQ = useGetJobGradesApi({ enabled: scopeType === "specific" });
+  const mgmtLevelsQ = useGetManagementLevelsApi({ enabled: scopeType === "specific" });
 
   // Flatten categories (parent + children)
   const allCategories: { categoryId: string; name: string }[] = [];
@@ -203,14 +222,38 @@ export function StepScope({
   });
 
   const departments: { departmentId: string; departmentName: string }[] =
-    deptsQ.data?.data ?? [];
-  const roles: { roleId: string; name: string }[] = rolesQ.data?.data ?? [];
+    (deptsQ.data?.data as any) ?? [];
   const vendors: { vendorId: string; displayName: string }[] = vendorsQ.data?.data ?? [];
+  const jobGrades = jobGradesQ.data?.data?.jobGrades ?? [];
+  const mgmtLevels = mgmtLevelsQ.data?.data?.managementLevels ?? [];
 
-  const toggle = (key: keyof Pick<PolicyDraft, "categoryIds" | "departmentIds" | "roleIds" | "vendorIds">, id: string) => {
+  const unifiedMgmtGradeItems = [
+    ...mgmtLevels.map(ml => ({
+      id: ml.managementLevelId,
+      name: ml.name || ml.code || "Unknown Management Level",
+      type: "Management Level"
+    })),
+    ...jobGrades.map(jg => ({
+      id: jg.jobGradeId,
+      name: jg.name || jg.code || "Unknown Job Grade",
+      type: "Job Grade"
+    }))
+  ];
+
+  const unifiedSelection = [...jobGradeIds, ...managementLevelIds];
+
+  const toggleUnified = (id: string) => {
+    const isJobGrade = jobGrades.some(jg => jg.jobGradeId === id);
+    if (isJobGrade) toggle("jobGradeIds", id);
+    else toggle("managementLevelIds", id);
+  };
+
+  const toggle = (key: keyof Pick<PolicyDraft, "categoryIds" | "departmentIds" | "roleIds" | "jobGradeIds" | "managementLevelIds" | "vendorIds">, id: string) => {
     const current = key === "categoryIds" ? categoryIds
       : key === "departmentIds" ? departmentIds
       : key === "roleIds" ? roleIds
+      : key === "jobGradeIds" ? jobGradeIds
+      : key === "managementLevelIds" ? managementLevelIds
       : vendorIds;
     const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
     onChange({ [key]: next });
@@ -225,7 +268,7 @@ export function StepScope({
     });
   };
 
-  const hasExceptions = exceptions.department.length > 0 || exceptions.role.length > 0 || exceptions.location.length > 0;
+  const hasExceptions = (Object.keys(exceptions) as ExceptionCategory[]).some(cat => exceptions[cat]?.length > 0);
 
   return (
     <div>
@@ -284,14 +327,27 @@ export function StepScope({
             />
 
             <PillPicker
-              label="Roles"
-              placeholder="Select roles…"
-              items={roles}
-              selected={roleIds}
-              onToggle={(id) => toggle("roleIds", id)}
-              isLoading={rolesQ.isLoading}
-              getId={(i) => (i as { roleId: string }).roleId}
+              label={
+                jobGrades.length > 0 && mgmtLevels.length > 0
+                  ? "Management Levels / Job Grades"
+                  : jobGrades.length > 0
+                  ? "Job Grades"
+                  : "Management Levels"
+              }
+              placeholder={
+                jobGrades.length > 0 && mgmtLevels.length > 0
+                  ? "Select management levels / job grades…"
+                  : jobGrades.length > 0
+                  ? "Select job grades…"
+                  : "Select management levels…"
+              }
+              items={unifiedMgmtGradeItems}
+              selected={unifiedSelection}
+              onToggle={toggleUnified}
+              isLoading={jobGradesQ.isLoading || mgmtLevelsQ.isLoading}
+              getId={(i) => (i as { id: string }).id}
               getName={(i) => (i as { name: string }).name}
+              getBadge={(i) => (i as { type: string }).type}
             />
 
             <PillPicker
@@ -326,8 +382,8 @@ export function StepScope({
 
           {hasExceptions ? (
             <div className="flex flex-wrap gap-2 mt-4">
-              {(["department", "role", "location"] as ExceptionCategory[]).flatMap((cat) =>
-                exceptions[cat].map((item) => (
+              {(Object.keys(exceptions) as ExceptionCategory[]).flatMap((cat) =>
+                (exceptions[cat] || []).map((item) => (
                   <span
                     key={`${cat}-${item}`}
                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-black/[0.06] bg-[#f9faf9]/40 text-xs font-medium text-foreground"

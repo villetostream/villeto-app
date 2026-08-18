@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import type { PolicyDraft } from "@/components/policies/procurement/types";
 
@@ -33,11 +33,15 @@ export interface ProcurementPolicyApiRecord {
     allowedPositions?: string[];
     requiredAttachmentTypes?: string[];
   }[];
-  categoryIds?: string[];
-  departmentIds?: string[];
-  roleIds?: string[];
-  vendorIds?: string[];
-  approverIds?: string[];
+  categories?: any[];
+  departments?: any[];
+  applicableDepartments?: any[];
+  applicableRoles?: any[];
+  jobGrades?: any[];
+  managementLevels?: any[];
+  vendors?: any[];
+  approvers?: any[];
+  createdBy?: any;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,7 +71,7 @@ async function fetchAllProcurementPoliciesLoop(axios: any, url: string, page: nu
   const firstRes = await axios.get(`${url}?page=1&limit=100`);
   const firstPageData = firstRes.data;
   
-  const totalPages = firstPageData?.meta?.totalPages || 1;
+  const totalPages = Math.min(Number(firstPageData?.meta?.totalPages) || 1, 50); // Cap at 50 pages to prevent hangs
   let allData = firstPageData?.data || [];
   
   if (totalPages > 1) {
@@ -87,7 +91,7 @@ async function fetchAllProcurementPoliciesLoop(axios: any, url: string, page: nu
     ...firstPageData,
     data: allData,
     meta: {
-      ...firstPageData.meta,
+      ...firstPageData?.meta,
       totalCount: allData.length,
       limit: allData.length,
       totalPages: 1,
@@ -104,11 +108,12 @@ export const useGetProcurementPolicies = (
 ) => {
   const axios = useAxios();
   return useQuery<PoliciesListResponse, Error>({
-    queryKey: [QUERY_KEYS.PROCUREMENT_POLICIES, { page, limit }],
+    queryKey: [...QUERY_KEYS.procurement.policies, { page, limit }],
     queryFn: async () => {
       return fetchAllProcurementPoliciesLoop(axios, PROCUREMENT_KEYS.PROCUREMENT_POLICIES, page, limit);
     },
     staleTime: STALE_TIMES.NORMAL,
+    retry: 1, // Don't retry 3 times if the endpoint doesn't exist yet, to avoid long loading states
     ...options,
   });
 };
@@ -120,7 +125,7 @@ export const useGetProcurementPolicyById = (
 ) => {
   const axios = useAxios();
   return useQuery<PolicyDetailResponse, Error>({
-    queryKey: [QUERY_KEYS.PROCUREMENT_POLICY, id],
+    queryKey: QUERY_KEYS.procurement.policy(id),
     queryFn: async () => {
       const res = await axios.get(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id));
       return res.data;
@@ -140,8 +145,8 @@ export const useCreateProcurementPolicy = () => {
       const res = await axios.post(PROCUREMENT_KEYS.PROCUREMENT_POLICIES, buildPayload(draft));
       return res.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PROCUREMENT_POLICIES] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
     },
   });
 };
@@ -152,12 +157,79 @@ export const useUpdateProcurementPolicy = (id: string) => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (draft: PolicyDraft) => {
-      const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id), buildPayload(draft));
+      const payload = buildPayload(draft);
+      delete payload.draftId; // Ensure draftId is not sent when updating an active policy
+      payload.procurementPolicyId = id; // Add procurementPolicyId to payload
+      const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id), payload);
+      return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policy(id), refetchType: "all" });
+    },
+  });
+};
+
+// ─── Draft hooks ─────────────────────────────────────────────────────────────
+
+export const useGetProcurementPolicyDraftById = (
+  draftId: string,
+  options?: Omit<UseQueryOptions<PolicyDetailResponse, Error>, "queryKey" | "queryFn">
+) => {
+  const axios = useAxios();
+  return useQuery<PolicyDetailResponse, Error>({
+    queryKey: [...QUERY_KEYS.procurement.policy(draftId), "draft"],
+    queryFn: async () => {
+      const res = await axios.get(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId));
+      return res.data;
+    },
+    enabled: !!draftId,
+    staleTime: STALE_TIMES.NORMAL,
+    ...options,
+  });
+};
+
+export const useCreateProcurementPolicyDraft = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (draft: PolicyDraft) => {
+      const res = await axios.post(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFTS, buildPayload(draft));
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PROCUREMENT_POLICIES] });
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PROCUREMENT_POLICY, id] });
+      // invalidate drafts query if exists
+    },
+  });
+};
+
+export const useUpdateProcurementPolicyDraft = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ draftId, payload }: { draftId: string; payload: PolicyDraft }) => {
+      const p = buildPayload(payload);
+      p.draftId = draftId; // Ensure draftId is sent
+      delete p.procurementPolicyId; // Ensure procurementPolicyId is not sent
+      const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId), p);
+      return res.data;
+    },
+    onSuccess: () => {
+      // invalidate drafts query if exists
+    },
+  });
+};
+
+export const useDeleteProcurementPolicyDraft = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (draftId: string) => {
+      const res = await axios.delete(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId));
+      return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
     },
   });
 };
@@ -171,8 +243,8 @@ export const useDeleteProcurementPolicy = () => {
       const res = await axios.delete(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id));
       return res.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PROCUREMENT_POLICIES] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
     },
   });
 };
@@ -186,8 +258,8 @@ export const useProcurementPolicyAction = () => {
       const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY_ACTION(id, action));
       return res.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PROCUREMENT_POLICIES] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
     },
   });
 };
@@ -196,6 +268,8 @@ export const useProcurementPolicyAction = () => {
 
 function buildPayload(draft: PolicyDraft) {
   return {
+    draftId: draft.draftId,
+    procurementPolicyId: draft.procurementPolicyId,
     name: draft.name.trim(),
     description: draft.description.trim() || undefined,
     policyGroup: draft.policyGroup,
@@ -217,17 +291,20 @@ function buildPayload(draft: PolicyDraft) {
       if (r.requiredAttachmentTypes?.length) rule.requiredAttachmentTypes = r.requiredAttachmentTypes;
       return rule;
     }),
-    requiresApproval: draft.requiresApproval,
-    approvalMode: draft.approvalMode,
-    approvalConfig: {},
     overridePermissions: {},
+    exceptionConfig: {
+      userIds: draft.exceptions.user ?? [],
+      departmentIds: draft.exceptions.department ?? [],
+      jobGradeIds: draft.exceptions.jobGrade ?? [],
+      managementLevelIds: draft.exceptions.managementLevel ?? [],
+    },
     effectiveAt: draft.effectiveAt || undefined,
     expiresAt: draft.expiresAt || undefined,
     priority: draft.priority ?? 100,
     categoryIds: draft.categoryIds,
     departmentIds: draft.departmentIds,
-    roleIds: draft.roleIds,
+    jobGradeIds: draft.jobGradeIds,
+    managementLevelIds: draft.managementLevelIds,
     vendorIds: draft.vendorIds,
-    approverIds: draft.approverIds,
   };
 }

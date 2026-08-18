@@ -314,12 +314,16 @@ function RuleCard({
             <div>
               <label className="block text-[11px] text-[#68726d] mb-1.5">Amount</label>
               <Input
-                type="number"
-                min={0}
-                value={rule.amount ?? ""}
-                onChange={(e) => update({ amount: e.target.value ? Number(e.target.value) : undefined })}
-                placeholder="0"
-                className="h-11 rounded-[14px]"
+                type="text"
+                value={rule.amount ? rule.amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") : ""}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^0-9.]/g, "");
+                  const parts = raw.split(".");
+                  const numericStr = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
+                  update({ amount: numericStr ? Number(numericStr) : undefined });
+                }}
+                placeholder="0.00"
+                className="h-11 rounded-[14px] tabular-nums"
               />
             </div>
             <div>

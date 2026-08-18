@@ -1,40 +1,14 @@
-
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
-import { Role } from "../role/get-all-roles";
-import { Meta } from "../users/get-all-users";
-
-
 import { User } from "@/features/auth/types";
 
-export type AppUser = User;
 
-export interface Department {
-    departmentId: string;
-    departmentExternalId?: string | null;
-    departmentName: string;
-    description?: string | null;
-    departmentHeadId?: string | null;
-    departmentHeadName?: string | null;
-    parentDepartmentId?: string | null;
-    isActive: string;
-    head?: AppUser | null;
-    manager?: AppUser | null;
-    createdAt: string;
-    updatedAt: string;
-    deletedAt?: string | null;
-    
-    // Optional legacy fields to avoid breaking changes
-    code?: string | null;
-    company?: string | null;
-    members?: AppUser[];
-}
 interface Response {
     data: Department[]
-    meta: Meta
+    meta: Meta;
     error: {
         error: string;
         message?: string;
@@ -46,15 +20,58 @@ interface Response {
     statusText: string;
 }
 
+export interface AppUser {
+    userId: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    status?: string;
+    loginCount?: number;
+    department?: any;
+    departmentId?: string;
+    position?: string;
+    jobTitle?: string;
+    manager?: any;
+    villetoRole?: any;
+    employeeExternalId?: string;
+    businessUnit?: string;
+    location?: string;
+    managementLevel?: string;
+    jobGrade?: string;
+    employmentType?: string;
+    employeeStatus?: string;
+    cardIssued?: boolean;
+}
+
+export interface Meta {
+    totalCount: number;
+    totalPages: number;
+    currentPage: number;
+    limit: number;
+}
+export interface Department {
+    name: string;
+    departmentName?: string;
+    departmentId: string;
+    description: string;
+    isActive: boolean;
+    totalAssignedUsers: number;
+    departmentHead: User;
+    createdAt: Date;
+    updatedAt: Date;
+    code?: string;
+    head?: any;
+    manager?: any;
+    members?: any[];
+}
 
 export const useGetAllDepartmentsApi = (
-
     options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">
 ): UseQueryResult<Response, Error> => {
-    const axiosInstance = useAxios(); // 
+    const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.DEPARTMENTS],
+        queryKey: QUERY_KEYS.people.departments,
         queryFn: async () => {
             const apiUrl = `${API_KEYS.DEPARTMENT.DEPARTMENTS}`;
             const response = await axiosInstance.get(apiUrl);

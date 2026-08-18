@@ -479,7 +479,7 @@ function PRTable({
   const columns = [
     "Request No.", "Title",
     ...(showRequester ? ["Requester", "Department"] : ["Department"]),
-    "Priority", "Expected Date", "Status", "Action",
+    "Priority", "Need by Date", "Status", "Action",
   ];
 
   return (

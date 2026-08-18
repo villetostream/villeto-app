@@ -19,6 +19,7 @@ import {
 } from "@/queries/legal-entities";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { cn } from "@/lib/utils";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 const emptyForm: LegalEntityInput = {
   code: "",
@@ -37,7 +38,7 @@ const readinessLabel: Record<string, string> = {
   payment_workflow_ready: "Payment workflow ready",
 };
 
-export default function LegalEntitiesPage() {
+function LegalEntitiesPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<LegalEntityInput>(emptyForm);
   const { data, isLoading, error } = useLegalEntities();
@@ -239,3 +240,8 @@ export default function LegalEntitiesPage() {
     </div>
   );
 }
+
+export default withPermissions(LegalEntitiesPage, [
+  { resource: "legal_entity", action: "view" },
+]);
+

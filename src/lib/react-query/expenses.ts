@@ -10,10 +10,12 @@ import { useRouter } from "next/navigation";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import type { QueryClient } from "@tanstack/react-query";
 
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
+
 /** Invalidate all personal expense list queries (submitted + drafts). */
 export function invalidatePersonalExpenseQueries(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.REPORTS_SCOPED("own")] });
-  queryClient.invalidateQueries({ queryKey: ["expense-drafts"] });
+  queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.reports("own") });
+  queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.drafts });
 }
 
 // Define the payload type for submitting/saving expenses
@@ -198,7 +200,7 @@ export const usePersonalExpenses = (
   // Returning `error`/`refetch` here lets the caller show a real
   // error state with a retry action instead of a misleading empty one.
   return useQuery({
-    queryKey: [API_KEYS.EXPENSE.REPORTS_SCOPED("own"), page, limit, sortBy, sortOrder],
+    queryKey: [...QUERY_KEYS.expenses.reports("own"), page, limit, sortBy, sortOrder],
     enabled: authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -232,7 +234,7 @@ export const useDraftExpenses = (
   const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
-    queryKey: ["expense-drafts", page, limit, sortBy, sortOrder],
+    queryKey: [...QUERY_KEYS.expenses.drafts, page, limit, sortBy, sortOrder],
     enabled: authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -291,7 +293,7 @@ export const useCompanyExpenses = (
   const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
-    queryKey: [API_KEYS.EXPENSE.REPORTS_SCOPED(scope), page, limit, sortBy, sortOrder],
+    queryKey: [...QUERY_KEYS.expenses.reports(scope), page, limit, sortBy, sortOrder],
     enabled: !!scope && enabled && authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -318,7 +320,7 @@ export const usePersonalExpenseDetail = (reportId: string) => {
   const axios = useAxios();
 
   return useQuery({
-    queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES, reportId],
+    queryKey: QUERY_KEYS.expenses.report(reportId),
     queryFn: async () => {
       const response = await axios.get<PersonalExpenseDetailApiResponse>(
         `${API_KEYS.EXPENSE.PERSONAL_EXPENSES}/${reportId}`
@@ -352,7 +354,6 @@ export const useSubmitExpense = () => {
         `Your ${variables.expenses.length} expense(s) have been submitted successfully.`,
       );
       // Invalidate relevant queries to refetch data, e.g., personal expenses list
-      queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES] });
       invalidatePersonalExpenseQueries(queryClient);
       router.push("/expenses?tab=personal-expenses");
     },
@@ -397,7 +398,7 @@ export const useCompanyExpenseDetail = (reportId: string) => {
   const axios = useAxios();
 
   return useQuery({
-    queryKey: [API_KEYS.EXPENSE.COMPANY_REPORTS, reportId],
+    queryKey: QUERY_KEYS.expenses.companyReport(reportId),
     queryFn: async () => {
       const response = await axios.get<PersonalExpenseDetailApiResponse>(
         `reports/${reportId}`
@@ -442,9 +443,9 @@ export const useUpdateCompanyExpenseStatus = () => {
       const statusLabel = variables.status === "approved" ? "Approved" : "Rejected";
       toast.success(`Report ${statusLabel.toLowerCase()} successfully.`);
       // Invalidate queries to refetch updated data
-      queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.COMPANY_REPORTS] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.companyReports });
       queryClient.invalidateQueries({ 
-        queryKey: [API_KEYS.EXPENSE.COMPANY_REPORTS, variables.reportId] 
+        queryKey: QUERY_KEYS.expenses.companyReport(variables.reportId) 
       });
     },
     onError: (error: unknown) => {

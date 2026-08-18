@@ -1,7 +1,7 @@
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { Policy } from "./get-policies";
 
@@ -24,7 +24,7 @@ export const useGetPolicyByIdApi = (
   const axiosInstance = useAxios();
 
   return useQuery<GetPolicyByIdResponse, Error>({
-    queryKey: [QUERY_KEYS.POLICIES, id],
+    queryKey: QUERY_KEYS.expenses.policy(id),
     queryFn: async () => {
       const response = await axiosInstance.get(API_KEYS.EXPENSE.POLICY_BY_ID(id));
       return response.data;

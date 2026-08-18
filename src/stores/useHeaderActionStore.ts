@@ -5,6 +5,7 @@ export interface HeaderActionItem {
   onClick: () => void;
   disabled?: boolean;
   tooltip?: React.ReactNode;
+  description?: string;
 }
 
 export interface HeaderAction {

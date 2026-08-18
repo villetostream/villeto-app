@@ -1,7 +1,7 @@
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 export interface ExpenseCategory {
@@ -46,7 +46,7 @@ export const useGetExpenseCategoriesApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES],
+        queryKey: QUERY_KEYS.expenses.categories,
         queryFn: async () => {
             const response = await axiosInstance.get(API_KEYS.EXPENSE.CATEGORIES);
             return response.data;
@@ -61,7 +61,7 @@ export const useGetExpenseCategoriesWithPoliciesApi = (
 ): UseQueryResult<Response, Error> => {
     const axiosInstance = useAxios();
     return useQuery<Response, Error>({
-        queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES, "with-policies"],
+        queryKey: [...QUERY_KEYS.expenses.categories, "with-policies"],
         queryFn: async () => {
             const response = await axiosInstance.get(API_KEYS.EXPENSE.CATEGORIES_WITH_POLICIES);
             return response.data;

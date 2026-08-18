@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ export const useCreatePurchaseRequest = (): UseMutationResult<
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
     },
   });
 };
@@ -174,7 +174,7 @@ export const useGetPurchaseRequests = <TData = ApiResponse<PurchaseRequest[]>>(
 ): UseQueryResult<TData, Error> => {
   const axiosInstance = useAxios();
   return useQuery<ApiResponse<PurchaseRequest[]>, Error, TData>({
-    queryKey: [QUERY_KEYS.PURCHASE_REQUESTS, params],
+    queryKey: [...QUERY_KEYS.procurement.purchaseRequests, params],
     queryFn: async () => {
       const query = new URLSearchParams();
       if (params.scope) query.set("scope", params.scope);
@@ -205,7 +205,7 @@ export const useGetPurchaseRequestById = (
 ): UseQueryResult<ApiResponse<PurchaseRequest>, Error> => {
   const axiosInstance = useAxios();
   return useQuery({
-    queryKey: [QUERY_KEYS.PURCHASE_REQUEST, id],
+    queryKey: QUERY_KEYS.procurement.purchaseRequest(id),
     queryFn: async () => {
       const res = await axiosInstance.get(PROCUREMENT_KEYS.PURCHASE_REQUEST(id));
       return res.data;
@@ -229,8 +229,8 @@ export const useUpdatePurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, id] });
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
     },
   });
 };
@@ -248,7 +248,7 @@ export const useDeletePurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
     },
   });
 };
@@ -288,7 +288,7 @@ export const useAddLineItem = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, purchaseRequestId] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId) });
     },
   });
 };
@@ -310,7 +310,7 @@ export const useUpdateLineItem = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, purchaseRequestId] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId) });
     },
   });
 };
@@ -330,7 +330,7 @@ export const useDeleteLineItem = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, purchaseRequestId] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId) });
     },
   });
 };
@@ -348,8 +348,8 @@ export const useSubmitPurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, id] });
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
     },
   });
 };
@@ -367,8 +367,8 @@ export const useCancelPurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, id] });
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
     },
   });
 };
@@ -407,8 +407,8 @@ export const useConvertToPO = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, id] });
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
     },
   });
 };
@@ -443,7 +443,7 @@ export const useGetProcurementCategories = (
 ): UseQueryResult<ApiResponse<ProcurementCategory[]>, Error> => {
   const axiosInstance = useAxios();
   return useQuery({
-    queryKey: [QUERY_KEYS.PROCUREMENT_CATEGORIES],
+    queryKey: QUERY_KEYS.procurement.categories,
     queryFn: async () => {
       const res = await axiosInstance.get(PROCUREMENT_KEYS.CATEGORIES);
       return res.data;
@@ -481,7 +481,7 @@ export const useCreateProcurementCategory = (): UseMutationResult<
       return responseData;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PROCUREMENT_CATEGORIES] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.categories });
     },
   });
 };
@@ -498,8 +498,8 @@ export const useApprovePurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, id] });
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
     },
   });
 };
@@ -517,8 +517,8 @@ export const useRejectPurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, id] });
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
     },
   });
 };
@@ -536,8 +536,8 @@ export const useWithdrawPurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUEST, id] });
-      qc.invalidateQueries({ queryKey: [QUERY_KEYS.PURCHASE_REQUESTS] });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
     },
   });
 };
@@ -560,7 +560,7 @@ export const useGetVendors = (
 ): UseQueryResult<ApiResponse<Vendor[]>, Error> => {
   const axiosInstance = useAxios();
   return useQuery({
-    queryKey: ["vendors", { approvalStatus: "approved" }],
+    queryKey: QUERY_KEYS.vendors.approved,
     queryFn: async () => {
       // Pass the approvalStatus query param as the user specified, ensuring we only fetch approved vendors
       const url = `/vendors?page=1&limit=100&approvalStatus=approved`;

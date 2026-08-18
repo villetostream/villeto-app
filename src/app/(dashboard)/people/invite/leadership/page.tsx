@@ -87,7 +87,7 @@ export default function InviteLeadershipPage() {
         const q = emailQuery.toLowerCase();
         return directoryUsers
             .filter((u) => u.email?.toLowerCase().includes(q))
-            .filter((u) => {
+            .filter((u: any) => {
                 const isInvited = u.status === "Active" || (u.loginCount ?? 0) > 0;
                 const isExactMatch = u.email?.toLowerCase() === q;
                 return !isInvited || isExactMatch;
@@ -110,7 +110,7 @@ export default function InviteLeadershipPage() {
         setEmailQuery(user.email);
         setSelectedDirUser(user);
         setIsEmailNotFound(false);
-        setIsUserAlreadyInvited(user.status === "Active" || (user.loginCount ?? 0) > 0);
+        setIsUserAlreadyInvited((user as any).status === "Active" || ((user as any).loginCount ?? 0) > 0);
         setShowSuggestions(false);
     };
 

@@ -37,7 +37,7 @@ export const directoryColumns = [
     }),
     columnHelper.accessor("employeeExternalId", {
         header: "EMPLOYEE ID",
-        cell: (info) => <p className="font-medium text-sm">{info.getValue() || "—"}</p>,
+        cell: (info) => <p className="font-medium text-sm">{(info.getValue() as string) || "—"}</p>,
     }),
     columnHelper.accessor("firstName", {
         header: "DETAILS",
@@ -62,36 +62,6 @@ export const directoryColumns = [
             return <p className="capitalize text-sm">{getDepartmentName(dept)}</p>;
         },
     }),
-    columnHelper.accessor("businessUnit", {
-        header: "BUSINESS UNIT",
-        cell: (info) => <p className="text-sm">{formatName(info.getValue())}</p>,
-    }),
-    columnHelper.accessor("location", {
-        header: "LOCATION",
-        cell: (info) => <p className="text-sm">{info.getValue() || "—"}</p>,
-    }),
-    columnHelper.accessor("position", {
-        header: "JOB TITLE",
-        cell: (info) => {
-            const jobTitle = info.row.original.jobTitle;
-            return <p className="text-sm">{formatName(jobTitle)}</p>;
-        },
-    }),
-    columnHelper.accessor("managementLevel", {
-        header: "MGT. LEVEL",
-        cell: (info) => <p className="text-sm">{formatName(info.getValue())}</p>,
-    }),
-    columnHelper.accessor("jobGrade", {
-        header: "JOB GRADE",
-        cell: (info) => {
-            const grade = info.getValue();
-            return <p className="text-sm font-medium">{grade?.code || "—"}</p>;
-        },
-    }),
-    columnHelper.accessor("employmentType", {
-        header: "EMP. TYPE",
-        cell: (info) => <p className="text-sm">{formatName(info.getValue())}</p>,
-    }),
     columnHelper.display({
         id: "manager",
         header: "REPORTS TO",
@@ -110,11 +80,42 @@ export const directoryColumns = [
             return <p className="font-medium text-sm">{managerName}</p>;
         },
     }),
+    columnHelper.accessor("businessUnit", {
+        header: "BUSINESS UNIT",
+        cell: (info) => <p className="text-sm">{formatName(info.getValue() as string)}</p>,
+    }),
+    columnHelper.accessor("location", {
+        header: "LOCATION",
+        cell: (info) => <p className="text-sm">{(info.getValue() as string) || "—"}</p>,
+    }),
+    columnHelper.accessor("position", {
+        header: "JOB TITLE",
+        cell: (info) => {
+            const jobTitle = info.row.original.jobTitle;
+            return <p className="text-sm">{formatName(jobTitle)}</p>;
+        },
+    }),
+    columnHelper.accessor("managementLevel", {
+        header: "MGT. LEVEL",
+        cell: (info) => <p className="text-sm">{formatName(info.getValue() as string)}</p>,
+    }),
+    columnHelper.accessor("jobGrade", {
+        header: "JOB GRADE",
+        cell: (info) => {
+            const grade = info.getValue();
+            return <p className="text-sm font-medium">{(grade as any)?.code || "—"}</p>;
+        },
+    }),
+    columnHelper.accessor("employmentType", {
+        header: "EMP. TYPE",
+        cell: (info) => <p className="text-sm">{formatName(info.getValue() as string)}</p>,
+    }),
+
     columnHelper.accessor("employeeStatus", {
         header: "HR STATUS",
         cell: (info) => {
             const status = info.getValue() || "—";
-            return <p className="text-sm capitalize">{status}</p>;
+            return <p className="text-sm capitalize">{status as string}</p>;
         },
     }),
     columnHelper.accessor("status", {

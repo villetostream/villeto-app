@@ -17,6 +17,7 @@ import {
   useDeletePurchaseOrder,
   type ConfirmReceiptPayload,
 } from "@/queries/procurement/purchase-orders";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import EditPOHeaderModal from "@/components/procurement/EditPOHeaderModal";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -161,7 +162,7 @@ function RejectModal({
           )}
         </div>
         <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
           <button
             onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())}
             disabled={reason.trim().length < 10 || isPending}
@@ -210,7 +211,7 @@ function WithdrawModal({
           )}
         </div>
         <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
           <button
             onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())}
             disabled={reason.trim().length < 10 || isPending}
@@ -330,7 +331,7 @@ function ConfirmReceiptModal({
         </div>
 
         <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
           <button
             onClick={handleSubmit} disabled={!receivedAt || isPending}
             className="flex-1 h-10 rounded-[12px] bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -385,7 +386,7 @@ function ConfirmModal({
           <p className="text-sm text-[#68726d]">{description}</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
           <button
             onClick={onConfirm} disabled={isPending}
             className={`flex-1 h-10 rounded-[12px] text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${variantCls}`}
@@ -400,7 +401,7 @@ function ConfirmModal({
 
 // ── Main Detail Page ──────────────────────────────────────────────────────────
 
-export default function PODetailPage() {
+function PODetailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { id } = useParams() as { id: string };
@@ -1057,3 +1058,10 @@ export default function PODetailPage() {
     </>
   );
 }
+
+export default withPermissions(PODetailPage, [
+  { resource: "procurement.purchase_order", action: "read_own" },
+  { resource: "procurement.purchase_order", action: "read_department" },
+  { resource: "procurement.purchase_order", action: "read_company" },
+]);
+

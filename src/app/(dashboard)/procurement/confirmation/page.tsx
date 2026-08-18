@@ -6,11 +6,12 @@ import { ArrowRight, CheckCircle2, Clock3, Loader2, PackageCheck, Search, Truck 
 import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
 import { useAuthStore } from "@/stores/auth-stores";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 const receivingStatuses = ["issued", "acknowledged", "ready_for_delivery", "partially_delivered", "delivered"];
 const labels: Record<string, string> = { issued: "Issued", acknowledged: "Acknowledged", ready_for_delivery: "Ready for delivery", partially_delivered: "Partial delivery", delivered: "Delivered" };
 
-export default function ConfirmationPage() {
+function ConfirmationPage() {
   const can = useAuthStore((state) => state.can);
   const scope = can("procurement.purchase_order", "read_company") ? "company" : can("procurement.purchase_order", "read_department") ? "team" : "own";
   const { data, isLoading, isError, refetch } = usePurchaseOrders(1, 100, undefined, undefined, undefined, scope);
@@ -47,3 +48,9 @@ export default function ConfirmationPage() {
     </div>
   );
 }
+
+export default withPermissions(ConfirmationPage, [
+  { resource: "procurement.purchase_order", action: "read_own" },
+  { resource: "procurement.purchase_order", action: "read_department" },
+  { resource: "procurement.purchase_order", action: "read_company" },
+]);

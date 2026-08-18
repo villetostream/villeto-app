@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLegalEntities } from "@/queries/legal-entities";
 import { useAccountingData, useProvisionAccounting } from "@/queries/accounting";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 const money = (value: string | number, currency = "USD") =>
   new Intl.NumberFormat(undefined, {
@@ -40,7 +41,7 @@ interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default function AccountingPage(props: PageProps) {
+function AccountingPage(props: PageProps) {
   const entitiesQuery = useLegalEntities();
   const entities = entitiesQuery.data?.data || [];
   const [selectedId, setSelectedId] = useState("");
@@ -326,3 +327,9 @@ function StatusPill({ value }: { value: string }) {
 function AccountingEmpty({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) {
   return <section className="flex flex-col items-center rounded-[16px] border border-dashed border-black/[0.09] bg-white px-6 py-20 text-center"><span className="flex size-12 items-center justify-center rounded-[14px] bg-[#e8f8f5] text-[#087f70] [&>svg]:size-5">{icon}</span><h2 className="mt-4 text-[16px] font-semibold text-[#16251f]">{title}</h2><p className="mt-1.5 max-w-md text-[13px] leading-5 text-[#7b8782]">{detail}</p></section>;
 }
+
+export default withPermissions(AccountingPage, [
+  { resource: "accounting.account", action: "view" },
+  { resource: "accounting.journal", action: "view" },
+  { resource: "accounting.configuration", action: "manage" },
+]);

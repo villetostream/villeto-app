@@ -355,6 +355,7 @@ export default function NewReportPage() {
       }
     }
     // Check if amount, category, or receipt changed BEFORE updating state (while old value is still in closure)
+
     const amountOrCategoryChanged = !!(currentExpense &&
       (
         currentExpense.amount !== data.amount ||

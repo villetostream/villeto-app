@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   PlusCircle, ShieldCheck, MoreHorizontal, Pencil, Shield, Trash2,
   Search, RefreshCcw,
@@ -38,11 +38,11 @@ import { useGetExpenseCategoriesApi } from "@/queries/companies/get-expense-cate
 import { useDeleteCategoryApi } from "@/queries/companies/delete-category";
 import { useGetPoliciesApi } from "@/queries/companies/get-policies";
 import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
-import { useDeleteExpensePolicyDraft } from "@/queries/companies/expense-policy-drafts";
+import { useDeleteExpensePolicyDraft, useGetExpensePolicyDraft } from "@/queries/companies/expense-policy-drafts";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useQueryClient } from "@tanstack/react-query";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
@@ -300,14 +300,20 @@ function ExpenseCategoryDetailsModal({
 
 /* ─── Policy Details Modal ───────────────────────────────────────────────────── */
 
-function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft }: {
+function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft, onSubmitDraft }: {
   policy: Policy | null; onClose: () => void;
   onEdit: (p: Policy) => void; onArchive: (p: Policy) => void;
   onDeleteDraft: (draftId: string) => void;
+  onSubmitDraft?: (p: Policy) => void;
 }) {
   const canDeactivate = useAuthStore(s => s.can)('policy', 'deactivate');
   const canUpdate = useAuthStore(s => s.can)('policy', 'update');
-  const { data: detailData, isLoading } = useGetPolicyDetailsApi(policy?.id || null);
+  const isDraft = policy?.status === "draft";
+  const { data: activeDetailData, isLoading: isActiveLoading } = useGetPolicyDetailsApi(isDraft ? null : policy?.id || null);
+  const { data: draftDetailData, isLoading: isDraftLoading } = useGetExpensePolicyDraft(isDraft ? policy?.id || null : null);
+  
+  const detailData = isDraft ? draftDetailData : activeDetailData;
+  const isLoading = isDraft ? isDraftLoading : isActiveLoading;
   const fullPolicy = detailData?.data;
 
   const rolesApi = useGetCompanyRolesApi({}, { enabled: !!policy });
@@ -346,7 +352,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft 
     if (!fullPolicy?.scope) return policy.appliedTo;
     const scope = fullPolicy.scope;
     const deptIds = scope.type === "specific" ? scope.departments || [] : [];
-    const roleIds = scope.type === "specific" ? scope.userRoles || fullPolicy.applicableRoles || [] : [];
+    const roleIds = scope.type === "specific" ? scope.userRoles || (fullPolicy as any).applicableRoles || [] : [];
     const depts = deptIds.map((d: string) => {
       const dept = asArray(departmentsApi.data?.data).filter(isRecord).find((o) => String(o.departmentId) === String(d));
       return dept ? pickString(dept, "departmentName") || d : d;
@@ -373,9 +379,9 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft 
 
   const policyName   = fullPolicy?.name   || policy.name;
   const policyStatus = fullPolicy?.status || policy.status;
-  const policyVersion = fullPolicy?.version || policy.version;
-  const approvers    = fullPolicy?.approvers || policy.approvers || [];
-  const createdAt    = fullPolicy?.createdAt;
+  const policyVersion = (fullPolicy as any)?.version || policy.version;
+  const approvers    = (fullPolicy as any)?.approvers || policy.approvers || [];
+  const createdAt    = (fullPolicy as any)?.createdAt;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -478,7 +484,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft 
                       const isBlock = getString(r.enforcementAction) === "block";
                       const enforcement = isBlock ? "Hard Block" : "Soft Warning";
                       const description = isLimit
-                        ? `Must not exceed ${pickString(r, "currency") || "NGN"} ${Number(r.amount || 0).toLocaleString()}/${mapTimeframe(getOptionalString(r.timeUnit) || getOptionalString(r.time_unit) || getOptionalString(r.timeframe) || fullPolicy?.spendLimitPeriod)}`
+                        ? `Must not exceed ${pickString(r, "currency") || "NGN"} ${Number(r.amount || 0).toLocaleString()}/${mapTimeframe(getOptionalString(r.timeUnit) || getOptionalString(r.time_unit) || getOptionalString(r.timeframe) || (fullPolicy as any)?.spendLimitPeriod)}`
                         : (r.receiptAmountThreshold || r.threshold)
                           ? `For transactions above ${pickString(r, "currency") || "NGN"} ${Number(r.receiptAmountThreshold || r.threshold).toLocaleString()}`
                           : "Required for all transactions";
@@ -521,7 +527,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft 
               <div>
                 <p className="text-[11px] text-[#68726d] mb-1.5">Created by</p>
                 <p className="text-sm font-semibold text-[#0b100e] leading-tight">
-                  {formatUser(fullPolicy?.createdBy, policy.createdBy)}
+                  {formatUser((fullPolicy as any)?.createdBy, policy.createdBy)}
                 </p>
                 <p className="text-xs text-[#68726d] mt-0.5">{formatDate(createdAt, policy.date)}</p>
               </div>
@@ -553,21 +559,44 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft 
 
         {/* ── Footer buttons ── */}
         <div className="px-6 pb-6 pt-1 shrink-0 flex gap-3">
-          {canDeactivate && (
-            <button
-              onClick={() => { onArchive(policy); onClose(); }}
-              className="flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
-            >
-              Move to Archive
-            </button>
-          )}
-          {canUpdate && (
-            <button
-              onClick={() => { onEdit(policy); onClose(); }}
-              className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-            >
-              Edit
-            </button>
+          {policyStatus === "draft" ? (
+            <>
+              {canUpdate && (
+                <button
+                  onClick={() => { onEdit(policy); onClose(); }}
+                  className="flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
+                >
+                  Edit
+                </button>
+              )}
+              {canUpdate && onSubmitDraft && (
+                <button
+                  onClick={() => { onSubmitDraft(policy); onClose(); }}
+                  className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Submit
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              {canDeactivate && (
+                <button
+                  onClick={() => { onArchive(policy); onClose(); }}
+                  className="flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
+                >
+                  Move to Archive
+                </button>
+              )}
+              {canUpdate && (
+                <button
+                  onClick={() => { onEdit(policy); onClose(); }}
+                  className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Edit
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -650,6 +679,7 @@ function PoliciesPage() {
   const axios = useAxios();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuthStore();
   const tabFromUrl = searchParams.get("tab");
   const activeTab: "policies" | "expense" | "archived" =
@@ -660,23 +690,22 @@ function PoliciesPage() {
   const switchTab = useCallback((tab: "policies" | "expense" | "archived") => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", tab);
-    router.replace(`/policies?${params.toString()}`, { scroll: false });
-  }, [router, searchParams]);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [router, searchParams, pathname]);
 
   // Top-level policy type toggle (Expenses Policy vs Procurement Policy).
   // Procurement policies are UI-only for now — no backend/endpoints exist
   // for them yet, so their data lives in local state below.
   const policyType: "expense" | "procurement" =
-    searchParams.get("type") === "procurement" ? "procurement" : "expense";
+    pathname.includes("procurement") ? "procurement" : "expense";
+
+  useEffect(() => {
+    if (pathname === "/policies") {
+      router.replace("/policies/expense-policy");
+    }
+  }, [pathname, router]);
 
   const [procurementView, setProcurementView] = useState<"list" | "create">("list");
-
-  const switchPolicyType = useCallback((type: "expense" | "procurement") => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("type", type);
-    router.replace(`/policies?${params.toString()}`, { scroll: false });
-    setProcurementView("list");
-  }, [router, searchParams]);
 
   const [isCreatePolicyOpen, setIsCreatePolicyOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen]   = useState(false);
@@ -687,7 +716,12 @@ function PoliciesPage() {
   const [search, setSearch]                 = useState("");
   const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [editingStep, setEditingStep] = useState<1 | 2 | 3 | 4>(1);
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
+
+  const [editingProcurementPolicyId, setEditingProcurementPolicyId] = useState<string | null>(null);
+  const [editingProcurementDraftId, setEditingProcurementDraftId] = useState<string | null>(null);
+  const [procurementWizardStep, setProcurementWizardStep] = useState<number>(1);
 
   const can = useAuthStore(s => s.can);
   const canReadExpenseCategories = can('expense.category', 'read') || can('expense.category', 'manage');
@@ -774,7 +808,7 @@ function PoliciesPage() {
       const rules = asArray(p.rules).filter(isRecord);
 
       return {
-        id: pickString(p, "policyId", "id") || Math.random().toString(),
+        id: pickString(p, "procurementPolicyId", "policyId", "id") || Math.random().toString(),
         name: getString(p.name),
         version: Number(p.version) || 1,
         category: getCatNames(asArray(p.expenseCategories)),
@@ -915,7 +949,7 @@ function PoliciesPage() {
 
   /* handlers */
   const handleCreated = (_data: CreatedPolicyData) => {
-    queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
     notifySetupGuide("policy");
     switchTab("policies");
   };
@@ -936,7 +970,7 @@ function PoliciesPage() {
     try {
       await axios.patch(API_KEYS.EXPENSE.POLICY_ACTION(policy.id, action));
       toast.success(`Policy ${action === "approve" ? "approved" : "rejected"} successfully`);
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
       setReviewPolicy(null);
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, `Failed to ${action === "approve" ? "approve" : "reject"} policy`));
@@ -965,7 +999,7 @@ function PoliciesPage() {
 
       if (!stillApprover) {
         toast.error("You are no longer an approver for this policy.");
-        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.POLICIES] });
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
         return;
       }
       setReviewPolicy(policy);
@@ -1170,15 +1204,14 @@ function PoliciesPage() {
     },
   ], [handleViewCategory]);
 
-  const policyTypeToggle = (
-    <PolicyWorkspaceHeader policyType={policyType} onPolicyTypeChange={switchPolicyType} />
-  );
-
   if (policyType === "procurement" && procurementView === "create") {
     return (
       <div className="h-full flex flex-col">
         <div className="bg-white rounded-[1.25rem] flex-1 flex flex-col min-h-0 overflow-hidden">
           <ProcurementPolicyWizard
+            policyId={editingProcurementPolicyId}
+            initialDraftId={editingProcurementDraftId}
+            initialStep={procurementWizardStep}
             onCancel={() => setProcurementView("list")}
             onComplete={() => setProcurementView("list")}
           />
@@ -1190,12 +1223,28 @@ function PoliciesPage() {
   return (
     <div className="flex flex-col h-full pb-2">
       <>
-      {policyTypeToggle}
 
       {policyType === "procurement" ? (
         <ProcurementPolicySection
           canCreate={canCreatePolicy}
-          onCreateClick={() => setProcurementView("create")}
+          onCreateClick={() => {
+            setEditingProcurementPolicyId(null);
+            setEditingProcurementDraftId(null);
+            setProcurementWizardStep(1);
+            setProcurementView("create");
+          }}
+          onEdit={(p) => {
+            setEditingProcurementPolicyId(p.status !== "draft" ? p.procurementPolicyId : null);
+            setEditingProcurementDraftId(p.status === "draft" ? p.procurementPolicyId : null);
+            setProcurementWizardStep(1);
+            setProcurementView("create");
+          }}
+          onSubmitDraft={(p) => {
+            setEditingProcurementPolicyId(null);
+            setEditingProcurementDraftId(p.procurementPolicyId);
+            setProcurementWizardStep(5);
+            setProcurementView("create");
+          }}
         />
       ) : (
       <>
@@ -1419,6 +1468,7 @@ function PoliciesPage() {
         onSuccess={handleCreated}
         policyId={editingPolicyId}
         initialDraftId={editingDraftId}
+        initialStep={editingStep}
       />
 
       <AlertDialog open={categoryToDelete !== null} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
@@ -1472,7 +1522,8 @@ function PoliciesPage() {
       <PolicyDetailsModal
         policy={detailPolicy}
         onClose={() => setDetailPolicy(null)}
-        onEdit={(p) => { handleEdit(p); setDetailPolicy(null); }}
+        onEdit={(p) => { handleEdit(p); setEditingStep(1); setDetailPolicy(null); }}
+        onSubmitDraft={(p) => { handleEdit(p); setEditingStep(4); setDetailPolicy(null); }}
         onArchive={(p) => { handleArchive(p); setDetailPolicy(null); }}
         onDeleteDraft={(draftId) => setDraftToDelete(draftId)}
       />

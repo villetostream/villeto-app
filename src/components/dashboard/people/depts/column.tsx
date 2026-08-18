@@ -35,8 +35,8 @@ export const columns = [
     columnHelper.accessor("manager", {
         header: "REPORTS TO",
         cell: (info) => {
-            const manager = info.getValue();
-            const managerName = manager ? `${manager.firstName || ""} ${manager.lastName || ""}`.trim() : "-";
+            const manager: any = info.getValue();
+            const managerName = manager ? `${manager?.firstName || ""} ${manager?.lastName || ""}`.trim() : "-";
             return <p className="capitalize">{managerName}</p>;
         },
     }),

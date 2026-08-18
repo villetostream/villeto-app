@@ -385,6 +385,10 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
     return "Company Settings";
   }
 
+  // Bill Pay sub-routes
+  if (pathname === "/bill-pay/add") return "Add a Bill";
+  if (pathname === "/bill-pay/add-recurring") return "Set Up Recurring Bill";
+
   // Procurement sub-routes
   if (pathname === "/procurement/purchase-request/new") return "New Purchase Request";
   if (pathname.match(/^\/procurement\/purchase-request\/[^/]+$/)) return "Purchase Request Details";
@@ -397,6 +401,10 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
   if (pathname.startsWith("/procurement/confirmation")) return "Confirmation";
   if (pathname.startsWith("/procurement/categories")) return "Categories";
   if (pathname.startsWith("/procurement")) return "Procurement";
+
+  if (pathname.startsWith("/policies/expense-policy")) return "Expense Policy";
+  if (pathname.startsWith("/policies/procurement-policy")) return "Procurement Policy";
+  if (pathname.startsWith("/policies/governance")) return "Policy Governance";
 
   const exactMatch = navigationItems.find((item) => {
     if (item.href === "/dashboard") return pathname === "/dashboard";
@@ -485,6 +493,7 @@ export function UserSection() {
     isPODetailPage,
     isConfirmationDetailPage,
     isVendorDetailPage,
+    isBillPayAddPage,
     isBackButtonPage,
   } = useMemo(() => {
     const expDetailMatch      = /^\/expenses\/\d+$/.test(pathname);
@@ -513,6 +522,7 @@ export function UserSection() {
     const poDetailMatch       = /^\/procurement\/purchase-order\/[^/]+$/.test(pathname) && !newPOPage;
     const confirmDetailMatch  = /^\/procurement\/confirmation\/[^/]+$/.test(pathname);
     const vendorDetailMatch   = /^\/vendors\/[^/]+$/.test(pathname) && !vendorBulkPage;
+    const billPayAddMatch     = pathname === "/bill-pay/add" || pathname === "/bill-pay/add-recurring";
 
     const backButtonPage =
       expDetailMatch || auditTrailMatch || splitMatch ||
@@ -520,6 +530,7 @@ export function UserSection() {
       companyDetailMatch || uploadPage || newExpPage || newReportPage ||
       batchMatch || reimbDetailMatch || viewRolePage || vendorBulkPage || vendorDetailMatch ||
       newPRPage || newPOPage || prDetailMatch || poEditMatch || poDetailMatch || confirmDetailMatch ||
+      billPayAddMatch ||
       pathname === "/people/invite/leadership" ||
       pathname === "/people/invite/employees" ||
       pathname === "/people/create-role";
@@ -548,6 +559,7 @@ export function UserSection() {
       isPODetailPage:              poDetailMatch,
       isConfirmationDetailPage:    confirmDetailMatch,
       isVendorDetailPage:          vendorDetailMatch,
+      isBillPayAddPage:            billPayAddMatch,
       isBackButtonPage:            backButtonPage,
     };
   }, [pathname]);
@@ -601,7 +613,22 @@ export function UserSection() {
       return;
     }
     if (pathname === "/people/invite/leadership") { router.push("/people"); return; }
-    if (pathname === "/people/create-role" || isViewRolePage) { router.push("/people?tab=roles"); return; }
+    if (pathname === "/people/create-role") {
+      const returnPath = sessionStorage.getItem("rolesReturnPath");
+      if (returnPath) {
+        sessionStorage.removeItem("rolesReturnPath");
+        router.push(returnPath);
+      } else {
+        const id = new URLSearchParams(window.location.search).get("id");
+        if (id) {
+          router.push(`/people/view-role/${id}`);
+        } else {
+          router.push("/people?tab=roles");
+        }
+      }
+      return;
+    }
+    if (isViewRolePage) { router.push("/people?tab=roles"); return; }
     if (pathname === "/people/invite/employees") {
       const step = new URLSearchParams(window.location.search).get("step");
       if (step === "review") router.push("/people/invite/employees?step=preview");
@@ -794,39 +821,60 @@ export function UserSection() {
                     <ChevronDown className="w-3.5 h-3.5" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 rounded-[12px] border-black/[0.08] p-1 shadow-lg" data-tour="invite-dropdown-menu">
-                  {headerAction.items.map((item, i) => {
-                    const menuItem = (
-                      <DropdownMenuItem 
-                        key={i} 
-                        className={`cursor-pointer py-2 px-3 text-[13px] rounded-[6px] flex items-center gap-2.5 focus:bg-[#f5f7f6] focus:text-[#0b100e] ${item.disabled ? 'opacity-50' : ''}`} 
-                        onClick={item.disabled ? (e) => e.preventDefault() : item.onClick}
-                        disabled={item.disabled}
-                      >
-                        <PlusCircle className="h-4 w-4 text-primary shrink-0" />
-                        <span>{item.label}</span>
-                      </DropdownMenuItem>
-                    );
-
-                    if (item.tooltip) {
-                      return (
-                        <TooltipProvider key={i}>
-                          <Tooltip delayDuration={0}>
-                            <TooltipTrigger asChild>
-                              <div className="w-full">
-                                {menuItem}
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="left" align="center" className="max-w-[280px]">
-                              <p className="text-sm font-medium">{item.tooltip}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                <DropdownMenuContent align="end" className="w-64 rounded-[16px] border-black/[0.08] p-1.5 shadow-lg bg-white" data-tour="invite-dropdown-menu">
+                  <div className="flex flex-col gap-1.5">
+                    {headerAction.items.map((item, i) => {
+                      const hasDescription = !!item.description;
+                      const menuItem = (
+                        <DropdownMenuItem 
+                          key={i} 
+                          className={cn(
+                            "cursor-pointer focus:bg-[#f5f7f6] focus:text-[#0b100e] transition-colors",
+                            hasDescription
+                              ? "p-3 rounded-[12px] border border-black/[0.06] flex items-center gap-3 shadow-sm bg-white"
+                              : "py-2 px-3 text-[13px] rounded-[6px] flex items-center gap-2.5",
+                            item.disabled && "opacity-50"
+                          )}
+                          onClick={item.disabled ? (e) => e.preventDefault() : item.onClick}
+                          disabled={item.disabled}
+                        >
+                          <PlusCircle className={cn(
+                            "shrink-0",
+                            hasDescription ? "h-6 w-6 text-[#68726d] stroke-[1.5]" : "h-4 w-4 text-primary"
+                          )} />
+                          <div className={cn("flex flex-col", hasDescription ? "gap-0.5" : "")}>
+                            <span className={cn(hasDescription ? "text-[14px] font-medium text-[#10231d]" : "")}>
+                              {item.label}
+                            </span>
+                            {item.description && (
+                              <span className="text-[12px] text-[#84908a]">
+                                {item.description}
+                              </span>
+                            )}
+                          </div>
+                        </DropdownMenuItem>
                       );
-                    }
 
-                    return menuItem;
-                  })}
+                      if (item.tooltip) {
+                        return (
+                          <TooltipProvider key={i}>
+                            <Tooltip delayDuration={0}>
+                              <TooltipTrigger asChild>
+                                <div className="w-full">
+                                  {menuItem}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" align="center" className="max-w-[280px]">
+                                <p className="text-sm font-medium">{item.tooltip}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      }
+
+                      return menuItem;
+                    })}
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (

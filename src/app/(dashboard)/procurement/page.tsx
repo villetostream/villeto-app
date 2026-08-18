@@ -6,10 +6,11 @@ import { ProcurementMetric, ProcurementSection, ProcurementWorkspaceHeader } fro
 import { useAuthStore } from "@/stores/auth-stores";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 const money = (value: number, code = "USD") => new Intl.NumberFormat(undefined, { style: "currency", currency: code, maximumFractionDigits: 0 }).format(value);
 
-export default function ProcurementOverviewPage() {
+function ProcurementOverviewPage() {
   const can = useAuthStore((state) => state.can);
   const prScope = can("procurement.purchase_request", "read_company") ? "company" : can("procurement.purchase_request", "read_department") ? "team" : "own";
   const poScope = can("procurement.purchase_order", "read_company") ? "company" : can("procurement.purchase_order", "read_department") ? "team" : "own";
@@ -70,3 +71,9 @@ function ActionLink({ href, icon, title, detail }: { href: string; icon: React.R
 function RecordRow({ href, title, meta, amount }: { href: string; title: string; meta: string; amount: string }) { return <Link href={href} className="group flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-[#f8fbfa]"><div className="min-w-0"><p className="truncate text-[13px] font-semibold text-[#17211d]">{title}</p><p className="mt-1 truncate text-[11px] capitalize text-[#89918d]">{meta}</p></div><div className="flex items-center gap-3"><span className="text-[13px] font-semibold text-[#17211d]">{amount}</span><ArrowRight className="size-3.5 text-[#a6adaa] transition group-hover:translate-x-0.5 group-hover:text-[#087f70]" /></div></Link>; }
 function Loading() { return <div className="space-y-3 p-5">{[1, 2, 3].map((item) => <div key={item} className="h-9 animate-pulse rounded-lg bg-[#f1f4f3]" />)}</div>; }
 function Empty({ label }: { label: string }) { return <div className="px-5 py-12 text-center text-[13px] text-[#89918d]">{label}</div>; }
+
+export default withPermissions(ProcurementOverviewPage, [
+  { resource: "procurement.purchase_request", action: "read_own" },
+  { resource: "procurement.purchase_request", action: "read_department" },
+  { resource: "procurement.purchase_request", action: "read_company" },
+]);

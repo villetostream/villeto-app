@@ -1,7 +1,7 @@
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
@@ -14,7 +14,9 @@ export interface PolicyScopeAll {
 export interface PolicyScopeSpecific {
   type: "specific";
   departments: string[];
-  userRoles: string[];
+  userRoles?: string[];
+  jobGradeIds?: string[];
+  managementLevelIds?: string[];
   location?: string;
 }
 
@@ -145,7 +147,7 @@ export const useGetPoliciesApi = (
   const axiosInstance = useAxios();
 
   return useQuery<GetPoliciesResponse, Error>({
-    queryKey: [QUERY_KEYS.POLICIES, params],
+    queryKey: [...QUERY_KEYS.expenses.policies, params],
     queryFn: async () => {
       return fetchAllPoliciesLoop(axiosInstance, params);
     },

@@ -56,7 +56,7 @@ const PaginationLink = ({
         variant: "ghost",
         size,
       }),
-      isActive && "bg-primary",
+      isActive ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : "hover:bg-muted/40",
       isDisabled && "pointer-events-none opacity-50",
       className,
       "rounded-md"

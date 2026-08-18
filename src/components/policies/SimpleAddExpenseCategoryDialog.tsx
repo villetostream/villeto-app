@@ -6,7 +6,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useCreateExpenseCategoryApi } from "@/queries/companies/create-expense-category";
 import { useQueryClient } from "@tanstack/react-query";
-import { QUERY_KEYS } from "@/lib/constants/api-query-key";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 
 interface SimpleAddExpenseCategoryDialogProps {
@@ -62,7 +62,7 @@ export default function SimpleAddExpenseCategoryDialog({
         ],
       });
       // Refresh the expense categories list wherever it is consumed
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.EXPENSE_CATEGORIES] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.categories });
       toast.success("Category added!");
       reset();
       onSuccess?.();

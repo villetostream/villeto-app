@@ -83,6 +83,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
       if (p.startsWith("/expenses"))    return ["Expenses"];
       if (p.startsWith("/procurement")) return ["Procurement"];
       if (p.startsWith("/settings"))    return ["Settings"];
+      if (p.startsWith("/policies"))    return ["Policies"];
     }
     return [];
   });
@@ -113,6 +114,8 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
       setExpandedMenus(prev => prev.includes("Procurement") ? prev : [...prev, "Procurement"]);
     if (location.startsWith("/settings"))
       setExpandedMenus(prev => prev.includes("Settings") ? prev : [...prev, "Settings"]);
+    if (location.startsWith("/policies"))
+      setExpandedMenus(prev => prev.includes("Policies") ? prev : [...prev, "Policies"]);
   }
 
   const { data: companyData, isLoading: isQueryLoading } = useQuery({
@@ -167,6 +170,11 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
         location.startsWith("/expenses/card-transactions") ||
         location.startsWith("/expenses/travel")
       ) return false;
+      return location.startsWith(basePath);
+    }
+
+    if (basePath === "/bill-pay") {
+      if (location.startsWith("/bill-pay/payments")) return false;
       return location.startsWith(basePath);
     }
 

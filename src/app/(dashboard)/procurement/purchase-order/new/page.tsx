@@ -22,6 +22,7 @@ import {
   type CreatePurchaseOrderPayload,
   type POLineItemPayload,
 } from "@/queries/procurement/purchase-orders";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   useGetProcurementCategories,
   useGetVendors,
@@ -184,7 +185,7 @@ function StepIndicator({ step }: { step: 1 | 2 }) {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function NewPurchaseOrderPage() {
+function NewPurchaseOrderPage() {
   const router = useRouter();
 
   // Step state
@@ -644,3 +645,8 @@ export default function NewPurchaseOrderPage() {
     </>
   );
 }
+
+export default withPermissions(NewPurchaseOrderPage, [
+  { resource: "procurement.purchase_order", action: "create" },
+]);
+

@@ -9,8 +9,9 @@ import { CloudUploadIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight } from "iconsax-reactjs";
 import { logger } from "@/lib/logger";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
-export default function BulkInvite() {
+function BulkInvite() {
     const router = useRouter();
     const [file, setFile] = useState<File | null>(null);
 
@@ -131,3 +132,7 @@ export default function BulkInvite() {
         </div>
     );
 }
+
+export default withPermissions(BulkInvite, [
+  { resource: "user", action: "manage" },
+]);

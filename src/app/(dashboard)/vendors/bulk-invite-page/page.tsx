@@ -37,6 +37,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useDataTable } from "@/components/datatable/useDataTable";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -102,7 +103,7 @@ const REQUIRED_FIELDS = [
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function VendorBulkInvitePage() {
+function VendorBulkInvitePage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -563,3 +564,7 @@ export default function VendorBulkInvitePage() {
     </div>
   );
 }
+
+export default withPermissions(VendorBulkInvitePage, [
+  { resource: "vendor", action: "invite" },
+]);

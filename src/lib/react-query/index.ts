@@ -13,7 +13,7 @@ export const createQueryClient = () =>
         // to a page shows cached data instantly while a background refetch runs.
         gcTime: 10 * 60 * 1000,
         retry: 2,
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
         refetchOnReconnect: true,
       },
       mutations: {

@@ -13,6 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   useGetProcurementCategories,
   useCreateProcurementCategory,
@@ -119,7 +120,7 @@ function AddProcurementCategoryForm({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function ProcurementCategoriesPage() {
+function ExpenseCategoriesPage() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -413,3 +414,7 @@ export default function ProcurementCategoriesPage() {
     </div>
   );
 }
+
+export default withPermissions(ExpenseCategoriesPage, [
+  { resource: "expense.category", action: "manage" },
+]);

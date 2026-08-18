@@ -166,7 +166,7 @@ export function TableHeader({
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
+      <div className={cn("flex flex-col md:flex-row md:items-center justify-between", (tableHeader?.title || !portalTarget) && "mb-4")}>
         {tableHeader?.title && (
           <div className="flex flex-col mb-4 md:mb-0">
             <h2 className="text-xl font-bold font-primary text-gray-900">

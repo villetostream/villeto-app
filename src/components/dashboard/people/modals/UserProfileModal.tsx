@@ -358,7 +358,7 @@ function OverviewTab({
 
     const deptOptions: DropdownOption[] = departments.map(d => ({
         id: d.departmentId,
-        label: d.departmentName,
+        label: d.departmentName || d.name || "Unknown Department",
     }))
 
     const currentDeptName = useMemo(() => {
