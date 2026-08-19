@@ -29,10 +29,10 @@ function ProcurementOverviewPage() {
     <div className="space-y-5 pb-8">
       <ProcurementWorkspaceHeader title="Control spend before it happens." description="Move every request from business need to approved order and confirmed delivery—with ownership, entity, and currency controls visible at every step." action={{ label: "Create request", href: "/procurement/purchase-request/new" }} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <ProcurementMetric label="Requests awaiting action" value={approvals.length} detail="Submitted into approval" icon={<CalendarClock className="size-4" />} tone="amber" />
-        <ProcurementMetric label="Ready for conversion" value={conversion.length} detail="Approved requests without a PO" icon={<CircleCheck className="size-4" />} />
-        <ProcurementMetric label="Open commitments" value={money(totalCommitment, currency)} detail={`${openOrders.length} active purchase orders`} icon={<ShoppingCart className="size-4" />} tone="blue" />
-        <ProcurementMetric label="In receiving" value={receiving.length} detail="Awaiting complete delivery" icon={<Truck className="size-4" />} tone="rose" />
+        <ProcurementMetric label="Requests awaiting action" value={approvals.length} detail="Submitted into approval" icon={<CalendarClock className="size-4" />} tone="amber" isLoading={loadingPr || loadingPo} />
+        <ProcurementMetric label="Ready for conversion" value={conversion.length} detail="Approved requests without a PO" icon={<CircleCheck className="size-4" />} isLoading={loadingPr || loadingPo} />
+        <ProcurementMetric label="Open commitments" value={money(totalCommitment, currency)} detail={`${openOrders.length} active purchase orders`} icon={<ShoppingCart className="size-4" />} tone="blue" isLoading={loadingPr || loadingPo} />
+        <ProcurementMetric label="In receiving" value={receiving.length} detail="Awaiting complete delivery" icon={<Truck className="size-4" />} tone="rose" isLoading={loadingPr || loadingPo} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">

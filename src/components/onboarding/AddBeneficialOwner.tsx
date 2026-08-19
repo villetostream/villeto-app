@@ -120,6 +120,8 @@ export const AddBeneficialOwnerModal = ({
     };
 
     useEffect(() => {
+        if (!isOpen) return;
+        
         const timeoutId = window.setTimeout(() => {
             if (editingPerson) {
                 setIsSelf(editingPerson.id === "self");
@@ -142,7 +144,9 @@ export const AddBeneficialOwnerModal = ({
             }
         }, 0);
         return () => clearTimeout(timeoutId);
-    }, [editingPerson, isOpen, isBeneficialOwner, reset]);
+        // Exclude editingPerson object reference from dependencies to avoid loop if parent re-renders
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, isBeneficialOwner, reset]);
 
     const onSubmit = (data: z.infer<typeof schema>) => {
         if (isBeneficialOwner && (data.ownershipPercentage ?? 0) > maxOwnership) {
@@ -311,9 +315,10 @@ export const AddBeneficialOwnerModal = ({
                                     <Slider
                                         value={sliderValue}
                                         onValueChange={handleOwnershipChange}
-                                        max={maxOwnership}
+                                        max={Math.max(1, maxOwnership)}
                                         step={1}
                                         className="w-full"
+                                        disabled={maxOwnership === 0}
                                     />
 
                                     {(ownershipValue ?? 0) > maxOwnership && (

@@ -232,9 +232,34 @@ function ExpenseCategoryDetailsModal({
           </div>
           <div className="h-px bg-border w-full my-6 opacity-60" />
           {isLoading ? (
-            <div className="flex items-center justify-center py-16 text-sm text-[#68726d] gap-2">
-              <RefreshCcw className="w-4 h-4 animate-spin" />
-              Loading category details...
+            <div className="rounded-[1.5rem] border border-black/[0.06]/60 bg-[#f9faf9]/10 p-7 space-y-6">
+              <div className="grid grid-cols-2 gap-y-6">
+                <div className="flex flex-col gap-2">
+                  <div className="h-3 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                  <div className="h-5 w-32 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="h-3 w-20 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                  <div className="h-6 w-24 animate-pulse rounded-full bg-[#f0f2f1]" />
+                </div>
+              </div>
+              <div className="h-px bg-border/60" />
+              <div className="flex flex-col gap-2">
+                <div className="h-3 w-20 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                <div className="h-4 w-full animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                <div className="h-4 w-2/3 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+              </div>
+              <div className="h-px bg-border/60" />
+              <div className="grid grid-cols-2 gap-y-6">
+                <div className="flex flex-col gap-2">
+                  <div className="h-3 w-16 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                  <div className="h-5 w-28 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="h-3 w-20 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                  <div className="h-5 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                </div>
+              </div>
             </div>
           ) : category ? (
             <div className="rounded-[1.5rem] border border-black/[0.06]/60 bg-[#f9faf9]/10 p-7 space-y-6">
@@ -436,10 +461,38 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
           <style>{`div::-webkit-scrollbar{display:none}`}</style>
 
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-sm text-[#68726d]">
-              <Loader2 className="w-6 h-6 animate-spin text-primary/60" />
-              <p>Loading policy details…</p>
-            </div>
+            <>
+              {/* SKELETON APPLIES TO */}
+              <div className="rounded-[24px] border border-black/[0.06]/70 p-4">
+                <div className="h-3 w-20 animate-pulse rounded-[4px] bg-[#f0f2f1] mb-3" />
+                <div className="h-4 w-48 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+              </div>
+
+              {/* SKELETON EXPENSE CATEGORY */}
+              <div className="rounded-[24px] border border-black/[0.06]/70 p-4">
+                <div className="h-3 w-32 animate-pulse rounded-[4px] bg-[#f0f2f1] mb-3" />
+                <div className="flex gap-2">
+                  <div className="h-6 w-24 animate-pulse rounded-full bg-[#f0f2f1]" />
+                  <div className="h-6 w-32 animate-pulse rounded-full bg-[#f0f2f1]" />
+                </div>
+              </div>
+
+              {/* SKELETON ENFORCEMENT RULES */}
+              <div className="rounded-[24px] border border-black/[0.06]/70 p-4">
+                <div className="h-3 w-36 animate-pulse rounded-[4px] bg-[#f0f2f1] mb-3" />
+                <div className="space-y-2">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="rounded-[14px] border border-black/[0.06] p-3.5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="h-4 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                        <div className="h-5 w-20 animate-pulse rounded-full bg-[#f0f2f1]" />
+                      </div>
+                      <div className="h-3 w-48 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           ) : (
             <>
               {/* APPLIES TO */}

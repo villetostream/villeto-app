@@ -35,7 +35,7 @@ export default function IdleSessionManager() {
         // User has been idle for more than the timeout duration
         localStorage.removeItem(LAST_ACTIVITY_KEY);
         logout();
-        router.replace("/login");
+        window.location.href = "/login";
       }
     };
 

@@ -29,6 +29,7 @@ const ExpenseTable = ({
   page = 1,
   scope,
   emptyState,
+  isLoading = false,
 }: {
   actionButton?: React.ReactElement;
   statusFilter?: string | null;
@@ -38,6 +39,7 @@ const ExpenseTable = ({
   page?: number;
   scope?: string;
   emptyState?: React.ReactNode;
+  isLoading?: boolean;
 }) => {
   const router = useRouter();
   const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>(
@@ -142,6 +144,7 @@ useEffect(() => { onFilteredDataChangeRef.current = onFilteredDataChange; });
 // without making it a dependency that can retrigger the effect
   return (
     <DataTable
+      isLoading={isLoading}
       initialColumnVisibility={{ actions: false }}
       data={filteredData}
       columns={columnsOverride ?? []}

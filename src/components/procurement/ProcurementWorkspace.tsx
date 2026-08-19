@@ -81,12 +81,14 @@ export function ProcurementMetric({
   detail,
   icon,
   tone = "teal",
+  isLoading,
 }: {
   label: string;
   value: string | number;
   detail: string;
   icon: ReactNode;
   tone?: "teal" | "amber" | "blue" | "rose";
+  isLoading?: boolean;
 }) {
   const tones = {
     teal: "bg-[#e8f8f5] text-[#087f70]",
@@ -97,10 +99,21 @@ export function ProcurementMetric({
   return (
     <div className="rounded-[14px] border border-black/[0.07] bg-white p-4 shadow-[0_8px_24px_-22px_rgba(14,28,23,0.6)]">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="text-[12px] font-medium text-[#7a8580]">{label}</p><p className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#0b100e]">{value}</p></div>
+        <div>
+          <p className="text-[12px] font-medium text-[#7a8580]">{label}</p>
+          {isLoading ? (
+            <div className="mt-2 h-7 w-16 animate-pulse rounded-[6px] bg-[#f0f2f1]" />
+          ) : (
+            <p className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-[#0b100e]">{value}</p>
+          )}
+        </div>
         <span className={`flex size-9 items-center justify-center rounded-[10px] ${tones[tone]}`}>{icon}</span>
       </div>
-      <p className="mt-2 text-[11px] text-[#89918d]">{detail}</p>
+      {isLoading ? (
+        <div className="mt-2 h-3 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+      ) : (
+        <p className="mt-2 text-[11px] text-[#89918d]">{detail}</p>
+      )}
     </div>
   );
 }

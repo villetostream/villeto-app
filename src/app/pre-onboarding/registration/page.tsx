@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -29,7 +29,8 @@ export default function GetStarted() {
   const emailParam = searchParams.get("email");
   const onboarding = useOnboardingStore();
   const startOnboarding = useStartOnboardingApi();
-  const loading = startOnboarding.isPending;
+  const [isPending, startTransition] = useTransition();
+  const loading = startOnboarding.isPending || isPending;
   const form = useForm<FormData>({ resolver: zodResolver(registrationSchema), defaultValues: { contactFirstName: onboarding.preOnboarding?.contactFirstName ?? "", contactLastName: onboarding.preOnboarding?.contactLastName ?? "", accountType: onboarding.preOnboarding?.accountType ?? undefined, contactEmail: onboarding.contactEmail || emailParam || "" } });
 
   useEffect(() => {
@@ -44,7 +45,9 @@ export default function GetStarted() {
       onboarding.setOnboardingId(response.data.onboardingId as string);
       onboarding.setIsExistingUser(false);
       onboarding.setStoppedAtStep(null);
-      router.push("/pre-onboarding/verify-otp");
+      startTransition(() => {
+        router.push("/pre-onboarding/verify-otp");
+      });
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Registration failed. Please try again."));
     }

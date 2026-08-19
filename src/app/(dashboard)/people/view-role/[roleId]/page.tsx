@@ -11,6 +11,7 @@ import type { Permission } from "@/features/auth/types";
 import { formatPermissionName } from "@/lib/utils";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useParams, useRouter } from "next/navigation";
+import { useAuthStore } from "@/stores/auth-stores";
 import { Button } from "@/components/ui/button";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import ConfirmationModal from "@/components/modals/ConfirmationModal";
@@ -90,6 +91,7 @@ function ModuleSection({ moduleName, groups }: { moduleName: string; groups: Cap
 function ViewRolePage() {
     const params = useParams();
     const router = useRouter();
+    const currentUser = useAuthStore(state => state.user);
     const roleId = params.roleId as string;
     const { data: roleData, isLoading } = useGetARoleApi(roleId, { enabled: !!roleId });
     const deleteRoleMutation = useDeleteRoleApi();
@@ -127,6 +129,11 @@ function ViewRolePage() {
 
     const roleName = role.name?.replace(/_/g, ' ') || "Role";
     const totalUsers = role.totalAssignedUsers || 0;
+
+    const isViewedRoleOwner = roleName.toLowerCase() === "owner" || role.name?.toLowerCase() === "owner";
+    const currentUserRoleName = currentUser?.companyRole?.name || currentUser?.villetoRole?.name || "";
+    const isCurrentUserOwner = currentUserRoleName.toLowerCase() === "owner";
+    const isEditDisabled = isViewedRoleOwner && !isCurrentUserOwner;
 
     // Capability groups from capabilitiesByModule (could be object or array depending on API)
     const rawCapModules: any = role.capabilitiesByModule ?? {};
@@ -178,6 +185,7 @@ function ViewRolePage() {
                         <Button
                             variant="destructive"
                             size="sm"
+                            disabled={isEditDisabled}
                             className="gap-2 h-9 rounded-[8px] text-[13px] font-semibold"
                             onClick={() => setDeleteModalOpen(true)}
                         >
@@ -189,6 +197,7 @@ function ViewRolePage() {
                         <Button
                             variant="outline"
                             size="sm"
+                            disabled={isEditDisabled}
                             onClick={() => {
                                 sessionStorage.setItem("rolesReturnPath", `/people/view-role/${roleId}`);
                                 router.push(`/people/create-role?id=${roleId}`);
@@ -261,6 +270,7 @@ function ViewRolePage() {
                                     <Button
                                         variant="outline"
                                         size="sm"
+                                        disabled={isEditDisabled}
                                         className="mt-3 border-[#0ea894]/30 text-[#087f70] hover:bg-[#e7f6f2] rounded-[8px] text-[13px] font-semibold"
                                         onClick={() => router.push(`/people/create-role?id=${roleId}`)}
                                     >

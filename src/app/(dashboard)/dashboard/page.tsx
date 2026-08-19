@@ -60,7 +60,7 @@ export default function DashboardPage() {
 
   // Legal Entities
   const canViewEntities = can("legal_entity", "view");
-  const { data: entityResponse } = useLegalEntities({ enabled: canViewEntities });
+  const { data: entityResponse, isLoading: entityLoading } = useLegalEntities({ enabled: canViewEntities });
   const entity = (entityResponse?.data || []).find((item) => item.isDefault) || entityResponse?.data?.[0];
   const code = entity?.baseCurrency || "USD";
 
@@ -84,14 +84,14 @@ export default function DashboardPage() {
 
   // Expenses
   const expScope = can("expense.report", "read_company") ? "company" : can("expense.report", "read_department") ? "team" : null;
-  const { data: expensesData } = useCompanyExpenses(1, 50, expScope || "company", undefined, undefined, !!expScope);
+  const { data: expensesData, isLoading: expLoading } = useCompanyExpenses(1, 50, expScope || "company", undefined, undefined, !!expScope);
   const expenses = expensesData?.reports || [];
   const pendingExpenses = expenses.filter(e => e.status === "pending");
   const approvedExpensesSpend = expenses.filter(e => e.status === "approved").reduce((sum, e) => sum + Number(e.totalAmount || 0), 0);
 
   // Users (Team)
   const canViewUsers = can("user", "read");
-  const { data: usersData } = useQuery({
+  const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ["dashboard_users"],
     queryFn: async () => {
       const res = await axios.get(API_KEYS.USER.USERS);
@@ -104,7 +104,7 @@ export default function DashboardPage() {
 
   // Vendors
   const canViewVendors = can("vendor", "read_company");
-  const { data: vendorsData } = useQuery({
+  const { data: vendorsData, isLoading: vendorsLoading } = useQuery({
     queryKey: ["dashboard_vendors", "active"],
     queryFn: async () => {
       const res = await axios.get(PROCUREMENT_KEYS.ACTIVE_VENDORS);
@@ -119,6 +119,8 @@ export default function DashboardPage() {
   // Total Metric Calculations
   const totalSpend = committedSpend + approvedExpensesSpend;
   const totalPendingActions = pendingPRApprovals.length + prsReadyForConversion.length + pendingExpenses.length;
+  
+  const isAnyLoading = prLoading || poLoading || entityLoading || expLoading || usersLoading || vendorsLoading;
 
   return (
     <PermissionGuard>
@@ -153,10 +155,10 @@ export default function DashboardPage() {
 
         {/* 2. KPI Metrics Row */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard title="Total Committed Spend" value={currency(totalSpend, code)} icon={<BadgeDollarSign />} color="teal" />
-          <MetricCard title="Pending Actions" value={totalPendingActions.toString()} icon={<CalendarClock />} color="amber" />
-          <MetricCard title="Active Vendors" value={activeVendors.toString()} icon={<Store />} color="blue" />
-          <MetricCard title="Team Members" value={totalUsers.toString()} icon={<Users />} color="purple" />
+          <MetricCard title="Total Committed Spend" value={currency(totalSpend, code)} icon={<BadgeDollarSign />} color="teal" isLoading={isAnyLoading} />
+          <MetricCard title="Pending Actions" value={totalPendingActions.toString()} icon={<CalendarClock />} color="amber" isLoading={isAnyLoading} />
+          <MetricCard title="Active Vendors" value={activeVendors.toString()} icon={<Store />} color="blue" isLoading={isAnyLoading} />
+          <MetricCard title="Team Members" value={totalUsers.toString()} icon={<Users />} color="purple" isLoading={isAnyLoading} />
         </section>
 
         {/* 3. Module Overview Grid */}
@@ -172,6 +174,7 @@ export default function DashboardPage() {
               href="/expenses" 
               color="emerald"
               visible={!!expScope}
+              isLoading={isAnyLoading}
               stats={[
                 { label: "Pending approval", value: pendingExpenses.length.toString() },
                 { label: "Approved spend", value: currency(approvedExpensesSpend, code) }
@@ -184,6 +187,7 @@ export default function DashboardPage() {
               href="/procurement" 
               color="teal"
               visible={prScope !== "own" || poScope !== "own"} // Show if they have some visibility
+              isLoading={isAnyLoading}
               stats={[
                 { label: "Open Requests", value: requests.filter(r => !["closed", "cancelled"].includes(r.status)).length.toString() },
                 { label: "Orders Receiving", value: receivingOrders.length.toString() }
@@ -196,6 +200,7 @@ export default function DashboardPage() {
               href="/vendors" 
               color="blue"
               visible={canViewVendors}
+              isLoading={isAnyLoading}
               stats={[
                 { label: "Total Vendors", value: vendorsList.length.toString() },
                 { label: "Verified", value: activeVendors.toString() }
@@ -208,6 +213,7 @@ export default function DashboardPage() {
               href="/people" 
               color="purple"
               visible={canViewUsers}
+              isLoading={isAnyLoading}
               stats={[
                 { label: "Total Members", value: totalUsers.toString() },
                 { label: "Active", value: usersData?.data?.filter((u:any) => u.status === "Active")?.length?.toString() || "0" }
@@ -220,6 +226,7 @@ export default function DashboardPage() {
               href="/accounting" 
               color="amber"
               visible={canViewEntities}
+              isLoading={isAnyLoading}
               stats={[
                 { label: "Base Currency", value: code },
                 { label: "Readiness", value: entity?.readinessStatus?.replaceAll("_", " ") || "Not setup" }
@@ -233,6 +240,7 @@ export default function DashboardPage() {
               color="indigo"
               visible={true}
               comingSoon={true}
+              isLoading={isAnyLoading}
               stats={[
                 { label: "Status", value: "Coming soon" },
                 { label: "Payments", value: "—" }
@@ -308,6 +316,7 @@ export default function DashboardPage() {
                   detail="Review submitted requests" 
                   href="/procurement/purchase-request?innerTab=approve" 
                   tone="amber" 
+                  isLoading={isAnyLoading}
                 />
                 <AttentionRow 
                   icon={<ShoppingCart />} 
@@ -315,6 +324,7 @@ export default function DashboardPage() {
                   detail="Convert approved requests" 
                   href="/procurement/purchase-request?innerTab=convert" 
                   tone="indigo" 
+                  isLoading={isAnyLoading}
                 />
                 <AttentionRow 
                   icon={<Truck />} 
@@ -322,6 +332,7 @@ export default function DashboardPage() {
                   detail="Track active deliveries" 
                   href="/procurement/confirmation" 
                   tone="blue" 
+                  isLoading={isAnyLoading}
                 />
                 <AttentionRow 
                   icon={<CheckCircle2 />} 
@@ -329,6 +340,7 @@ export default function DashboardPage() {
                   detail="Prepare invoice controls" 
                   href="/accounting" 
                   tone="teal" 
+                  isLoading={isAnyLoading}
                 />
               </div>
             </div>
@@ -355,7 +367,7 @@ export default function DashboardPage() {
 
 // --- Subcomponents ---
 
-function MetricCard({ title, value, icon, color }: { title: string, value: string, icon: React.ReactNode, color: "teal" | "amber" | "blue" | "purple" }) {
+function MetricCard({ title, value, icon, color, isLoading }: { title: string, value: string, icon: React.ReactNode, color: "teal" | "amber" | "blue" | "purple", isLoading?: boolean }) {
   const colorStyles = {
     teal: "bg-[#e8f8f5] text-[#087f70]",
     amber: "bg-[#fff6df] text-[#a46709]",
@@ -371,12 +383,16 @@ function MetricCard({ title, value, icon, color }: { title: string, value: strin
           {icon}
         </div>
       </div>
-      <p className="text-[24px] font-bold leading-none tracking-tight text-[#0b100e]">{value}</p>
+      {isLoading ? (
+        <div className="h-[24px] w-16 animate-pulse rounded-[6px] bg-[#f0f2f1]" />
+      ) : (
+        <p className="text-[24px] font-bold leading-none tracking-tight text-[#0b100e]">{value}</p>
+      )}
     </div>
   );
 }
 
-function ModuleCard({ title, icon, href, stats, visible, comingSoon, color }: { title: string, icon: React.ReactNode, href: string, stats: {label: string, value: string}[], visible: boolean, comingSoon?: boolean, color: string }) {
+function ModuleCard({ title, icon, href, stats, visible, comingSoon, color, isLoading }: { title: string, icon: React.ReactNode, href: string, stats: {label: string, value: string}[], visible: boolean, comingSoon?: boolean, color: string, isLoading?: boolean }) {
   if (!visible) return null;
 
   const colorStyles: Record<string, string> = {
@@ -412,7 +428,11 @@ function ModuleCard({ title, icon, href, stats, visible, comingSoon, color }: { 
         {stats.map((stat, i) => (
           <div key={i}>
             <p className="text-[11px] font-medium text-[#84908a] mb-1">{stat.label}</p>
-            <p className="text-[13px] font-bold text-[#0b100e]">{stat.value}</p>
+            {isLoading ? (
+              <div className="h-4 w-12 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+            ) : (
+              <p className="text-[13px] font-bold text-[#0b100e]">{stat.value}</p>
+            )}
           </div>
         ))}
       </div>
@@ -420,7 +440,7 @@ function ModuleCard({ title, icon, href, stats, visible, comingSoon, color }: { 
   );
 }
 
-function AttentionRow({ icon, title, detail, href, tone }: { icon: React.ReactNode; title: string; detail: string; href: string; tone: "amber" | "blue" | "teal" | "indigo" }) { 
+function AttentionRow({ icon, title, detail, href, tone, isLoading }: { icon: React.ReactNode; title: string; detail: string; href: string; tone: "amber" | "blue" | "teal" | "indigo", isLoading?: boolean }) { 
   const tones = {
     amber: "bg-[#fff6df] text-[#a46709]", 
     blue: "bg-[#edf4ff] text-[#3b67b0]", 
@@ -435,8 +455,17 @@ function AttentionRow({ icon, title, detail, href, tone }: { icon: React.ReactNo
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[12px] font-bold text-[#0b100e] group-hover:text-[#087f70] transition-colors">{title}</span>
-        <span className="mt-0.5 block text-[11px] text-[#68726d]">{detail}</span>
+        {isLoading ? (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="h-3 w-32 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+            <div className="h-[10px] w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+          </div>
+        ) : (
+          <>
+            <span className="block text-[12px] font-bold text-[#0b100e] group-hover:text-[#087f70] transition-colors">{title}</span>
+            <span className="mt-0.5 block text-[11px] text-[#68726d]">{detail}</span>
+          </>
+        )}
       </span>
       <ChevronRight className="size-4 text-[#a3aaa6] transition-transform group-hover:translate-x-0.5 group-hover:text-[#087f70]" />
     </Link>

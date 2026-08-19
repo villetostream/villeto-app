@@ -590,7 +590,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
               className="rounded-[8px] bg-red-500 hover:bg-red-600 text-white text-[13px]"
               onClick={() => {
                 logout();
-                router.push("/login");
+                window.location.href = "/login";
               }}
             >
               Log Out

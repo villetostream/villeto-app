@@ -160,9 +160,9 @@ function AccountingPage(props: PageProps) {
                   </div>
                 ) : null}
               </div>
-              <OverviewMetric label="Chart accounts" value={String(accounts.length)} detail={`${accounts.filter((item) => item.isActive).length} active`} icon={<BookOpen />} />
-              <OverviewMetric label="Open periods" value={String(openPeriods.length)} detail={`${periods.length} configured`} icon={<CalendarRange />} />
-              <OverviewMetric label="Outstanding AP" value={money(outstanding, currency)} detail={`${obligations.filter((item) => item.status !== "settled").length} obligations`} icon={<CircleDollarSign />} />
+              <OverviewMetric label="Chart accounts" value={String(accounts.length)} detail={`${accounts.filter((item) => item.isActive).length} active`} icon={<BookOpen />} isLoading={isLoading} />
+              <OverviewMetric label="Open periods" value={String(openPeriods.length)} detail={`${periods.length} configured`} icon={<CalendarRange />} isLoading={isLoading} />
+              <OverviewMetric label="Outstanding AP" value={money(outstanding, currency)} detail={`${obligations.filter((item) => item.status !== "settled").length} obligations`} icon={<CircleDollarSign />} isLoading={isLoading} />
             </div>
           </section>
 
@@ -274,14 +274,25 @@ function ReadinessBadge({ value }: { value: string }) {
   return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${ready ? "bg-[#e8f8f5] text-[#087f70]" : "bg-[#fff6df] text-[#9a650b]"}`}>{value.replaceAll("_", " ")}</span>;
 }
 
-function OverviewMetric({ label, value, detail, icon }: { label: string; value: string; detail: string; icon: React.ReactNode }) {
+function OverviewMetric({ label, value, detail, icon, isLoading }: { label: string; value: string; detail: string; icon: React.ReactNode; isLoading?: boolean }) {
   return (
     <div className="border-b border-black/[0.06] p-5 last:border-b-0 lg:border-b-0 lg:border-r lg:last:border-r-0">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="text-[12px] font-medium text-[#84918b]">{label}</p><p className="mt-2 text-[22px] font-semibold tracking-[-0.035em] text-[#15231e]">{value}</p></div>
+        <div>
+          <p className="text-[12px] font-medium text-[#84918b]">{label}</p>
+          {isLoading ? (
+            <div className="mt-2 h-7 w-16 animate-pulse rounded-[6px] bg-[#f0f2f1]" />
+          ) : (
+            <p className="mt-2 text-[22px] font-semibold tracking-[-0.035em] text-[#15231e]">{value}</p>
+          )}
+        </div>
         <span className="flex size-8 items-center justify-center rounded-[9px] bg-[#eff7f4] text-[#087f70] [&>svg]:size-4">{icon}</span>
       </div>
-      <p className="mt-2 text-[11px] text-[#96a09c]">{detail}</p>
+      {isLoading ? (
+        <div className="mt-2 h-3 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+      ) : (
+        <p className="mt-2 text-[11px] text-[#96a09c]">{detail}</p>
+      )}
     </div>
   );
 }

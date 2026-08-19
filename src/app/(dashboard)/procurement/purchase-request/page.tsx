@@ -605,11 +605,6 @@ function PRTable({
               <RefreshCw className="w-4 h-4" /> Retry
             </button>
           </div>
-        ) : isLoading ? (
-          <div className="flex items-center justify-center py-16 gap-2 text-[#68726d]">
-            <Loader2 className="w-5 h-5 animate-spin text-[#087f70]" />
-            <span className="text-[13px]">Loading purchase requests...</span>
-          </div>
         ) : (
           <div className="flex-1 overflow-auto bg-white min-h-0">
             <table className="w-full text-sm">
@@ -623,7 +618,17 @@ function PRTable({
                 </tr>
               </thead>
             <tbody>
-              {paginated.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, rowIndex) => (
+                  <tr key={`skeleton-row-${rowIndex}`} className="border-b border-black/[0.06] hover:bg-transparent">
+                    {Array.from({ length: columns.length }).map((_, colIndex) => (
+                      <td key={`skeleton-cell-${rowIndex}-${colIndex}`} className="px-5 py-4 whitespace-nowrap">
+                        <div className="h-4 w-full animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length} className="px-5 py-10 text-center border-0 p-0">
                     <div className="w-full flex justify-center flex-col items-center">
