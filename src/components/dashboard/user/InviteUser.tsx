@@ -236,11 +236,11 @@ export function InviteUser({ children, open, onOpenChange }: InviteUserProps) {
                                     </Card>
 
                                     {/* Action Buttons */}
-                                    <div className="flex gap-3">
-                                        <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+                                    <div className="flex justify-end gap-3 mt-4">
+                                        <Button variant="outline" className="px-6" onClick={() => onOpenChange(false)}>
                                             Cancel
                                         </Button>
-                                        <Button className="flex-1 bg-dashboard-accent hover:bg-dashboard-accent/90">
+                                        <Button className="px-6 bg-dashboard-accent hover:bg-dashboard-accent/90">
                                             Send Invitation
                                         </Button>
                                     </div>
@@ -312,11 +312,11 @@ export function InviteUser({ children, open, onOpenChange }: InviteUserProps) {
                             </Card>
 
                             {/* Bulk Action Buttons */}
-                            <div className="flex gap-3">
-                                <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+                            <div className="flex justify-end gap-3 mt-4">
+                                <Button variant="outline" className="px-6" onClick={() => onOpenChange(false)}>
                                     Cancel
                                 </Button>
-                                <Button className="flex-1 bg-dashboard-accent hover:bg-dashboard-accent/90" disabled>
+                                <Button className="px-6 bg-dashboard-accent hover:bg-dashboard-accent/90" disabled>
                                     Import Users
                                 </Button>
                             </div>

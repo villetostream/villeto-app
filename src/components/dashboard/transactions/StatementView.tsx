@@ -284,16 +284,16 @@ export function StatementView({ children, open, onOpenChange }: StatementViewPro
                             <CardTitle className="text-lg text-dashboard-text-primary">Download Options</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            <div className="flex gap-3">
-                                <Button variant="outline" className="flex-1">
+                            <div className="flex justify-end gap-3">
+                                <Button variant="outline" className="px-6">
                                     <Download className="w-4 h-4 mr-2" />
                                     PDF Statement
                                 </Button>
-                                <Button variant="outline" className="flex-1">
+                                <Button variant="outline" className="px-6">
                                     <Download className="w-4 h-4 mr-2" />
                                     Excel Export
                                 </Button>
-                                <Button variant="outline" className="flex-1">
+                                <Button variant="outline" className="px-6">
                                     <Download className="w-4 h-4 mr-2" />
                                     CSV Export
                                 </Button>

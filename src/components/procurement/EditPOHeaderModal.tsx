@@ -104,14 +104,14 @@ export default function EditPOHeaderModal({ open, onClose, po }: EditPOHeaderMod
           </div>
         </div>
 
-        <div className="flex gap-3 pt-2 border-t border-black/[0.06]">
-          <button onClick={onClose} className="flex-1 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">
+        <div className="flex justify-end gap-3 pt-3 border-t border-black/[0.06]">
+          <button onClick={onClose} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={updateMut.isPending}
-            className="flex-1 h-10 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="px-6 h-10 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {updateMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Changes"}
           </button>

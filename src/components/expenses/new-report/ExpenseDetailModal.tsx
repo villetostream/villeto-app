@@ -333,11 +333,11 @@ export function ExpenseDetailModal({
               {pendingReceipt ? (
                 <div className="flex flex-col gap-2">
                   <p className="text-[11px] text-muted-foreground">Confirm this receipt?</p>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={cancelSideReceipt}>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" size="sm" className="px-4" onClick={cancelSideReceipt}>
                       Cancel
                     </Button>
-                    <Button type="button" size="sm" className="flex-1" onClick={confirmSideReceipt}>
+                    <Button type="button" size="sm" className="px-4" onClick={confirmSideReceipt}>
                       Use receipt
                     </Button>
                   </div>

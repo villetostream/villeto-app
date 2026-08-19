@@ -297,13 +297,13 @@ export function PaymentDetails() {
                     </Card>
 
                     {/* Quick Actions */}
-                    <div className="flex gap-2">
-                        <Button variant="outline" className="flex-1">
+                    <div className="flex justify-end gap-2 mt-4">
+                        <Button variant="outline" className="px-4">
                             <Calendar className="w-4 h-4 mr-2" />
                             Schedule Payment
                         </Button>
                         <StatementView open={statementOpen} onOpenChange={setStatementOpen}>
-                            <Button variant="outline" className="flex-1">
+                            <Button variant="outline" className="px-4">
                                 <FileText className="w-4 h-4 mr-2" />
                                 View Statement
                             </Button>

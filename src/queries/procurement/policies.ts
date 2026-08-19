@@ -159,7 +159,6 @@ export const useUpdateProcurementPolicy = (id: string) => {
     mutationFn: async (draft: PolicyDraft) => {
       const payload = buildPayload(draft);
       delete payload.draftId; // Ensure draftId is not sent when updating an active policy
-      payload.procurementPolicyId = id; // Add procurementPolicyId to payload
       const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id), payload);
       return res.data;
     },
@@ -210,7 +209,6 @@ export const useUpdateProcurementPolicyDraft = () => {
     mutationFn: async ({ draftId, payload }: { draftId: string; payload: PolicyDraft }) => {
       const p = buildPayload(payload);
       p.draftId = draftId; // Ensure draftId is sent
-      delete p.procurementPolicyId; // Ensure procurementPolicyId is not sent
       const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId), p);
       return res.data;
     },

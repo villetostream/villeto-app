@@ -362,11 +362,11 @@ export const AddBeneficialOwnerModal = ({
                         )}
 
                         {/* Action Buttons */}
-                        <div className="flex gap-3 border-t border-black/[0.07] pt-5">
+                        <div className="flex justify-end gap-3 border-t border-black/[0.07] pt-5">
                             <button
                                 type="button"
                                 onClick={handleCancel}
-                                className="flex flex-1 items-center justify-center gap-2 h-[52px] rounded-[10px] border border-black/[0.1] bg-white text-[13px] font-semibold text-[#303834] shadow-[0_4px_16px_rgba(14,28,23,0.04)] transition-colors hover:bg-[#f5f7f6]"
+                                className="flex items-center justify-center gap-2 h-[52px] px-6 rounded-[10px] border border-black/[0.1] bg-white text-[13px] font-semibold text-[#303834] shadow-[0_4px_16px_rgba(14,28,23,0.04)] transition-colors hover:bg-[#f5f7f6]"
                             >
                                 Cancel <X className="size-3.5" strokeWidth={2} />
                             </button>
@@ -374,7 +374,7 @@ export const AddBeneficialOwnerModal = ({
                             <button
                                 type="submit"
                                 disabled={!isValid || (isBeneficialOwner && (ownershipValue ?? 0) > maxOwnership)}
-                                className="flex flex-1 items-center justify-center gap-2 h-[52px] rounded-[10px] bg-[#0ea894] text-[13px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] transition-all hover:translate-y-[-1px] hover:bg-[#0c9785] disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none"
+                                className="flex items-center justify-center gap-2 h-[52px] px-6 rounded-[10px] bg-[#0ea894] text-[13px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] transition-all hover:translate-y-[-1px] hover:bg-[#0c9785] disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none"
                             >
                                 {isEditing ? 'Update' : 'Add'} {isBeneficialOwner ? 'Owner' : 'Officer'}
                                 <Plus className="size-3.5" strokeWidth={2} />
