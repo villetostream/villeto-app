@@ -287,7 +287,7 @@ export function ProcurementPolicyWizard({
                   Saving…
                 </>
               ) : step === TOTAL_STEPS ? (
-                policyId ? "Save Changes" : "Create Policy"
+                "Create Policy"
               ) : (
                 "Continue"
               )}

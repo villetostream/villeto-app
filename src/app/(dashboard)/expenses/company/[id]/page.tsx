@@ -151,7 +151,7 @@ function FeedbackModal({
                 : "The expense has been rejected. The requester has been informed and can make corrections or resubmit for approval."}
             </p>
           </div>
-          <Button onClick={onClose} className="w-full bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-10 font-semibold">
+          <Button onClick={onClose} className="px-8 bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-10 font-semibold">
             View Audi Trail
           </Button>
         </div>

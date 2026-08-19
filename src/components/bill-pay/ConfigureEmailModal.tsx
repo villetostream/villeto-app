@@ -93,9 +93,9 @@ export function ConfigureEmailModal({
                 </div>
               </div>
 
-              <div className="mt-8 flex items-center justify-center gap-4 w-full">
-                <Button variant="outline" className="flex-1 h-11 text-[#10231d] font-semibold border-black/[0.08] rounded-[8px] hover:bg-[#f9faf9]" onClick={resetAndClose}>Cancel</Button>
-                <Button className="flex-1 h-11 bg-[#087f70] hover:bg-[#076b5e] font-semibold text-white rounded-[8px]" onClick={() => setStep(2)}>Get Started</Button>
+              <div className="mt-8 flex items-center justify-end gap-3 w-full">
+                <Button variant="outline" className="px-6 h-11 text-[#10231d] font-semibold border-black/[0.08] rounded-[8px] hover:bg-[#f9faf9]" onClick={resetAndClose}>Cancel</Button>
+                <Button className="px-6 h-11 bg-[#087f70] hover:bg-[#076b5e] font-semibold text-white rounded-[8px]" onClick={() => setStep(2)}>Get Started</Button>
               </div>
             </div>
           ) : (
@@ -173,9 +173,9 @@ export function ConfigureEmailModal({
                 </div>
               </div>
 
-              <div className="mt-10 flex items-center justify-center gap-4 w-full">
-                <Button variant="outline" className="w-32 h-11 text-[#10231d] border-black/[0.08] font-semibold rounded-[8px] hover:bg-[#f9faf9]" onClick={() => setStep(1)}>Back</Button>
-                <Button className="flex-1 h-11 bg-[#087f70] hover:bg-[#076b5e] font-semibold text-white rounded-[8px] border-0" onClick={resetAndClose}>Save Configuration</Button>
+              <div className="mt-10 flex items-center justify-end gap-3 w-full">
+                <Button variant="outline" className="px-6 h-11 text-[#10231d] border-black/[0.08] font-semibold rounded-[8px] hover:bg-[#f9faf9]" onClick={() => setStep(1)}>Back</Button>
+                <Button className="px-6 h-11 bg-[#087f70] hover:bg-[#076b5e] font-semibold text-white rounded-[8px] border-0" onClick={resetAndClose}>Save Configuration</Button>
               </div>
             </div>
           )}

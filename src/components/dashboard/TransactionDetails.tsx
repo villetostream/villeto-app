@@ -212,23 +212,23 @@ export function TransactionDetails({ transaction, open, onOpenChange }: Transact
 
                     {/* Actions */}
                     <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                            <Button variant="outline" className="w-full">
+                        <div className="flex justify-end gap-3">
+                            <Button variant="outline" className="px-6">
                                 <Edit className="w-4 h-4 mr-2" />
                                 Edit Transaction
                             </Button>
-                            <Button variant="outline" className="w-full">
+                            <Button variant="outline" className="px-6">
                                 <Flag className="w-4 h-4 mr-2" />
                                 Flag for Review
                             </Button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                            <Button variant="outline" className="w-full text-status-success border-status-success hover:bg-status-success hover:text-white">
+                        <div className="flex justify-end gap-3">
+                            <Button variant="outline" className="px-6 text-status-success border-status-success hover:bg-status-success hover:text-white">
                                 <CheckCircle className="w-4 h-4 mr-2" />
                                 Approve
                             </Button>
-                            <Button variant="outline" className="w-full text-status-error border-status-error hover:bg-status-error hover:text-white">
+                            <Button variant="outline" className="px-6 text-status-error border-status-error hover:bg-status-error hover:text-white">
                                 <XCircle className="w-4 h-4 mr-2" />
                                 Decline
                             </Button>

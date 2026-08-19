@@ -422,12 +422,12 @@ function CancelPOModal({
             <p className="text-xs text-[#d33d44] flex items-center gap-1"><ArrowLeft className="w-3 h-3 rotate-90" /> At least 10 characters required.</p>
           )}
         </div>
-        <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Keep Draft</button>
+        <div className="flex justify-end gap-3 pt-1">
+          <button onClick={onClose} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Keep Draft</button>
           <button
             onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())}
             disabled={reason.trim().length < 10 || isPending}
-            className="flex-1 h-10 rounded-[12px] bg-[#d33d44] text-white text-sm font-semibold hover:bg-[#b83038] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="px-6 h-10 rounded-[12px] bg-[#d33d44] text-white text-sm font-semibold hover:bg-[#b83038] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancel PO"}
           </button>

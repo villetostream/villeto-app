@@ -1114,7 +1114,6 @@ export default function PolicyCreationModal({
       
       if (isEditing && policyId) {
         const updatePayload: UpdatePolicyPayload = {
-          policyId: policyId,
           name: payload.name,
           description: payload.description,
           expenseCategories: payload.expenseCategories,
@@ -1487,7 +1486,7 @@ export default function PolicyCreationModal({
                   className="h-11 px-8 rounded-[14px] bg-[#087f70] text-white text-sm font-semibold hover:bg-[#087f70]/90 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 transition-all shadow-sm shadow-[#087f70]/20 flex items-center gap-2">
                   {isLoading
                     ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : step === 4 ? "Submit for approval" : "Continue"
+                    : step === 4 ? "Create Policy" : "Continue"
                   }
                 </button>
               </div>

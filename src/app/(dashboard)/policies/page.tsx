@@ -1027,6 +1027,45 @@ function PoliciesPage() {
     { label: "Categories", value: liveExpenseCategories.length, detail: "Expense classifications", icon: Tag, tone: "blue" },
   ];
 
+  const checkIfReviewable = useCallback((policy: Policy) => {
+    let isApprover = false;
+    const currentUserRoleId = 
+      user?.companyRole?.roleId || 
+      (user as any)?.companyRole?.id || 
+      (user as any)?.villetoRole?.roleId || 
+      (user as any)?.villetoRole?.id || 
+      (user as any)?.role?.roleId || 
+      (user as any)?.role?.id || 
+      "";
+
+    const { can } = useAuthStore.getState();
+    const canApprovePolicy = can('policy', 'approve');
+
+    if (canApprovePolicy) {
+      isApprover = true;
+    } else if (policy.approvalSetting?.allRolesCanApprove) {
+      isApprover = eligibleRoles.some(r => r.roleId === currentUserRoleId);
+    } else if (policy.approvalSetting?.approverRoleIds?.length) {
+      isApprover = policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
+    } else {
+      isApprover = (policy.approversRaw || []).some((rawApprover) => {
+        const a = asRecord(rawApprover);
+        return pickString(a, "userId") === user?.userId;
+      }) || (user?.userId ? (policy.approverIds?.includes(user.userId) ?? false) : false);
+    }
+    
+    const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
+    return isPending && isApprover;
+  }, [user, eligibleRoles]);
+
+  const handleRowClick = useCallback((policy: Policy) => {
+    if (checkIfReviewable(policy)) {
+      handleOpenReview(policy);
+    } else {
+      setDetailPolicy(policy);
+    }
+  }, [checkIfReviewable, handleOpenReview]);
+
   /* DataTable columns for Policy tab */
   const policyColumns = useMemo<ColumnDef<Policy>[]>(() => [
     {
@@ -1061,37 +1100,11 @@ function PoliciesPage() {
       cell: ({ row }) => {
         const policy = row.original;
         
-        let isApprover = false;
-        const currentUserRoleId = 
-          user?.companyRole?.roleId || 
-          (user as any)?.companyRole?.id || 
-          (user as any)?.villetoRole?.roleId || 
-          (user as any)?.villetoRole?.id || 
-          (user as any)?.role?.roleId || 
-          (user as any)?.role?.id || 
-          "";
-
         const { can } = useAuthStore.getState();
         const canUpdate = can('policy', 'update');
         const canDeactivate = can('policy', 'deactivate');
-        const canApprovePolicy = can('policy', 'approve');
-
-        if (canApprovePolicy) {
-          isApprover = true;
-        } else if (policy.approvalSetting?.allRolesCanApprove) {
-          isApprover = eligibleRoles.some(r => r.roleId === currentUserRoleId);
-        } else if (policy.approvalSetting?.approverRoleIds?.length) {
-          isApprover = policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
-        } else {
-          // Fallback to legacy approver logic
-          isApprover = (policy.approversRaw || []).some((rawApprover) => {
-            const a = asRecord(rawApprover);
-            return pickString(a, "userId") === user?.userId;
-          }) || (user?.userId ? (policy.approverIds?.includes(user.userId) ?? false) : false);
-        }
         
-        const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
-        const showReviewOnly = isPending && isApprover;
+        const showReviewOnly = checkIfReviewable(policy);
 
         return (
           <div className="flex items-center justify-end gap-2">
@@ -1389,7 +1402,7 @@ function PoliciesPage() {
                       description="Try adjusting your search query to find what you're looking for."
                     />
                   }
-                  onRowClick={(row) => setDetailPolicy(row)}
+                  onRowClick={handleRowClick}
                   paginationProps={policyTableProps.paginationProps}
                 />
               </div>
@@ -1477,7 +1490,7 @@ function PoliciesPage() {
                       description="Try adjusting your search query to find what you're looking for."
                     />
                   }
-                  onRowClick={(row) => setDetailPolicy(row)}
+                  onRowClick={handleRowClick}
                   paginationProps={{ ...archivedTableProps.paginationProps, total: archivedPolicies.length }}
                 />
               </div>

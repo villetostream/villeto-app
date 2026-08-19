@@ -274,12 +274,12 @@ export function AutoPaySetup({ children, open, onOpenChange }: AutoPaySetupProps
               </Card>
 
               {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+              <div className="flex justify-end gap-3 mt-4">
+                <Button variant="outline" className="px-6" onClick={() => onOpenChange(false)}>
                   Cancel
                 </Button>
                 <Button 
-                  className="flex-1 bg-dashboard-accent hover:bg-dashboard-accent/90"
+                  className="px-6 bg-dashboard-accent hover:bg-dashboard-accent/90"
                   disabled={!paymentDay || !paymentMethod}
                 >
                   Setup Auto-Pay

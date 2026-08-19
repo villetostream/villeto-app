@@ -14,7 +14,6 @@ export interface UpdatePolicyPayload {
   expenseCategories?: string[];
   status?: "active" | "draft";
   override_policy?: boolean;
-  policyId?: string;
 }
 
 interface UpdatePolicyResponse {

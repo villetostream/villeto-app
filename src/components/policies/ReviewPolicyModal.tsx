@@ -84,7 +84,7 @@ export function ReviewPolicyModal({ policy, onClose }: ReviewPolicyModalProps) {
             <div className="text-right">
               <p className="text-xs text-[#84908a] mb-1">Applied To</p>
               <p className="text-[15px] font-medium text-[#52605b] capitalize">
-                {(policy as any).appliedTo || (policy as any).scopeType === 'all' || (policy as any).scope?.type === 'all' ? 'All Employees' : 'Specific Employees'}
+                {(policy as any).isApplicableToAllRoles || (policy as any).appliedTo === 'All Employees' || (policy as any).scopeType === 'all' || (policy as any).scope?.type === 'all' ? 'All Employees' : 'Specific Employees'}
               </p>
             </div>
           </div>
