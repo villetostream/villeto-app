@@ -444,14 +444,15 @@ function POTable({
             </thead>
             <tbody>
               {isLoading ? (
-                <tr>
-                  <td colSpan={colSpan} className="px-5 py-24 text-center">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <Loader2 className="w-8 h-8 animate-spin text-[#087f70]" />
-                      <span className="text-[#68726d] text-[13px] font-medium">Loading orders…</span>
-                    </div>
-                  </td>
-                </tr>
+                Array.from({ length: 5 }).map((_, rowIndex) => (
+                  <tr key={`skeleton-row-${rowIndex}`} className="border-b border-black/[0.06] hover:bg-transparent">
+                    {Array.from({ length: colSpan }).map((_, colIndex) => (
+                      <td key={`skeleton-cell-${rowIndex}-${colIndex}`} className="px-5 py-4 whitespace-nowrap">
+                        <div className="h-4 w-full animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
               ) : isError ? (
                 <tr>
                   <td colSpan={colSpan} className="px-5 py-16 text-center text-[#d33d44] text-[13px] font-medium">

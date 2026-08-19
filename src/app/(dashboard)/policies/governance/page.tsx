@@ -126,8 +126,51 @@ function TargetPanel({ target, onStateChange, onRegisterActions }: TargetPanelPr
   // ── Loading / error ───────────────────────────────────────────────────────
   if (settingLoading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-5 h-5 animate-spin text-[#68726d]" />
+      <div className="flex flex-col gap-4 pb-24">
+        {/* Skeleton for Auto-approve toggle card */}
+        <div className="bg-white rounded-[12px] border border-black/[0.08] p-5 shadow-sm flex items-center justify-between gap-6">
+          <div className="flex flex-col gap-1.5 w-full max-w-sm">
+            <div className="h-5 w-32 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+            <div className="h-4 w-64 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+          </div>
+          <div className="h-6 w-11 animate-pulse rounded-full bg-[#f0f2f1]" />
+        </div>
+
+        {/* Skeleton for Approver roles card */}
+        <div className="bg-white rounded-[12px] border border-black/[0.08] p-6 shadow-sm flex flex-col gap-6">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#f0f2f1] animate-pulse shrink-0" />
+              <div className="pt-0.5 flex flex-col gap-1.5 w-full max-w-xs">
+                <div className="h-5 w-48 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                <div className="h-4 w-64 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+              </div>
+            </div>
+            <div className="w-64 h-9 animate-pulse rounded-[8px] bg-[#f0f2f1]" />
+          </div>
+
+          <div className="flex items-center justify-between gap-4 px-4 py-3 bg-[#f0f2f1] animate-pulse rounded-[10px] mb-2 h-[66px]" />
+
+          <div className="border border-black/[0.08] rounded-[12px] overflow-hidden">
+            <div className="grid grid-cols-[1fr_120px_160px] gap-4 bg-black/[0.02] px-4 py-3 border-b border-black/[0.05]">
+              <div className="h-4 w-12 bg-[#f0f2f1] rounded-[4px]" />
+              <div className="h-4 w-16 bg-[#f0f2f1] rounded-[4px] justify-self-center" />
+              <div className="h-4 w-12 bg-[#f0f2f1] rounded-[4px] justify-self-end mr-2" />
+            </div>
+            <div className="flex flex-col">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="grid grid-cols-[1fr_120px_160px] gap-4 px-2 py-4 border-b border-black/[0.05] last:border-0 items-center">
+                  <div className="h-4 w-32 bg-[#f0f2f1] rounded-[4px] animate-pulse" />
+                  <div className="h-4 w-8 bg-[#f0f2f1] rounded-[4px] animate-pulse justify-self-center" />
+                  <div className="flex items-center justify-end gap-4">
+                    <div className="h-6 w-24 bg-[#f0f2f1] rounded-full animate-pulse" />
+                    <div className="h-6 w-11 bg-[#f0f2f1] rounded-full animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -253,11 +296,31 @@ function TargetPanel({ target, onStateChange, onRegisterActions }: TargetPanelPr
                         >
                           Approve Policy
                         </div>
-                        <Switch
-                          checked={isEnabled}
-                          onCheckedChange={(checked) => handleRoleToggle(role.roleId, checked)}
-                          disabled={allRolesCanApprove || updateMutation.isPending}
-                        />
+                        {role.userCount === 0 ? (
+                          <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-block cursor-not-allowed">
+                                  <Switch
+                                    checked={isEnabled}
+                                    onCheckedChange={(checked) => handleRoleToggle(role.roleId, checked)}
+                                    disabled={true}
+                                    className="pointer-events-none"
+                                  />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="bg-[#1C2B36] text-white border-0 text-[12px] font-medium px-3 py-2 shadow-xl rounded-[8px]">
+                                <p>There must be at least one user assigned to the role.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <Switch
+                            checked={isEnabled}
+                            onCheckedChange={(checked) => handleRoleToggle(role.roleId, checked)}
+                            disabled={allRolesCanApprove || updateMutation.isPending}
+                          />
+                        )}
                       </div>
                     </div>
                   );

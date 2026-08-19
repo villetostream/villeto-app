@@ -270,7 +270,7 @@ export default function Reimbursements() {
             accentColor="#0ea894" icon={<Banknote className="w-4 h-4 text-[#0ea894]" />}
             subtitle={<span className="text-[11px] text-[#68726d]">Completed transactions</span>} />
         </div>
-        {!authReady || isLoading ? (
+        {!authReady ? (
           <PersonalExpensesSkeleton showStats={false} />
         ) : error ? (
           <ErrorState error={error} onRetry={refetch} />
@@ -296,6 +296,7 @@ export default function Reimbursements() {
             {companyExpenseStatusTabs.map(t => (
               <TabsContent key={t.key} value={t.key} className="flex-1 flex flex-col min-h-0 overflow-hidden mt-2">
                 <ExpenseTable
+                  isLoading={isLoading}
                   actionButton={<></>}
                   statusFilter={t.filter}
                   data={data as unknown as ExpenseTableRow[]}
@@ -336,7 +337,7 @@ export default function Reimbursements() {
           accentColor="#0ea894" icon={<Banknote className="w-4 h-4 text-[#0ea894]" />}
           subtitle={<span className="text-[11px] text-[#68726d]">Access completed payments.</span>} />
       </div>
-      {!authReady || isLoadingPersonalExpenses || isLoadingDrafts ? (
+      {!authReady ? (
         <PersonalExpensesSkeleton showStats={false} />
       ) : personalExpensesError ? (
         <ErrorState error={personalExpensesError} onRetry={refetchPersonalExpenses} />
@@ -356,6 +357,7 @@ export default function Reimbursements() {
           {expenseStatusTabs.map(t => (
             <TabsContent key={t.key} value={t.key} className="flex-1 flex flex-col min-h-0 overflow-hidden mt-2">
               <ExpenseTable
+                isLoading={isLoadingPersonalExpenses || isLoadingDrafts}
                 statusFilter={t.filter}
                 data={personalExpenses as ExpenseTableRow[]}
                 columnsOverride={personalExpenseColumns as ColumnDef<ExpenseTableRow>[]}

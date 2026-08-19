@@ -83,7 +83,7 @@ export default function DashboardLayoutContent({
           userData.deletedAt
         ) {
           useAuthStore.getState().logout();
-          router.replace("/login");
+          window.location.href = "/login";
           return;
         }
 
@@ -116,7 +116,7 @@ export default function DashboardLayoutContent({
 
     if (!user) {
       logout();
-      router.replace("/login");
+      window.location.href = "/login";
       return;
     }
 

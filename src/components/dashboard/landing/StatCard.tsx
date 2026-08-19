@@ -54,7 +54,11 @@ export const StatsCard = ({
       {subtitle && (
         <div className={`flex items-center gap-1.5 text-[11px] ${trendColor}`}>
           <TrendIcon className="size-3 shrink-0" strokeWidth={2.5} />
-          <span>{subtitle}</span>
+          {isLoading ? (
+            <div className="h-3 w-20 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+          ) : (
+            <span>{subtitle}</span>
+          )}
         </div>
       )}
     </div>
