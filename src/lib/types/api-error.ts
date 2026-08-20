@@ -87,6 +87,7 @@ export interface PolicyViolationItem {
   message?: string;
   enforcementAction?: string;
   limitChecks?: PolicyLimitCheck[];
+  categoryName?: string;
 }
 
 export interface PolicyCauseItem {
@@ -98,6 +99,7 @@ export interface PolicyCauseItem {
 export interface PolicyExpenseResult {
   expenseIndex?: number;
   expenseTitle?: string;
+  categoryId?: string;
   categoryName?: string;
   amount?: number | string;
   violations?: PolicyViolationItem[];
@@ -119,6 +121,7 @@ function parseViolationItems(items: unknown[]): PolicyViolationItem[] {
           overage: getNumber(lc.overage),
         }))
       : undefined,
+    categoryName: getOptionalString(v.categoryName),
   }));
 }
 
@@ -171,6 +174,7 @@ export function getPolicyExpenseResults(error: unknown): PolicyExpenseResult[] {
     const parsed: PolicyExpenseResult[] = expenseResults.filter(isRecord).map((r) => ({
       expenseIndex: typeof r.expenseIndex === "number" ? r.expenseIndex : undefined,
       expenseTitle: getOptionalString(r.expenseTitle) ?? getOptionalString(r.title),
+      categoryId: getOptionalString(r.categoryId),
       categoryName: getOptionalString(r.categoryName),
       amount:
         typeof r.amount === "number" || typeof r.amount === "string"
@@ -179,19 +183,22 @@ export function getPolicyExpenseResults(error: unknown): PolicyExpenseResult[] {
       violations: parseViolationItems(asArray(r.violations)),
     }));
 
-    // NEW backend shape: top-level violations[] carry affectedExpenseIndexes[]
-    // while per-expense violations[] is empty. Fan violations out onto each
-    // affected expense result so the UI can display them.
+    // NEW backend shape: top-level violations[] carry full details (message, limitChecks, etc.)
+    // while per-expense violations[] is often empty. The backend tells us which violations
+    // belong to which expense via TWO mechanisms:
+    //   1. policyViolationRefs[] on each expenseResult (most reliable — direct mapping)
+    //   2. affectedExpenseIndexes[] on each top-level violation
+    // For violations not referenced by either, we fall back to categoryId matching.
     const topLevelViolations = asArray(nested.violations).filter(isRecord);
     if (topLevelViolations.length > 0) {
       const hasMissingPerExpenseViolations = parsed.some((r) => !r.violations || r.violations.length === 0);
       if (hasMissingPerExpenseViolations) {
-        // Build a map: expenseIndex -> violations[]
-        const byIndex: Record<number, PolicyViolationItem[]> = {};
+        // Build a detailed violation item from each top-level violation, keyed by type+policyId
+        const violationDetails = new Map<string, { item: PolicyViolationItem; raw: Record<string, unknown> }>();
         topLevelViolations.forEach((v) => {
-          const affectedIndexes = asArray(v.affectedExpenseIndexes).filter(
-            (i): i is number => typeof i === "number"
-          );
+          const vType = getOptionalString(v.type) ?? "";
+          const vPolicyId = getOptionalString(v.policyId) ?? "";
+          const key = `${vType}::${vPolicyId}`;
           const violationItem: PolicyViolationItem = {
             type: getOptionalString(v.type),
             message: getOptionalString(v.message),
@@ -207,10 +214,58 @@ export function getPolicyExpenseResults(error: unknown): PolicyExpenseResult[] {
                   overage: getNumber(lc.overage),
                 }))
               : undefined,
+            categoryName: getOptionalString(v.categoryName),
           };
-          affectedIndexes.forEach((idx) => {
+          violationDetails.set(key, { item: violationItem, raw: v });
+        });
+
+        // Step 1: Use policyViolationRefs from each expense result as primary mapping
+        const byIndex: Record<number, PolicyViolationItem[]> = {};
+        const matchedKeys = new Set<string>();
+
+        expenseResults.filter(isRecord).forEach((r) => {
+          const idx = typeof r.expenseIndex === "number" ? r.expenseIndex : -1;
+          if (idx < 0) return;
+          const refs = asArray(r.policyViolationRefs).filter(isRecord);
+          refs.forEach((ref) => {
+            const refType = getOptionalString(ref.type) ?? "";
+            const refPolicyId = getOptionalString(ref.policyId) ?? "";
+            const key = `${refType}::${refPolicyId}`;
+            const detail = violationDetails.get(key);
+            if (detail) {
+              if (!byIndex[idx]) byIndex[idx] = [];
+              byIndex[idx].push(detail.item);
+              matchedKeys.add(key);
+            }
+          });
+        });
+
+        // Step 2: For top-level violations NOT matched by any policyViolationRef,
+        // use affectedExpenseIndexes, then categoryId matching as fallback
+        violationDetails.forEach(({ item, raw }, key) => {
+          if (matchedKeys.has(key)) return; // already mapped via policyViolationRefs
+
+          const affectedIndexes = asArray(raw.affectedExpenseIndexes).filter(
+            (i): i is number => typeof i === "number"
+          );
+
+          let targets = affectedIndexes;
+          if (targets.length === 0) {
+            // Fallback: match by categoryId if the violation specifies one
+            const vCategoryId = getOptionalString(raw.categoryId);
+            if (vCategoryId) {
+              targets = parsed.filter(r => r.categoryId === vCategoryId).map(r => r.expenseIndex ?? 0);
+            }
+            // If still empty, apply to all
+            if (targets.length === 0) {
+              targets = parsed.map(r => r.expenseIndex ?? 0);
+            }
+            if (targets.length === 0) targets = [0];
+          }
+
+          targets.forEach((idx) => {
             if (!byIndex[idx]) byIndex[idx] = [];
-            byIndex[idx].push(violationItem);
+            byIndex[idx].push(item);
           });
         });
 

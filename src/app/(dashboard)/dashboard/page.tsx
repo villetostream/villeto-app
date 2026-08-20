@@ -75,7 +75,10 @@ export default function DashboardPage() {
   const requests = prResponse?.data || [];
   
   // PR Action Counts
-  const pendingPRApprovals = requests.filter(item => item.status === "submitted" || item.currentUserActionRequired);
+  const pendingPRApprovals = requests.filter(item => 
+    item.currentUserActionRequired || 
+    (item.status === "submitted" && can("procurement.purchase_request", "approve"))
+  );
   const prsReadyForConversion = requests.filter(item => item.status === "approved" || item.status === "partially_converted");
   const recentPRs = requests.slice(0, 5);
 
@@ -162,8 +165,8 @@ export default function DashboardPage() {
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard title="Total Committed Spend" value={currency(totalSpend, code)} icon={<BadgeDollarSign />} color="teal" isLoading={isAnyLoading} />
           <MetricCard title="Pending Actions" value={totalPendingActions.toString()} icon={<CalendarClock />} color="amber" isLoading={isAnyLoading} />
-          <MetricCard title="Active Vendors" value={activeVendors.toString()} icon={<Store />} color="blue" isLoading={isAnyLoading} />
-          <MetricCard title="Team Members" value={totalUsers.toString()} icon={<Users />} color="purple" isLoading={isAnyLoading} />
+          {canViewVendors && <MetricCard title="Active Vendors" value={activeVendors.toString()} icon={<Store />} color="blue" isLoading={isAnyLoading} />}
+          {canViewUsers && <MetricCard title="Team Members" value={totalUsers.toString()} icon={<Users />} color="purple" isLoading={isAnyLoading} />}
         </section>
 
         {/* 3. Module Overview Grid */}
@@ -243,7 +246,7 @@ export default function DashboardPage() {
               icon={<CreditCard />} 
               href="/bill-pay" 
               color="indigo"
-              visible={true}
+              visible={can("bill_pay.invoice", "view") || can("bill_pay.intake", "view")}
               comingSoon={true}
               isLoading={isAnyLoading}
               stats={[
@@ -315,22 +318,26 @@ export default function DashboardPage() {
                 <p className="text-[12px] text-[#68726d] mt-0.5">Items requiring your action</p>
               </div>
               <div className="p-3 space-y-2">
-                <AttentionRow 
-                  icon={<ClipboardCheck />} 
-                  title={`${pendingPRApprovals.length} approvals waiting`} 
-                  detail="Review submitted requests" 
-                  href="/procurement/purchase-request?innerTab=approve" 
-                  tone="amber" 
-                  isLoading={isAnyLoading}
-                />
-                <AttentionRow 
-                  icon={<ShoppingCart />} 
-                  title={`${prsReadyForConversion.length} PRs ready for PO`} 
-                  detail="Convert approved requests" 
-                  href="/procurement/purchase-request?innerTab=convert" 
-                  tone="indigo" 
-                  isLoading={isAnyLoading}
-                />
+                {(pendingPRApprovals.length > 0 || can("procurement.purchase_request", "approve")) && (
+                  <AttentionRow 
+                    icon={<ClipboardCheck />} 
+                    title={`${pendingPRApprovals.length} approvals waiting`} 
+                    detail="Review submitted requests" 
+                    href="/procurement/purchase-request?innerTab=approve" 
+                    tone="amber" 
+                    isLoading={isAnyLoading}
+                  />
+                )}
+                {can("procurement.purchase_request", "convert_to_po") && (
+                  <AttentionRow 
+                    icon={<ShoppingCart />} 
+                    title={`${prsReadyForConversion.length} PRs ready for PO`} 
+                    detail="Convert approved requests" 
+                    href="/procurement/purchase-request?innerTab=convert" 
+                    tone="indigo" 
+                    isLoading={isAnyLoading}
+                  />
+                )}
                 <AttentionRow 
                   icon={<Truck />} 
                   title={`${receivingOrders.length} orders in receiving`} 
@@ -339,14 +346,16 @@ export default function DashboardPage() {
                   tone="blue" 
                   isLoading={isAnyLoading}
                 />
-                <AttentionRow 
-                  icon={<CheckCircle2 />} 
-                  title={entity?.readinessStatus === "accounting_ready" ? "Accounting is ready" : "Finish accounting setup"} 
-                  detail="Prepare invoice controls" 
-                  href="/accounting" 
-                  tone="teal" 
-                  isLoading={isAnyLoading}
-                />
+                {canViewEntities && (
+                  <AttentionRow 
+                    icon={<CheckCircle2 />} 
+                    title={entity?.readinessStatus === "accounting_ready" ? "Accounting is ready" : "Finish accounting setup"} 
+                    detail="Prepare invoice controls" 
+                    href="/accounting" 
+                    tone="teal" 
+                    isLoading={isAnyLoading}
+                  />
+                )}
               </div>
             </div>
 
@@ -357,9 +366,15 @@ export default function DashboardPage() {
               </div>
               <div className="p-4 grid grid-cols-2 gap-2">
                 <QuickLink href="/procurement/purchase-request/new" icon={<FileText />} label="New PR" />
-                <QuickLink href="/procurement/purchase-order/new" icon={<ShoppingCart />} label="New PO" />
-                <QuickLink href="/vendors" icon={<Store />} label="Vendors" />
-                <QuickLink href="/settings/entities" icon={<CheckCircle2 />} label="Entity Setup" />
+                {can("procurement.purchase_order", "create") && (
+                  <QuickLink href="/procurement/purchase-order/new" icon={<ShoppingCart />} label="New PO" />
+                )}
+                {canViewVendors && (
+                  <QuickLink href="/vendors" icon={<Store />} label="Vendors" />
+                )}
+                {canViewEntities && (
+                  <QuickLink href="/settings/entities" icon={<CheckCircle2 />} label="Entity Setup" />
+                )}
               </div>
             </div>
           </div>

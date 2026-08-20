@@ -83,9 +83,17 @@ function humanizeMessage(message: string, categoryName: string): string {
     return `A receipt is requested for this expense based on your company's policy. Please attach a receipt, or provide a reason below to submit without one.`;
   }
 
-  // ── Category Restriction violations ──
-  if (/category\s+(is\s+)?restricted/i.test(message) || /not\s+allowed\s+(for|in)\s+this\s+category/i.test(message)) {
-    return `Your company's policy doesn't allow expenses in the "${categoryName}" category for your role. Please contact your manager or choose a different category.`;
+  // ── Category Restriction / Scope violations ──
+  if (/category\s+(is\s+)?restricted/i.test(message) || /not\s+allowed\s+(for|in)\s+this\s+category/i.test(message) || /restricted to:/i.test(message)) {
+    const match = message.match(/restricted to:\s*([^.]+)\./i);
+    const restrictedTo = match ? match[1].trim() : "specific roles or departments";
+    // Attempt to extract category from rawMessage as a bulletproof fallback if categoryName is missing
+    let finalCatLabel = categoryName || "this category";
+    if (finalCatLabel === "this category" && message) {
+      const catMatch = message.match(/Category\s+"([^"]+)"/i);
+      if (catMatch) finalCatLabel = catMatch[1];
+    }
+    return `Your profile does not match the active policy scope for the "${finalCatLabel}" category. This category's policies are restricted to designated departments, job grades, or management levels (e.g., ${restrictedTo}). Please contact your manager or choose a different category.`;
   }
 
   // ── Duplicate Receipt violations ──

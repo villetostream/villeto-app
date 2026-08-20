@@ -130,13 +130,26 @@ export default function PersonalExpenseDetailPage() {
   })();
   const reportDate = formatDate(mostRecentTimestamp);
 
-  // ── Build the "actioned by" label for CONote from the last timeline event
   const actionedBy = (() => {
     const timeline = expenseDetail.timeline;
     if (!timeline || timeline.length === 0) return null;
-    const last = timeline[timeline.length - 1];
-    if (!last.performedBy) return null;
-    const { firstName, lastName, roleName } = last.performedBy;
+    
+    let targetEvent = timeline[timeline.length - 1];
+    if (reportStatus === "rejected" || reportStatus === "flagged") {
+      const rejectEvent = [...timeline].reverse().find(
+        e => e.action === "rejected" || e.action === "declined" || e.action === "flagged"
+      );
+      if (rejectEvent) targetEvent = rejectEvent;
+    }
+
+    if (!targetEvent.performedBy) return null;
+    const { firstName, lastName, roleName } = targetEvent.performedBy;
+    
+    const isCurrentUser = currentUser && currentUser.firstName === firstName && currentUser.lastName === lastName;
+    if (isCurrentUser) {
+      return roleName ? `You (${roleName})` : "You";
+    }
+
     const name = [firstName, lastName].filter(Boolean).join(" ");
     if (!name) return null;
     return roleName ? `${name} (${roleName})` : name;

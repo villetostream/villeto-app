@@ -45,7 +45,7 @@ export function CONote({ status, rejectionReason, actionedBy }: ManagerFeedbackP
       case "declined":
         return {
           icon: <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />,
-          title: "Rejection Reason",
+          title: "Reason for rejection",
           // Show the actual reason if provided, otherwise show a helpful fallback
           message: rejectionReason?.trim()
             ? rejectionReason.trim()

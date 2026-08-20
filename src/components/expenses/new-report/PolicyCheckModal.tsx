@@ -151,9 +151,19 @@ export function PolicyCheckModal({
       return "A receipt is requested for this expense. You can still submit it without one, but you'll need to explain why.";
     }
 
-    // Category restriction
-    if (ruleType === "CATEGORY_RESTRICTION" || ruleType === "CATEGORY_RESTRICTED") {
-      return `Your company's policy doesn't allow expenses in the "${catLabel}" category for your role. Please choose a different category or contact your manager.`;
+    // Category restriction / Scope
+    if (ruleType === "CATEGORY_RESTRICTION" || ruleType === "CATEGORY_RESTRICTED" || ruleType === "SCOPE" || /restricted to:/i.test(rawMessage || "")) {
+      // Try to extract the restricted groups (e.g. "restricted to: People.")
+      const match = rawMessage?.match(/restricted to:\s*([^.]+)\./i);
+      const restrictedTo = match ? match[1].trim() : "specific roles or departments";
+      // Attempt to extract category from rawMessage as a bulletproof fallback if categoryName is missing
+      let finalCatLabel = catLabel;
+      if (finalCatLabel === "this category" && rawMessage) {
+        const catMatch = rawMessage.match(/Category\s+"([^"]+)"/i);
+        if (catMatch) finalCatLabel = catMatch[1];
+      }
+
+      return `Your profile does not match the active policy scope for the "${finalCatLabel}" category. This category's policies are restricted to designated departments, job grades, or management levels (e.g., ${restrictedTo}). Please choose a different category or contact your manager.`;
     }
 
     // Duplicate receipt
@@ -241,7 +251,7 @@ export function PolicyCheckModal({
                     const lc = v.violation.limitChecks?.[0];
                     return (
                     <div
-                      key={v.expenseId}
+                      key={`${v.expenseId}-${v.violation.ruleType}`}
                       className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start justify-between gap-3"
                     >
                       <div className="flex-1 min-w-0 space-y-2.5">
@@ -276,7 +286,7 @@ export function PolicyCheckModal({
                     const lc = v.violation.limitChecks?.[0];
                     return (
                     <div
-                      key={v.expenseId}
+                      key={`${v.expenseId}-${v.violation.ruleType}`}
                       className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-3"
                     >
                       <div className="space-y-2.5">

@@ -96,6 +96,9 @@ export const useAuthStore = create<AuthState>()(
             },
 
             login: (data: User) => {
+                if (typeof window !== "undefined") {
+                    localStorage.setItem("villeto_lastActivityTime", Date.now().toString());
+                }
                 set({ user: data });
             },
 
@@ -104,6 +107,7 @@ export const useAuthStore = create<AuthState>()(
                 
                 if (typeof window !== "undefined") {
                     try {
+                        localStorage.removeItem("villeto_lastActivityTime");
                         for (let i = 0; i < localStorage.length; i++) {
                             const key = localStorage.key(i);
                             if (key && (key.startsWith("line_item_staging:") || key.startsWith("bill_line_item_staging:"))) {

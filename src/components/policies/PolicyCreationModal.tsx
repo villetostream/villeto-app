@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo, useRef, useLayoutEffect } from "react";
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import {
   X, Plus, ChevronDown, ChevronUp, Loader2, UserCircle, Check, Trash2,
-  MapPin, Users, Tag, ShieldCheck, Info,
+  MapPin, Users, Tag, ShieldCheck, Info, AlertTriangle
 } from "lucide-react";
 import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useGetExpenseCategoriesApi } from "@/queries/companies/get-expense-categories";
@@ -877,6 +877,13 @@ export default function PolicyCreationModal({
   const isSavingDraft  = createDraftMutation.isPending || updateDraftMutation.isPending;
   const isDeletingDraft = deleteDraftMutation.isPending;
   const isLoading      = createPolicyMutation.isPending || updatePolicyMutation.isPending;
+  
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Clear submit error when user navigates steps to fix the issue
+  useEffect(() => {
+    if (submitError) setSubmitError(null);
+  }, [step, categories, scope, selectedRoles, selectedDepts]);
 
   const reset = () => {
     setStep(initialStep || 1); setPolicyName(""); setScope("all");
@@ -1135,7 +1142,12 @@ export default function PolicyCreationModal({
       });
       handleClose();
     } catch (error: unknown) {
-      toast.error(getApiErrorMessage(error, `Failed to ${isEditing ? 'update' : 'create'} policy`));
+      const errorMsg = getApiErrorMessage(error, `Failed to ${isEditing ? 'update' : 'create'} policy`);
+      if (errorMsg.includes("exact combination of roles, departments, and expense categories already exists")) {
+        setSubmitError("A policy covering this exact scope and category combination already exists. Please review your active policies or modify the scope to avoid duplicates.");
+      } else {
+        setSubmitError(errorMsg);
+      }
     }
   };
 
@@ -1464,8 +1476,15 @@ export default function PolicyCreationModal({
 
               {/* Footer */}
               <div className="h-px bg-[#f5f7f6] shrink-0" />
-              <div className="px-8 py-5 shrink-0 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
+              <div className="px-8 py-5 shrink-0 flex flex-col gap-4">
+                {submitError && step === 4 && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-[12px] flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <p className="text-[13px] text-red-800 font-medium leading-relaxed">{submitError}</p>
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
                   <button type="button" onClick={handleBack}
                     className="h-11 px-6 rounded-[14px] border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors">
                     Back
@@ -1490,6 +1509,7 @@ export default function PolicyCreationModal({
                   }
                 </button>
               </div>
+            </div>
             </>
           )}
         </div>

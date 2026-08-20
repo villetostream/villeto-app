@@ -714,7 +714,7 @@ export function ExpenseForm({
                         : participant.displayName;
 
                     if (allocationMode === "equal") {
-                      const perPersonStr = equalShare.toFixed(2);
+                      const perPersonStr = equalShare.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                       const perPerson = parseFloat(perPersonStr);
                       const isLast = idx === lastIndex;
                       
@@ -727,7 +727,7 @@ export function ExpenseForm({
                       return (
                         <div key={participant.userId} className="flex items-center justify-between px-3 py-2.5 bg-white">
                           <span className="text-sm text-foreground">{displayLabel}</span>
-                          <span className="text-sm text-muted-foreground">{displayShare.toFixed(2)}</span>
+                          <span className="text-sm text-muted-foreground">{displayShare.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                       );
                     }
@@ -741,7 +741,7 @@ export function ExpenseForm({
                     });
                     const isAutoFilled = isLast && !isOnly && splitParticipants.length >= 2 && allPrecedingFilled;
                     const displayValue = isAutoFilled
-                      ? autoLastValue.toFixed(2)
+                      ? autoLastValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                       : (manualAllocations[participant.userId] ?? "");
 
                     return (
@@ -785,7 +785,7 @@ export function ExpenseForm({
                           />
                           {!isAutoFilled && !isOnly && (!isLast || allPrecedingFilled) && (
                             <span className="text-[10px] text-muted-foreground">
-                              max {maxForThis.toFixed(2)}
+                              max {maxForThis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           )}
                         </div>
@@ -809,7 +809,7 @@ export function ExpenseForm({
                     isBalanced ? "text-green-600" : "text-amber-600"
                   )}>
                     <span>Total allocated</span>
-                    <span>{total.toFixed(2)} / {watchedAmount.toFixed(2)}</span>
+                    <span>{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {watchedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 );
               })()}

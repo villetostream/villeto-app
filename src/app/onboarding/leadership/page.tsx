@@ -329,7 +329,7 @@ export default function Leadership() {
                 lastName: owner.lastName,
                 email: owner.email,
                 ownershipPercentage: owner.ownershipPercentage ?? 0,
-                phone: owner.phone || "00000000000", // Fallback to satisfy backend validation
+                ...(owner.phone && owner.phone !== "00000000000" ? { phone: owner.phone } : {}),
             })),
         };
 
