@@ -183,8 +183,9 @@ const SplitItem = React.memo(
                     name={`expenses.${expenseIndex}.splits.${splitIndex}.amount`}
                     label="Split Amount"
                     placeholder="Enter amount"
-                    type="number"
-                    inputMode="numeric"
+                    type="text"
+                    inputMode="decimal"
+                    isCurrency={true}
                 />
             </div>
         );

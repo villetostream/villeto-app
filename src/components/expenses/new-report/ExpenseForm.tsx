@@ -400,8 +400,9 @@ export function ExpenseForm({
               name="amount"
               label="Amount"
               placeholder="Enter amount"
-              type="number"
-              inputMode="numeric"
+              type="text"
+              inputMode="decimal"
+              isCurrency={true}
             />
             {fieldErrors?.amount && fieldErrors.amount.map((err, i) => (
               <p key={i} className="text-xs font-medium text-red-500 mt-1">{err}</p>
@@ -748,8 +749,8 @@ export function ExpenseForm({
                         <span className="text-sm text-foreground">{displayLabel}</span>
                         <div className="flex flex-col items-end gap-0.5">
                           <input
-                            type="number"
-                            inputMode="numeric"
+                            type="text"
+                            inputMode="decimal"
                             readOnly={isAutoFilled}
                             placeholder={
                               isLast && !isOnly && !allPrecedingFilled
@@ -758,10 +759,21 @@ export function ExpenseForm({
                                 ? "Auto"
                                 : ""
                             }
-                            value={displayValue}
-                            max={maxForThis}
-                            min={0}
-                            onChange={(e) => !isAutoFilled && handleAllocationChange(e.target.value)}
+                            value={isAutoFilled ? displayValue : (() => {
+                              const val = displayValue;
+                              if (val === undefined || val === null || val === "") return "";
+                              const str = val.toString();
+                              const parts = str.split(".");
+                              parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                              return parts.join(".");
+                            })()}
+                            onChange={(e) => {
+                              if (isAutoFilled) return;
+                              const raw = e.target.value.replace(/[^0-9.]/g, "");
+                              const parts = raw.split(".");
+                              const finalRaw = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
+                              handleAllocationChange(finalRaw);
+                            }}
                             className={cn(
                               "w-28 text-right text-sm border rounded-md px-2 py-1 outline-none focus:ring-2 focus:ring-ring",
                               isAutoFilled
