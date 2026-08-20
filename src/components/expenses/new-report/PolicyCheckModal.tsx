@@ -83,9 +83,115 @@ export function PolicyCheckModal({
   const showHardSection = hardBlocks.length > 0;
   const showSoftSection = softWarnings.length > 0;
 
+  /** Renders a human-friendly spending breakdown card for a limitCheck */
+  const renderSpendingBreakdown = (
+    lc: NonNullable<PolicyViolation["limitChecks"]>[0],
+    categoryName: string | undefined,
+    color: "red" | "amber"
+  ) => {
+    const timeLabel = lc.timeUnit === "daily" ? "Today's" : lc.timeUnit === "monthly" ? "This month's" : lc.timeUnit === "weekly" ? "This week's" : "Period";
+    const percentage = Math.min(100, ((lc.totalAfterThisReport || 0) / (lc.limit || 1)) * 100);
+    const bgBar = color === "red" ? "bg-red-100" : "bg-amber-100";
+    const fgBar = color === "red" ? "bg-red-500" : "bg-amber-500";
+    const overageColor = color === "red" ? "text-red-600" : "text-amber-600";
+    const borderColor = color === "red" ? "border-red-100" : "border-amber-100";
+
+    return (
+      <div className={`rounded-lg bg-white border ${borderColor} p-3 space-y-2`}>
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-500">{timeLabel} limit</span>
+          <span className="font-semibold text-gray-900">{currencySymbol}{lc.limit?.toLocaleString()}</span>
+        </div>
+        {(lc.spentBeforeThisReport ?? 0) > 0 && (
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-500">Already spent</span>
+            <span className="font-medium text-gray-700">{currencySymbol}{lc.spentBeforeThisReport?.toLocaleString()}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-500">This expense</span>
+          <span className={`font-medium ${overageColor}`}>{currencySymbol}{lc.thisReportAmount?.toLocaleString()}</span>
+        </div>
+        {/* Progress bar */}
+        <div className="space-y-1">
+          <div className={`h-2 rounded-full ${bgBar} overflow-hidden`}>
+            <div
+              className={`h-full rounded-full ${fgBar} transition-all`}
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-[10px]">
+            <span className={`${overageColor} font-semibold`}>
+              {currencySymbol}{(lc.overage || 0).toLocaleString()} over limit
+            </span>
+            <span className="text-gray-400">
+              {currencySymbol}{lc.totalAfterThisReport?.toLocaleString()} / {currencySymbol}{lc.limit?.toLocaleString()}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /** Creates a plain-English summary for all policy violation types */
+  const getHumanSummary = (
+    lc: NonNullable<PolicyViolation["limitChecks"]>[0] | undefined,
+    categoryName: string | undefined,
+    isHardBlock: boolean,
+    ruleType?: string,
+    rawMessage?: string,
+  ) => {
+    const catLabel = categoryName || "this category";
+
+    // Receipt requirement
+    if (ruleType === "RECEIPT_REQUIRED" || ruleType === "RECEIPT_REQUIREMENT") {
+      if (isHardBlock) {
+        return `A receipt is required for this ${catLabel} expense. You won't be able to submit until a receipt is attached.`;
+      }
+      return "A receipt is requested for this expense. You can still submit it without one, but you'll need to explain why.";
+    }
+
+    // Category restriction
+    if (ruleType === "CATEGORY_RESTRICTION" || ruleType === "CATEGORY_RESTRICTED") {
+      return `Your company's policy doesn't allow expenses in the "${catLabel}" category for your role. Please choose a different category or contact your manager.`;
+    }
+
+    // Duplicate receipt
+    if (ruleType === "DUPLICATE_RECEIPT" || ruleType === "duplicate_receipt") {
+      return "This receipt appears to have been submitted before. Please use a different receipt or contact your manager if this is a mistake.";
+    }
+
+    // Approval threshold
+    if (ruleType === "APPROVAL_REQUIRED" || ruleType === "APPROVAL_THRESHOLD") {
+      return `This expense requires additional approval based on your company's policy. ${isHardBlock ? "It cannot be submitted without approval." : "Please provide a justification below."}`;
+    }
+
+    // Spend limit (with breakdown data)
+    if (lc) {
+      const timeWord = lc.timeUnit === "daily" ? "daily" : lc.timeUnit === "monthly" ? "monthly" : lc.timeUnit === "weekly" ? "weekly" : lc.timeUnit;
+      if (isHardBlock) {
+        return `This expense exceeds your ${timeWord} spending limit for ${catLabel}. You'll need to reduce the amount or remove this expense before you can submit.`;
+      }
+      return `This expense goes over your ${timeWord} spending limit for ${catLabel}. You can still submit it, but you'll need to explain why.`;
+    }
+
+    // Generic fallback — clean up the raw backend message
+    if (rawMessage) {
+      let cleaned = rawMessage;
+      // Remove parenthesized user names like "(Sarah Lee)"
+      cleaned = cleaned.replace(/\s*\([A-Z][a-z]+ [A-Z][a-z]+\)/g, '');
+      // Remove "from X expense(s) in the same daily/monthly ... bucket"
+      cleaned = cleaned.replace(/from\s+\d+\s+expenses?\s+in\s+the\s+same\s+\w+\s+[\w\s]+bucket,?\s*/gi, '');
+      // Replace "NGN" with ₦ for readability
+      cleaned = cleaned.replace(/\bNGN\s*/g, '₦');
+      return cleaned;
+    }
+
+    return "This expense doesn't meet your company's policy requirements.";
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      {/* No max-h on DialogContent itself — we control the layout manually */}
       <DialogContent
         className="sm:max-w-[520px] rounded-2xl p-0 overflow-hidden flex flex-col"
         style={{ maxHeight: "85vh" }}
@@ -132,33 +238,21 @@ export function PolicyCheckModal({
                 <div className="space-y-2">
                   {hardBlocks.map((v) => {
                     const isReceiptViolation = v.violation.ruleType === "RECEIPT_REQUIRED";
+                    const lc = v.violation.limitChecks?.[0];
                     return (
                     <div
                       key={v.expenseId}
                       className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start justify-between gap-3"
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                      <div className="flex-1 min-w-0 space-y-2.5">
+                        <div className="flex items-center gap-2">
                           <XCircle className="w-4 h-4 text-red-500 shrink-0" />
                           <p className="text-sm font-semibold text-foreground">{v.expenseName}</p>
                         </div>
-                        <p className="text-xs text-red-700 leading-relaxed">{v.violation.message}</p>
-                        {v.violation.limitChecks && v.violation.limitChecks.length > 0 && v.violation.limitChecks[0].spentBeforeThisReport !== undefined && (
-                          <div className="mt-2 text-xs rounded-md bg-white border border-red-100 p-2 space-y-1">
-                            <div className="flex justify-between">
-                              <span className="text-red-700/70">Daily Limit:</span>
-                              <span className="font-medium text-red-900">{currencySymbol}{v.violation.limitChecks[0].limit?.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-red-700/70">Already spent today:</span>
-                              <span className="font-medium text-red-600">{currencySymbol}{v.violation.limitChecks[0].spentBeforeThisReport?.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between border-t border-red-100 pt-1 mt-1">
-                              <span className="text-red-700/70">Remaining limit:</span>
-                              <span className="font-medium text-red-900">{currencySymbol}{Math.max(0, (v.violation.limitChecks[0].limit || 0) - (v.violation.limitChecks[0].spentBeforeThisReport || 0)).toLocaleString()}</span>
-                            </div>
-                          </div>
-                        )}
+                        <p className="text-[13px] text-red-800 leading-relaxed">
+                          {getHumanSummary(lc, v.violation.categoryName, true, v.violation.ruleType, v.violation.message)}
+                        </p>
+                        {lc && renderSpendingBreakdown(lc, v.violation.categoryName, "red")}
                       </div>
                       <Button
                         size="sm"
@@ -178,33 +272,22 @@ export function PolicyCheckModal({
               {/* Soft Warnings — only show justification textareas when NO hard block exists */}
               {showSoftSection && !hasHardBlocks && (
                 <div className="space-y-3">
-                  {softWarnings.map((v) => (
+                  {softWarnings.map((v) => {
+                    const lc = v.violation.limitChecks?.[0];
+                    return (
                     <div
                       key={v.expenseId}
                       className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-3"
                     >
-                      <div>
-                        <div className="flex items-center gap-2 mb-0.5">
+                      <div className="space-y-2.5">
+                        <div className="flex items-center gap-2">
                           <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
                           <p className="text-sm font-semibold text-foreground">{v.expenseName}</p>
                         </div>
-                        <p className="text-xs text-amber-700 leading-relaxed">{v.violation.message}</p>
-                        {v.violation.limitChecks && v.violation.limitChecks.length > 0 && v.violation.limitChecks[0].spentBeforeThisReport !== undefined && (
-                          <div className="mt-2 text-xs rounded-md bg-white border border-amber-100 p-2 space-y-1">
-                            <div className="flex justify-between">
-                              <span className="text-amber-700/70">Daily Limit:</span>
-                              <span className="font-medium text-amber-900">{currencySymbol}{v.violation.limitChecks[0].limit?.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-amber-700/70">Already spent today:</span>
-                              <span className="font-medium text-red-600">{currencySymbol}{v.violation.limitChecks[0].spentBeforeThisReport?.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between border-t border-amber-100 pt-1 mt-1">
-                              <span className="text-amber-700/70">Remaining limit:</span>
-                              <span className="font-medium text-amber-900">{currencySymbol}{Math.max(0, (v.violation.limitChecks[0].limit || 0) - (v.violation.limitChecks[0].spentBeforeThisReport || 0)).toLocaleString()}</span>
-                            </div>
-                          </div>
-                        )}
+                        <p className="text-[13px] text-amber-800 leading-relaxed">
+                          {getHumanSummary(lc, v.violation.categoryName, false, v.violation.ruleType, v.violation.message)}
+                        </p>
+                        {lc && renderSpendingBreakdown(lc, v.violation.categoryName, "amber")}
                       </div>
                       <div>
                         <label className="text-xs font-medium text-foreground block mb-1.5">
@@ -218,7 +301,7 @@ export function PolicyCheckModal({
                         />
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
 
@@ -228,37 +311,26 @@ export function PolicyCheckModal({
                   <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mt-2">
                     Also in this report — pending
                   </p>
-                  {softWarnings.map((v) => (
+                  {softWarnings.map((v) => {
+                    const lc = v.violation.limitChecks?.[0];
+                    return (
                     <div
                       key={v.expenseId}
-                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-2"
                     >
                       <div className="flex items-center gap-2 mb-0.5">
                         <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
                         <p className="text-sm font-semibold text-foreground">{v.expenseName}</p>
                       </div>
-                      <p className="text-xs text-amber-700 leading-relaxed">{v.violation.message}</p>
-                      {v.violation.limitChecks && v.violation.limitChecks.length > 0 && v.violation.limitChecks[0].spentBeforeThisReport !== undefined && (
-                        <div className="mt-2 mb-1 text-xs rounded-md bg-white border border-amber-100 p-2 space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-amber-700/70">Daily Limit:</span>
-                            <span className="font-medium text-amber-900">{currencySymbol}{v.violation.limitChecks[0].limit?.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-amber-700/70">Already spent today:</span>
-                            <span className="font-medium text-red-600">{currencySymbol}{v.violation.limitChecks[0].spentBeforeThisReport?.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between border-t border-amber-100 pt-1 mt-1">
-                            <span className="text-amber-700/70">Remaining limit:</span>
-                            <span className="font-medium text-amber-900">{currencySymbol}{Math.max(0, (v.violation.limitChecks[0].limit || 0) - (v.violation.limitChecks[0].spentBeforeThisReport || 0)).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      )}
+                      <p className="text-[13px] text-amber-800 leading-relaxed">
+                        {getHumanSummary(lc, v.violation.categoryName, false, v.violation.ruleType, v.violation.message)}
+                      </p>
+                      {lc && renderSpendingBreakdown(lc, v.violation.categoryName, "amber")}
                       <p className="text-xs text-muted-foreground mt-1 italic">
                         Will require justification after the block above is fixed.
                       </p>
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
             </div>

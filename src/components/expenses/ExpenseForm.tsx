@@ -629,8 +629,9 @@ export function ExpenseForm() {
                                     name={`expenses.${index}.amount`}
                                     label="Amount"
                                     placeholder="Enter Amount"
-                                    type="number"
-                                    inputMode="numeric"
+                                    type="text"
+                                    inputMode="decimal"
+                                    isCurrency={true}
                                   />
                                   <FormFieldSelect
                                     control={form.control}
@@ -783,8 +784,9 @@ export function ExpenseForm() {
                               name={`expenses.${index}.amount`}
                               label="Amount"
                               placeholder="Enter Amount"
-                              type="number"
-                              inputMode="numeric"
+                              type="text"
+                              inputMode="decimal"
+                              isCurrency={true}
                             />
                             <FormFieldSelect
                               control={form.control}

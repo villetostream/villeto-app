@@ -44,25 +44,71 @@ interface PolicyJustificationDrawerProps {
 function humanizeMessage(message: string, categoryName: string): string {
   if (!message) return `Your expense in the "${categoryName}" category exceeded a policy limit.`;
 
-  // Transform backend's rigid receipt requirement message:
-  // From: "A receipt is required for \"Utilities\" expenses of 5000 or more. This expense is 5500."
-  // To: "Receipt Required: Your expense of 5,500 exceeds the 5,000 receipt threshold for the Utilities category. Please attach a receipt."
-  const receiptMatch = message.match(/A receipt is required for "([^"]+)" expenses of ([\d,.]+) or more\. This expense is ([\d,.]+)\./i);
-  
-  if (receiptMatch) {
-    const [_, category, thresholdStr, expenseStr] = receiptMatch;
-    
-    // Format numbers if they are unformatted (e.g. "5000" -> "5,000")
-    const thresholdNum = Number(thresholdStr.replace(/,/g, ''));
-    const expenseNum = Number(expenseStr.replace(/,/g, ''));
-    
-    const formattedThreshold = isNaN(thresholdNum) ? thresholdStr : thresholdNum.toLocaleString();
-    const formattedExpense = isNaN(expenseNum) ? expenseStr : expenseNum.toLocaleString();
+  // ── Spend Limit violations ──
+  // Pattern: "Daily spend limit exceeded for Travel and Transportation (Sarah Lee). Daily limit is NGN 500,000. ..."
+  const spendMatch = message.match(/(daily|weekly|monthly)\s+spend\s+limit\s+exceeded\s+for\s+([^(]+)/i);
+  if (spendMatch) {
+    const timeframe = spendMatch[1].toLowerCase();
+    const category = spendMatch[2].trim();
 
-    return `Receipt Required: Your expense of ${formattedExpense} exceeds the ${formattedThreshold} receipt threshold for the ${category} category. Please attach a receipt.`;
+    // Extract the limit and overage amounts
+    const limitMatch = message.match(/limit is\s+\w{3}\s+([\d,]+)/i);
+    const overMatch = message.match(/([\d,]+)\s+over the limit/i);
+
+    const limitAmt = limitMatch ? limitMatch[1] : null;
+    const overAmt = overMatch ? overMatch[1] : null;
+
+    let result = `Your ${category} expense goes over your company's ${timeframe} spending limit`;
+    if (limitAmt) result += ` of ${limitAmt}`;
+    result += `.`;
+    if (overAmt) result += ` You're ${overAmt} over the limit.`;
+    result += ` Please provide a reason below so your approver can review it.`;
+    return result;
   }
 
-  return message;
+  // ── Receipt Requirement violations ──
+  // Pattern: "A receipt is required for \"Utilities\" expenses of 5000 or more. This expense is 5500."
+  const receiptMatch = message.match(/A receipt is required for "([^"]+)" expenses of ([\d,.]+) or more\. This expense is ([\d,.]+)\./i);
+  if (receiptMatch) {
+    const [_, category, thresholdStr, expenseStr] = receiptMatch;
+    const thresholdNum = Number(thresholdStr.replace(/,/g, ''));
+    const expenseNum = Number(expenseStr.replace(/,/g, ''));
+    const formattedThreshold = isNaN(thresholdNum) ? thresholdStr : thresholdNum.toLocaleString();
+    const formattedExpense = isNaN(expenseNum) ? expenseStr : expenseNum.toLocaleString();
+    return `Your ${category} expense of ${formattedExpense} exceeds the ${formattedThreshold} threshold for requiring a receipt. Please attach a receipt, or provide a reason below to submit without one.`;
+  }
+
+  // Simpler receipt pattern: just mentions "receipt is required"
+  if (/receipt\s+(is\s+)?required/i.test(message)) {
+    return `A receipt is requested for this expense based on your company's policy. Please attach a receipt, or provide a reason below to submit without one.`;
+  }
+
+  // ── Category Restriction violations ──
+  if (/category\s+(is\s+)?restricted/i.test(message) || /not\s+allowed\s+(for|in)\s+this\s+category/i.test(message)) {
+    return `Your company's policy doesn't allow expenses in the "${categoryName}" category for your role. Please contact your manager or choose a different category.`;
+  }
+
+  // ── Duplicate Receipt violations ──
+  if (/duplicate/i.test(message) && /receipt/i.test(message)) {
+    return `This receipt has already been submitted in a previous expense report. Please use a different receipt or contact your manager if this is a mistake.`;
+  }
+
+  // ── Approval Threshold violations ──
+  if (/approval\s+(is\s+)?required/i.test(message) || /requires\s+approval/i.test(message)) {
+    return `This expense requires additional approval based on your company's policy. Please provide a reason below.`;
+  }
+
+  // ── Generic fallback: clean up raw technical messages ──
+  // Remove internal identifiers like "(Sarah Lee)", "policyUserId", "bucket", etc.
+  let cleaned = message;
+  // Remove parenthesized user names like "(Sarah Lee)"
+  cleaned = cleaned.replace(/\s*\([A-Z][a-z]+ [A-Z][a-z]+\)/g, '');
+  // Remove "from X expense(s) in the same daily/monthly ... bucket"
+  cleaned = cleaned.replace(/from\s+\d+\s+expenses?\s+in\s+the\s+same\s+\w+\s+[\w\s]+bucket,?\s*/gi, '');
+  // Replace "NGN" with the simpler ₦ symbol for readability
+  cleaned = cleaned.replace(/\bNGN\s*/g, '₦');
+
+  return cleaned;
 }
 
 function getPolicyTypeLabel(type: string): string {

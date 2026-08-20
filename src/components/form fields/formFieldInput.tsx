@@ -33,6 +33,7 @@ interface FormFieldInputProps<T extends FieldValues = FieldValues> {
   prefixIcon?: React.ReactNode;
   disabled?: boolean;
   required?: boolean;
+  isCurrency?: boolean;
 }
 
 const FormFieldInput = <T extends FieldValues = FieldValues>({
@@ -48,6 +49,7 @@ const FormFieldInput = <T extends FieldValues = FieldValues>({
   prefixIcon = null,
   disabled = false,
   required = false,
+  isCurrency = false,
 }: FormFieldInputProps<T>) => {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -55,12 +57,21 @@ const FormFieldInput = <T extends FieldValues = FieldValues>({
     setShowPassword(!showPassword);
   };
 
-  const inputType =
-    showPasswordToggle && type === "password"
+  const inputType = isCurrency
+    ? "text"
+    : showPasswordToggle && type === "password"
       ? showPassword
         ? "text"
         : "password"
       : type;
+
+  const formatCurrency = (val: string | number | undefined | null) => {
+    if (val === undefined || val === null || val === "") return "";
+    const str = val.toString();
+    const parts = str.split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return parts.join(".");
+  };
 
   return (
     <FormField
@@ -87,7 +98,17 @@ const FormFieldInput = <T extends FieldValues = FieldValues>({
                 pattern={pattern}
                 disabled={disabled}
                 {...field}
+                value={isCurrency ? formatCurrency(field.value) : field.value}
                 onChange={(e) => {
+                  if (isCurrency) {
+                    const raw = e.target.value.replace(/[^0-9.]/g, "");
+                    if (raw === "") return field.onChange("");
+                    const parts = raw.split(".");
+                    if (parts.length > 2) {
+                      return field.onChange(parts[0] + "." + parts.slice(1).join(""));
+                    }
+                    return field.onChange(raw);
+                  }
                   if (type === "number") {
                     const raw = e.target.value;
                     // Keep empty input as empty (lets validation decide).

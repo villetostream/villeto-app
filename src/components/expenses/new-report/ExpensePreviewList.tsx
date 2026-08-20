@@ -14,6 +14,7 @@ export interface PolicyViolation {
   message: string;
   ruleType?: string;
   limitChecks?: any[];
+  categoryName?: string;
 }
 
 export interface ExpenseItem {
@@ -27,7 +28,7 @@ export interface ExpenseItem {
   description?: string;
   transactionDate?: Date;
   fileName?: string;
-  policyViolations?: { type: string; message: string; ruleType?: string; limitChecks?: any[] }[] | null;
+  policyViolations?: PolicyViolation[] | null;
   justification?: string;
   /** Flag marking this expense as a split expense — drives expenseType in the submit payload. */
   isSplit?: boolean;

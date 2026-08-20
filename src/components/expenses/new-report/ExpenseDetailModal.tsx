@@ -198,62 +198,142 @@ export function ExpenseDetailModal({
               {/* Hard block violations (excluding duplicate — already shown above) */}
               {hardBlockViolations
                 .filter((v) => v.ruleType !== "duplicate_receipt")
-                .map((v, i) => (
-                  <div key={i} className="px-3 py-2.5 rounded-xl border bg-red-50 border-red-200 flex items-start gap-2">
-                    <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-red-700 mb-0.5">Policy Block</p>
-                      <p className="text-xs text-red-700">{v.message}</p>
-                      {v.limitChecks && v.limitChecks.length > 0 && v.limitChecks[0].spentBeforeThisReport !== undefined && (
-                        <div className="mt-2 text-[11px] rounded-md bg-white border border-red-100 p-2 space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-red-700/70">Daily Limit:</span>
-                            <span className="font-medium text-red-900">{currencySymbol}{v.limitChecks[0].limit?.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-red-700/70">Already spent today:</span>
-                            <span className="font-medium text-red-600">{currencySymbol}{v.limitChecks[0].spentBeforeThisReport?.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between border-t border-red-100 pt-1 mt-1">
-                            <span className="text-red-700/70">Remaining limit:</span>
-                            <span className="font-medium text-red-900">{currencySymbol}{Math.max(0, (v.limitChecks[0].limit || 0) - (v.limitChecks[0].spentBeforeThisReport || 0)).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      )}
-                      <p className="text-xs text-red-500 mt-2">
-                        {v.ruleType === "RECEIPT_REQUIRED" || /receipt is required/i.test(v.message)
-                          ? "Upload a receipt to resolve this block before saving."
-                          : "Adjust the expense details (e.g. reduce the amount) to resolve this block before saving."}
-                      </p>
+                .map((v, i) => {
+                  const lc = v.limitChecks?.[0];
+                  const isReceipt = v.ruleType === "RECEIPT_REQUIRED" || v.ruleType === "RECEIPT_REQUIREMENT" || /receipt is required/i.test(v.message);
+                  const isCategoryRestriction = v.ruleType === "CATEGORY_RESTRICTION" || v.ruleType === "CATEGORY_RESTRICTED";
+                  const isDuplicate = v.ruleType === "DUPLICATE_RECEIPT" || v.ruleType === "duplicate_receipt";
+                  const isApproval = v.ruleType === "APPROVAL_REQUIRED" || v.ruleType === "APPROVAL_THRESHOLD";
+                  const timeLabel = lc?.timeUnit === "daily" ? "Today's" : lc?.timeUnit === "monthly" ? "This month's" : lc?.timeUnit === "weekly" ? "This week's" : "Period";
+                  const humanMsg = isReceipt
+                    ? "A receipt is required for this expense. You won't be able to submit until a receipt is attached."
+                    : isCategoryRestriction
+                    ? "Your company's policy doesn't allow expenses in this category for your role. Please choose a different category."
+                    : isDuplicate
+                    ? "This receipt appears to have been submitted before. Please use a different receipt."
+                    : isApproval
+                    ? "This expense requires additional approval and cannot be submitted without it."
+                    : lc
+                    ? `This expense exceeds your ${lc.timeUnit} spending limit. Reduce the amount to continue.`
+                    : (() => {
+                        let c = v.message;
+                        c = c.replace(/\s*\([A-Z][a-z]+ [A-Z][a-z]+\)/g, '');
+                        c = c.replace(/from\s+\d+\s+expenses?\s+in\s+the\s+same\s+\w+\s+[\w\s]+bucket,?\s*/gi, '');
+                        c = c.replace(/\bNGN\s*/g, '₦');
+                        return c;
+                      })();
+                  return (
+                  <div key={i} className="px-3 py-2.5 rounded-xl border bg-red-50 border-red-200 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                      <p className="text-xs font-medium text-red-800">{humanMsg}</p>
                     </div>
-                  </div>
-                ))}
-
-              {/* Soft warn violations */}
-              {softWarnViolations.map((v, i) => (
-                <div key={i} className="px-3 py-2.5 rounded-xl border bg-amber-50 border-amber-200 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-amber-700">{v.message}</p>
-                    {v.limitChecks && v.limitChecks.length > 0 && v.limitChecks[0].spentBeforeThisReport !== undefined && (
-                      <div className="mt-2 text-[11px] rounded-md bg-white border border-amber-100 p-2 space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-amber-700/70">Daily Limit:</span>
-                          <span className="font-medium text-amber-900">{currencySymbol}{v.limitChecks[0].limit?.toLocaleString()}</span>
+                    {lc && (
+                      <div className="rounded-lg bg-white border border-red-100 p-3 space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">{timeLabel} limit</span>
+                          <span className="font-semibold text-gray-900">{currencySymbol}{lc.limit?.toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-amber-700/70">Already spent today:</span>
-                          <span className="font-medium text-red-600">{currencySymbol}{v.limitChecks[0].spentBeforeThisReport?.toLocaleString()}</span>
+                        {(lc.spentBeforeThisReport ?? 0) > 0 && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-500">Already spent</span>
+                            <span className="font-medium text-gray-700">{currencySymbol}{lc.spentBeforeThisReport?.toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">This expense</span>
+                          <span className="font-medium text-red-600">{currencySymbol}{lc.thisReportAmount?.toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between border-t border-amber-100 pt-1 mt-1">
-                          <span className="text-amber-700/70">Remaining limit:</span>
-                          <span className="font-medium text-amber-900">{currencySymbol}{Math.max(0, (v.limitChecks[0].limit || 0) - (v.limitChecks[0].spentBeforeThisReport || 0)).toLocaleString()}</span>
+                        <div className="space-y-1">
+                          <div className="h-2 rounded-full bg-red-100 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-red-500 transition-all"
+                              style={{ width: `${Math.min(100, ((lc.totalAfterThisReport || 0) / (lc.limit || 1)) * 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-red-600 font-semibold">
+                              {currencySymbol}{(lc.overage || 0).toLocaleString()} over limit
+                            </span>
+                            <span className="text-gray-400">
+                              {currencySymbol}{lc.totalAfterThisReport?.toLocaleString()} / {currencySymbol}{lc.limit?.toLocaleString()}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     )}
+                    <p className="text-xs text-red-500">
+                      {isReceipt
+                        ? "Upload a receipt to resolve this block before saving."
+                        : "Adjust the expense details (e.g. reduce the amount) to resolve this block before saving."}
+                    </p>
                   </div>
+                )})}
+
+              {/* Soft warn violations */}
+              {softWarnViolations.map((v, i) => {
+                const lc = v.limitChecks?.[0];
+                const isReceipt = v.ruleType === "RECEIPT_REQUIRED" || v.ruleType === "RECEIPT_REQUIREMENT" || /receipt is required/i.test(v.message);
+                const isCategoryRestriction = v.ruleType === "CATEGORY_RESTRICTION" || v.ruleType === "CATEGORY_RESTRICTED";
+                const isApproval = v.ruleType === "APPROVAL_REQUIRED" || v.ruleType === "APPROVAL_THRESHOLD";
+                const timeLabel = lc?.timeUnit === "daily" ? "Today's" : lc?.timeUnit === "monthly" ? "This month's" : lc?.timeUnit === "weekly" ? "This week's" : "Period";
+                const humanMsg = isReceipt
+                  ? "A receipt is requested for this expense. You can still save it without one, but you'll need to explain why when submitting."
+                  : isCategoryRestriction
+                  ? "This category has restrictions under your company's policy. Contact your manager for guidance."
+                  : isApproval
+                  ? "This expense requires additional approval. Please provide a justification when submitting."
+                  : lc
+                  ? `This expense goes over your ${lc.timeUnit} spending limit. You can still save it, but you'll need to explain why when submitting.`
+                  : (() => {
+                      let c = v.message;
+                      c = c.replace(/\s*\([A-Z][a-z]+ [A-Z][a-z]+\)/g, '');
+                      c = c.replace(/from\s+\d+\s+expenses?\s+in\s+the\s+same\s+\w+\s+[\w\s]+bucket,?\s*/gi, '');
+                      c = c.replace(/\bNGN\s*/g, '₦');
+                      return c;
+                    })();
+                return (
+                <div key={i} className="px-3 py-2.5 rounded-xl border bg-amber-50 border-amber-200 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-xs font-medium text-amber-800">{humanMsg}</p>
+                  </div>
+                  {lc && (
+                    <div className="rounded-lg bg-white border border-amber-100 p-3 space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-500">{timeLabel} limit</span>
+                        <span className="font-semibold text-gray-900">{currencySymbol}{lc.limit?.toLocaleString()}</span>
+                      </div>
+                      {(lc.spentBeforeThisReport ?? 0) > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Already spent</span>
+                          <span className="font-medium text-gray-700">{currencySymbol}{lc.spentBeforeThisReport?.toLocaleString()}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-500">This expense</span>
+                        <span className="font-medium text-amber-700">{currencySymbol}{lc.thisReportAmount?.toLocaleString()}</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="h-2 rounded-full bg-amber-100 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-amber-500 transition-all"
+                            style={{ width: `${Math.min(100, ((lc.totalAfterThisReport || 0) / (lc.limit || 1)) * 100)}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-amber-600 font-semibold">
+                            {currencySymbol}{(lc.overage || 0).toLocaleString()} over limit
+                          </span>
+                          <span className="text-gray-400">
+                            {currencySymbol}{lc.totalAfterThisReport?.toLocaleString()} / {currencySymbol}{lc.limit?.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
+              )})}
 
               {/* ── Inline Justification — moved to the top, right under the warning! ── */}
               {showJustificationBox && (
