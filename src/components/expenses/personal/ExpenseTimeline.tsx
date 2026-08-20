@@ -12,6 +12,7 @@ interface TimelineEntry {
   timestamp: string;
   dotColor: string;
   isActive: boolean;
+  notes?: string | null;
 }
 
 interface ExpenseTimelineProps {
@@ -234,6 +235,7 @@ export function ExpenseTimeline({
           }).replace(",", ""),
           dotColor,
           isActive: isLast,
+          notes: event.notes,
         };
       })
     : getTimelineEntries(status, submitterName, submissionDate, approverName);

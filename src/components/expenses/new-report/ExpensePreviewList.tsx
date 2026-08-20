@@ -111,7 +111,7 @@ export function ExpensePreviewList({
           <span className="text-muted-foreground font-normal">{expenses.length}</span>
         </h3>
         <span className="text-sm font-semibold text-foreground">
-          Total: {currencySymbol}{total.toFixed(2)}
+          Total: {currencySymbol}{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       </div>
 
@@ -201,7 +201,7 @@ export function ExpensePreviewList({
                     <span className="text-xs text-muted-foreground">{expense.merchantName || "—"}</span>
                   </td>
                   <td className="px-3 py-2.5">
-                    <span className="text-xs font-medium text-foreground">{currencySymbol}{expense.amount.toFixed(2)}</span>
+                    <span className="text-xs font-medium text-foreground">{currencySymbol}{expense.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </td>
                   <td className="px-1.5 py-2.5">
                     <button type="button" className="inline-flex items-center justify-center w-7 h-7 rounded-[6px] hover:bg-[#f5f7f6] text-[#68726d] hover:text-[#0b100e] transition-colors" onClick={() => onViewDetails(expense.id)}>

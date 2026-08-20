@@ -8,6 +8,7 @@ import { ExpensePreviewList, type ExpenseItem } from "@/components/expenses/new-
 import { ExpenseDetailModal } from "@/components/expenses/new-report/ExpenseDetailModal";
 import { ReceiptPreviewModal } from "@/components/expenses/new-report/ReceiptPreviewModal";
 import { PolicyCheckModal, type PolicyCheckResult } from "@/components/expenses/new-report/PolicyCheckModal";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type ExpenseDetailFormData, type SplitParticipant } from "@/components/expenses/new-report/ExpenseForm";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -488,7 +489,7 @@ export default function EditReportPage() {
           expenses: expensesPayload,
         };
         // Use PATCH to update the draft
-        await axios.patch(`reports/drafts/${reportId}`, requestPayload);
+        await axios.patch(`reports/drafts/${reportId}`, requestPayload, { _skipErrorToast: true });
       } else {
         const requestPayload = {
           reportTitle: reportTitle,
@@ -496,7 +497,7 @@ export default function EditReportPage() {
           expenses: expensesPayload,
         };
         // Use POST to submit the draft
-        const res = await axios.post(API_KEYS.EXPENSE.REPORTS, requestPayload);
+        const res = await axios.post(API_KEYS.EXPENSE.REPORTS, requestPayload, { _skipErrorToast: true });
 
         // ── Check if the policy engine requires ACTION_REQUIRED (201 but not submitted) ──
         const responseData = res.data?.data;
@@ -564,6 +565,8 @@ export default function EditReportPage() {
                       type: violationType,
                       message: violationMsg,
                       ruleType: action.type || "POLICY_RULE",
+                      limitChecks: warning?.limitChecks ?? undefined,
+                      categoryName: action.categoryName ?? warning?.categoryName ?? undefined,
                     }],
                   };
                 }
@@ -631,6 +634,7 @@ export default function EditReportPage() {
                     message: humanizeReceiptMessage(v.message ?? "Policy violation"),
                     ruleType: v.type,
                     limitChecks: (v as any).limitChecks,
+                    categoryName: (v as any).categoryName ?? result.categoryName ?? undefined,
                   },
                   justification: exp.justification,
                 });
@@ -659,7 +663,6 @@ export default function EditReportPage() {
           return updated;
         });
 
-        toast.error("Some expenses violated policy rules. Please review them.");
         setIsSavingDraft(false);
         setIsSubmittingReport(false);
         return;
@@ -701,21 +704,29 @@ export default function EditReportPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 mb-4 border-b">
         <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-          <div className="relative inline-grid items-center group w-full md:w-auto">
-            {/* Hidden span dictates the width of the grid container based on text length */}
-            <span className="col-start-1 row-start-1 invisible whitespace-pre pl-3 pr-8 py-1 text-sm font-semibold">
-              {reportTitle || "Enter report name"}
-            </span>
-            <input
-              type="text"
-              value={reportTitle}
-              onChange={(e) => setReportTitle(e.target.value)}
-              placeholder="Enter report name"
-              className="col-start-1 row-start-1 w-full min-w-0 border border-black/[0.08] rounded-[8px] pl-3 pr-8 py-1 text-[13px] font-semibold text-[#0b100e] bg-white hover:border-gray-400 focus:border-[#087f70] focus:ring-1 focus:ring-[#087f70] outline-none transition-all"
-              title="Edit report name"
-            />
-            <Pencil className="absolute right-2.5 w-3.5 h-3.5 text-muted-foreground opacity-60 pointer-events-none" />
-          </div>
+          <TooltipProvider>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <div className="relative inline-grid items-center group w-full md:w-auto">
+                  {/* Hidden span dictates the width of the grid container based on text length */}
+                  <span className="col-start-1 row-start-1 invisible whitespace-pre pl-3 pr-8 py-1 text-sm font-semibold">
+                    {reportTitle || "Enter report name"}
+                  </span>
+                  <input
+                    type="text"
+                    value={reportTitle}
+                    onChange={(e) => setReportTitle(e.target.value)}
+                    placeholder="Enter report name"
+                    className="col-start-1 row-start-1 w-full min-w-0 border border-black/[0.08] rounded-[8px] pl-3 pr-8 py-1 text-[13px] font-semibold text-[#0b100e] bg-white hover:border-gray-400 focus:border-[#087f70] focus:ring-1 focus:ring-[#087f70] outline-none transition-all"
+                  />
+                  <Pencil className="absolute right-2.5 w-3.5 h-3.5 text-muted-foreground opacity-60 pointer-events-none" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Edit report name</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <button 
               type="button"
               className="flex items-center text-[13px] font-semibold text-[#d33d44] hover:text-[#c33339] hover:bg-[#fdf2f2] px-3 py-1.5 rounded-[6px] transition-colors disabled:opacity-50"

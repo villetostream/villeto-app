@@ -33,7 +33,9 @@ export const useUpdatePolicyApi = () => {
   return useMutation<UpdatePolicyResponse, Error, { id: string; payload: UpdatePolicyPayload }>({
     retry: false,
     mutationFn: async ({ id, payload }) => {
-      const response = await axiosInstance.patch(API_KEYS.EXPENSE.POLICY_BY_ID(id), payload);
+      const response = await axiosInstance.patch(API_KEYS.EXPENSE.POLICY_BY_ID(id), payload, {
+        _skipErrorToast: true,
+      } as any);
       return response.data;
     },
     onSuccess: (_data, { id }) => {

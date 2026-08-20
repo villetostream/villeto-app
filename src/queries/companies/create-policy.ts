@@ -38,7 +38,9 @@ export const useCreatePolicyApi = () => {
   return useMutation<Response, Error, CreatePolicyPayload>({
     retry: false,
     mutationFn: async (payload: CreatePolicyPayload) => {
-      const res = await axiosInstance.post(API_KEYS.EXPENSE.POLICIES, payload);
+      const res = await axiosInstance.post(API_KEYS.EXPENSE.POLICIES, payload, {
+        _skipErrorToast: true,
+      } as any);
       return res.data;
     },
     onSuccess: () => {

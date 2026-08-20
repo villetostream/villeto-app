@@ -260,16 +260,40 @@ export default function CompanyExpenseDetailPage() {
   })();
   const reportDate = formatDate(mostRecentTimestamp);
 
-  // ── Build the "actioned by" label for CONote from the last timeline event
   const actionedBy = (() => {
     const timeline = expenseDetail.timeline;
     if (!timeline || timeline.length === 0) return null;
-    const last = timeline[timeline.length - 1];
-    if (!last.performedBy) return null;
-    const { firstName, lastName, roleName } = last.performedBy;
+    
+    // If rejected/flagged, we want the person who rejected it. Otherwise the last person.
+    let targetEvent = timeline[timeline.length - 1];
+    if (reportStatus === "rejected" || reportStatus === "flagged") {
+      const rejectEvent = [...timeline].reverse().find(
+        e => e.action === "rejected" || e.action === "declined" || e.action === "flagged"
+      );
+      if (rejectEvent) targetEvent = rejectEvent;
+    }
+
+    if (!targetEvent.performedBy) return null;
+    const { firstName, lastName, roleName } = targetEvent.performedBy;
+    
+    const isCurrentUser = user && user.firstName === firstName && user.lastName === lastName;
+    if (isCurrentUser) {
+      return roleName ? `You (${roleName})` : "You";
+    }
+
     const name = [firstName, lastName].filter(Boolean).join(" ");
     if (!name) return null;
     return roleName ? `${name} (${roleName})` : name;
+  })();
+
+  const extractedRejectionReason = (() => {
+    if (reportStatus !== "rejected" && reportStatus !== "flagged") return undefined;
+    const timeline = expenseDetail.timeline;
+    if (!timeline) return undefined;
+    const rejectEvent = [...timeline].reverse().find(
+      e => e.action === "rejected" || e.action === "declined" || e.action === "flagged"
+    );
+    return rejectEvent?.notes || undefined;
   })();
 
   const isOwnScope = scope === "own";
@@ -439,7 +463,14 @@ export default function CompanyExpenseDetailPage() {
               </div>
             </div>
 
-            {/* Approve / Reject was here, moved to right column */}
+            {/* Manager's Feedback (Rejection/Flagged) */}
+            {(reportStatus === "rejected" || reportStatus === "flagged" || reportStatus === "approved" || reportStatus === "paid") && (
+              <CONote
+                status={reportStatus}
+                rejectionReason={extractedRejectionReason}
+                actionedBy={actionedBy}
+              />
+            )}
           </div>
 
           {/* Right — Expense Timeline (visible to all roles) */}

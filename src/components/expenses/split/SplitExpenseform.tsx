@@ -120,7 +120,7 @@ export function SplitExpense({ control, expenseIndex, totalAmount }: SplitExpens
                 {remainingAmount < 0 && (
                     <div className="text-sm text-destructive font-medium">
                         Total split amount exceeds expense amount by {currencySymbol}
-                        {Math.abs(remainingAmount).toFixed(2)}
+                        {Math.abs(remainingAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                 )}
             </div>

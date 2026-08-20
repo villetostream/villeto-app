@@ -89,7 +89,7 @@ export const getCompanyColumns = (scope: string): ColumnDef<CompanyExpenseReport
         const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
         const currencySymbol = getCurrencySymbol();
         const amount = row.getValue("totalAmount") as number;
-        return <span className="font-semibold">{currencySymbol}{amount.toFixed(2)}</span>;
+        return <span className="font-semibold">{currencySymbol}{amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>;
     },
   },
   {
