@@ -30,6 +30,7 @@ import { useCompanyExpenses } from "@/lib/react-query/expenses";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS, PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import { cn } from "@/lib/utils";
+import { COUNTRY_CURRENCY_CONFIG } from "@/lib/utils/currency";
 
 const currency = (value: number, code = "USD") => new Intl.NumberFormat(undefined, { style: "currency", currency: code, maximumFractionDigits: 0 }).format(value);
 const date = (value?: string) => value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)) : "No date";
@@ -62,7 +63,11 @@ export default function DashboardPage() {
   const canViewEntities = can("legal_entity", "view");
   const { data: entityResponse, isLoading: entityLoading } = useLegalEntities({ enabled: canViewEntities });
   const entity = (entityResponse?.data || []).find((item) => item.isDefault) || entityResponse?.data?.[0];
-  const code = entity?.baseCurrency || "USD";
+  
+  // Fallback to company country if user lacks permission to view legal entities
+  const companyCountry = user?.company?.countryOfRegistration;
+  const fallbackCurrency = companyCountry ? (COUNTRY_CURRENCY_CONFIG[companyCountry]?.code || "USD") : "USD";
+  const code = entity?.baseCurrency || fallbackCurrency;
 
   // Purchase Requests
   const prScope = can("procurement.purchase_request", "read_company") ? "company" : can("procurement.purchase_request", "read_department") ? "team" : "own";

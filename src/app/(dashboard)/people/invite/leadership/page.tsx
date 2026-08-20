@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useForm, Controller, useWatch } from "react-hook-form";
-import { UserPlus, Pencil, Trash2, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { UserPlus, Pencil, Trash2, AlertCircle, CheckCircle2, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,7 +86,11 @@ export default function InviteLeadershipPage() {
         if (!emailQuery) return [];
         const q = emailQuery.toLowerCase();
         return directoryUsers
-            .filter((u) => u.email?.toLowerCase().includes(q))
+            .filter((u) => {
+                const emailMatch = u.email?.toLowerCase().includes(q);
+                const fullName = `${u.firstName || ""} ${u.lastName || ""}`.toLowerCase();
+                return emailMatch || fullName.includes(q);
+            })
             .filter((u: any) => {
                 const isInvited = u.status === "Active" || (u.loginCount ?? 0) > 0;
                 const isExactMatch = u.email?.toLowerCase() === q;
@@ -262,9 +266,12 @@ export default function InviteLeadershipPage() {
                                 Email Address<span className="text-red-500 ml-0.5">*</span>
                             </label>
                             <div className="relative" ref={suggestionsRef}>
+                                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                    <Search className="h-4 w-4 text-[#98a09c]" />
+                                </div>
                                 <Input
                                     id="email"
-                                    placeholder="emma@company.com"
+                                    placeholder="Search by name or email..."
                                     value={emailQuery}
                                     autoComplete="off"
                                     onChange={(e) => {
@@ -278,7 +285,7 @@ export default function InviteLeadershipPage() {
                                     onFocus={() => {
                                         if (suggestions.length > 0) setShowSuggestions(true);
                                     }}
-                                    className={`h-[46px] rounded-[10px] border-black/[0.1] text-[13px] shadow-[0_2px_8px_rgba(14,28,23,0.04)] placeholder:text-[#98a09c] focus-visible:border-[#0ea894] focus-visible:ring-[#0ea894]/15 ${
+                                    className={`h-[46px] rounded-[10px] border-black/[0.1] text-[13px] pl-10 shadow-[0_2px_8px_rgba(14,28,23,0.04)] placeholder:text-[#98a09c] focus-visible:border-[#0ea894] focus-visible:ring-[#0ea894]/15 ${
                                         isEmailNotFound
                                             ? "border-red-400 focus-visible:border-red-400"
                                             : isUserAlreadyInvited

@@ -148,8 +148,10 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
       const job = (u.position || u.jobTitle || "").toLowerCase();
       const managerName = u.manager
         ? typeof u.manager === "object"
-          ? `${u.manager.firstName || ""} ${u.manager.lastName || ""}`.trim().toLowerCase()
-          : u.manager.toLowerCase()
+          ? ("name" in u.manager && typeof (u.manager as any).name === "string" && (u.manager as any).name)
+            ? (u.manager as any).name.toLowerCase()
+            : `${(u.manager as any).firstName || ""} ${(u.manager as any).lastName || ""}`.trim().toLowerCase()
+          : String(u.manager).toLowerCase()
         : "";
       return (
         fullName.includes(searchLower) ||
@@ -374,9 +376,14 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                   const value = jobTitle || position;
                   let managerName = "—";
                   if (employee.manager && typeof employee.manager === "object") {
-                    const first = formatName(employee.manager.firstName);
-                    const last = formatName(employee.manager.lastName);
-                    managerName = `${first} ${last}`.trim() || "—";
+                    if ("name" in employee.manager && employee.manager.name) {
+                      managerName = String(employee.manager.name);
+                    } else {
+                      const first = (employee.manager as any).firstName || "";
+                      const last = (employee.manager as any).lastName || "";
+                      const combined = `${first} ${last}`.trim();
+                      managerName = combined ? formatName(combined) : "—";
+                    }
                   } else if (typeof employee.manager === "string" && employee.manager) {
                     managerName = formatName(employee.manager);
                   }
