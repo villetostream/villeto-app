@@ -22,13 +22,7 @@ export default function NewExpenseHeaderAction() {
   const router = useRouter();
 
   const categoriesWithPoliciesApi = useGetExpenseCategoriesWithPoliciesApi();
-  // A policy is considered set up when at least one expense category
-  // has a policy attached (isPolicyAttached=true or non-empty policies[]).
-  const hasPolicies =
-    Array.isArray(categoriesWithPoliciesApi.data?.data) &&
-    categoriesWithPoliciesApi.data.data.some(
-      (c) => c.isPolicyAttached === true || (Array.isArray(c.policies) && c.policies.length > 0)
-    );
+  const hasPolicies = Array.isArray(categoriesWithPoliciesApi.data?.data) && categoriesWithPoliciesApi.data.data.length > 0;
   const isLoadingPolicies = categoriesWithPoliciesApi.isLoading;
   const canCreatePolicy = useAuthStore((s) => s.can)("policy", "create");
 

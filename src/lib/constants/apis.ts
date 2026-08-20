@@ -81,7 +81,7 @@ export const API_KEYS = {
   EXPENSE: {
     CATEGORIES: "companies/categories?module=expense",
     CATEGORY_DETAIL: (id: string) => `companies/expense/categories/${id}` as const,
-    CATEGORIES_WITH_POLICIES: "companies/categories?withPolicies=true&module=expense",
+    CATEGORIES_WITH_POLICIES: "companies/categories?withPolicies=true&module=expense&status=active",
     POLICIES: "policy",
     POLICY_BY_ID: (id: string) => `policy/${id}` as const,
     POLICY_ACTION: (id: string, action: "approve" | "reject") => `policy/${id}/${action}` as const,

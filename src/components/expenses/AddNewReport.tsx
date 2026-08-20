@@ -13,7 +13,7 @@ import { z } from "zod";
 import FormFieldInput from "../form fields/formFieldInput";
 import { Form } from "../ui/form";
 import { useRouter } from "next/navigation";
-import { useGetPoliciesApi } from "@/queries/companies/get-policies";
+import { useGetExpenseCategoriesWithPoliciesApi } from "@/queries/companies/get-expense-categories";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 
@@ -40,9 +40,9 @@ const AddNewReport = ({
 
   const canCreatePolicy = useAuthStore((s) => s.can)("policy", "create");
   
-  const policiesApi = useGetPoliciesApi();
-  const hasPolicies = Array.isArray(policiesApi.data?.data) && policiesApi.data.data.length > 0;
-  const isLoadingPolicies = policiesApi.isLoading;
+  const categoriesApi = useGetExpenseCategoriesWithPoliciesApi();
+  const hasPolicies = Array.isArray(categoriesApi.data?.data) && categoriesApi.data.data.length > 0;
+  const isLoadingPolicies = categoriesApi.isLoading;
 
   const getPreservedValues = () => {
     if (typeof window === "undefined") return { reportName: "" };
