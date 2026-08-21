@@ -18,7 +18,7 @@ import {
 import { ExpenseDetailSkeleton } from "@/components/expenses/ExpenseDetailSkeleton";
 import { useAuthStore } from "@/stores/auth-stores";
 import { PolicyComplianceBadge } from "@/components/expenses/PolicyComplianceBadge";
-import { useGetAllUsersApi } from "@/queries/users/get-all-users";
+import { useGetSplitExpenseUsersApi } from "@/queries/users/get-all-users";
 
 // Helper function to format date
 const formatDate = (dateString: string): string => {
@@ -59,7 +59,7 @@ export default function PersonalExpenseDetailPage() {
 
   // Pre-fetch users so the cache is warm before the modal opens.
   // This prevents the "Unknown User" flash when viewing split allocations.
-  useGetAllUsersApi({ enabled: true });
+  useGetSplitExpenseUsersApi({ enabled: true });
 
   if (isLoading) {
     return <ExpenseDetailSkeleton />;

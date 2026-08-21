@@ -410,6 +410,9 @@ export function StepScope({
         initial={exceptions}
         onClose={() => setExceptionOpen(false)}
         onSave={(newExceptions) => onChange({ exceptions: newExceptions })}
+        departments={departments}
+        jobGrades={jobGrades?.filter(j => j.name != null).map(j => ({ ...j, name: j.name! }))}
+        managementLevels={mgmtLevels}
       />
     </div>
   );

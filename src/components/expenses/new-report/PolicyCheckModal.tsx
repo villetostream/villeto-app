@@ -42,10 +42,17 @@ export function PolicyCheckModal({
   const currencySymbol = getCurrencySymbol();
   const [justifications, setJustifications] = useState<Record<string, string>>({});
 
-  const hardBlocks = violations.filter(
+  // Deduplicate violations to handle backend duplicates
+  const uniqueViolations = violations.filter((v, index, self) => 
+    index === self.findIndex((t) => (
+      t.expenseId === v.expenseId && t.violation.ruleType === v.violation.ruleType
+    ))
+  );
+
+  const hardBlocks = uniqueViolations.filter(
     (v) => v.violation.type === "hard_block" || v.violation.type === "block"
   );
-  const softWarnings = violations.filter(
+  const softWarnings = uniqueViolations.filter(
     (v) =>
       v.violation.type === "soft_warning" ||
       v.violation.type === "soft_warn"

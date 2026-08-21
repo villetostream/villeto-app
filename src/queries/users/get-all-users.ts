@@ -146,3 +146,19 @@ export const useGetUninvitedUsersApi = (
         ...options,
     });
 };
+
+/** Fetches users for the split expense flow */
+export const useGetSplitExpenseUsersApi = (
+    options?: UseUserListOptions
+): UseQueryResult<Response, Error> => {
+    const axiosInstance = useAxios();
+
+    return useQuery<Response, Error>({
+        queryKey: [...QUERY_KEYS.people.users(), "split-expense", options?.params],
+        queryFn: async () => {
+            return fetchAllUsersLoop(axiosInstance, API_KEYS.USER.SPLIT_EXPENSE_USERS, options?.params);
+        },
+        staleTime: STALE_TIMES.NORMAL,
+        ...options,
+    });
+};

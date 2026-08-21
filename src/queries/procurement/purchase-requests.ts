@@ -47,6 +47,7 @@ export interface PurchaseRequestLineItem {
   resolvedVendorId?: string;
   conversionStatus?: "open" | "converted";
   convertedQuantity?: number;
+  policyViolations?: { type: string; message: string; ruleType?: string }[] | null;
 }
 
 export type ApprovalStatus =
@@ -339,12 +340,14 @@ export const useDeleteLineItem = (
 
 export const useSubmitPurchaseRequest = (
   id: string
-): UseMutationResult<ApiResponse<PurchaseRequest>, Error, void> => {
+): UseMutationResult<ApiResponse<PurchaseRequest>, Error, { policyJustifications?: Record<string, string> } | void> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const res = await axiosInstance.patch(PROCUREMENT_KEYS.SUBMIT(id));
+    mutationFn: async (payload) => {
+      const res = await axiosInstance.patch(PROCUREMENT_KEYS.SUBMIT(id), payload || {}, {
+        _skipErrorToast: true,
+      } as any);
       return res.data;
     },
     onSuccess: () => {

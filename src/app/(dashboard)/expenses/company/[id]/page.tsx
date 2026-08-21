@@ -32,7 +32,7 @@ import { CONote } from "@/components/expenses/personal/CONote";
 import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
 import { PolicyComplianceBadge } from "@/components/expenses/PolicyComplianceBadge";
 import { asRecord, pickString } from "@/lib/types/api-error";
-import { useGetAllUsersApi } from "@/queries/users/get-all-users";
+import { useGetSplitExpenseUsersApi } from "@/queries/users/get-all-users";
 
 const formatDate = (dateString: string): string => {
   try {
@@ -203,7 +203,7 @@ export default function CompanyExpenseDetailPage() {
 
   // Pre-fetch users so the cache is warm before the modal opens.
   // This prevents the "Unknown User" flash when viewing split allocations.
-  useGetAllUsersApi({ enabled: true });
+  useGetSplitExpenseUsersApi({ enabled: true });
 
 
   if (isPageLoading) return <ExpenseDetailSkeleton />;

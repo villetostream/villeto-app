@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
-  CheckCircle2, Loader2, Pencil, ChevronLeft,
+  CheckCircle2, Loader2, Pencil, ChevronLeft, AlertCircle,
 } from "lucide-react";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
+import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
 import type { LineItemPayload as _LIP } from "@/queries/procurement/purchase-requests";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
@@ -29,7 +30,7 @@ import {
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { toast } from "sonner";
-import { getApiErrorMessage } from "@/lib/types/api-error";
+import { getApiErrorMessage, isProcurementPolicyViolationError, getProcurementPolicyViolations, applyProcurementPolicyErrorToLineItems, type ProcurementPolicyViolation } from "@/lib/types/api-error";
 import { isPRPriority, toApiLineItemPayload } from "@/lib/types/purchase-request-helpers";
 import {
   isProcurementReadyLegalEntity,
@@ -450,6 +451,8 @@ function NewPurchaseRequestPage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [purchaseRequestId, setPurchaseRequestId] = useState<string | null>(null);
   const [savedLineItems, setSavedLineItems] = useState<PurchaseRequestLineItem[]>([]);
+  const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
 
   // Header form
   const [title, setTitle] = useState("");
@@ -515,6 +518,7 @@ function NewPurchaseRequestPage() {
     legalEntities.find(
       (entity) => entity.legalEntityId === effectiveLegalEntityId,
     )?.baseCurrency || "";
+  const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
 
   const selectLegalEntity = (id: string) => {
     setLegalEntityId(id);
@@ -563,6 +567,7 @@ function NewPurchaseRequestPage() {
       const refetched = await refetchPR();
       const items = refetched.data?.data?.lineItems || [];
       if (items.length > 0) setSavedLineItems(items);
+      setPolicyViolations(null); // Clear errors so user can resubmit
       toast.success(`${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to add items"));
@@ -582,6 +587,7 @@ function NewPurchaseRequestPage() {
       if (items.length > 0) setSavedLineItems(items);
       setEditingItem(null);
       setPanelOpen(false);
+      setPolicyViolations(null); // Clear errors so user can resubmit
       toast.success("Item updated");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to update item"));
@@ -599,12 +605,10 @@ function NewPurchaseRequestPage() {
       await deleteLineItem.mutateAsync(lineItemId);
       // Refetch the PR to sync the list
       const refetched = await refetchPR();
-      const items = refetched.data?.data?.lineItems;
-      if (items) {
-        setSavedLineItems(items);
-      } else {
-        setSavedLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
-      }
+      const items = refetched.data?.data?.lineItems || [];
+      setSavedLineItems(items); // allows empty array if all deleted
+      setItemToDelete(null);
+      setPolicyViolations(null); // Clear errors so user can resubmit
       toast.success("Item removed");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to remove item"));
@@ -660,7 +664,6 @@ function NewPurchaseRequestPage() {
     userDepartmentName ||
     departments.find(d => d.value === departmentId)?.label ||
     "";
-  const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
 
   return (
     <>
@@ -870,38 +873,64 @@ function NewPurchaseRequestPage() {
                     <tbody>
                       {savedLineItems.map((item, i) => {
                         const catName = getCategoryName(item.categoryId);
+                        const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
+                        const hasBlock = hasViolations && item.policyViolations!.some(v => v.type === "hard_block");
+                        const itemKey = item.purchaseRequestLineItemId || (item as any).id || i;
                         return (
-                          <tr key={item.purchaseRequestLineItemId || (item as any).id || i} className="border-b border-border/40 last:border-0 hover:bg-[#f9faf9] transition-colors">
-                            <td className="px-5 py-3.5 font-semibold text-[#0b100e]">{item.name}</td>
-                            <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
-                            <td className="px-5 py-3.5">
-                              {catName
-                                ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{catName}</span>
-                                : <span className="text-[#68726d]">—</span>
-                              }
-                            </td>
-                            <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
-                            <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-1">
-                                <div className="relative group">
-                                  <button type="button" onClick={() => openEditModal(item, i)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
+                          <React.Fragment key={itemKey}>
+                            <tr className={`border-b ${hasViolations ? "border-transparent" : "border-border/40 last:border-0"} hover:bg-[#f9faf9] transition-colors`}>
+                              <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
+                                <div className="flex items-center gap-2">
+                                  {hasViolations && (
+                                    <span className={`w-2 h-2 rounded-full shrink-0 ${hasBlock ? "bg-red-500" : "bg-amber-400"}`} />
+                                  )}
+                                  {item.name}
                                 </div>
-                                <div className="relative group">
-                                  <button type="button" onClick={() => setItemToDelete({ item, index: i })}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
+                              </td>
+                              <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
+                              <td className="px-5 py-3.5">
+                                {catName
+                                  ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{catName}</span>
+                                  : <span className="text-[#68726d]">—</span>
+                                }
+                              </td>
+                              <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
+                              <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                              <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                              <td className="px-5 py-3.5">
+                                <div className="flex items-center gap-1">
+                                  <div className="relative group">
+                                    <button type="button" onClick={() => openEditModal(item, i)}
+                                      className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
+                                  </div>
+                                  <div className="relative group">
+                                    <button type="button" onClick={() => setItemToDelete({ item, index: i })}
+                                      className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                          </tr>
+                              </td>
+                            </tr>
+                            {hasViolations && (
+                              <tr key={`${itemKey}-violations`} className="border-b border-border/40 last:border-0">
+                                <td colSpan={7} className="px-5 pb-3 pt-0">
+                                  <div className="flex flex-col gap-1.5">
+                                    {item.policyViolations!.map((v, idx) => (
+                                      <div key={idx} className={`flex items-start gap-2 px-3 py-2 rounded-lg text-xs font-medium ${v.type === "hard_block" ? "bg-red-50 text-red-700 border border-red-100" : "bg-amber-50 text-amber-700 border border-amber-100"}`}>
+                                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                                        <span>{v.message}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
@@ -937,20 +966,36 @@ function NewPurchaseRequestPage() {
 
           {/* Sticky Submit footer */}
           <div className="shrink-0 border-t border-black/[0.06] bg-white py-4 flex items-center justify-end">
-            <button type="button" disabled={savedLineItems.length === 0 || submitPR.isPending}
+            <button type="button"
+              disabled={savedLineItems.length === 0 || submitPR.isPending}
               onClick={async () => {
                 if (!purchaseRequestId) return;
+                if (policyViolations) {
+                  setIsPolicyModalOpen(true);
+                  return;
+                }
                 try {
                   await submitPR.mutateAsync();
                   toast.success("Purchase request submitted for review!");
                   router.push("/procurement/purchase-request");
                 } catch (err: unknown) {
-                  toast.error(getApiErrorMessage(err, "Failed to submit"));
+                  if (isProcurementPolicyViolationError(err)) {
+                    const violations = getProcurementPolicyViolations(err);
+                    setPolicyViolations(violations);
+                    setIsPolicyModalOpen(true);
+                    setSavedLineItems(prev => applyProcurementPolicyErrorToLineItems(prev, violations));
+                  } else {
+                    toast.error(getApiErrorMessage(err, "Failed to submit"));
+                  }
                 }
               }}
-              className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
+              className={`h-11 px-8 rounded-[12px] text-white text-sm font-semibold transition-all flex items-center gap-2 ${
+                policyViolations
+                  ? "bg-[#d33d44] hover:bg-[#c33339] cursor-pointer"
+                  : "bg-[#087f70] hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+              }`}>
               {submitPR.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Submit Request
+              {policyViolations ? "Fix Violations to Submit" : "Submit Request"}
             </button>
           </div>
         </div>
@@ -975,6 +1020,34 @@ function NewPurchaseRequestPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Policy Violation Modal */}
+      {policyViolations && (
+        <ProcurementPolicyCheckModal
+          isOpen={isPolicyModalOpen}
+          onClose={() => setIsPolicyModalOpen(false)}
+          violations={policyViolations}
+          onEditRequest={() => setIsPolicyModalOpen(false)}
+          onProceedWithWarnings={async (justifications) => {
+            if (!purchaseRequestId) return;
+            try {
+              await submitPR.mutateAsync({ policyJustifications: justifications });
+              toast.success("Purchase request submitted for review!");
+              setPolicyViolations(null);
+              setIsPolicyModalOpen(false);
+              router.push("/procurement/purchase-request");
+            } catch (err: unknown) {
+              if (isProcurementPolicyViolationError(err)) {
+                const violations = getProcurementPolicyViolations(err);
+                setPolicyViolations(violations);
+                setSavedLineItems(prev => applyProcurementPolicyErrorToLineItems(prev, violations));
+              } else {
+                toast.error(getApiErrorMessage(err, "Failed to submit with justifications"));
+              }
+            }
+          }}
+        />
+      )}
     </>
   );
 }
@@ -982,4 +1055,3 @@ function NewPurchaseRequestPage() {
 export default withPermissions(NewPurchaseRequestPage, [
   { resource: "procurement.purchase_request", action: "create" },
 ]);
-
