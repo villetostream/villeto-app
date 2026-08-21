@@ -909,11 +909,14 @@ export default function PolicyCreationModal({
 
     if (scopeType === "specific") {
       const extractIds = (arr: any[]) => (arr || []).map(item => typeof item === 'string' ? item : (item?.id || item?.departmentId || item?.jobGradeId || item?.managementLevelId || item?.value || '')).filter(Boolean);
-      
-      setSelectedDepts(extractIds(dataAny.scope?.departments || dataAny.applicableDepartments || []));
+      const depts = dataAny.scope?.departments?.length ? dataAny.scope.departments : (dataAny.applicableDepartments || []);
+      const jg = dataAny.scope?.jobGradeIds?.length ? dataAny.scope.jobGradeIds : (dataAny.applicableJobGrades || []);
+      const ml = dataAny.scope?.managementLevelIds?.length ? dataAny.scope.managementLevelIds : (dataAny.applicableManagementLevels || []);
+
+      setSelectedDepts(extractIds(depts));
       setSelectedRoles([
-        ...extractIds(dataAny.scope?.jobGradeIds || dataAny.applicableJobGrades || []),
-        ...extractIds(dataAny.scope?.managementLevelIds || dataAny.applicableManagementLevels || [])
+        ...extractIds(jg),
+        ...extractIds(ml)
       ]);
       setLocation(dataAny.scope?.location || dataAny.location || "");
     } else {

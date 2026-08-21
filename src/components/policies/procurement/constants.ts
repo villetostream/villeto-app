@@ -352,9 +352,10 @@ export const buildCriteriaLabel = (
     timeUnit?: string;
     allowedVendorCount?: number;
     allowedRoleCount?: number;
+    allowedRoleNames?: string[];
   } = {}
 ): string => {
-  const { amount, currency, minimumQuotes, maxCount, timeUnit, allowedVendorCount, allowedRoleCount } = opts;
+  const { amount, currency, minimumQuotes, maxCount, timeUnit, allowedVendorCount, allowedRoleCount, allowedRoleNames } = opts;
   const amtStr = amount !== undefined ? `${currency ?? ""} ${amount.toLocaleString()}`.trim() : "threshold";
 
   switch (condition) {
@@ -367,9 +368,13 @@ export const buildCriteriaLabel = (
     case "line_total_greater_than":
       return `Apply when any line item total is above ${amtStr}`;
     case "requester_role_not_allowed":
-      return `Apply when requester role is not in the ${allowedRoleCount ?? 0} allowed role(s)`;
+      return allowedRoleNames && allowedRoleNames.length > 0
+        ? `Apply when requester role is not in the allowed role(s): ${allowedRoleNames.join(", ")}`
+        : `Apply when requester role is not in the ${allowedRoleCount ?? 0} allowed role(s)`;
     case "requester_role_requires_manager_approval":
-      return `Apply when requester role is one of ${allowedRoleCount ?? 0} selected role(s)`;
+      return allowedRoleNames && allowedRoleNames.length > 0
+        ? `Apply when requester role is one of the selected role(s): ${allowedRoleNames.join(", ")}`
+        : `Apply when requester role is one of ${allowedRoleCount ?? 0} selected role(s)`;
     case "accounting_unresolved":
       return "Apply when accounting or budget information is unresolved";
     case "vendor_not_in_allowed_list":

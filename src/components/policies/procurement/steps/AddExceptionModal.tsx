@@ -16,22 +16,22 @@ import { Check, ChevronsUpDown } from "lucide-react";
 
 type LocalCategory = ExceptionCategory | "managementGrade";
 
-const CATEGORY_META: { value: LocalCategory; label: string; options: string[]; placeholder: string }[] = [
-  { value: "department", label: "Department", options: DEPARTMENT_OPTIONS, placeholder: "Search departments..." },
-  { value: "managementGrade", label: "Management Level / Job Grade", options: [...MANAGEMENT_LEVEL_OPTIONS, ...JOB_GRADE_OPTIONS], placeholder: "Search management levels or job grades..." },
-  { value: "location", label: "Location", options: LOCATION_OPTIONS, placeholder: "Search locations..." },
-];
-
 export function AddExceptionModal({
   open,
   initial,
   onClose,
   onSave,
+  departments,
+  jobGrades,
+  managementLevels,
 }: {
   open: boolean;
   initial: ExceptionSelection;
   onClose: () => void;
   onSave: (selection: ExceptionSelection) => void;
+  departments?: { departmentId: string; departmentName: string }[];
+  jobGrades?: { jobGradeId: string; name: string }[];
+  managementLevels?: { managementLevelId: string; name: string }[];
 }) {
   const [category, setCategory] = useState<LocalCategory>("department");
   const [draft, setDraft] = useState<ExceptionSelection>(initial);
@@ -44,7 +44,16 @@ export function AddExceptionModal({
     }
   }, [open, initial]);
 
-  const meta = useMemo(() => CATEGORY_META.find((c) => c.value === category) || CATEGORY_META[0], [category]);
+  const CATEGORY_META = useMemo(() => [
+    { value: "department" as LocalCategory, label: "Department", options: (departments || []).map(d => ({ id: d.departmentId, name: d.departmentName || "Unknown" })), placeholder: "Search departments..." },
+    { value: "managementGrade" as LocalCategory, label: "Management Level / Job Grade", options: [
+      ...(managementLevels || []).map(m => ({ id: m.managementLevelId, name: m.name || (m as any).code || "Unknown", isJobGrade: false })),
+      ...(jobGrades || []).map(j => ({ id: j.jobGradeId, name: j.name || (j as any).code || "Unknown", isJobGrade: true }))
+    ], placeholder: "Search management levels or job grades..." },
+    { value: "location" as LocalCategory, label: "Location", options: LOCATION_OPTIONS.map(l => ({ id: l, name: l })), placeholder: "Search locations..." },
+  ], [departments, jobGrades, managementLevels]);
+
+  const meta = useMemo(() => CATEGORY_META.find((c) => c.value === category) || CATEGORY_META[0], [category, CATEGORY_META]);
 
   if (!open) return null;
 
@@ -62,30 +71,39 @@ export function AddExceptionModal({
     setDraft({ ...draft, [cat]: draft[cat].filter((i) => i !== item) });
   };
 
-  const getTargetCategory = (item: string) => {
+  const getTargetCategory = (opt: any) => {
     let targetCat = category as ExceptionCategory;
     if (category === "managementGrade") {
-      targetCat = JOB_GRADE_OPTIONS.includes(item) ? "jobGrade" : "managementLevel";
+      targetCat = opt.isJobGrade ? "jobGrade" : "managementLevel";
     }
     return targetCat;
   };
 
-  const isItemSelected = (item: string) => {
-    const targetCat = getTargetCategory(item);
-    return draft[targetCat]?.includes(item);
+  const isItemSelected = (opt: any) => {
+    const targetCat = getTargetCategory(opt);
+    return draft[targetCat]?.includes(opt.id);
   };
 
-  const toggleItem = (item: string) => {
-    const targetCat = getTargetCategory(item);
-    if (draft[targetCat]?.includes(item)) {
-      removeItem(targetCat, item);
+  const toggleItem = (opt: any) => {
+    const targetCat = getTargetCategory(opt);
+    if (draft[targetCat]?.includes(opt.id)) {
+      removeItem(targetCat, opt.id);
     } else {
-      setDraft({ ...draft, [targetCat]: [...draft[targetCat], item] });
+      setDraft({ ...draft, [targetCat]: [...draft[targetCat], opt.id] });
     }
   };
 
   const totalSelected = (Object.values(draft) as string[][]).reduce((acc, curr) => acc + (curr?.length || 0), 0);
-  const filteredOptions = meta.options.filter((o) => o.toLowerCase().includes(search.toLowerCase()));
+  const filteredOptions = meta.options.filter((o) => o.name.toLowerCase().includes(search.toLowerCase()));
+
+  // Helper to get name from ID for rendering
+  const getNameForId = (cat: ExceptionCategory, id: string) => {
+    for (const m of CATEGORY_META) {
+      const found = m.options.find(o => o.id === id);
+      if (found) return found.name;
+    }
+    return id;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
@@ -161,7 +179,7 @@ export function AddExceptionModal({
                     const isSelected = isItemSelected(opt);
                     return (
                       <button
-                        key={opt}
+                        key={opt.id}
                         type="button"
                         onClick={() => toggleItem(opt)}
                         className="w-full flex items-center gap-2 px-3 py-2 rounded-[12px] text-sm text-foreground hover:bg-[#f9faf9]/40 transition-colors"
@@ -174,7 +192,12 @@ export function AddExceptionModal({
                         >
                           {isSelected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
                         </span>
-                        {opt}
+                        {opt.name}
+                        {"isJobGrade" in opt && (
+                          <span className="ml-auto px-1.5 py-0.5 rounded-full bg-[#f5f7f6] text-[10px] font-medium text-[#68726d]">
+                            {(opt as any).isJobGrade ? "Job Grade" : "Management Level"}
+                          </span>
+                        )}
                       </button>
                     );
                   })
@@ -198,7 +221,7 @@ export function AddExceptionModal({
                   key={`${cat}-${item}`}
                   className="inline-flex items-center gap-1.5 bg-primary/10 text-primary text-xs font-medium px-2.5 py-1 rounded-full"
                 >
-                  {item}
+                  {getNameForId(cat, item)}
                   <button onClick={() => removeItem(cat, item)} className="hover:opacity-70">
                     <X className="w-3 h-3" />
                   </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
 import {
@@ -11,6 +11,7 @@ import {
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
 import { format } from "date-fns";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useAxios } from "@/hooks/useAxios";
@@ -44,7 +45,7 @@ import {
   PR_STATUS_CFG,
   getPRDisplayStatus,
 } from "@/lib/constants/purchase-request-status";
-import { getApiErrorMessage, isRecord, getOptionalString } from "@/lib/types/api-error";
+import { getApiErrorMessage, isProcurementPolicyViolationError, getProcurementPolicyViolations, applyProcurementPolicyErrorToLineItems, type ProcurementPolicyViolation, isRecord, getOptionalString } from "@/lib/types/api-error";
 import {
   getRequesterName,
   getRoleName,
@@ -1340,6 +1341,8 @@ function PRDetailPage() {
   const [modal, setModal] = useState<"submit" | "withdraw" | "reject" | "approve" | "edit_header" | "delete_item" | "delete_pr" | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelSaving, setPanelSaving] = useState(false);
+  const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isConvertingPartially, setIsConvertingPartially] = useState(false);
   const pr: PurchaseRequestDetail | undefined = data?.data;
@@ -1365,6 +1368,7 @@ function PRDetailPage() {
 
   const vendors: Vendor[] = vendorData?.data || [];
   const currency = pr?.currency || "USD";
+  const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
 
   // ── Status flags ─────────────────────────────────────────────────────────
   const isDraft     = pr?.status === "draft";
@@ -1438,6 +1442,7 @@ function PRDetailPage() {
     setPanelSaving(true);
     try {
       await addLineItem.mutateAsync({ lineItems: payloads.map(cleanLineItemPayload) });
+      setPolicyViolations(null); // Clear errors so user can resubmit
       toast.success(`${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to add items"));
@@ -1453,6 +1458,7 @@ function PRDetailPage() {
       await updateLineItemHook.mutateAsync(payload);
       setEditingLineItem(null);
       setPanelOpen(false);
+      setPolicyViolations(null); // Clear errors so user can resubmit
       toast.success("Item updated");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to update item"));
@@ -1465,6 +1471,7 @@ function PRDetailPage() {
   const handleDeleteItem = async (lineItemId: string) => {
     try {
       await deleteLineItem.mutateAsync(lineItemId);
+      setPolicyViolations(null); // Clear errors so user can resubmit
       toast.success("Item removed");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to delete item"));
@@ -1488,7 +1495,13 @@ function PRDetailPage() {
       setModal(null);
       toast.success("Purchase request submitted for review!");
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to submit"));
+      if (isProcurementPolicyViolationError(err)) {
+        setPolicyViolations(getProcurementPolicyViolations(err));
+        setIsPolicyModalOpen(true);
+        // No toast — the policy modal provides the feedback
+      } else {
+        toast.error(getApiErrorMessage(err, "Failed to submit"));
+      }
     }
   };
 
@@ -1740,22 +1753,12 @@ function PRDetailPage() {
     );
   }
 
-  const lineItems = pr.lineItems || [];
+  const lineItems = applyProcurementPolicyErrorToLineItems(pr.lineItems || [], policyViolations);
 
   // ── Standard detail view ──────────────────────────────────────────────────
   return (
     <>
       {/* Modals */}
-      {modal === "submit" && (
-        <ConfirmModal
-          title="Submit Request"
-          message={<>You are submitting <strong>{pr.title}</strong> for approval. Once submitted, items cannot be edited.</>}
-          confirmLabel="Submit Request"
-          loading={submitPR.isPending}
-          onClose={() => setModal(null)}
-          onConfirm={handleSubmit}
-        />
-      )}
       {modal === "delete_item" && itemToDelete && (
         <ConfirmModal
           title="Remove Item"
@@ -1870,9 +1873,21 @@ function PRDetailPage() {
                   </>
                 )}
                 {canSubmit && (
-                  <button onClick={() => setModal("submit")} disabled={(pr?.lineItems?.length || 0) === 0}
-                    className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed">
-                    Submit Request
+                  <button onClick={() => {
+                    if (policyViolations) {
+                      setIsPolicyModalOpen(true);
+                      return;
+                    }
+                    handleSubmit();
+                  }}
+                    disabled={submitPR.isPending}
+                    className={`h-10 px-6 rounded-[12px] text-white text-sm font-semibold transition-all flex items-center gap-2 ${
+                      policyViolations
+                        ? "bg-[#d33d44] hover:bg-[#c33339] cursor-pointer"
+                        : "bg-[#087f70] hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                    }`}>
+                    {submitPR.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {policyViolations ? "Fix Violations to Submit" : "Submit Request"}
                   </button>
                 )}
                 {canApprove && (
@@ -2210,42 +2225,70 @@ function PRDetailPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {lineItems.map(item => (
-                            <tr key={item.purchaseRequestLineItemId} className="border-b border-border/40 last:border-0 hover:bg-[#f9faf9] transition-colors">
-                              <td className="px-5 py-3.5 font-semibold text-[#0b100e]">{item.name}</td>
-                              <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
-                              <td className="px-5 py-3.5">
-                                {item.categoryId
-                                  ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
-                                  : <span className="text-[#68726d]">—</span>
-                                }
-                              </td>
-                              <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
-                              <td className="px-5 py-3.5 text-[#0b100e]">{formatAmount(item.unitPrice, currency)}</td>
-                              <td className="px-5 py-3.5 font-medium text-[#0b100e]">{formatAmount(item.subtotal, currency)}</td>
-                              {canEdit && (
-                                <td className="px-5 py-3.5">
-                                  <div className="flex items-center gap-1">
-                                    <div className="relative group">
-                                    <button onClick={() => { setEditingLineItem(item); setPanelOpen(true); }}
-                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
-                                        <Pencil className="w-3.5 h-3.5" />
-                                      </button>
-                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
+                          {lineItems.map(item => {
+                            const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
+                            const hasBlock = hasViolations && item.policyViolations!.some(v => v.type === "hard_block");
+                            const colCount = canEdit ? 7 : 6;
+                            return (
+                              <React.Fragment key={item.purchaseRequestLineItemId}>
+                                <tr className={`border-b ${hasViolations ? "border-transparent" : "border-border/40 last:border-0"} hover:bg-[#f9faf9] transition-colors`}>
+                                  <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
+                                    <div className="flex items-center gap-2">
+                                      {hasViolations && (
+                                        <span className={`w-2 h-2 rounded-full shrink-0 ${hasBlock ? "bg-red-500" : "bg-amber-400"}`} />
+                                      )}
+                                      {item.name}
                                     </div>
-                                    <div className="relative group">
-                                      <button onClick={() => { setItemToDelete({ id: item.purchaseRequestLineItemId, name: item.name }); setModal("delete_item"); }}
-                                        disabled={deleteLineItem.isPending}
-                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors disabled:opacity-40">
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
-                                    </div>
-                                  </div>
-                                </td>
-                              )}
-                            </tr>
-                          ))}
+                                  </td>
+                                  <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
+                                  <td className="px-5 py-3.5">
+                                    {item.categoryId
+                                      ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
+                                      : <span className="text-[#68726d]">—</span>
+                                    }
+                                  </td>
+                                  <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
+                                  <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                                  {canEdit && (
+                                    <td className="px-5 py-3.5">
+                                      <div className="flex items-center gap-1">
+                                        <div className="relative group">
+                                          <button onClick={() => { setEditingLineItem(item); setPanelOpen(true); }}
+                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                          <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
+                                        </div>
+                                        <div className="relative group">
+                                          <button onClick={() => { setItemToDelete({ id: item.purchaseRequestLineItemId, name: item.name }); setModal("delete_item"); }}
+                                            disabled={deleteLineItem.isPending}
+                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors disabled:opacity-40">
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                          <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  )}
+                                </tr>
+                                {hasViolations && (
+                                  <tr className="border-b border-border/40 last:border-0">
+                                    <td colSpan={colCount} className="px-5 pb-3 pt-0">
+                                      <div className="flex flex-col gap-1.5">
+                                        {item.policyViolations!.map((v, idx) => (
+                                          <div key={idx} className={`flex items-start gap-2 px-3 py-2 rounded-lg text-xs font-medium ${v.type === "hard_block" ? "bg-red-50 text-red-700 border border-red-100" : "bg-amber-50 text-amber-700 border border-amber-100"}`}>
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                                            <span>{v.message}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -2563,6 +2606,29 @@ function PRDetailPage() {
       </div>
       </div>
     </div>
+
+    {/* Policy Violation Modal */}
+    {policyViolations && (
+      <ProcurementPolicyCheckModal
+        isOpen={isPolicyModalOpen}
+        onClose={() => setIsPolicyModalOpen(false)}
+        violations={policyViolations}
+        onEditRequest={() => setIsPolicyModalOpen(false)}
+        onProceedWithWarnings={async (justifications) => {
+          try {
+            await submitPR.mutateAsync({ policyJustifications: justifications });
+            toast.success("Purchase request submitted for review!");
+            setPolicyViolations(null);
+          } catch (err: unknown) {
+            if (isProcurementPolicyViolationError(err)) {
+              setPolicyViolations(getProcurementPolicyViolations(err));
+            } else {
+              toast.error(getApiErrorMessage(err, "Failed to submit with justifications"));
+            }
+          }
+        }}
+      />
+    )}
     </>
   );
 }

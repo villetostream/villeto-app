@@ -44,6 +44,7 @@ const getGreeting = () => {
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const can = useAuthStore((state) => state.can);
+  const permissions = useAuthStore((state) => state.companyPermissions); // Subscribe to trigger re-renders
   const axios = useAxios();
 
   const [greeting, setGreeting] = useState("Welcome back");

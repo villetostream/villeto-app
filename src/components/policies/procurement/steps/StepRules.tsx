@@ -204,6 +204,7 @@ function RuleCard({
   vendors,
   rolesLoading,
   vendorsLoading,
+  usedConditions,
 }: {
   rule: PolicyRule;
   policyGroup: ProcurementPolicyGroup;
@@ -214,19 +215,27 @@ function RuleCard({
   vendors: { vendorId: string; displayName: string }[];
   rolesLoading: boolean;
   vendorsLoading: boolean;
+  usedConditions: Set<string>;
 }) {
   const [editingName, setEditingName] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
 
   const condDef = getConditionDef(rule.condition);
   const fieldType = condDef?.fieldType ?? "none";
-  const availableConditions = conditionsForGroup(policyGroup);
+  const baseConditions = conditionsForGroup(policyGroup);
+  const availableConditions = baseConditions.filter(
+    (c) => !usedConditions.has(c.condition) || c.condition === rule.condition
+  );
   const availableActions = actionsForGroup(policyGroup);
   const selectedAction = getActionDef(rule.enforcementAction);
 
   const update = (patch: Partial<PolicyRule>) => {
     const next = { ...rule, ...patch };
-    // Auto-update the criteria label whenever key fields change
+    const allowedRoleNames = next.allowedRoleIds
+      ? roles.filter((r) => next.allowedRoleIds?.includes(r.roleId)).map((r) => r.name)
+      : undefined;
+
+    // Auto-update the criteriaLabel whenever key fields change
     next.criteriaLabel = buildCriteriaLabel(next.condition, {
       amount: next.amount,
       currency: next.currency,
@@ -235,6 +244,7 @@ function RuleCard({
       timeUnit: next.timeUnit,
       allowedVendorCount: next.allowedVendorIds?.length,
       allowedRoleCount: next.allowedRoleIds?.length,
+      allowedRoleNames,
     });
     onChange(next);
   };
@@ -506,6 +516,8 @@ export function StepRules({
   const roles: { roleId: string; name: string }[] = rolesQ.data?.data ?? [];
   const vendors: { vendorId: string; displayName: string }[] = vendorsQ.data?.data ?? [];
 
+  const usedConditions = new Set(rules.map((r) => r.condition).filter(Boolean));
+
   const addRule = () =>
     onChange([...rules, {
       id: `rule-${Date.now()}-${rules.length}`,
@@ -559,6 +571,7 @@ export function StepRules({
               vendors={vendors}
               rolesLoading={rolesQ.isLoading}
               vendorsLoading={vendorsQ.isLoading}
+              usedConditions={usedConditions}
             />
           ))}
           <Button onClick={addRule} variant="outlinePrimary" className="rounded-[14px] h-10 px-5">

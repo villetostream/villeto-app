@@ -381,6 +381,50 @@ export function getDuplicateReceipts(error: unknown): DuplicateReceiptItem[] {
   }));
 }
 
+
+
+/** Map procurement policy violations onto PR line items for inline UI indicators. */
+export function applyProcurementPolicyErrorToLineItems<
+  T extends {
+    purchaseRequestLineItemId?: string;
+    categoryName?: string;
+    subtotal?: number;
+    lineTotal?: number;
+    quantity?: number;
+    unitPrice?: number;
+    policyViolations?: { type: string; message: string; ruleType?: string }[] | null;
+  }
+>(lineItems: T[], violations: ProcurementPolicyViolation[] | null): T[] {
+  if (!violations || violations.length === 0) return lineItems;
+
+  return lineItems.map((item) => {
+    const itemTotal = item.lineTotal ?? item.subtotal ?? ((item.quantity || 0) * (item.unitPrice || 0));
+
+    const matchedViolations = violations.filter(v => {
+      // If rule is amount-related, match against actualAmount
+      if (v.details?.actualAmount && (v.rule.includes("total") || v.rule.includes("amount"))) {
+        return Number(v.details.actualAmount) === Number(itemTotal);
+      }
+      // If rule is category-related, match against categoryName
+      if (v.rule.includes("category") && v.details?.categoryName) {
+        return v.details.categoryName === item.categoryName;
+      }
+      return false;
+    });
+
+    if (matchedViolations.length === 0) return item;
+
+    return {
+      ...item,
+      policyViolations: matchedViolations.map(v => ({
+        type: v.resolution === "BLOCK" ? "hard_block" : "soft_warning",
+        message: v.message,
+        ruleType: v.rule,
+      }))
+    };
+  });
+}
+
 /** Map backend policy results onto expense rows for inline UI indicators. */
 export function mapPolicyResultsToExpenses<
   T extends {
@@ -542,4 +586,58 @@ export function mapDuplicateReceiptsToExpenses<
       ],
     };
   });
+}
+
+/* ─── Procurement Policy Violations ─────────────────────────────────────── */
+
+export interface ProcurementPolicyViolation {
+  policyId: string;
+  policyName: string;
+  policyGroup: string;
+  rule: string;
+  enforcementAction: string;
+  resolution: string;
+  message: string;
+  details?: Record<string, any>;
+}
+
+export function isProcurementPolicyViolationError(error: unknown): boolean {
+  const data = getApiErrorResponseData(error);
+  const nested = asRecord(data.data);
+  const errorMsg = getString(nested.error) || getString(data.error);
+  const message = (getString(nested.message) || getString(data.message)).toLowerCase();
+  
+  if (errorMsg === "ProcurementPolicyViolation" || errorMsg === "PolicyViolation") {
+    return true;
+  }
+  
+  if (message.includes("procurement action blocked") || message.includes("policy limit")) {
+    return true;
+  }
+  
+  return false;
+}
+
+export function getProcurementPolicyViolations(error: unknown): ProcurementPolicyViolation[] {
+  if (!isProcurementPolicyViolationError(error)) return [];
+  const data = getApiErrorResponseData(error);
+  const nested = asRecord(data.data);
+  
+  const target = Array.isArray(nested.violations) || Array.isArray(nested.requiredActions) ? nested : data;
+
+  const allItems = [
+    ...asArray(target.violations),
+    ...asArray(target.requiredActions),
+  ];
+
+  return allItems.filter(isRecord).map(v => ({
+    policyId: getString(v.policyId),
+    policyName: getString(v.policyName),
+    policyGroup: getString(v.policyGroup),
+    rule: getString(v.rule),
+    enforcementAction: getString(v.enforcementAction),
+    resolution: getString(v.resolution),
+    message: getString(v.message),
+    details: asRecord(v.details),
+  }));
 }

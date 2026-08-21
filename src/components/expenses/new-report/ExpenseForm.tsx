@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { X as XIcon } from "lucide-react";
-import { useGetAllUsersApi } from "@/queries/users/get-all-users";
+import { useGetSplitExpenseUsersApi } from "@/queries/users/get-all-users";
 
 // Define the raw form values (what the inputs give us, e.g. strings for numbers)
 const baseExpenseDetailSchema = z.object({
@@ -127,6 +127,7 @@ export function ExpenseForm({
   // ── Split Expense — Participants + Allocation ─────────────────────────────
   const isSplitMode = mode === "split";
   const currentUser = useAuthStore((state) => state.user);
+  const currencySymbol = useAuthStore((state) => state.getCurrencySymbol());
   const currentUserParticipant: SplitParticipant | null = currentUser
     ? {
         userId: currentUser.userId ?? "",
@@ -136,8 +137,8 @@ export function ExpenseForm({
       }
     : null;
 
-  // Fetch all users from the real endpoint GET /users
-  const { data: usersData, isLoading: isLoadingUsers } = useGetAllUsersApi({
+  // Fetch all users from the new split expense endpoint
+  const { data: usersData, isLoading: isLoadingUsers } = useGetSplitExpenseUsersApi({
     enabled: isSplitMode,
   });
   const allUsers: SplitParticipant[] = (usersData?.data ?? []).map((u: any) => ({
@@ -403,6 +404,7 @@ export function ExpenseForm({
               type="text"
               inputMode="decimal"
               isCurrency={true}
+              prefixIcon={<span className="text-[14px] font-semibold text-[#0b100e]">{currencySymbol}</span>}
             />
             {fieldErrors?.amount && fieldErrors.amount.map((err, i) => (
               <p key={i} className="text-xs font-medium text-red-500 mt-1">{err}</p>
@@ -714,20 +716,22 @@ export function ExpenseForm({
                         : participant.displayName;
 
                     if (allocationMode === "equal") {
-                      const perPersonStr = equalShare.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                      const perPerson = parseFloat(perPersonStr);
+                      const perPersonNum = Math.floor(equalShare * 100) / 100;
                       const isLast = idx === lastIndex;
                       
-                      let displayShare = perPerson;
+                      let displayShare = perPersonNum;
                       if (isLast && splitParticipants.length > 1) {
-                        const nonLastTotal = perPerson * lastIndex;
+                        const nonLastTotal = perPersonNum * lastIndex;
                         displayShare = Math.max(0, watchedAmount - nonLastTotal);
                       }
 
                       return (
                         <div key={participant.userId} className="flex items-center justify-between px-3 py-2.5 bg-white">
                           <span className="text-sm text-foreground">{displayLabel}</span>
-                          <span className="text-sm text-muted-foreground">{displayShare.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-sm text-foreground font-medium">
+                            <span className="text-muted-foreground mr-1">{currencySymbol}</span>
+                            {displayShare.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </div>
                       );
                     }
@@ -748,44 +752,44 @@ export function ExpenseForm({
                       <div key={participant.userId} className="flex items-center justify-between px-3 py-2.5 bg-white">
                         <span className="text-sm text-foreground">{displayLabel}</span>
                         <div className="flex flex-col items-end gap-0.5">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            readOnly={isAutoFilled}
-                            placeholder={
-                              isLast && !isOnly && !allPrecedingFilled
-                                ? "Fill above first"
-                                : isAutoFilled
-                                ? "Auto"
-                                : ""
-                            }
-                            value={isAutoFilled ? displayValue : (() => {
-                              const val = displayValue;
-                              if (val === undefined || val === null || val === "") return "";
-                              const str = val.toString();
-                              const parts = str.split(".");
-                              parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-                              return parts.join(".");
-                            })()}
-                            onChange={(e) => {
-                              if (isAutoFilled) return;
-                              const raw = e.target.value.replace(/[^0-9.]/g, "");
-                              const parts = raw.split(".");
-                              const finalRaw = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : raw;
-                              handleAllocationChange(finalRaw);
-                            }}
-                            className={cn(
-                              "w-28 text-right text-sm border rounded-md px-2 py-1 outline-none focus:ring-2 focus:ring-ring",
-                              isAutoFilled
-                                ? "border-primary/30 bg-primary/5 text-primary font-medium cursor-not-allowed"
-                                : isLast && !isOnly && !allPrecedingFilled
-                                ? "border-dashed border-muted-foreground/40 bg-muted/20 text-muted-foreground cursor-not-allowed"
-                                : "border-input"
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-muted-foreground pointer-events-none">{currencySymbol}</span>
+                            {isAutoFilled ? (
+                              <div className="pl-8 pr-3 py-1.5 text-right text-sm font-semibold text-foreground bg-gray-50 border border-transparent rounded-md min-w-[120px]">
+                                {displayValue}
+                              </div>
+                            ) : (
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={(() => {
+                                  const val = displayValue;
+                                  if (val === undefined || val === null || val === "") return "";
+                                  const str = val.toString();
+                                  const parts = str.split(".");
+                                  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                                  return parts.join(".");
+                                })()}
+                                onChange={(e) => {
+                                  const raw = e.target.value.replace(/[^0-9.]/g, "");
+                                  const parts = raw.split(".");
+                                  if (parts.length > 2) {
+                                    handleAllocationChange(parts[0] + "." + parts.slice(1).join(""));
+                                  } else {
+                                    handleAllocationChange(raw);
+                                  }
+                                }}
+                                placeholder={isLast && !isOnly && !allPrecedingFilled ? "Fill above" : "0.00"}
+                                className={cn(
+                                  "pl-8 pr-3 w-[120px] h-[34px] rounded-md border border-input bg-background py-1.5 text-right text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent transition-colors shadow-sm",
+                                  isLast && !isOnly && !allPrecedingFilled && "border-dashed border-muted-foreground/40 bg-muted/20 text-muted-foreground cursor-not-allowed"
+                                )}
+                              />
                             )}
-                          />
+                          </div>
                           {!isAutoFilled && !isOnly && (!isLast || allPrecedingFilled) && (
                             <span className="text-[10px] text-muted-foreground">
-                              max {maxForThis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              max {currencySymbol}{maxForThis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           )}
                         </div>

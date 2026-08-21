@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Check, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/stores/auth-stores";
-import { useGetAllUsersApi } from "@/queries/users/get-all-users";
+import { useGetSplitExpenseUsersApi } from "@/queries/users/get-all-users";
 
 interface CompanyExpenseItemModalProps {
   isOpen: boolean;
@@ -39,7 +39,7 @@ export function CompanyExpenseItemModal({
   const hasAllocations = Array.isArray(expense?.splitAllocations) && expense.splitAllocations.length > 0;
   const isSplit = expense?.isSplit || expense?.expenseType?.toLowerCase() === "split" || hasAllocations;
 
-  const { data: usersData } = useGetAllUsersApi();
+  const { data: usersData } = useGetSplitExpenseUsersApi({ enabled: isSplit });
 
   if (!expense) return null;
 

@@ -1,10 +1,13 @@
 "use client";
 
-import { X, Loader2, Trash2 } from "lucide-react";
+import { X, Loader2, Trash2, AlertCircle } from "lucide-react";
 import { POLICY_GROUPS, getActionDef, getConditionDef } from "./constants";
 import { cn } from "@/lib/utils";
 import { useGetProcurementPolicyById, useGetProcurementPolicyDraftById, ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
 import { useAuthStore } from "@/stores/auth-stores";
+import { getApiErrorMessage } from "@/lib/types/api-error";
+import { useState, useMemo } from "react";
+import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
 
 function formatDate(iso?: string | null) {
   if (!iso) return "—";
@@ -61,6 +64,9 @@ export function ProcurementPolicyDetailsModal({
   const canDeactivate = useAuthStore((s) => s.can)("policy", "deactivate");
   const canUpdate     = useAuthStore((s) => s.can)("policy", "update");
 
+  const [error, setError] = useState<string | null>(null);
+  const [isPendingAction, setIsPendingAction] = useState(false);
+
   const { data: activeData, isLoading: isActiveLoading } = useGetProcurementPolicyById(isDraft ? "" : (policyId ?? ""), {
     enabled: !!policyId && !isDraft,
   });
@@ -71,10 +77,53 @@ export function ProcurementPolicyDetailsModal({
 
   const isLoading = isDraft ? isDraftLoading : isActiveLoading;
   const data = isDraft ? draftData : activeData;
-
   const policy = data?.data;
 
+  // Fetch all roles to resolve IDs to names (useGetAllRolesApi fetches all pages automatically)
+  const { data: rolesData } = useGetAllRolesApi({ limit: 100 }, { enabled: !!policy });
+  const allRoles = useMemo(() => rolesData?.data ?? [], [rolesData]);
+
+  // Helper: resolve a role ID to its display name
+  // Checks policy.applicableRoles first (already returned by the policy-by-id endpoint),
+  // then falls back to the full roles list.
+  const resolveRoleName = (id: string) => {
+    const policyRoles: any[] = (policy as any)?.applicableRoles ?? [];
+    const fromPolicy = policyRoles.find(
+      (r: any) => (r.roleId ?? r.id ?? r.role_id) === id
+    );
+    if (fromPolicy) return fromPolicy.name ?? fromPolicy.roleName ?? fromPolicy.role_name ?? id;
+
+    const fromAll = allRoles.find(r => r.roleId === id);
+    return fromAll?.name ?? id;
+  };
+
   if (!policyId) return null;
+
+  const handleApprove = async () => {
+    if (!onApprove || !policy) return;
+    setError(null);
+    setIsPendingAction(true);
+    try {
+      await onApprove(policy);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Failed to approve policy"));
+    } finally {
+      setIsPendingAction(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!onReject || !policy) return;
+    setError(null);
+    setIsPendingAction(true);
+    try {
+      await onReject(policy);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Failed to reject policy"));
+    } finally {
+      setIsPendingAction(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -174,15 +223,44 @@ export function ProcurementPolicyDetailsModal({
                     policy.rules.map((r, i) => {
                       const cond = getConditionDef(r.condition as any);
                       const action = getActionDef(r.enforcementAction as any);
-                      
+
+                      // Resolve role IDs to human-readable names
+                      const resolvedRoleNames: string[] = r.allowedRoleIds && r.allowedRoleIds.length > 0
+                        ? r.allowedRoleIds.map(resolveRoleName)
+                        : [];
+
+                      const isRoleCondition =
+                        r.condition === "requester_role_not_allowed" ||
+                        r.condition === "requester_role_requires_manager_approval";
+
+                      // Build human-readable rule title
+                      const ruleTitle = (() => {
+                        if (r.criteria && !r.criteria.includes("allowed role")) return r.criteria;
+                        if (isRoleCondition && resolvedRoleNames.length > 0) {
+                          const roleList = resolvedRoleNames.join(", ");
+                          return r.condition === "requester_role_not_allowed"
+                            ? `Apply when requester's role is not one of the permitted roles: ${roleList}`
+                            : `Apply when requester's role is one of: ${roleList}`;
+                        }
+                        return cond?.label ?? r.condition;
+                      })();
+
                       return (
                         <div key={i} className="rounded-[12px] border border-black/[0.04] p-4 bg-[#fafaf9]/50">
                           <div className="text-[13px] font-semibold text-gray-900 mb-2">
-                            {r.criteria || cond?.label || r.condition}
+                            {ruleTitle}
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
                             <span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded font-semibold uppercase">IF</span>
-                            <span className="text-gray-800">{cond?.label ?? r.condition}</span>
+                            {isRoleCondition && resolvedRoleNames.length > 0 ? (
+                              <span className="text-gray-800">
+                                {r.condition === "requester_role_not_allowed"
+                                  ? "Requester's role is not in the permitted list"
+                                  : "Requester's role matches one of the selected roles"}
+                              </span>
+                            ) : (
+                              <span className="text-gray-800">{cond?.label ?? r.condition}</span>
+                            )}
                             {r.amount !== undefined && (
                               <>
                                 <span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded font-semibold uppercase">IS GREATER THAN</span>
@@ -195,10 +273,22 @@ export function ProcurementPolicyDetailsModal({
                                 <span className="text-gray-900 font-bold">{r.minimumQuotes}</span>
                               </>
                             )}
+                            {resolvedRoleNames.length > 0 && (
+                              <div className="w-full mt-2 flex flex-col gap-1">
+                                <span className="text-[11px] text-gray-500 font-medium">
+                                  {r.condition === "requester_role_not_allowed" ? "Permitted roles (only these may submit without triggering this rule):" : "Matching roles:"}
+                                </span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {resolvedRoleNames.map((name, ri) => (
+                                    <span key={ri} className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 text-[11px] font-semibold border border-teal-100">
+                                      {name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                             <span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded font-semibold uppercase">THEN</span>
-                            <span className="text-gray-900">
-                              {action?.label ?? r.enforcementAction}
-                            </span>
+                            <span className="text-gray-900">{action?.label ?? r.enforcementAction}</span>
                           </div>
                         </div>
                       );
@@ -216,7 +306,8 @@ export function ProcurementPolicyDetailsModal({
                   {policy.createdBy ? (
                     <>
                       <p className="text-gray-900 font-medium">
-                        {policy.createdBy.firstName} {policy.createdBy.lastName} ({policy.createdBy.jobTitle || "You"})
+                        {policy.createdBy.firstName} {policy.createdBy.lastName}
+                        {policy.createdBy.jobTitle ? ` (${policy.createdBy.jobTitle})` : ""}
                       </p>
                       <p className="text-gray-500 mt-0.5">{formatDate(policy.createdAt)}</p>
                     </>
@@ -227,26 +318,41 @@ export function ProcurementPolicyDetailsModal({
                     </>
                   )}
                 </div>
-                <div className="text-right">
-                  <p className="text-gray-500 mb-1">Approved by</p>
-                  {policy.approvers && policy.approvers.length > 0 ? (
-                    policy.approvers.map((a: any, i: number) => (
-                      <div key={i} className="mb-2 last:mb-0">
-                        <p className="text-gray-900 font-medium">
-                          {a.firstName} {a.lastName} {a.jobTitle ? `(${a.jobTitle})` : ""}
-                        </p>
-                        <p className="text-gray-500 mt-0.5">{formatDate(a.approvedAt || policy.updatedAt)}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <>
-                      <p className="text-gray-900 font-medium">N/A</p>
-                      <p className="text-gray-500 mt-0.5">—</p>
-                    </>
-                  )}
-                </div>
+                {/* Approver — try approvers[] array first, then approvedBy object */}
+                {(() => {
+                  const approverList: any[] = (policy.approvers && policy.approvers.length > 0)
+                    ? policy.approvers
+                    : (policy as any).approvedBy
+                      ? [(policy as any).approvedBy]
+                      : [];
+                  if (approverList.length === 0) return null;
+                  return (
+                    <div className="text-right">
+                      <p className="text-gray-500 mb-1">Approved by</p>
+                      {approverList.map((a: any, i: number) => (
+                        <div key={i} className="mb-2 last:mb-0">
+                          <p className="text-gray-900 font-medium">
+                            {a.firstName ?? a.first_name ?? ""} {a.lastName ?? a.last_name ?? ""}
+                            {(a.jobTitle || a.job_title) ? ` (${a.jobTitle ?? a.job_title})` : ""}
+                          </p>
+                          <p className="text-gray-500 mt-0.5">{formatDate(a.approvedAt ?? a.approved_at ?? policy.updatedAt)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
+
+            {/* ── Error Message ── */}
+            {error && (
+              <div className="px-6 pb-2">
+                <div className="p-4 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700 leading-snug">{error}</p>
+                </div>
+              </div>
+            )}
 
             {/* ── Footer buttons ── */}
             <div className="px-6 pb-6 pt-1 shrink-0 flex gap-3">
@@ -254,18 +360,20 @@ export function ProcurementPolicyDetailsModal({
                 <>
                   {onReject && (
                     <button
-                      onClick={() => { onReject(policy); onClose(); }}
-                      className="flex-1 h-11 rounded-full border border-red-500 text-red-500 text-sm font-semibold hover:bg-red-50 transition-colors"
+                      onClick={handleReject}
+                      disabled={isPendingAction}
+                      className="flex-1 h-11 rounded-full border border-red-500 text-red-500 text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center"
                     >
-                      Reject
+                      {isPendingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
                     </button>
                   )}
                   {onApprove && (
                     <button
-                      onClick={() => { onApprove(policy); onClose(); }}
-                      className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                      onClick={handleApprove}
+                      disabled={isPendingAction}
+                      className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center"
                     >
-                      Approve
+                      {isPendingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
                     </button>
                   )}
                 </>

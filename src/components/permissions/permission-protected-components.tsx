@@ -23,7 +23,8 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
   fallback = null,
   children,
 }) => {
-  const can = useAuthStore(state => state.can);
+  const can = useAuthStore((state) => state.can);
+  const permissionsState = useAuthStore((state) => state.companyPermissions); // Subscribe to trigger re-renders
 
   if (permissions && permissions.length > 0) {
     const hasAny = permissions.some((p) => can(p.resource, p.action));

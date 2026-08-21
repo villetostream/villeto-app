@@ -221,106 +221,97 @@ function ExpenseCategoryDetailsModal({
 }) {
   if (!category && !isLoading) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-[560px] overflow-hidden">
-        <div className="p-10">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-semibold text-foreground">Category Details</h2>
-            <button onClick={onClose} className="w-10 h-10 rounded-full bg-[#f9faf9]/40 hover:bg-[#f9faf9]/80 flex items-center justify-center transition-all border border-black/[0.06]/50">
-              <X className="w-5 h-5 text-[#68726d]" />
-            </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[500px] flex flex-col" style={{ maxHeight: "92vh" }}>
+        {/* Header */}
+        <div className="px-6 pt-6 shrink-0 flex justify-between items-start">
+          <div>
+            <h2 className="text-lg font-bold text-[#0b100e] leading-tight">Category Details</h2>
+            <p className="text-xs text-[#68726d] mt-1">Review the details and configuration of this category.</p>
           </div>
-          <div className="h-px bg-border w-full my-6 opacity-60" />
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-[#f9faf9]/40 hover:bg-[#f9faf9]/70 flex items-center justify-center transition-colors shrink-0 mt-0.5">
+            <X className="w-4 h-4 text-[#68726d]" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="px-6 py-6 overflow-y-auto min-h-[200px] flex flex-col gap-6">
           {isLoading ? (
-            <div className="rounded-[1.5rem] border border-black/[0.06]/60 bg-[#f9faf9]/10 p-7 space-y-6">
-              <div className="grid grid-cols-2 gap-y-6">
-                <div className="flex flex-col gap-2">
-                  <div className="h-3 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-                  <div className="h-5 w-32 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="h-3 w-20 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-                  <div className="h-6 w-24 animate-pulse rounded-full bg-[#f0f2f1]" />
-                </div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><div className="h-3 w-20 animate-pulse bg-[#f0f2f1] rounded" /><div className="h-5 w-32 animate-pulse bg-[#f0f2f1] rounded" /></div>
+                <div className="space-y-2 items-end flex flex-col"><div className="h-3 w-24 animate-pulse bg-[#f0f2f1] rounded" /><div className="h-6 w-28 animate-pulse bg-[#f0f2f1] rounded-full" /></div>
               </div>
-              <div className="h-px bg-border/60" />
-              <div className="flex flex-col gap-2">
-                <div className="h-3 w-20 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-                <div className="h-4 w-full animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-                <div className="h-4 w-2/3 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-              </div>
-              <div className="h-px bg-border/60" />
-              <div className="grid grid-cols-2 gap-y-6">
-                <div className="flex flex-col gap-2">
-                  <div className="h-3 w-16 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-                  <div className="h-5 w-28 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="h-3 w-20 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-                  <div className="h-5 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-                </div>
-              </div>
+              <div className="h-px bg-black/[0.04]" />
+              <div className="space-y-2"><div className="h-3 w-20 animate-pulse bg-[#f0f2f1] rounded" /><div className="h-4 w-full animate-pulse bg-[#f0f2f1] rounded" /></div>
             </div>
           ) : category ? (
-            <div className="rounded-[1.5rem] border border-black/[0.06]/60 bg-[#f9faf9]/10 p-7 space-y-6">
-              <div className="grid grid-cols-2 gap-y-6">
+            <>
+              <div className="grid grid-cols-[1fr_auto] gap-6">
                 <div>
-                  <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Category Name</p>
-                  <p className="text-base font-semibold text-foreground">{category.name}</p>
+                  <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-1.5">Category Name</p>
+                  <p className="text-[14px] font-semibold text-[#0b100e]">{category.name}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Policy Status</p>
+                  <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-1.5">Policy Status</p>
                   <span
-                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${
                       category.isPolicyAttached
-                        ? "bg-success/10 text-success"
-                        : "bg-[#f9faf9] text-[#68726d]"
+                        ? "bg-[#eaf5ef] text-[#087f70]"
+                        : "bg-[#f4f7f5] text-[#68726d]"
                     }`}
                   >
                     {category.isPolicyAttached ? "Policy Attached" : "No Policy"}
                   </span>
                 </div>
               </div>
-              <div className="h-px bg-border/60" />
+              
+              <div className="h-px bg-black/[0.04]" />
+              
               <div>
-                <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Description</p>
-                <p className="text-sm text-foreground/80 leading-relaxed">
-                  {category.description ?? <span className="italic text-[#68726d]">No description provided</span>}
+                <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-1.5">Description</p>
+                <p className="text-[13px] text-[#53615c] leading-relaxed">
+                  {category.description ?? <span className="italic text-[#a3aaa6]">No description provided</span>}
                 </p>
               </div>
-              <div className="h-px bg-border/60" />
-              <div className="grid grid-cols-2 gap-y-6">
-                <div>
-                  <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Created By</p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {formatUser(category.createdBy)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1.5">Created On</p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {category.createdAt ? new Date(category.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "—"}
-                  </p>
-                </div>
-              </div>
+              
               {category.policies && category.policies.length > 0 && (
                 <>
-                  <div className="h-px bg-border/60" />
+                  <div className="h-px bg-black/[0.04]" />
                   <div>
-                    <p className="text-xs font-bold text-primary uppercase tracking-widest mb-2">Attached Policies</p>
+                    <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-2">Attached Policies</p>
                     <div className="flex flex-wrap gap-2">
                       {category.policies.map((pol, i: number) => {
                         const policy = asRecord(pol);
                         return (
-                        <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full border border-primary/10 text-sm font-medium text-foreground">
-                          <Shield className="w-4 h-4 text-primary opacity-60" />{pickString(policy, "name") || `Policy ${i + 1}`}
-                        </div>
-                      );})}
+                          <div key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-black/[0.06] shadow-sm rounded-lg text-[13px] font-medium text-[#0b100e]">
+                            <Shield className="w-3.5 h-3.5 text-[#087f70]" />
+                            {pickString(policy, "name") || `Policy ${i + 1}`}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </>
               )}
-            </div>
+              
+              <div className="h-px bg-black/[0.04]" />
+              
+              <div className="grid grid-cols-2 gap-6 bg-[#f9faf9] rounded-2xl p-4 border border-black/[0.03]">
+                <div>
+                  <p className="text-[10px] font-bold text-[#84908a] uppercase tracking-wider mb-1">Created By</p>
+                  <p className="text-[12px] font-semibold text-[#0b100e]">
+                    {formatUser(category.createdBy)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-[#84908a] uppercase tracking-wider mb-1">Created On</p>
+                  <p className="text-[12px] font-semibold text-[#0b100e]">
+                    {category.createdAt ? new Date(category.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "—"}
+                  </p>
+                </div>
+              </div>
+            </>
           ) : null}
         </div>
       </div>
@@ -376,31 +367,46 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
     return str;
   };
 
-  const getScopeText = () => {
+  const renderScopeDetails = () => {
     const sType = getString(asRecord(fullPolicy).scopeType) || fullPolicy?.scope?.type;
-    if (sType === "all" || sType === "all_employees") return "All Employees";
+    if (sType === "all" || sType === "all_employees" || (fullPolicy as any)?.isApplicableToAllRoles) {
+      return <span className="capitalize">All Employees</span>;
+    }
     
-    if (!fullPolicy?.scope) return policy.appliedTo;
-    const scope = fullPolicy.scope;
-    const deptIds = scope.type === "specific" ? scope.departments || [] : [];
-    const roleIds = scope.type === "specific" ? scope.userRoles || (fullPolicy as any).applicableRoles || [] : [];
-    const depts = deptIds.map((d: string) => {
-      const dept = asArray(departmentsApi.data?.data).filter(isRecord).find((o) => String(o.departmentId) === String(d));
-      return dept ? pickString(dept, "departmentName") || d : d;
-    });
-    const roles = roleIds.map((r: string) => {
-      const role = asArray(rolesApi.data?.data).filter(isRecord).find((o) => String(o.roleId) === String(r));
-      const roleName = role ? pickString(role, "name") : r;
-      return roleName.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
-    });
-    const listFmt = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
-    if (depts.length === 0 && roles.length === 0) return "Specific Employees";
-    const rolePart = roles.length > 0 ? listFmt.format(roles) : "";
-    const deptPart = depts.length > 0 ? `the ${listFmt.format(depts)} department${depts.length > 1 ? "s" : ""}` : "";
-    if (rolePart && deptPart) return `${rolePart} in ${deptPart}`;
-    if (rolePart) return `${rolePart} across all departments`;
-    if (deptPart) return `All employees in ${deptPart}`;
-    return "Specific Employees";
+    if (!fullPolicy) return <span className="capitalize">{policy.appliedTo}</span>;
+
+    // Use arrays from the response
+    const fp = fullPolicy as any;
+    const depts = (fp.applicableDepartments || []).map((d: any) => d.departmentName || d.name);
+    const jobGrades = (fp.applicableJobGrades || []).map((j: any) => j.name || j.code);
+    const mgmtLevels = (fp.applicableManagementLevels || []).map((m: any) => m.name || m.code);
+    
+    if (depts.length === 0 && jobGrades.length === 0 && mgmtLevels.length === 0) {
+      return <span className="capitalize">Specific Employees</span>;
+    }
+
+    return (
+      <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
+        {depts.length > 0 && (
+          <p className="text-[13px] leading-snug">
+            <span className="text-[#84908a] font-normal mr-1">Department:</span>
+            {depts.join(', ')}
+          </p>
+        )}
+        {mgmtLevels.length > 0 && (
+          <p className="text-[13px] leading-snug">
+            <span className="text-[#84908a] font-normal mr-1">Management Level:</span>
+            {mgmtLevels.join(', ')}
+          </p>
+        )}
+        {jobGrades.length > 0 && (
+          <p className="text-[13px] leading-snug">
+            <span className="text-[#84908a] font-normal mr-1">Job Grade:</span>
+            {jobGrades.join(', ')}
+          </p>
+        )}
+      </div>
+    );
   };
 
   const formatDate = (dateStr?: string, fallback?: string) => {
@@ -413,6 +419,8 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
   const policyVersion = (fullPolicy as any)?.version || policy.version;
   const approvers    = (fullPolicy as any)?.approvers || policy.approvers || [];
   const createdAt    = (fullPolicy as any)?.createdAt;
+  const approvedBy   = (fullPolicy as any)?.approvedBy || (policy as any)?.approvedBy;
+  const approvedAt   = (fullPolicy as any)?.approvedAt || (policy as any)?.approvedAt;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -500,7 +508,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                 <p className="text-[10px] font-bold text-[#68726d] uppercase tracking-[0.12em] mb-2.5">
                   Applies To
                 </p>
-                <p className="text-sm text-[#0b100e]/80 leading-relaxed">{getScopeText()}</p>
+                <div className="text-sm text-[#0b100e]/80 leading-relaxed">{renderScopeDetails()}</div>
               </div>
 
               {/* EXPENSE CATEGORY */}
@@ -588,13 +596,31 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                 <p className="text-[11px] text-[#68726d] mb-1.5">Created by</p>
                 <p className="text-sm font-semibold text-[#0b100e] leading-tight">
                   {formatUser((fullPolicy as any)?.createdBy, policy.createdBy)}
+                  {formatUserRole((fullPolicy as any)?.createdBy) && (
+                    <span className="text-[#68726d] font-normal"> ({formatUserRole((fullPolicy as any)?.createdBy)})</span>
+                  )}
                 </p>
                 <p className="text-xs text-[#68726d] mt-0.5">{formatDate(createdAt, policy.date)}</p>
               </div>
               {/* Approved by */}
-              {approvers.length > 0 && (
+              {approvedBy ? (
                 <div className="text-right">
                   <p className="text-[11px] text-[#68726d] mb-1.5">Approved by</p>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-semibold text-[#0b100e] leading-tight">
+                        {formatUser(approvedBy)}
+                        {formatUserRole(approvedBy) && (
+                          <span className="text-[#68726d] font-normal"> ({formatUserRole(approvedBy)})</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-[#68726d] mt-0.5">{formatDate(approvedAt)}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : approvers.length > 0 ? (
+                <div className="text-right">
+                  <p className="text-[11px] text-[#68726d] mb-1.5">Approvers</p>
                   <div className="space-y-2">
                     {approvers.map((a: unknown, i: number) => {
                       const roleLabel = formatUserRole(a);
@@ -606,13 +632,13 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                               <span className="text-[#68726d] font-normal"> ({roleLabel})</span>
                             )}
                           </p>
-                          <p className="text-xs text-[#68726d] mt-0.5">{formatDate(createdAt, policy.date)}</p>
+                          <p className="text-xs text-[#68726d] mt-0.5">Pending</p>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         )}
@@ -741,7 +767,7 @@ function PoliciesPage() {
 
   const policyTableProps = useDataTable({
     initialPage: 1,
-    initialPageSize: 20,
+    initialPageSize: 10,
     totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
@@ -758,7 +784,7 @@ function PoliciesPage() {
 
   const expenseTableProps = useDataTable({
     initialPage: 1,
-    initialPageSize: 5,
+    initialPageSize: 10,
     totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
@@ -767,7 +793,7 @@ function PoliciesPage() {
 
   const archivedTableProps = useDataTable({
     initialPage: 1,
-    initialPageSize: 5,
+    initialPageSize: 10,
     totalItems: 0,
     manualSorting: false,
     manualFiltering: false,
@@ -809,6 +835,7 @@ function PoliciesPage() {
         category: getCatNames(asArray(p.expenseCategories)),
         appliedTo: getString(p.scopeType) === "all" || getString(p.scopeType) === "all_employees" || getString(scope.type) === "all" || getString(scope.type) === "all_employees" ? "All Employees" : "Specific Employees",
         createdBy: createdByName,
+        createdById: isRecord(createdByObj) ? pickString(createdByObj, "id", "userId") : pickString(p, "createdById"),
         date: p.createdAt ? new Date(getString(p.createdAt)).toLocaleDateString() : "—",
         status: (getString(p.status).toLowerCase() as PolicyStatus) || "inactive",
         approvers: asArray(p.approvers).map((rawApprover) => {
@@ -1054,6 +1081,59 @@ function PoliciesPage() {
       }) || (user?.userId ? (policy.approverIds?.includes(user.userId) ?? false) : false);
     }
     
+    // Evaluate if the user is the creator
+    const createdByObj = (policy as any).createdBy;
+    const creatorId = isRecord(createdByObj) 
+      ? pickString(createdByObj, "id", "userId") 
+      : (policy as any).createdById;
+      
+    let isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
+    
+    // Fallback: If ID matching failed (e.g. ID not returned by API), try matching by name
+    if (!isCreator && user) {
+      const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
+      
+      let creatorName = "";
+      if (typeof createdByObj === 'string') {
+        creatorName = createdByObj.trim().toLowerCase();
+      } else if (isRecord(createdByObj)) {
+        creatorName = `${pickString(createdByObj, "firstName") || ''} ${pickString(createdByObj, "lastName") || ''}`.trim().toLowerCase();
+      } else if (typeof (policy as any).createdByName === 'string') {
+        creatorName = (policy as any).createdByName.trim().toLowerCase();
+      }
+      
+      if (userFullName && creatorName && userFullName === creatorName) {
+        isCreator = true;
+      }
+    }
+
+    if (isApprover && isCreator) {
+      // Determine if there is ANY other possible approver
+      let hasOtherApprovers = false;
+      
+      if (policy.approvalSetting?.allRolesCanApprove) {
+        hasOtherApprovers = true;
+      } else if (policy.approvalSetting?.approverRoleIds?.length) {
+        // Assume there are other people in these roles. Enforce separation of duties.
+        hasOtherApprovers = true;
+      } else {
+        const specificUserIds = new Set<string>();
+        (policy.approversRaw || []).forEach((rawApprover) => {
+          const a = asRecord(rawApprover);
+          const id = pickString(a, "userId");
+          if (id) specificUserIds.add(id);
+        });
+        (policy.approverIds || []).forEach(id => specificUserIds.add(id));
+        
+        specificUserIds.delete(user?.userId!);
+        hasOtherApprovers = specificUserIds.size > 0;
+      }
+      
+      if (hasOtherApprovers) {
+        isApprover = false;
+      }
+    }
+
     const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
     return isPending && isApprover;
   }, [user, eligibleRoles]);
@@ -1127,7 +1207,7 @@ function PoliciesPage() {
         );
       },
     },
-  ], [handleOpenReview, user?.userId, handleEdit, handleArchive]);
+  ], [handleOpenReview, handleEdit, handleArchive, checkIfReviewable]);
 
   /* DataTable columns for Archived tab */
   const archivedColumns = useMemo<ColumnDef<Policy>[]>(() => [

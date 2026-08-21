@@ -125,7 +125,7 @@ export function ProcurementPolicySection({
     tableProps.setTotalItems(filteredPolicies.length);
   }, [filteredPolicies.length, tableProps.setTotalItems]);
 
-  const { can } = useAuthStore.getState();
+  const { can, user } = useAuthStore();
   const canUpdate     = can("policy", "update");
   const canDeactivate = can("policy", "deactivate");
 
@@ -179,7 +179,6 @@ export function ProcurementPolicySection({
         cell: ({ row }) => {
           const policy = row.original;
           let isApprover = false;
-          const { user } = useAuthStore.getState();
           const currentUserRoleId = 
             user?.companyRole?.roleId || 
             (user as any)?.companyRole?.id || 
@@ -199,6 +198,55 @@ export function ProcurementPolicySection({
             isApprover = (policy as any).approvalSetting.approverRoleIds.includes(currentUserRoleId);
           } else {
             isApprover = (policy.approvers || []).some((a: any) => a.userId === user?.userId) || (user?.userId ? (policy as any).approverIds?.includes(user?.userId) : false);
+          }
+
+          // Evaluate if the user is the creator
+          const createdByObj = (policy as any).createdBy;
+          const creatorId = typeof createdByObj === 'object' && createdByObj !== null
+            ? (createdByObj.id || createdByObj.userId)
+            : (policy as any).createdById;
+            
+          let isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
+
+          // Fallback: If ID matching failed (e.g. ID not returned by API), try matching by name
+          if (!isCreator && user) {
+            const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
+            
+            let creatorName = "";
+            if (typeof createdByObj === 'string') {
+              creatorName = createdByObj.trim().toLowerCase();
+            } else if (typeof createdByObj === 'object' && createdByObj !== null) {
+              creatorName = `${createdByObj.firstName || ''} ${createdByObj.lastName || ''}`.trim().toLowerCase();
+            } else if (typeof (policy as any).createdByName === 'string') {
+              creatorName = (policy as any).createdByName.trim().toLowerCase();
+            }
+            
+            if (userFullName && creatorName && userFullName === creatorName) {
+              isCreator = true;
+            }
+          }
+
+          if (isApprover && isCreator) {
+            let hasOtherApprovers = false;
+            
+            if ((policy as any).approvalSetting?.allRolesCanApprove) {
+              hasOtherApprovers = true;
+            } else if ((policy as any).approvalSetting?.approverRoleIds?.length) {
+              hasOtherApprovers = true;
+            } else {
+              const specificUserIds = new Set<string>();
+              (policy.approvers || []).forEach((a: any) => {
+                if (a.userId) specificUserIds.add(a.userId);
+              });
+              ((policy as any).approverIds || []).forEach((id: string) => specificUserIds.add(id));
+              
+              specificUserIds.delete(user?.userId!);
+              hasOtherApprovers = specificUserIds.size > 0;
+            }
+            
+            if (hasOtherApprovers) {
+              isApprover = false;
+            }
           }
 
           const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
@@ -263,7 +311,7 @@ export function ProcurementPolicySection({
         },
       },
     ],
-    [canUpdate, canDeactivate, setDetailPolicy, onEdit, deleteDraftMutation]
+    [canUpdate, canDeactivate, setDetailPolicy, onEdit, deleteDraftMutation, user, eligibleRoles]
   );
 
   return (
@@ -365,21 +413,13 @@ export function ProcurementPolicySection({
           setDetailPolicy(null);
         }}
         onApprove={async (p) => {
-          try {
-            await approveMutation.mutateAsync({ id: p.procurementPolicyId });
-            toast.success("Policy approved successfully");
-          } catch (error: any) {
-            toast.error(error?.response?.data?.message || "Failed to approve policy");
-          }
+          await approveMutation.mutateAsync({ id: p.procurementPolicyId });
+          toast.success("Policy approved successfully");
           setDetailPolicy(null);
         }}
         onReject={async (p) => {
-          try {
-            await rejectMutation.mutateAsync({ id: p.procurementPolicyId });
-            toast.success("Policy rejected");
-          } catch (error: any) {
-            toast.error(error?.response?.data?.message || "Failed to reject policy");
-          }
+          await rejectMutation.mutateAsync({ id: p.procurementPolicyId });
+          toast.success("Policy rejected");
           setDetailPolicy(null);
         }}
         onClose={() => setDetailPolicy(null)} 
