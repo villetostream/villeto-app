@@ -103,7 +103,7 @@ export default function DashboardPage() {
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ["dashboard_users"],
     queryFn: async () => {
-      const res = await axios.get(API_KEYS.USER.USERS);
+      const res = await axios.get(API_KEYS.USER.USERS, { params: { status: "all" } });
       return res.data;
     },
     enabled: canViewUsers,
