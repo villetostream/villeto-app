@@ -40,9 +40,9 @@ export const API_KEYS = {
   USER: {
     USERS: "users/",
     INVITED_USERS: "users?invited=true",
-    DIRECTORY_USERS: "users/",
+    DIRECTORY_USERS: "users",
     SPLIT_EXPENSE_USERS: "users/directory?status=all",
-    UNINVITED_USERS: "users?invited=false",
+    UNINVITED_USERS: "users?status=Inactive",
     INVITEUSER: "users/invite",
     ME: "users/me",
     DELETE_USER: (userId: string) => `users/${userId}` as const,

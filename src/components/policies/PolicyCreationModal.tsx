@@ -857,7 +857,7 @@ export default function PolicyCreationModal({
 
   const rolesApi         = useGetCompanyRolesApi({}, { enabled: open });
   const invitedUsersApi  = useGetInvitedUsersApi({ enabled: open });
-  const directoryUsersApi = useGetDirectoryUsersApi({ enabled: open && scope === "specific" });
+  const directoryUsersApi = useGetDirectoryUsersApi({ enabled: open && scope === "specific", params: { status: "all" } });
   const departmentsApi   = useGetAllDepartmentsApi({ enabled: open });
   const jobGradesApi = useGetJobGradesApi({ enabled: open });
   const managementLevelsApi = useGetManagementLevelsApi({ enabled: open });

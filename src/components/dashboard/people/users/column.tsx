@@ -11,7 +11,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Eye, Lock, MoreHorizontal, UserCheck } from "lucide-react";
+import { Eye, Lock, MoreHorizontal, UserCheck, Mail } from "lucide-react";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import { useAuthStore } from "@/stores/auth-stores";
 
@@ -39,7 +39,8 @@ const columnHelper = createColumnHelper<AppUser>();
 
 export const columns = (
     onViewProfile: (userId: string) => void,
-    onToggleStatus?: (user: AppUser) => void
+    onToggleStatus?: (user: AppUser) => void,
+    onResendInvitation?: (user: AppUser) => void
 ) => [
     columnHelper.display({
         id: "idNo",
@@ -175,6 +176,18 @@ export const columns = (
                                     </PermissionGuard>
                                 ) : null;
                             })()}
+
+                            {!isActive && onResendInvitation && (
+                                <PermissionGuard resource="user" action="manage">
+                                    <DropdownMenuItem 
+                                        className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#F0FDF4] text-[#087f70]"
+                                        onClick={() => onResendInvitation(data.row.original)}
+                                    >
+                                        <Mail className="w-5 h-5" />
+                                        <span className="font-medium">Resend Invitation</span>
+                                    </DropdownMenuItem>
+                                </PermissionGuard>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>

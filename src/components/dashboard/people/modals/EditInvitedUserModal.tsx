@@ -27,6 +27,8 @@ interface StagedUser {
     role: string;
     roleId: string;
     department: string;
+    manager: string;
+    jobTitleDetails: { title: string, subtitle: string } | null;
     issueCard: boolean;
     ownershipPercentage?: number;
 }
@@ -105,7 +107,7 @@ export function EditInvitedUserModal({
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
-                    <div className="space-y-5 overflow-y-auto px-6 py-5 flex-1">
+                    <div className="space-y-5 overflow-y-auto scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent px-6 py-5 flex-1 pr-4">
 
                         {/* Email — read-only */}
                         <div className="space-y-2">
@@ -183,6 +185,29 @@ export function EditInvitedUserModal({
                             <div className="space-y-2">
                                 <Label className={fieldLabel}>Department</Label>
                                 <Input value={user.department} readOnly className={inputClass} />
+                                <p className="text-[11px] text-[#84908a]">From directory · read-only</p>
+                            </div>
+                        )}
+
+                        {/* Job Title — read-only, only shown if present */}
+                        {user.jobTitleDetails && (
+                            <div className="space-y-2">
+                                <Label className={fieldLabel}>Job Title</Label>
+                                <div className="min-h-[46px] rounded-[10px] border border-black/[0.1] bg-[#f9faf9] px-3 py-2 flex flex-col justify-center cursor-default shadow-[0_2px_8px_rgba(14,28,23,0.04)]">
+                                    <p className="text-[13px] text-[#66706b] font-medium">{user.jobTitleDetails.title}</p>
+                                    {user.jobTitleDetails.subtitle && (
+                                        <p className="text-[11px] text-[#84908a] mt-0.5">{user.jobTitleDetails.subtitle}</p>
+                                    )}
+                                </div>
+                                <p className="text-[11px] text-[#84908a]">From directory · read-only</p>
+                            </div>
+                        )}
+
+                        {/* Manager — read-only, only shown if present */}
+                        {user.manager && (
+                            <div className="space-y-2">
+                                <Label className={fieldLabel}>Reports To</Label>
+                                <Input value={user.manager} readOnly className={inputClass} />
                                 <p className="text-[11px] text-[#84908a]">From directory · read-only</p>
                             </div>
                         )}

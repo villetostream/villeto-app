@@ -34,6 +34,8 @@ interface StagedUser {
     role: string;
     roleId: string;
     department: string;
+    manager: string;
+    jobTitleDetails: { title: string, subtitle: string } | null;
     issueCard: boolean;
     ownershipPercentage?: number;
 }
@@ -48,7 +50,7 @@ export default function InviteLeadershipPage() {
     const router = useRouter();
     const axios = useAxios();
     const rolesApi = useGetVilletoRolesApi();
-    const directoryApi = useGetDirectoryUsersApi();
+    const directoryApi = useGetDirectoryUsersApi({ params: { status: "all" } });
     const [isUserAlreadyInvited, setIsUserAlreadyInvited] = useState(false);
 
     // Memoize to keep array reference stable and avoid infinite useEffect loops
@@ -154,6 +156,47 @@ export default function InviteLeadershipPage() {
         return pickString(dept, "departmentName", "name");
     };
 
+    const formatName = (value: string | null | undefined): string => {
+        if (!value) return "—";
+        return value
+            .replace(/[_-]/g, " ")
+            .split(" ")
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(" ");
+    };
+
+    const getManagerName = (user: AppUser): string => {
+        if (!user.manager) return "";
+        if (typeof user.manager === "string") return formatName(user.manager);
+        if (typeof user.manager === "object") {
+            if ("name" in user.manager && user.manager.name) {
+                return formatName(String(user.manager.name));
+            } else {
+                const first = (user.manager as any).firstName || "";
+                const last = (user.manager as any).lastName || "";
+                const combined = `${first} ${last}`.trim();
+                return combined ? formatName(combined) : "";
+            }
+        }
+        return "";
+    };
+
+    const getJobTitleDetails = (user: AppUser): { title: string, subtitle: string } | null => {
+        const title = user.jobTitle || user.position;
+        if (!title) return null;
+        
+        const mgmtRef = (user as any).managementLevelRef;
+        const managementLevel = mgmtRef?.name || user.managementLevel;
+        const jbGrade = typeof user.jobGrade === "object" ? (user.jobGrade as any)?.code : user.jobGrade;
+        
+        const subTitleParts = [];
+        if (managementLevel) subTitleParts.push(formatName(managementLevel));
+        if (jbGrade) subTitleParts.push(jbGrade);
+        const subtitle = subTitleParts.join(" • ");
+        
+        return { title: formatName(title), subtitle };
+    };
+
     const onSubmit = (data: FormValues) => {
         if (!selectedDirUser) return;
 
@@ -169,6 +212,8 @@ export default function InviteLeadershipPage() {
             role: selectedRole,
             roleId,
             department: getDepartmentName(selectedDirUser),
+            manager: getManagerName(selectedDirUser),
+            jobTitleDetails: getJobTitleDetails(selectedDirUser),
             issueCard: data.issueCard,
             ownershipPercentage: isOrganizationOwner ? data.ownershipPercentage : undefined,
         };
@@ -224,9 +269,9 @@ export default function InviteLeadershipPage() {
     const canAddUser = !!selectedDirUser && !isEmailNotFound && !isUserAlreadyInvited && !!selectedRole;
 
     return (
-        <div className="p-6 max-w-7xl mx-auto flex flex-col">
+        <div className="pt-2 px-6 pb-6 max-w-7xl mx-auto flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <div className="mb-5 w-full lg:w-1/2">
+            <div className="mb-3 w-full lg:w-1/2 shrink-0">
                 <h1 className="text-[22px] font-semibold text-[#0b100e] leading-tight tracking-[-0.02em]">Leadership &amp; Admin Invite</h1>
                 <p className="text-[13px] text-[#66706b] mt-1.5 leading-relaxed">
                     These are for managers, finance admins, organisation owners and auditors.
@@ -237,7 +282,7 @@ export default function InviteLeadershipPage() {
             </div>
 
             {/* Setup guide tip */}
-            <div className="flex items-start gap-3 bg-[#e7f6f2] border border-[#0ea894]/25 rounded-[12px] px-4 py-3 mb-6 w-full">
+            <div className="flex items-start gap-3 bg-[#e7f6f2] border border-[#0ea894]/25 rounded-[12px] px-4 py-3 mb-3 w-full shrink-0">
                 <div className="w-5 h-5 rounded-full bg-[#087f70] flex items-center justify-center flex-shrink-0 mt-0.5">
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5L8.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </div>
@@ -253,14 +298,17 @@ export default function InviteLeadershipPage() {
                 </div>
             </div>
 
-            <div className="flex gap-6 items-start">
+            <div className="flex gap-6 flex-1 min-h-0">
                 {/* Left Side - Form */}
-                <div className="w-full lg:w-1/2">
-                    <div className="bg-white rounded-[14px] border border-black/[0.08] shadow-[0_4px_16px_rgba(14,28,23,0.04)] p-6">
-                        <h2 className="text-[15px] font-semibold text-[#0b100e] mb-5">User Information</h2>
-
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-                        {/* Email with autocomplete */}
+                <div className="w-full lg:w-1/2 flex flex-col h-full">
+                    <div className="bg-white rounded-[14px] border border-black/[0.08] shadow-[0_4px_16px_rgba(14,28,23,0.04)] flex flex-col h-full overflow-hidden">
+                        
+                    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full overflow-hidden">
+                        <div className="p-6 pb-2 shrink-0">
+                            <h2 className="text-[15px] font-semibold text-[#0b100e]">User Information</h2>
+                        </div>
+                        <div className="px-6 pt-2 pb-6 overflow-y-auto scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent flex-1 space-y-5">
+                            {/* Email with autocomplete */}
                         <div className="space-y-2">
                             <label htmlFor="email" className="text-[12px] font-semibold text-[#202723] uppercase tracking-[0.06em]">
                                 Email Address<span className="text-red-500 ml-0.5">*</span>
@@ -464,6 +512,38 @@ export default function InviteLeadershipPage() {
                             </div>
                         )}
 
+                        {/* Job Title */}
+                        {selectedDirUser && getJobTitleDetails(selectedDirUser) && (
+                            <div className="space-y-2">
+                                <label className="text-[12px] font-semibold text-[#202723] uppercase tracking-[0.06em]">
+                                    Job Title
+                                </label>
+                                <div className="min-h-[46px] rounded-[10px] border border-black/[0.1] bg-[#f9faf9] px-3 py-2 flex flex-col justify-center cursor-default">
+                                    <p className="text-[13px] text-[#202723] font-medium">{getJobTitleDetails(selectedDirUser)?.title}</p>
+                                    {getJobTitleDetails(selectedDirUser)?.subtitle && (
+                                        <p className="text-[11px] text-[#66706b] mt-0.5">{getJobTitleDetails(selectedDirUser)?.subtitle}</p>
+                                    )}
+                                </div>
+                                <p className="text-[11px] text-[#84908a]">Auto-filled from directory · read-only</p>
+                            </div>
+                        )}
+
+                        {/* Manager */}
+                        {selectedDirUser && getManagerName(selectedDirUser) && (
+                            <div className="space-y-2">
+                                <label htmlFor="manager" className="text-[12px] font-semibold text-[#202723] uppercase tracking-[0.06em]">
+                                    Reports To
+                                </label>
+                                <Input
+                                    id="manager"
+                                    value={getManagerName(selectedDirUser)}
+                                    readOnly
+                                    className="h-[46px] rounded-[10px] border-black/[0.1] text-[13px] bg-[#f9faf9] cursor-default text-[#66706b]"
+                                />
+                                <p className="text-[11px] text-[#84908a]">Auto-filled from directory · read-only</p>
+                            </div>
+                        )}
+
                         {/* Ownership slider — only for Organization Owner */}
                         {isOrganizationOwner && (
                             <div className="space-y-4 pt-2">
@@ -533,7 +613,9 @@ export default function InviteLeadershipPage() {
                             </div>
                         </div>
 
-                        <div className="pt-4 flex justify-end">
+                        </div>
+
+                        <div className="px-6 py-4 border-t border-black/[0.06] shrink-0 flex justify-end">
                             <Button
                                 type="submit"
                                 data-tour="leadership-add-user-button"
@@ -548,9 +630,9 @@ export default function InviteLeadershipPage() {
             </div>
 
             {/* Right Side - Users Added List */}
-            <div className="hidden lg:block w-1/2">
-                <div className="bg-white rounded-[14px] border border-black/[0.08] shadow-[0_4px_16px_rgba(14,28,23,0.04)] min-h-[500px] flex flex-col">
-                    <div className="px-5 py-4 border-b border-black/[0.06] flex items-center gap-2">
+            <div className="hidden lg:flex lg:w-1/2 flex-col h-full">
+                <div className="bg-white rounded-[14px] border border-black/[0.08] shadow-[0_4px_16px_rgba(14,28,23,0.04)] flex flex-col h-full overflow-hidden">
+                    <div className="px-5 py-4 border-b border-black/[0.06] flex items-center gap-2 shrink-0">
                         <h3 className="text-[14px] font-semibold text-[#0b100e]">Users Added</h3>
                         <span className="bg-[#f5f7f6] border border-black/[0.06] px-2 py-0.5 rounded-full text-[11px] font-semibold text-[#68726d]">
                             {stagedUsers.length}
@@ -558,7 +640,7 @@ export default function InviteLeadershipPage() {
                     </div>
 
                     {stagedUsers.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                        <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-8 text-center">
                             <div className="w-14 h-14 bg-[#e7f6f2] rounded-[14px] flex items-center justify-center mb-4">
                                 <UserPlus className="w-6 h-6 text-[#087f70]" strokeWidth={1.7} />
                             </div>
@@ -568,7 +650,7 @@ export default function InviteLeadershipPage() {
                             </p>
                         </div>
                     ) : (
-                        <div className="flex-1 p-4 space-y-1 overflow-y-auto max-h-[500px]">
+                        <div className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
                             {/* Table Header */}
                             <div className="grid grid-cols-12 text-[11px] font-semibold text-[#84908a] uppercase tracking-[0.06em] pb-2 px-2 border-b border-black/[0.05]">
                                 <div className="col-span-4">Full name</div>
@@ -608,7 +690,7 @@ export default function InviteLeadershipPage() {
                         </div>
                     )}
 
-                    <div className="px-4 py-4 border-t border-black/[0.06] mt-auto">
+                    <div className="px-4 py-4 border-t border-black/[0.06] shrink-0">
                         <Button
                             data-tour="leadership-send-invitation-button"
                             className="w-full h-[44px] rounded-[10px] bg-[#0ea894] hover:bg-[#0c9785] text-[13px] font-semibold shadow-[0_8px_20px_-10px_rgba(14,168,148,0.7)] hover:translate-y-[-1px] transition-all disabled:opacity-50 disabled:shadow-none disabled:translate-y-0"
