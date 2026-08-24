@@ -59,7 +59,7 @@ export default function InviteEmployeesPage() {
 
     const bulkImportMutation = useBulkImportApi();
     const bulkValidateMutation = useBulkValidateApi();
-    const usersApi = useGetDirectoryUsersApi();
+    const usersApi = useGetDirectoryUsersApi({ params: { status: "all" } });
     const axiosInstance = useAxios();
 
     const directoryTotalCount = usersApi?.data?.meta?.totalCount ?? 0;

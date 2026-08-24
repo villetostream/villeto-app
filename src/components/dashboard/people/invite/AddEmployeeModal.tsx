@@ -139,7 +139,7 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
     const { data: departmentsRes, isLoading: loadingDepts } = useGetAllDepartmentsApi();
     const { data: jobGradesRes, isLoading: loadingGrades } = useImportReferences("job_grades", isOpen);
     const { data: mgmtLevelsRes, isLoading: loadingLevels } = useImportReferences("management_levels", isOpen);
-    const { data: dirUsersRes, isLoading: loadingDirUsers } = useGetDirectoryUsersApi({ enabled: isOpen });
+    const { data: dirUsersRes, isLoading: loadingDirUsers } = useGetDirectoryUsersApi({ enabled: isOpen, params: { status: "all" } });
 
     const validateMutation = useValidateManualEmployee();
     const submitMutation = useSubmitManualEmployee();

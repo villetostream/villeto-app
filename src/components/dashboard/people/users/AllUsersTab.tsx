@@ -11,6 +11,7 @@ import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { useGetInvitedUsersApi } from "@/queries/users/get-all-users";
 import { useUpdateUserApi } from "@/queries/users/update-user";
+import { useResendInvitationApi } from "@/queries/users/resend-invitation";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import { AppUser } from "@/queries/departments/get-all-departments";
@@ -51,6 +52,7 @@ export function AllUsersTab() {
     const [userToToggle, setUserToToggle] = useState<AppUser | null>(null);
 
     const updateUser = useUpdateUserApi();
+    const resendInvitation = useResendInvitationApi();
     const depts = useGetAllDepartmentsApi();
     const roles = useGetAllRolesApi();
 
@@ -63,12 +65,21 @@ export function AllUsersTab() {
         setUserToToggle(user);
     }, []);
 
+    const handleResendInvitation = useCallback(async (user: AppUser) => {
+        try {
+            await resendInvitation.mutateAsync({ email: user.email });
+            toast.success("Invitation sent successfully!");
+        } catch {
+            toast.error("Failed to resend invitation. Please try again.");
+        }
+    }, [resendInvitation]);
+
     // Memoize the columns array so DataTable doesn't see a new reference
     // on every render — prevents the entire table from re-initialising
     // whenever parent state (search, filters, page) changes.
     const tableColumns = useMemo(
-        () => columns(handleViewProfile, handleToggleStatusClick),
-        [handleViewProfile, handleToggleStatusClick]
+        () => columns(handleViewProfile, handleToggleStatusClick, handleResendInvitation),
+        [handleViewProfile, handleToggleStatusClick, handleResendInvitation]
     );
 
     const tableprops = useDataTable({
@@ -83,7 +94,7 @@ export function AllUsersTab() {
     const limit = 1000;
 
     const filters = tableprops.filterBy || {};
-    const status = filters.status && filters.status !== "all" ? (filters.status as string) : undefined;
+    const status = filters.status ? (filters.status as string) : "all";
     const employeeStatus = filters.employeeStatus && filters.employeeStatus !== "all" ? (filters.employeeStatus as string) : undefined;
     const roleId = filters.roleId && filters.roleId !== "all" ? (filters.roleId as string) : undefined;
     const departmentId = filters.departmentId && filters.departmentId !== "all" ? (filters.departmentId as string) : undefined;

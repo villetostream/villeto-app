@@ -46,6 +46,9 @@ interface DirectoryUser {
   manager?: { firstName?: string; lastName?: string } | string | null;
   department?: { name?: string; departmentName?: string; departmentId?: string } | string | null;
   corporateCard?: boolean;
+  managementLevel?: string | null;
+  managementLevelRef?: { name?: string | null; code?: string | null } | null;
+  jobGrade?: { code?: string | null; name?: string | null } | string | null;
 }
 
 function getDepartmentName(dept: DirectoryUser["department"]): string {
@@ -304,23 +307,23 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
       )}
 
       {users.length === 0 ? (
-        <div className="bg-white rounded-lg border mt-4 flex flex-col items-center justify-center py-24 px-6">
-          <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
-            <Users className="w-10 h-10 text-gray-400" />
+        <div className="flex flex-col items-center justify-center py-24 px-6 border border-black/[0.08] rounded-[14px] bg-white mt-4 shadow-[0_4px_16px_rgba(14,28,23,0.04)]">
+          <div className="w-16 h-16 bg-[#e7f6f2] rounded-[14px] flex items-center justify-center mb-5">
+            <Users className="w-7 h-7 text-[#087f70]" strokeWidth={1.7} />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No uninvited employees</h3>
-          <p className="text-gray-500 text-sm mb-6 text-center max-w-md">
+          <h3 className="text-[17px] font-semibold text-[#0b100e] mb-2">No uninvited employees</h3>
+          <p className="text-[13px] text-[#66706b] mb-7 text-center max-w-sm leading-relaxed">
             It looks like everyone in your directory has already been invited or your directory is empty. To invite more employees, please update your directory.
           </p>
-          <Button
+          <button
             onClick={() => {
               if (onBack) onBack();
               else router.push("/people?tab=directory");
             }}
-            className="bg-[#00BFA5] hover:bg-[#00BFA5]/90 text-white px-6 py-2.5 rounded-lg"
+            className="inline-flex items-center justify-center gap-2 h-[46px] bg-[#0ea894] hover:bg-[#0c9785] text-white px-6 rounded-[10px] font-semibold text-[13px] shadow-[0_8px_20px_-10px_rgba(14,168,148,0.7)] hover:translate-y-[-1px] transition-all"
           >
             Go to Directory Tab
-          </Button>
+          </button>
         </div>
       ) : (
         <>
@@ -374,6 +377,14 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                   const position = employee.position;
                   const jobTitle = employee.jobTitle;
                   const value = jobTitle || position;
+                  
+                  const managementLevel = employee.managementLevelRef?.name || employee.managementLevel;
+                  const jobGrade = typeof employee.jobGrade === "object" ? employee.jobGrade?.code : employee.jobGrade;
+                  const subTitleParts = [];
+                  if (managementLevel) subTitleParts.push(formatName(managementLevel));
+                  if (jobGrade) subTitleParts.push(jobGrade);
+                  const subTitle = subTitleParts.join(" • ");
+
                   let managerName = "—";
                   if (employee.manager && typeof employee.manager === "object") {
                     if ("name" in employee.manager && employee.manager.name) {
@@ -406,7 +417,12 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                       </TableCell>
                       <TableCell className="capitalize px-4 py-2.5 text-[#181D27]">{dept}</TableCell>
                       <TableCell className="font-medium px-4 py-2.5 text-[#181D27]">{managerName}</TableCell>
-                      <TableCell className="text-sm px-4 py-2.5 text-[#181D27]">{formatName(value)}</TableCell>
+                      <TableCell className="px-4 py-2.5 text-[#181D27]">
+                        <div className="flex flex-col">
+                          <p className="text-sm">{formatName(value)}</p>
+                          {subTitle && <p className="text-[11px] text-muted-foreground mt-0.5">{subTitle}</p>}
+                        </div>
+                      </TableCell>
                       <TableCell className="px-4 py-2.5">
                         <div className="flex justify-center">
                           <Switch
@@ -578,9 +594,14 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
           )}
 
           <div className="flex justify-end gap-3 pt-2 flex-shrink-0">
-            <Button data-tour="send-invitations-button" onClick={handleInvite} className="min-w-[180px]" disabled={selectedCount === 0 || isInviting}>
+            <button
+              data-tour="send-invitations-button"
+              onClick={handleInvite}
+              disabled={selectedCount === 0 || isInviting}
+              className="inline-flex items-center justify-center gap-2 h-[46px] bg-[#0ea894] hover:bg-[#0c9785] text-white px-6 rounded-[10px] font-semibold text-[13px] shadow-[0_8px_20px_-10px_rgba(14,168,148,0.7)] hover:translate-y-[-1px] transition-all min-w-[180px] disabled:opacity-50 disabled:hover:translate-y-0 disabled:shadow-none"
+            >
               {isInviting ? "Sending invites..." : `Invite ${selectedCount} User${selectedCount !== 1 ? "s" : ""}`}
-            </Button>
+            </button>
           </div>
         </>
       )}

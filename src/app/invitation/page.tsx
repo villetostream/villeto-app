@@ -89,50 +89,39 @@ export default function InvitationPage() {
 
     return (
         <>
-            {/* Two-column layout matching pre-onboarding style */}
-            <div className="fixed inset-0 z-50 flex bg-background h-screen overflow-hidden">
-                {/* Left panel — form */}
-                <div className="flex-1 flex flex-col w-full h-full bg-white overflow-y-auto relative">
-                    {/* Villeto logo — top left */}
-                    <Link href="/" className="absolute top-8 left-8">
-                        <Image src="/images/logo.png" width={112} height={48} className="h-12 w-28 object-cover" alt="Villeto" />
+            <div className="flex h-full flex-col bg-white">
+                <header className="flex items-center justify-between px-6 py-5 sm:px-10 sm:py-7 xl:px-14">
+                    <Link href="/" aria-label="Villeto home">
+                        <Image src="/images/logo.png" alt="Villeto" width={118} height={36} className="h-9 w-[118px] object-cover" priority />
                     </Link>
-
-                    {/* Email badge — top right */}
-                    <div className="absolute top-8 right-8">
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full text-sm text-gray-700">
-                            <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            <span className="truncate max-w-[220px]">{email || "your email"}</span>
-                        </div>
+                    <div className="flex items-center gap-3">
+                        <span className="hidden text-[11px] font-medium text-[#737d78] sm:inline">Invitation</span>
+                        <span className="rounded-full border border-black/[0.08] bg-[#f5f7f6] px-3 py-1.5 text-[10px] font-semibold text-[#303834] truncate max-w-[200px]">
+                            {email || "your email"}
+                        </span>
                     </div>
+                </header>
 
-                    {/* Centered form content */}
-                    <div className="flex flex-col justify-center flex-1 px-10 md:px-[10%] pt-24 pb-10">
-                        <div className="max-w-md w-full">
-                            {/* Avatar icon - single user profile */}
-                            <div className="w-14 h-14 rounded-full border-2 border-primary/50 flex items-center justify-center mb-6">
-                                <svg className="h-7 w-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                            </div>
+                <div className="mx-auto flex w-full max-w-[560px] flex-1 min-h-0 flex-col justify-center px-6 py-10 sm:px-10 lg:py-14">
+                    <div className="w-full">
+                        <span className="inline-flex items-center gap-2 rounded-full bg-[#e7f6f2] px-3 py-1.5 text-[11px] font-semibold text-[#087f70]">
+                            <svg className="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                            </svg>
+                            Secure invitation
+                        </span>
+                        
+                        <h1 className="mt-6 text-[clamp(2.1rem,4vw,3.25rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-[#0b100e]">
+                            Welcome {firstName}!
+                        </h1>
+                        <p className="mt-4 max-w-[44ch] text-[14px] leading-6 text-[#66706b] sm:text-[15px]">
+                            You have been invited by <span className="text-[#0ea894] font-semibold">{companyName.toUpperCase()}.</span><br />
+                            Enter your 6-digit invitation code to access your account.
+                        </p>
 
-                            {/* Greeting */}
-                            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                                Welcome {firstName}!
-                            </h1>
-                            <p className="text-sm text-gray-500 mb-1">
-                                You have been invited by{" "}
-                                <span className="text-primary font-semibold">{companyName.toUpperCase()}.</span>
-                            </p>
-                            <p className="text-sm text-gray-500 mb-8">
-                                Enter your 6-digit invitation code to access your account.
-                            </p>
-
-                            {/* Code input boxes */}
-                            <div className="flex items-center gap-2.5 mb-8">
+                        <div className="mt-9 space-y-6">
+                            <div className="flex items-center gap-2.5">
                                 {code.map((digit, index) => (
                                     <input
                                         key={index}
@@ -144,38 +133,33 @@ export default function InvitationPage() {
                                         onChange={(e) => handleChange(index, e.target.value)}
                                         onKeyDown={(e) => handleKeyDown(index, e)}
                                         onPaste={index === 0 ? handlePaste : undefined}
-                                        className={`w-12 h-14 text-center text-xl font-semibold border-2 rounded-lg outline-none transition-all
-                                            ${digit ? "border-primary/40 bg-gray-50" : "border-gray-200"}
-                                            focus:border-primary focus:ring-2 focus:ring-primary/20`}
+                                        className={`h-[56px] flex-1 min-w-0 text-center text-xl font-semibold border rounded-[10px] outline-none transition-all
+                                            ${digit ? "border-[#0ea894]/40 bg-[#e7f6f2]" : "border-black/[0.1] bg-white"}
+                                            focus:border-[#0ea894] focus:ring-1 focus:ring-[#0ea894]/20 shadow-[0_4px_16px_rgba(14,28,23,0.04)]`}
                                     />
                                 ))}
                             </div>
 
-                            {/* Continue button */}
                             <Button
                                 onClick={handleContinue}
                                 disabled={!isComplete || isLoading}
-                                className="w-full h-13 text-base font-semibold bg-primary hover:bg-primary/90 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-lg transition-all"
-                                style={{ height: "52px" }}
+                                className="h-[54px] w-full rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] disabled:bg-[#f5f7f6] disabled:text-[#98a09c] disabled:shadow-none disabled:hover:translate-y-0 transition-all"
                             >
                                 {isLoading ? (
-                                    <>Verifying... <Loader2 className="ml-2 h-5 w-5 animate-spin" /></>
+                                    <>Verifying... <Loader2 className="ml-2 size-4 animate-spin" /></>
                                 ) : (
-                                    <>Continue <ArrowRight className="ml-2 h-5 w-5" /></>
+                                    <>Continue <ArrowRight className="ml-2 size-4" /></>
                                 )}
                             </Button>
                         </div>
                     </div>
                 </div>
 
-                {/* Right panel — teal sidebar */}
-                <div
-                    className="hidden lg:flex lg:flex-1 bg-[#E6F8F6] h-full p-8 flex-col bg-no-repeat bg-contain bg-center"
-                    style={{ backgroundImage: "url('/layout.png')" }}
-                />
+                <footer className="px-20 pb-6 text-center text-[9px] leading-4 text-[#9aa29e] sm:px-10 sm:text-left sm:text-[10px] xl:px-14">
+                    By continuing, you agree to Villeto&apos;s Terms and Privacy Policy.
+                </footer>
             </div>
 
-            {/* Set Password Modal */}
             <SetPasswordModal
                 open={showPasswordModal}
                 onOpenChange={setShowPasswordModal}

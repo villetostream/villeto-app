@@ -31,7 +31,7 @@ function People() {
     // so their cache is warm before UserProfileModal opens (which gates them on isOpen).
     const deptsApi     = useGetAllDepartmentsApi({ enabled: canReadDepts });
     const rolesApi     = useGetAllRolesApi({ limit: 50 }, { enabled: canReadRoles });
-    const directoryApi = useGetDirectoryUsersApi({ enabled: canReadDirectory });
+    const directoryApi = useGetDirectoryUsersApi({ enabled: canReadDirectory, params: { status: "all" } });
 
     const directoryTotalCount = directoryApi?.data?.meta?.totalCount ?? 0;
     const hasDirectoryData    = directoryTotalCount > 0;

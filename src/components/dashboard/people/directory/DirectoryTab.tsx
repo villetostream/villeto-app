@@ -43,7 +43,7 @@ export function DirectoryTab() {
     const limit = 1000;
 
     const filters = tableProps.filterBy || {};
-    const status = filters.status && filters.status !== "all" ? (filters.status as string) : undefined;
+    const status = filters.status && filters.status !== "all" ? (filters.status as string) : "all";
     const employeeStatus = filters.employeeStatus && filters.employeeStatus !== "all" ? (filters.employeeStatus as string) : undefined;
     const roleId = filters.roleId && filters.roleId !== "all" ? (filters.roleId as string) : undefined;
     const departmentId = filters.departmentId && filters.departmentId !== "all" ? (filters.departmentId as string) : undefined;
