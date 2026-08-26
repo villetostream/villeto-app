@@ -14,6 +14,7 @@ import type { PurchaseRequest } from "@/queries/procurement/purchase-requests";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/custom-pagination";
 import withPermissions from "@/components/permissions/permission-protected-routes";
@@ -26,16 +27,6 @@ import { toast } from "sonner";
 import { ProcurementPageHeader } from "@/components/procurement/ProcurementWorkspace";
 
 // ─── Status / Priority Badges ─────────────────────────────────────────────────
-
-export function PRStatusBadge({ status, approvalStatus, isOwnRequest }: { status: string; approvalStatus?: string | null; isOwnRequest?: boolean }) {
-  const displayKey = getPRDisplayStatus(status, approvalStatus, isOwnRequest);
-  const cfg = PR_STATUS_CFG[displayKey] || PR_STATUS_CFG[status] || { label: status, className: "text-[#68726d] bg-[#f9faf9]" };
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${cfg.className}`}>
-      {cfg.label}
-    </span>
-  );
-}
 
 function PRPriorityBadge({ priority }: { priority: string }) {
   const cfg = PR_PRIORITY_CFG[priority] || { label: priority, className: "text-[#68726d] bg-[#f9faf9]" };
@@ -683,7 +674,7 @@ function PRTable({
                     <td className="px-5 py-4 text-[13px] text-[#68726d]">{getDeptName(pr)}</td>
                     <td className="px-5 py-4"><PRPriorityBadge priority={pr.priority} /></td>
                     <td className="px-5 py-4 text-[13px] text-[#68726d] whitespace-nowrap">{formatDate(pr.neededByDate)}</td>
-                    <td className="px-5 py-4"><PRStatusBadge status={pr.status} approvalStatus={pr.approvalStatus} isOwnRequest={scope === "own"} /></td>
+                    <td className="px-5 py-4"><StatusBadge status={(pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} /></td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                       <PRActionMenu
                         pr={pr}

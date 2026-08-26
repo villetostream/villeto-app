@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { CheckCircle2, Pencil, XCircle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import {
   Table,
@@ -63,14 +63,10 @@ export default function InvoiceDetailsPage() {
           <div>
             <div className="flex items-center gap-3 mb-1.5">
               <h1 className="text-[24px] font-bold text-[#10231d]">{billData.vendor}</h1>
-              {status === "Pending" ? (
-                 <Badge variant="outline" className="bg-[#fffbeb] text-[#d97706] border-[#fcd34d] text-[12px] font-medium h-6 px-2.5 rounded-full">
-                    Pending
-                 </Badge>
+               {status === "Pending" ? (
+                 <StatusBadge status="pending" />
               ) : (
-                 <Badge variant="outline" className="bg-[#f0faf8] text-[#087f70] border-[#087f70]/30 text-[12px] font-medium h-6 px-2.5 rounded-full">
-                    Approved
-                 </Badge>
+                 <StatusBadge status="approved" />
               )}
             </div>
             <p className="text-[13px] text-[#68726d]">Cloud Services • {id}</p>
@@ -180,9 +176,7 @@ export default function InvoiceDetailsPage() {
                  <CardHeader className="p-6 border-b border-black/[0.04]">
                     <div className="flex items-center gap-3">
                        <h3 className="text-[15px] font-bold text-[#10231d]">Bill Item Breakdown</h3>
-                       <Badge variant="secondary" className="bg-[#f4f7f5] text-[#10231d] hover:bg-[#f4f7f5] rounded-full h-6 px-2.5 font-semibold text-[12px]">
-                         5
-                       </Badge>
+                       <StatusBadge status="provisional" label="5" className="bg-[#f4f7f5] text-[#10231d] border-transparent" />
                     </div>
                  </CardHeader>
                  <CardContent className="p-0">

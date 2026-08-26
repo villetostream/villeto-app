@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { CheckCircle2, Pencil, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import {
   Table,
@@ -68,13 +68,9 @@ export default function RecurringBillDetailsPage() {
             <div className="flex items-center gap-3 mb-1.5">
               <h1 className="text-[24px] font-bold text-[#10231d]">{billData.vendor}</h1>
               {billStatus === "pending" ? (
-                 <Badge variant="outline" className="bg-[#fffbeb] text-[#d97706] border-[#fcd34d] text-[12px] font-medium h-6 px-2.5 rounded-full">
-                    Pending
-                 </Badge>
+                 <StatusBadge status="awaiting_authorization" label="Awaiting Authorization" />
               ) : (
-                 <Badge variant="outline" className="bg-[#f0faf8] text-[#087f70] border-[#087f70]/30 text-[12px] font-medium h-6 px-2.5 rounded-full">
-                    Active
-                 </Badge>
+                 <StatusBadge status="approved" />
               )}
             </div>
             <p className="text-[13px] text-[#68726d]">Cloud Services • REC-{id || "0089"}</p>
@@ -195,7 +191,7 @@ export default function RecurringBillDetailsPage() {
                              <TableCell className="text-[13px] text-[#68726d] py-4">{row.ref}</TableCell>
                              <TableCell className="text-[13px] font-bold text-[#10231d] py-4">{row.amount}</TableCell>
                              <TableCell className="py-4">
-                                <Badge variant="outline" className="bg-[#f0faf8] text-[#087f70] border-[#087f70]/30 font-semibold text-[11px] h-6">Paid</Badge>
+                                <StatusBadge status="paid" />
                              </TableCell>
                              <TableCell className="py-4 pr-6">
                                 <span className="text-[12px] font-semibold text-[#087f70] bg-[#f0faf8] border border-[#087f70]/10 px-2 py-1 rounded-[4px]">Reconciled</span>

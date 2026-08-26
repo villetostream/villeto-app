@@ -159,6 +159,7 @@ export const useUpdateProcurementPolicy = (id: string) => {
     mutationFn: async (draft: PolicyDraft) => {
       const payload = buildPayload(draft);
       delete payload.draftId; // Ensure draftId is not sent when updating an active policy
+      delete payload.procurementPolicyId; // procurementPolicyId is in the URL, should not be in body
       const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id), payload);
       return res.data;
     },

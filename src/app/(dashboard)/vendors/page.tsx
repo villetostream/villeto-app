@@ -109,14 +109,7 @@ const TAB_STATUS_MAP: Record<string, VendorStatus[] | null> = {
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: VendorStatus }) {
-  const cfg = STATUS_CONFIG[status];
-  return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${cfg.classes}`}>
-      {cfg.label}
-    </span>
-  );
-}
+import { StatusBadge } from "@/components/ui/status-badge";
 
 // ─── Action Menu ──────────────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ import {
     SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -59,21 +59,6 @@ export function TransactionDetails({ transaction, open, onOpenChange }: Transact
         }
     };
 
-    const getStatusBadge = (status: string) => {
-        const baseClasses = "text-xs font-medium";
-        switch (status) {
-            case 'approved':
-                return `${baseClasses} bg-status-success text-white`;
-            case 'pending':
-                return `${baseClasses} bg-status-warning text-white`;
-            case 'flagged':
-                return `${baseClasses} bg-status-error text-white`;
-            case 'declined':
-                return `${baseClasses} bg-status-error text-white`;
-            default:
-                return baseClasses;
-        }
-    };
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -110,10 +95,7 @@ export function TransactionDetails({ transaction, open, onOpenChange }: Transact
                                     <p className="text-2xl font-bold text-dashboard-text-primary">
                                         {transaction.amount}
                                     </p>
-                                    <Badge className={getStatusBadge(transaction.status)}>
-                                        {getStatusIcon(transaction.status)}
-                                        <span className="ml-1 capitalize">{transaction.status}</span>
-                                    </Badge>
+                                    <StatusBadge status={transaction.status} />
                                 </div>
                             </div>
                         </CardContent>

@@ -4,6 +4,8 @@ import { X, Loader2, Trash2, AlertCircle } from "lucide-react";
 import { POLICY_GROUPS, getActionDef, getConditionDef } from "./constants";
 import { cn } from "@/lib/utils";
 import { useGetProcurementPolicyById, useGetProcurementPolicyDraftById, ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuthStore } from "@/stores/auth-stores";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { useState, useMemo } from "react";
@@ -16,24 +18,6 @@ function formatDate(iso?: string | null) {
   } catch {
     return "—";
   }
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    approved: "bg-teal-50 text-teal-600",
-    active:   "bg-teal-50 text-teal-600",
-    pending:  "bg-amber-50 text-amber-600",
-    pending_approval: "bg-amber-50 text-amber-600",
-    draft:    "bg-slate-50 text-slate-600",
-    inactive: "bg-gray-100 text-gray-500",
-  };
-  const cls = map[status?.toLowerCase()] ?? "bg-gray-100 text-gray-500";
-  const badgeLabel = status?.toLowerCase() === "pending_approval" ? "Pending" : status;
-  return (
-    <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-[11px] font-semibold capitalize ${cls}`}>
-      {badgeLabel ?? "—"}
-    </span>
-  );
 }
 
 const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
@@ -80,7 +64,7 @@ export function ProcurementPolicyDetailsModal({
   const policy = data?.data;
 
   // Fetch all roles to resolve IDs to names (useGetAllRolesApi fetches all pages automatically)
-  const { data: rolesData } = useGetAllRolesApi({ limit: 100 }, { enabled: !!policy });
+  const { data: rolesData, isLoading: isRolesLoading } = useGetAllRolesApi({ limit: 100 }, { enabled: !!policy });
   const allRoles = useMemo(() => rolesData?.data ?? [], [rolesData]);
 
   // Helper: resolve a role ID to its display name
@@ -138,7 +122,7 @@ export function ProcurementPolicyDetailsModal({
           <X className="w-5 h-5 text-gray-500" />
         </button>
 
-        {isLoading || !policy ? (
+        {isLoading || !policy || isRolesLoading ? (
           <div className="flex items-center justify-center py-32">
             <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
           </div>
@@ -379,7 +363,7 @@ export function ProcurementPolicyDetailsModal({
                 </>
               ) : (
                 <>
-                  {!isDraft && canDeactivate && onArchive && (
+                  {!isDraft && canDeactivate && onArchive && policy.status !== "pending" && policy.status !== "pending_approval" && (
                     <button
                       onClick={() => { onArchive(policy); onClose(); }}
                       className="flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
@@ -387,7 +371,7 @@ export function ProcurementPolicyDetailsModal({
                       Move to Archive
                     </button>
                   )}
-                  {canUpdate && onEdit && (
+                  {canUpdate && onEdit && policy.status !== "pending" && policy.status !== "pending_approval" && (
                     <button
                       onClick={() => { onEdit(policy); onClose(); }}
                       className={

@@ -16,6 +16,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { toast } from "sonner";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -151,7 +152,7 @@ function AccountingPage(props: PageProps) {
                       <p className="mt-1 text-[10px] text-[#82908a]">{entity?.code} · {entity?.countryOfRegistration} · {currency}</p>
                     </div>
                   </div>
-                  <ReadinessBadge value={entity?.readinessStatus || "provisional"} />
+                  <StatusBadge status={entity?.readinessStatus || "provisional"} />
                 </div>
                 {entity?.readinessBlockers?.length ? (
                   <div className="mt-4 flex items-start gap-2 rounded-[9px] bg-[#fff8e8] px-3 py-2 text-[10px] leading-4 text-[#94620d]">
@@ -267,11 +268,6 @@ function AccountingPage(props: PageProps) {
       )}
     </div>
   );
-}
-
-function ReadinessBadge({ value }: { value: string }) {
-  const ready = value !== "provisional";
-  return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${ready ? "bg-[#e8f8f5] text-[#087f70]" : "bg-[#fff6df] text-[#9a650b]"}`}>{value.replaceAll("_", " ")}</span>;
 }
 
 function OverviewMetric({ label, value, detail, icon, isLoading }: { label: string; value: string; detail: string; icon: React.ReactNode; isLoading?: boolean }) {

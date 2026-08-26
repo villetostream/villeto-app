@@ -6,6 +6,7 @@ import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import withPermissions from "@/components/permissions/permission-protected-routes";
@@ -56,13 +57,9 @@ function RegularBillDetailsPage() {
             <div className="flex items-center gap-3 mb-1.5">
               <h1 className="text-[24px] font-bold text-[#10231d]">{id.startsWith('In-') ? id : `INV-${id.substring(0,6).toUpperCase()}`}</h1>
               {status === "Pending" ? (
-                 <Badge variant="outline" className="bg-[#fffbeb] text-[#d97706] border-[#fcd34d] text-[12px] font-medium h-6 px-2.5 rounded-full">
-                    Pending
-                 </Badge>
+                 <StatusBadge status="awaiting_authorization" label="Awaiting Authorization" />
               ) : (
-                 <Badge variant="outline" className="bg-[#f0faf8] text-[#087f70] border-[#087f70]/30 text-[12px] font-medium h-6 px-2.5 rounded-full">
-                    Approved
-                 </Badge>
+                 <StatusBadge status="approved" />
               )}
             </div>
             <p className="text-[13px] text-[#68726d]">View a detailed breakdown of the information in the invoice</p>
@@ -130,9 +127,7 @@ function RegularBillDetailsPage() {
                  <CardHeader className="p-6 border-b border-black/[0.04]">
                     <div className="flex items-center gap-3">
                        <h3 className="text-[15px] font-bold text-[#10231d]">Invoice Items</h3>
-                       <Badge variant="secondary" className="bg-[#f4f7f5] text-[#10231d] hover:bg-[#f4f7f5] rounded-full h-6 px-2.5 font-semibold text-[12px]">
-                         5
-                       </Badge>
+                       <StatusBadge status="provisional" label="5" className="bg-[#f4f7f5] text-[#10231d] border-transparent" />
                     </div>
                  </CardHeader>
                  <CardContent className="p-0">
@@ -223,7 +218,7 @@ function RegularBillDetailsPage() {
                               </div>
                               <div className="pb-6">
                                  <p className="text-[13px] font-bold text-[#10231d]">Approved</p>
-                                 <Badge variant="outline" className="bg-transparent text-[#d97706] border-[#fcd34d] font-medium text-[11px] h-5 mt-1.5 px-2 rounded-[6px]">Pending</Badge>
+                                 <StatusBadge status="pending" className="mt-1.5" />
                               </div>
                            </div>
                        )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Check, ChevronsUpDown, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
@@ -35,6 +35,17 @@ function PillPicker({
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const filtered = (items as object[]).filter((item) =>
     getName(item).toLowerCase().includes(search.toLowerCase())
@@ -77,28 +88,36 @@ function PillPicker({
       )}
 
       {/* Dropdown trigger */}
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="w-full h-11 rounded-[14px] border border-black/[0.06] bg-white px-3 flex items-center justify-between text-sm text-[#68726d] hover:border-primary/40 transition-colors"
+      <div ref={dropdownRef} className="relative">
+        <div
+          onClick={() => {
+            if (!open) setOpen(true);
+          }}
+          className="w-full h-11 rounded-[14px] border border-black/[0.06] bg-white px-3 flex items-center justify-between text-sm text-[#68726d] hover:border-primary/40 transition-colors cursor-text"
         >
-          <span>{placeholder}</span>
-          <ChevronsUpDown className="w-4 h-4 shrink-0" />
-        </button>
+          {open ? (
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search…"
+              className="w-full h-full bg-transparent focus:outline-none text-[#0b100e]"
+            />
+          ) : (
+            <span className="w-full text-left truncate cursor-pointer" onClick={() => setOpen(true)}>{placeholder}</span>
+          )}
+          <button 
+            type="button" 
+            onClick={(e) => { e.stopPropagation(); setOpen(!open); }} 
+            className="flex items-center justify-center shrink-0 cursor-pointer hover:text-black ml-2"
+          >
+            <ChevronsUpDown className="w-4 h-4" />
+          </button>
+        </div>
 
         {open && (
-          <div className="absolute z-30 left-0 right-0 top-12 rounded-[14px] border border-black/[0.06] bg-white shadow-lg overflow-hidden">
-            <div className="p-2 border-b border-black/[0.06]">
-              <input
-                autoFocus
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search…"
-                className="w-full h-9 px-3 rounded-[12px] border border-black/[0.06] text-sm bg-[#f9faf9]/30 focus:outline-none focus:border-primary"
-              />
-            </div>
-            <div className="max-h-48 overflow-y-auto p-1">
+          <div className="absolute z-30 left-0 right-0 top-12 rounded-[14px] border border-black/[0.06] bg-white shadow-lg overflow-hidden py-1">
+            <div className="max-h-48 overflow-y-auto px-1">
               {isLoading ? (
                 <div className="flex items-center justify-center py-6">
                   <Loader2 className="w-4 h-4 animate-spin text-[#68726d]" />

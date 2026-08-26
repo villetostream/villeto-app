@@ -8,6 +8,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle } from "lucide-react";
 import {
@@ -102,21 +103,6 @@ function colHasData(data: EmployeeData[], key: keyof EmployeeData): boolean {
         const v = row[key];
         return v !== undefined && v !== null && String(v).trim() !== "";
     });
-}
-
-function StatusBadge({ value }: { value: string }) {
-    const v = value?.toLowerCase();
-    const colors: Record<string, string> = {
-        active:   "bg-[#e7f6f2] text-[#087f70] border-[#c3ece7]",
-        inactive: "bg-[#fef3e8] text-[#9a4a00] border-[#fddbb6]",
-        pending:  "bg-[#f0f0fe] text-[#4a47c0] border-[#d4d3fc]",
-    };
-    const style = colors[v] || "bg-[#f5f7f6] text-[#66706b] border-black/[0.08]";
-    return (
-        <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize", style)}>
-            {value || "—"}
-        </span>
-    );
 }
 
 export default function EmployeePreviewTable({
@@ -303,7 +289,7 @@ export default function EmployeePreviewTable({
                                                             )}
                                                         >
                                                             {isStatusCol && val ? (
-                                                                <StatusBadge value={val} />
+                                                                <StatusBadge status={val} />
                                                             ) : (
                                                                 isEmpty ? (
                                                                     isColMissing ? (

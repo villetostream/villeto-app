@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
 import { format } from "date-fns";
@@ -101,18 +102,6 @@ function formatTs(d?: string) {
     const time = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
     return `${date}  ${time}`;
   } catch { return d; }
-}
-
-// ─── Status Badge ─────────────────────────────────────────────────────────────
-
-function StatusBadge({ status, approvalStatus, isOwnRequest }: { status: string; approvalStatus?: string | null; isOwnRequest?: boolean }) {
-  const displayKey = getPRDisplayStatus(status, approvalStatus, isOwnRequest);
-  const cfg = PR_STATUS_CFG[displayKey] || PR_STATUS_CFG[status] || { label: status, className: "text-[#68726d] bg-[#f9faf9]" };
-  return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${cfg.className}`}>
-      {cfg.label}
-    </span>
-  );
 }
 
 function InfoCard({ label, value }: { label: string; value: string }) {
@@ -980,7 +969,7 @@ function CreatePOView({
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
-              <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} />
+              <StatusBadge status={(pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} />
             </div>
             {pr.title && <p className="text-sm text-[#68726d] mt-1">{pr.title}</p>}
           </div>
@@ -1851,7 +1840,7 @@ function PRDetailPage() {
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
-                <StatusBadge status={pr.status} approvalStatus={pr.approvalStatus} isOwnRequest={isOwnRequest} />
+                <StatusBadge status={(pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} />
               </div>
               <p className="text-sm text-[#68726d] mt-1">{pr.title}</p>
               {pr.description && <p className="text-xs text-[#68726d] mt-0.5">{pr.description}</p>}

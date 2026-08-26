@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -56,19 +56,7 @@ export function UserProfile({ employee, children, open, onOpenChange }: UserProf
         return name.split(' ').map(n => n[0]).join('').toUpperCase();
     };
 
-    const getStatusBadge = (status: string) => {
-        const baseClasses = "text-xs font-medium";
-        switch (status) {
-            case 'active':
-                return `${baseClasses} bg-status-success text-white`;
-            case 'pending':
-                return `${baseClasses} bg-status-warning text-white`;
-            case 'inactive':
-                return `${baseClasses} bg-dashboard-text-secondary text-white`;
-            default:
-                return baseClasses;
-        }
-    };
+
 
     const spendingPercentage = employee.cardLimit > 0 ? (employee.monthlySpend / employee.cardLimit) * 100 : 0;
 
@@ -106,9 +94,7 @@ export function UserProfile({ employee, children, open, onOpenChange }: UserProf
                                         {employee.role} • {employee.department}
                                     </p>
                                 </div>
-                                <Badge className={getStatusBadge(employee.status)}>
-                                    {employee.status}
-                                </Badge>
+                                <StatusBadge status={employee.status} />
                             </div>
                         </div>
                     </div>

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Progress } from "@/components/ui/progress";
 import {
     CreditCard,
@@ -95,21 +95,7 @@ export function PaymentDetails() {
         }
     };
 
-    const getStatusBadge = (status: string) => {
-        const baseClasses = "text-xs font-medium";
-        switch (status) {
-            case 'approved':
-                return `${baseClasses} bg-status-success text-white`;
-            case 'pending':
-                return `${baseClasses} bg-status-warning text-white`;
-            case 'declined':
-                return `${baseClasses} bg-status-error text-white`;
-            case 'flagged':
-                return `${baseClasses} bg-status-error text-white`;
-            default:
-                return baseClasses;
-        }
-    };
+
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>
@@ -260,9 +246,7 @@ export function PaymentDetails() {
                                             <p className="text-sm font-medium text-dashboard-text-primary">
                                                 ${payment.amount.toFixed(2)}
                                             </p>
-                                            <Badge className={getStatusBadge(payment.status)}>
-                                                {payment.status}
-                                            </Badge>
+                                            <StatusBadge status={payment.status} />
                                         </div>
                                     </div>
                                 ))}
