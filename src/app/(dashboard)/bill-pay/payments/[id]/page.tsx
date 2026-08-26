@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Download, CheckCircle2, CloudLightning } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,17 +36,6 @@ export default function PaymentSetupPage() {
   const [partialAmount, setPartialAmount] = useState("");
   const [whenToPay, setWhenToPay] = useState("immediately");
   const [scheduleDate, setScheduleDate] = useState<Date>();
-
-  const getStatusBadge = () => {
-    switch (status) {
-      case "Draft":
-        return <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-100 font-normal">Draft</Badge>;
-      case "Awaiting Authorization":
-        return <Badge variant="outline" className="bg-[#fffbeb] text-[#f59e0b] border-[#fef3c7] hover:bg-[#fffbeb] font-normal">Awaiting Authorization</Badge>;
-      case "Paid":
-        return <Badge variant="outline" className="bg-[#ecfdf5] text-[#10b981] border-[#d1fae5] hover:bg-[#ecfdf5] font-normal">Paid</Badge>;
-    }
-  };
 
   const isReadonly = status === "Awaiting Authorization" || status === "Paid";
 
@@ -80,7 +69,7 @@ export default function PaymentSetupPage() {
           <div>
             <div className="flex items-center gap-3 mb-1.5">
               <h1 className="text-[24px] font-bold text-[#10231d]">{paymentId}</h1>
-              {getStatusBadge()}
+              <StatusBadge status={status === "Awaiting Authorization" ? "awaiting_authorization" : status.toLowerCase() as any} />
             </div>
             <p className="text-[13px] text-[#68726d]">09-10-2025</p>
           </div>
@@ -286,7 +275,7 @@ export default function PaymentSetupPage() {
                     </div>
                   </div>
                   <div className="mt-1">
-                    <Badge variant="outline" className="bg-[#ecfdf5] text-[#10b981] border-[#d1fae5] font-normal text-[10px] px-2 h-5">Verified</Badge>
+                    <StatusBadge status="verified" />
                   </div>
                 </div>
               </CardContent>

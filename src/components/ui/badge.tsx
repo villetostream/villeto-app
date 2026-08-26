@@ -17,19 +17,15 @@ const badgeVariants = cva(
           "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        approved: ` bg-approved/5 text-approved border border-transparent`,
-        pending:
-          ` bg-pending/5 text-pending border border-transparent`,
-        rejected:
-          ` bg-rejected/5 text-rejected border border-transparent`,
-        declined:
-          ` bg-rejected/5 text-rejected border border-transparent`,
-        draft:
-          ` bg-draft/5 text-draft border border-transparent`,
-        paid: "bg-paid/5 text-paid border border-transparent",
-        flagged: "bg-yellow-50 text-yellow-600 border border-transparent",
-        active: "bg-paid/5 text-green-400 border border-transparent",
-        inactive: "bg-rejected/5 text-destructive border border-transparent",
+        approved: "text-[#087f70] bg-[#f0faf8] border-transparent",
+        pending: "text-[#b27b00] bg-[#fff9e6] border-transparent",
+        rejected: "text-[#d33d44] bg-[#fdf2f2] border-transparent",
+        declined: "text-[#d33d44] bg-[#fdf2f2] border-transparent",
+        draft: "text-[#4a5568] bg-[#f7fafc] border-transparent",
+        paid: "text-[#065f55] bg-[#e7f6f2] border-transparent",
+        flagged: "text-[#7c3aed] bg-[#f5f3ff] border-transparent",
+        active: "text-[#087f70] bg-[#f0faf8] border-transparent",
+        inactive: "text-[#68726d] bg-[#f5f7f6] border-transparent",
 
       },
     },

@@ -1,6 +1,6 @@
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { AppUser } from "@/queries/departments/get-all-departments";
 import { logger } from "@/lib/logger";
 import { isRecord } from "@/lib/types/api-error";
@@ -118,11 +118,7 @@ export const columns = (
             // Status is a string: "Active" or "Inactive"
             const isActive = status?.toLowerCase() === "active";
             const statusText = status?.toLowerCase() || "inactive";
-            return (
-                <Badge variant={isActive ? "active" : "inactive"}>
-                    <span className="ml-1 capitalize">{statusText}</span>
-                </Badge>
-            );
+            return <StatusBadge status={statusText} />;
         },
     }),
     columnHelper.display({

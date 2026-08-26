@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Clock3, Loader2, PackageCheck, Search, Truck } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -42,7 +43,22 @@ function ConfirmationPage() {
         </div>
         {isLoading ? <div className="flex items-center justify-center gap-2 py-20 text-[12px] text-[#75807b]"><Loader2 className="size-4 animate-spin text-[#087f70]" /> Loading receiving activity</div> : isError ? <div className="py-16 text-center"><p className="text-[12px] text-[#b93643]">Unable to load receiving activity.</p><button onClick={() => refetch()} className="mt-3 text-[11px] font-semibold text-[#087f70]">Try again</button></div> : filtered.length ? <div className="divide-y divide-black/[0.055] overflow-auto flex-1 min-h-0">{filtered.map((item) => {
           const id = item.purchaseOrderId || item.id || "";
-          return <Link key={id} href={`/procurement/purchase-order/${id}`} className="group grid gap-3 px-5 py-4 transition hover:bg-[#f8fbfa] sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center"><div><p className="text-[12px] font-semibold text-[#17211d]">{item.poNumber || "Purchase order"}</p><p className="mt-1 text-[10px] text-[#89918d]">{item.vendor?.displayName || item.vendor?.legalName || "Vendor pending"}</p></div><div><p className="text-[10px] text-[#89918d]">Expected delivery</p><p className="mt-1 text-[11px] font-medium text-[#34413b]">{item.deliveryDate ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(item.deliveryDate)) : "Not specified"}</p></div><span className={`w-fit rounded-full px-2.5 py-1 text-[9px] font-semibold ${item.status === "partially_delivered" ? "bg-[#fff6df] text-[#a46709]" : item.status === "delivered" ? "bg-[#e8f8f5] text-[#087f70]" : "bg-[#edf4ff] text-[#3b67b0]"}`}>{labels[item.status || ""] || item.status}</span><ArrowRight className="hidden size-4 text-[#a6adaa] transition group-hover:translate-x-0.5 group-hover:text-[#087f70] sm:block" /></Link>;
+          return (
+            <Link key={id} href={`/procurement/purchase-order/${id}`} className="group grid gap-3 px-5 py-4 transition hover:bg-[#f8fbfa] sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center">
+              <div>
+                <p className="text-[12px] font-semibold text-[#17211d]">{item.poNumber || "Purchase order"}</p>
+                <p className="mt-1 text-[10px] text-[#89918d]">{item.vendor?.displayName || item.vendor?.legalName || "Vendor pending"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-[#89918d]">Expected delivery</p>
+                <p className="mt-1 text-[11px] font-medium text-[#34413b]">
+                  {item.deliveryDate ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(item.deliveryDate)) : "Not specified"}
+                </p>
+              </div>
+              <StatusBadge status={item.status} label={labels[item.status || ""] || item.status} />
+              <ArrowRight className="hidden size-4 text-[#a6adaa] transition group-hover:translate-x-0.5 group-hover:text-[#087f70] sm:block" />
+            </Link>
+          );
         })}</div> : <div className="flex flex-col items-center py-16 text-center"><span className="flex size-11 items-center justify-center rounded-xl bg-[#edf4ff] text-[#3b67b0]"><Clock3 className="size-5" /></span><p className="mt-3 text-[13px] font-semibold">No receiving activity</p><p className="mt-1 text-[11px] text-[#89918d]">Issued purchase orders will appear here as suppliers prepare delivery.</p></div>}
       </ProcurementSection>
     </div>

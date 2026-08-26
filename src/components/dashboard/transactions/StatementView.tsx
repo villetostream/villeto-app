@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     FileText,
@@ -99,16 +99,7 @@ export function StatementView({ children, open, onOpenChange }: StatementViewPro
 
     const netAmount = totalReceived - totalSpent;
 
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'posted':
-                return "bg-status-success text-white";
-            case 'pending':
-                return "bg-status-warning text-white";
-            default:
-                return "bg-dashboard-text-secondary text-white";
-        }
-    };
+
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -267,9 +258,7 @@ export function StatementView({ children, open, onOpenChange }: StatementViewPro
                                                 {transaction.amount >= 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
                                             </TableCell>
                                             <TableCell>
-                                                <Badge className={`text-xs font-medium ${getStatusBadge(transaction.status)}`}>
-                                                    {transaction.status}
-                                                </Badge>
+                                                <StatusBadge status={transaction.status} />
                                             </TableCell>
                                         </TableRow>
                                     ))}

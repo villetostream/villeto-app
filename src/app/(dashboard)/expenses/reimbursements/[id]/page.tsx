@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -35,16 +35,7 @@ const getStatusBadgeVariant = (status: ReportStatus): "approved" | "rejected" | 
   }
 };
 
-const getStatusColor = (status: ReportStatus): string => {
-  switch (status) {
-    case "paid": return "bg-teal-50 text-teal-600 border-0";
-    case "approved": return "bg-emerald-50 text-emerald-600 border-0";
-    case "pending": return "bg-orange-50 text-orange-500 border-0";
-    case "draft": return "bg-amber-50 text-amber-600 border-0";
-    case "rejected": case "declined": return "bg-red-50 text-red-500 border-0";
-    default: return "bg-slate-100 text-slate-500 border-0";
-  }
-};
+
 
 const getStatusLabel = (status: ReportStatus): string => {
   switch (status) {
@@ -304,10 +295,7 @@ export default function ReimbursementDetailPage() {
         {/* Report title + status */}
         <div className="mb-2 flex items-center gap-3">
           <h1 className="text-2xl font-semibold text-foreground">{report.category}</h1>
-          <Badge variant={getStatusBadgeVariant(currentStatus)} className={getStatusColor(currentStatus)}>
-            {getStatusIcon(currentStatus as PersonalExpenseStatus)}
-            <span className="ml-1">{getStatusLabel(currentStatus)}</span>
-          </Badge>
+          <StatusBadge status={currentStatus} label={getStatusLabel(currentStatus)} />
         </div>
         <p className="text-sm text-muted-foreground mb-6">{report.date} &nbsp; 07:07 PM</p>
 

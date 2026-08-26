@@ -25,6 +25,7 @@ import { Pagination } from "@/components/ui/custom-pagination";
 import { usePurchaseOrders, usePurchaseOrderApprovalDecision, useIssuePurchaseOrder } from "@/queries/procurement/purchase-orders";
 import { useGetVendors } from "@/queries/procurement/purchase-requests";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
@@ -36,12 +37,6 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { ProcurementPageHeader } from "@/components/procurement/ProcurementWorkspace";
-
-function POStatusBadge({ status, isOwnView }: { status: string; isOwnView?: boolean }) {
-  const displayKey = getPODisplayStatus(status, isOwnView);
-  const cfg = PO_STATUS_CFG[displayKey] || PO_STATUS_CFG[status] || { label: status, className: "text-[#68726d] bg-[#f9faf9]" };
-  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${cfg.className}`}>{cfg.label}</span>;
-}
 
 function ActionBadge({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -491,7 +486,7 @@ function POTable({
                     <td className="px-5 py-4 text-[13px] font-semibold text-[#0b100e]">
                       {Number(po.totalAmount).toLocaleString("en-US", { style: "currency", currency: po.currency || "USD" })}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap"><POStatusBadge status={po.status} isOwnView={isMyScope} /></td>
+                    <td className="px-5 py-4 whitespace-nowrap"><StatusBadge status={po.status} /></td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                       {isMyScope ? (
                         <MyPOActionMenu onView={() => navigateToDetail(id)} />

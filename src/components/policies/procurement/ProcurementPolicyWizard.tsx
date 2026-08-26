@@ -112,7 +112,7 @@ export function ProcurementPolicyWizard({
   const canContinue = (): boolean => {
     switch (step) {
       case 1: return draft.policyGroup !== null;
-      case 2: return draft.name.trim().length > 0;
+      case 2: return draft.name.trim().length >= 3;
       case 3: return true; // scope is always valid
       case 4:
         return (
@@ -127,7 +127,7 @@ export function ProcurementPolicyWizard({
   const validationMessage = (): string => {
     switch (step) {
       case 1: return "Please select a policy group to continue.";
-      case 2: return "Please enter a policy name before continuing.";
+      case 2: return draft.name.trim().length === 0 ? "Please enter a policy name before continuing." : "Policy name must be at least 3 characters long.";
       case 4: return draft.rules.length === 0 ? "You must add at least one rule to continue." : "Each rule must have a condition and enforcement action selected.";
       default: return "";
     }

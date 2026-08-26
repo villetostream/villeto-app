@@ -1,6 +1,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -48,19 +49,7 @@ const travelExpenses = [
 ];
 
 export default function Travel() {
-    const getStatusBadge = (status: string) => {
-        const baseClasses = "text-xs font-medium";
-        switch (status) {
-            case 'approved':
-                return `${baseClasses} bg-emerald-50 text-emerald-600 border-none`;
-            case 'pending':
-                return `${baseClasses} bg-blue-50 text-blue-600 border-none`;
-            case 'draft':
-                return `${baseClasses} bg-amber-50 text-amber-600 border-none`;
-            default:
-                return baseClasses;
-        }
-    };
+
 
     return (
         <>
@@ -194,9 +183,7 @@ export default function Travel() {
                                                 <p className="font-semibold text-dashboard-text-primary">
                                                     ${travel.amount.toLocaleString()}
                                                 </p>
-                                                <Badge className={getStatusBadge(travel.status)}>
-                                                    <span className="capitalize">{travel.status}</span>
-                                                </Badge>
+                                                <StatusBadge status={travel.status} />
                                             </div>
                                         </div>
                                     </div>

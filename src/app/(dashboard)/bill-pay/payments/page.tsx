@@ -6,7 +6,7 @@ import { Copy, EyeOff, Eye, Search, Plus, MoreHorizontal } from "lucide-react";
 import { Receipt2, CalendarTick, Clock, TickCircle } from "iconsax-reactjs";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
@@ -75,13 +75,8 @@ function PaymentsDashboard() {
       header: "STATUS",
       cell: (info) => {
         const status = info.getValue().toLowerCase();
-        if (status === "draft") return <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-100 font-normal">Draft</Badge>;
-        if (status === "scheduled") return <Badge variant="outline" className="bg-[#f3e8ff] text-[#9333ea] border-[#e9d5ff] hover:bg-[#f3e8ff] font-normal">Scheduled</Badge>;
-        if (status === "paid") return <Badge variant="outline" className="bg-[#ecfdf5] text-[#10b981] border-[#d1fae5] hover:bg-[#ecfdf5] font-normal">Paid</Badge>;
-        if (status === "processing") return <Badge variant="outline" className="bg-[#eff6ff] text-[#3b82f6] border-[#dbeafe] hover:bg-[#eff6ff] font-normal">Processing</Badge>;
-        if (status === "awaiting authorization") return <Badge variant="outline" className="bg-[#fffbeb] text-[#f59e0b] border-[#fef3c7] hover:bg-[#fffbeb] font-normal">Awaiting Authorization</Badge>;
-        if (status === "returned") return <Badge variant="outline" className="bg-[#fef2f2] text-[#ef4444] border-[#fee2e2] hover:bg-[#fef2f2] font-normal">Returned</Badge>;
-        return <Badge variant="outline">{info.getValue()}</Badge>;
+        const s = status === "awaiting authorization" ? "awaiting_authorization" : status;
+        return <StatusBadge status={s} />;
       },
     }),
     columnHelper.accessor("paymentDate", {

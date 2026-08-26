@@ -1199,15 +1199,26 @@ export default function PolicyCreationModal({
                 placeholder="e.g. Sales Team Travel Policy"
                 value={policyName}
                 onChange={(e) => setPolicyName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && policyName.trim() && setStep(2)}
-                className="w-full h-12 rounded-[14px] border border-black/[0.06] px-4 text-sm font-medium text-[#0b100e] placeholder:text-[#68726d] focus:outline-none focus:border-[#087f70] transition-colors mb-8"
+                onKeyDown={(e) => e.key === "Enter" && policyName.trim().length >= 3 && setStep(2)}
+                className={`w-full h-12 rounded-[14px] border px-4 text-sm font-medium text-[#0b100e] placeholder:text-[#68726d] focus:outline-none transition-colors mb-1 ${
+                  policyName.trim().length > 0 && policyName.trim().length < 3
+                    ? "border-destructive focus:border-destructive focus:ring-1 focus:ring-destructive"
+                    : "border-black/[0.06] focus:border-[#087f70]"
+                }`}
               />
+              {policyName.trim().length > 0 && policyName.trim().length < 3 ? (
+                <p className="text-xs text-destructive mb-7 font-medium px-2">
+                  Policy name must be at least 3 characters long.
+                </p>
+              ) : (
+                <div className="mb-7" />
+              )}
               <div className="flex justify-end gap-4">
                 <button type="button" onClick={handleClose}
                   className="text-sm text-[#84908a] hover:text-[#68726d] underline underline-offset-4 transition-colors">
                   Cancel
                 </button>
-                <button type="button" onClick={() => policyName.trim() && setStep(2)} disabled={!policyName.trim()}
+                <button type="button" onClick={() => policyName.trim().length >= 3 && setStep(2)} disabled={policyName.trim().length < 3}
                   className="h-11 px-8 rounded-[14px] bg-[#087f70] text-white text-sm font-semibold disabled:opacity-40 hover:bg-[#087f70]/90 transition-all shadow-sm shadow-[#087f70]/20">
                   Continue
                 </button>

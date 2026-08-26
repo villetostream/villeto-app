@@ -58,8 +58,13 @@ export function StepConfigure({
             placeholder="e.g. High-value purchase approval"
             value={name}
             onChange={(e) => onChange({ name: e.target.value })}
-            className="h-12 rounded-[14px]"
+            className={cn("h-12 rounded-[14px]", name.trim().length > 0 && name.trim().length < 3 ? "border-destructive focus-visible:ring-destructive" : "")}
           />
+          {name.trim().length > 0 && name.trim().length < 3 && (
+            <p className="text-xs text-destructive mt-1.5 font-medium">
+              Policy name must be at least 3 characters long.
+            </p>
+          )}
         </div>
 
         <div>

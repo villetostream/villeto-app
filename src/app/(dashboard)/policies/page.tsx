@@ -15,6 +15,7 @@ import { ProcurementPolicyWizard } from "@/components/policies/procurement/Procu
 import { PolicySummaryStrip, PolicyWorkspaceHeader, type PolicySummaryItem } from "@/components/policies/PolicyWorkspace";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { DataTable } from "@/components/datatable";
+import { SortableColumnHeader } from "@/components/datatable/SortableColumnHeader";
 import { ColumnDef } from "@tanstack/react-table";
 import {
   DropdownMenu,
@@ -61,11 +62,12 @@ import {
   isRecord,
   pickString,
 } from "@/lib/types/api-error";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 
 
-type PolicyStatus = "active" | "pending" | "draft" | "inactive";
+type PolicyStatus = "active" | "pending" | "draft" | "inactive" | "pending_approval";
 
 interface Policy {
   id: string;
@@ -113,25 +115,6 @@ type ExpenseCategoryDetails = {
 function _todayStr() {
   const d = new Date();
   return [String(d.getDate()).padStart(2,"0"), String(d.getMonth()+1).padStart(2,"0"), d.getFullYear()].join("-");
-}
-
-/* ─── Status Badge ───────────────────────────────────────────────────────────── */
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    active:   "bg-success/10 text-success",
-    pending:  "bg-pending/10 text-pending",
-    pending_approval: "bg-pending/10 text-pending", // added pending_approval mapping
-    draft:    "bg-draft/10 text-draft",
-    inactive: "bg-slate-100 text-slate-500",
-  };
-  const badgeLabel = status.toLowerCase() === "pending_approval" ? "Pending" : status;
-  
-  return (
-    <span className={`inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold capitalize ${map[status.toLowerCase()] ?? "bg-[#f9faf9] text-[#68726d]"}`}>
-      {badgeLabel}
-    </span>
-  );
 }
 
 /* ─── Helpers ───────────────────────────────────────────────────────────────── */
@@ -674,7 +657,7 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                   Move to Archive
                 </button>
               )}
-              {canUpdate && (
+              {canUpdate && policyStatus !== "pending" && policyStatus !== "pending_approval" && (
                 <button
                   onClick={() => { onEdit(policy); onClose(); }}
                   className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
@@ -723,7 +706,16 @@ function PoliciesPage() {
     }
   }, [pathname, router]);
 
-  const [procurementView, setProcurementView] = useState<"list" | "create">("list");
+  const procurementView = searchParams.get("action") === "create" ? "create" : "list";
+  const setProcurementView = useCallback((view: "list" | "create") => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (view === "create") {
+      params.set("action", "create");
+    } else {
+      params.delete("action");
+    }
+    router.push(`${pathname}?${params.toString()}`);
+  }, [searchParams, pathname, router]);
 
   const [isCreatePolicyOpen, setIsCreatePolicyOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen]   = useState(false);
@@ -1150,7 +1142,12 @@ function PoliciesPage() {
   const policyColumns = useMemo<ColumnDef<Policy>[]>(() => [
     {
       accessorKey: "name",
-      header: "Policy Name",
+      sortingFn: (rowA, rowB, columnId) => {
+        const a = String(rowA.getValue(columnId) || "").toLowerCase();
+        const b = String(rowB.getValue(columnId) || "").toLowerCase();
+        return a.localeCompare(b);
+      },
+      header: ({ column }) => <SortableColumnHeader column={column} title="Policy Name" />,
       cell: ({ row }) => (
         <div>
           <p className="text-sm font-bold text-foreground">{capitalizeName(row.original.name)}</p>
@@ -1160,8 +1157,21 @@ function PoliciesPage() {
     },
     { accessorKey: "appliedTo", header: "Applied To" },
     {
-      accessorKey: "createdBy",
-      header: "Created By",
+      accessorKey: "date",
+      sortingFn: (rowA, rowB, columnId) => {
+        const parseDate = (val: string) => {
+          if (!val || val === "—") return 0;
+          // Assumes format like DD/MM/YYYY or MM/DD/YYYY
+          const parts = val.split("/");
+          if (parts.length === 3) {
+            // Convert DD/MM/YYYY to YYYY-MM-DD for reliable Date parsing
+            return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+          }
+          return new Date(val).getTime() || 0;
+        };
+        return parseDate(rowA.getValue(columnId) as string) - parseDate(rowB.getValue(columnId) as string);
+      },
+      header: ({ column }) => <SortableColumnHeader column={column} title="Date" />,
       cell: ({ row }) => (
          <div>
            <p className="text-sm font-semibold text-foreground">{row.original.createdBy}</p>
@@ -1198,8 +1208,8 @@ function PoliciesPage() {
             ) : (
               <ActionMenu
                 onView={() => setDetailPolicy(policy)}
-                onEdit={canUpdate ? () => handleEdit(policy) : undefined}
-                onArchive={policy.status !== "draft" && canDeactivate ? () => handleArchive(policy) : undefined}
+                onEdit={canUpdate && policy.status !== "pending" && policy.status !== "pending_approval" ? () => handleEdit(policy) : undefined}
+                onArchive={policy.status !== "draft" && policy.status !== "pending" && policy.status !== "pending_approval" && canDeactivate ? () => handleArchive(policy) : undefined}
                 onDeleteDraft={policy.status === "draft" && canUpdate ? () => setDraftToDelete(policy.id) : undefined}
               />
             )}
@@ -1473,6 +1483,7 @@ function PoliciesPage() {
                 <DataTable
                   data={filteredPolicies}
                   columns={policyColumns}
+                  initialSorting={[{ id: "date", desc: true }]}
                   height="auto"
                   manualPagination={false}
                   emptyState={

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,17 @@ export function AddExceptionModal({
   const [draft, setDraft] = useState<ExceptionSelection>(initial);
   const [openDropdown, setOpenDropdown] = useState(false);
   const [search, setSearch] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -150,28 +161,36 @@ export function AddExceptionModal({
         </div>
 
         {/* Multiselect Dropdown */}
-        <div className="relative mb-4">
-          <button
-            type="button"
-            onClick={() => setOpenDropdown((o) => !o)}
-            className="w-full h-11 rounded-[14px] border border-black/[0.06] bg-white px-3 flex items-center justify-between text-sm text-[#68726d] hover:border-primary/40 transition-colors"
+        <div ref={dropdownRef} className="relative mb-4">
+          <div
+            onClick={() => {
+              if (!openDropdown) setOpenDropdown(true);
+            }}
+            className="w-full h-11 rounded-[14px] border border-black/[0.06] bg-white px-3 flex items-center justify-between text-sm text-[#68726d] hover:border-primary/40 transition-colors cursor-text"
           >
-            <span>{meta.placeholder}</span>
-            <ChevronsUpDown className="w-4 h-4 shrink-0" />
-          </button>
+            {openDropdown ? (
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="w-full h-full bg-transparent focus:outline-none text-[#0b100e]"
+              />
+            ) : (
+              <span className="w-full text-left truncate cursor-pointer" onClick={() => setOpenDropdown(true)}>{meta.placeholder}</span>
+            )}
+            <button 
+              type="button" 
+              onClick={(e) => { e.stopPropagation(); setOpenDropdown(!openDropdown); }} 
+              className="flex items-center justify-center shrink-0 cursor-pointer hover:text-black ml-2"
+            >
+              <ChevronsUpDown className="w-4 h-4" />
+            </button>
+          </div>
 
           {openDropdown && (
-            <div className="absolute z-30 left-0 right-0 top-12 rounded-[14px] border border-black/[0.06] bg-white shadow-lg overflow-hidden">
-              <div className="p-2 border-b border-black/[0.06]">
-                <input
-                  autoFocus
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search…"
-                  className="w-full h-9 px-3 rounded-[12px] border border-black/[0.06] text-sm bg-[#f9faf9]/30 focus:outline-none focus:border-primary"
-                />
-              </div>
-              <div className="max-h-48 overflow-y-auto p-1">
+            <div className="absolute z-10 top-12 left-0 right-0 rounded-[14px] border border-black/[0.06] bg-white shadow-lg overflow-hidden py-1">
+              <div className="max-h-48 overflow-y-auto px-1">
                 {filteredOptions.length === 0 ? (
                   <p className="text-xs text-[#68726d] text-center py-4">No results</p>
                 ) : (
