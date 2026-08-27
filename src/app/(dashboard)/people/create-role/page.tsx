@@ -23,6 +23,8 @@ import { roleSchema, type RoleFormData } from "@/lib/schemas/schemas";
 import type { z } from "zod";
 import { useCreateRoleApi } from "@/queries/role/create-role";
 import { useUpdateRoleApi } from "@/queries/role/update-role";
+import { useQueryClient } from "@tanstack/react-query";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { useUpdateRoleCapabilitiesApi } from "@/queries/role/update-role-capabilities";
 import { useGetAllRoleCapabilitiesApi, SUPPORTED_MODULES } from "@/queries/role/get-role-capabilities";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -159,6 +161,7 @@ function CreateRolePage() {
 
     const { user } = useAuthStore();
     const isCurrentUserOwner = (user?.companyRole?.name || (user as any)?.villetoRole?.name)?.toLowerCase() === "owner";
+    const queryClient = useQueryClient();
 
     // Data fetching
     const allPermissions = useGetAllPermissionsApi();
@@ -316,9 +319,12 @@ function CreateRolePage() {
         }
     };
 
-    const handleSuccessClose = async () => {
+    const handleSuccessClose = () => {
         setShowSuccessModal(false);
-        await Promise.all([allRoles.refetch(), roleData.refetch()]);
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.roles });
+        if (roleId) {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.role(roleId) });
+        }
         
         if (!isEditMode) {
             reset({});
@@ -499,7 +505,7 @@ function CreateRolePage() {
                         </Tabs>
 
                         {/* Actions */}
-                        <div className="flex justify-end gap-4 pt-8 border-t border-black/[0.08]">
+                        <div className="sticky bottom-0 pb-6 pt-4 mt-8 bg-[#f4f7f5] border-t border-black/[0.08] flex justify-end gap-4 z-20 after:absolute after:top-full after:left-0 after:right-0 after:h-[100px] after:bg-[#f4f7f5]">
                             <Button
                                 type="button"
                                 variant="outline"

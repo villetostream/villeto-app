@@ -123,9 +123,9 @@ export default function DashboardLayoutContent({
     // Initial fetch on mount
     refreshRef.current();
 
-    // Re-check permissions every 5 min so admin role changes propagate without re-login.
+    // Re-check permissions every 2 min so admin role changes propagate without re-login.
     // Using refreshRef so this never causes the effect to re-run when the function identity changes.
-    const interval = setInterval(() => refreshRef.current(), 5 * 60 * 1000);
+    const interval = setInterval(() => refreshRef.current(), 2 * 60 * 1000);
     const handleFocus = () => refreshRef.current();
     window.addEventListener("focus", handleFocus);
 

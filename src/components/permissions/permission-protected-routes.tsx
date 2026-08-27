@@ -17,6 +17,7 @@ const withPermissions = <P extends object>(
     const router = useRouter();
     const pathName = usePathname();
     const can = useAuthStore(state => state.can);
+    const companyPermissions = useAuthStore(state => state.companyPermissions);
 
     const hasAccess = (): boolean => {
       if (!requiredPermissions || requiredPermissions.length === 0) return true;
@@ -28,7 +29,7 @@ const withPermissions = <P extends object>(
         router.push("/dashboard");
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pathName]);
+    }, [pathName, companyPermissions]);
 
     if (!hasAccess()) {
       return null;

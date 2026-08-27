@@ -6,6 +6,7 @@ declare module "axios" {
   export interface AxiosRequestConfig {
     _skipErrorToast?: boolean;
     _retry?: boolean;
+    _retry403?: boolean;
   }
 }
 import { useMemo } from "react";
@@ -18,6 +19,20 @@ const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 let isRefreshing = false;
 let failedQueue: { resolve: (token: string) => void; reject: (error: any) => void }[] = [];
+
+let isRefreshingPermissions = false;
+let permissionQueue: { resolve: () => void; reject: (error: any) => void }[] = [];
+
+const processPermissionQueue = (error: any) => {
+    permissionQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve();
+        }
+    });
+    permissionQueue = [];
+};
 
 const processQueue = (error: any, token: string | null = null) => {
     failedQueue.forEach(prom => {
@@ -139,8 +154,52 @@ export function useAxios(): AxiosInstance {
           }
         }
 
+        if (error.response?.status === 403 && !originalRequest._retry403) {
+            if (isRefreshingPermissions) {
+                return new Promise<void>(function(resolve, reject) {
+                    permissionQueue.push({ resolve, reject });
+                }).then(() => {
+                    return instance(originalRequest);
+                }).catch(err => {
+                    return Promise.reject(err);
+                });
+            }
+
+            originalRequest._retry403 = true;
+            isRefreshingPermissions = true;
+
+            try {
+                const me = await instance.get("/users/me");
+                const responseData = me?.data?.data || me?.data;
+                const { role, _company, companyId, ...userData } = responseData || {};
+
+                if (userData) {
+                    const store = useAuthStore.getState();
+                    store.login({
+                        ...store.user,
+                        ...userData,
+                        companyId: companyId || userData.companyId || store.user?.companyId,
+                    } as any);
+                }
+
+                if (role || responseData?.companyRole) {
+                    const permissions = responseData?.companyRole?.permissions ?? role?.permissions ?? [];
+                    useAuthStore.getState().setCompanyPermissions(permissions);
+                }
+
+                processPermissionQueue(null);
+                return instance(originalRequest);
+            } catch (refreshErr) {
+                processPermissionQueue(refreshErr);
+                return Promise.reject(error);
+            } finally {
+                isRefreshingPermissions = false;
+            }
+        }
+
         if (
           error.response?.status !== 401 &&
+          error.response?.status !== 403 &&
           !originalRequest._skipErrorToast &&
           !originalRequest.url.includes("account-confirmation") &&
           !originalRequest.url.includes("onboardings/pre-fetch")
