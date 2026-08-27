@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
+import { unwrapPaginatedList } from "@/queries/pagination";
 
 export interface LedgerAccount { ledgerAccountId: string; code: string; name: string; accountType: string; purpose: string; isActive: boolean; }
 export interface FiscalPeriod { fiscalPeriodId: string; name: string; startDate: string; endDate: string; status: string; }
@@ -24,14 +25,24 @@ export function useAccountingData(legalEntityId?: string) {
 
 export function useObligations(legalEntityId?: string) {
   const axios = useAxios();
-  return useQuery({
+  const page = useQuery({
     queryKey: ["accounting", "obligations", legalEntityId, 1, 100],
     queryFn: async () =>
-      unwrap<Obligation[]>((await axios.get("accounting/obligations", {
-        params: { legalEntityId, page: 1, limit: 100 },
-      })).data),
+      unwrapPaginatedList<Obligation>(
+        (
+          await axios.get("accounting/obligations", {
+            params: { legalEntityId, page: 1, limit: 100 },
+          })
+        ).data,
+      ),
     enabled: Boolean(legalEntityId),
   });
+
+  return {
+    ...page,
+    data: page.data?.items,
+    pagination: page.data?.meta,
+  };
 }
 
 export function useProvisionAccounting() {

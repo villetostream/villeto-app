@@ -25,6 +25,7 @@ import VilletoSetupGuide from "@/components/tour/VilletoSetupGuide";
 import { useTourStore } from "@/stores/useTourStore";
 import { ChatPortal } from "@/components/chat";
 import { SplashScreen } from "@/components/ui/splash-screen";
+import { refreshAccessToken } from "@/lib/tokenRefreshService";
 
 function subscribe() {
   return () => {};
@@ -104,7 +105,7 @@ export default function DashboardLayoutContent({
     } finally {
       setProfileFetched(true);
     }
-  }, [axios, login, setCompanyPermissions]);
+  }, [axios, login, router, setCompanyPermissions]);
 
   // Always hold the latest version of the function so setInterval/addEventListener
   // call the current closure without needing to be listed as effect deps.
@@ -114,9 +115,18 @@ export default function DashboardLayoutContent({
   useEffect(() => {
     if (isLoading) return;
 
-    if (!user) {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) {
       logout();
       router.replace("/login");
+      return;
+    }
+
+    if (!accessToken) {
+      void refreshAccessToken().catch(() => {
+        logout();
+        router.replace("/login");
+      });
       return;
     }
 
@@ -133,11 +143,10 @@ export default function DashboardLayoutContent({
       clearInterval(interval);
       window.removeEventListener("focus", handleFocus);
     };
-  // Intentionally only isLoading: runs once after hydration.
-  // Adding user/router here would create an infinite loop because refreshUserAndPermissions
-  // updates user, which would re-trigger this effect endlessly.
+  // Re-run after a hard-refresh token bootstrap. User is read imperatively so
+  // profile updates do not create an effect loop.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+  }, [isLoading, accessToken]);
 
   // Ensure the premium splash screen is visible long enough to play its animation
   // when the user first boots the app or logs in.

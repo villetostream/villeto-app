@@ -1,6 +1,6 @@
 "use client";
 
-import axios, { AxiosInstance } from "axios";
+import axios, { AxiosError, AxiosInstance } from "axios";
 
 declare module "axios" {
   export interface AxiosRequestConfig {
@@ -12,22 +12,15 @@ import { useMemo } from "react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
+import { refreshAccessToken } from "@/lib/tokenRefreshService";
 
 const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-let isRefreshing = false;
-let failedQueue: { resolve: (token: string) => void; reject: (error: any) => void }[] = [];
-
-const processQueue = (error: any, token: string | null = null) => {
-    failedQueue.forEach(prom => {
-        if (error) {
-            prom.reject(error);
-        } else {
-            prom.resolve(token as string);
-        }
-    });
-    failedQueue = [];
+type ApiErrorBody = {
+  message?: string | string[];
+  error?: string | string[];
+  statusCode?: number;
+  data?: { statusCode?: number };
 };
 
 export function useAxios(): AxiosInstance {
@@ -51,90 +44,49 @@ export function useAxios(): AxiosInstance {
         // If the backend returned a 2xx HTTP status but the JSON payload indicates a 401 error
         const data = response.data;
         if (data && (data.status === 401 || data.statusCode === 401 || data.data?.statusCode === 401)) {
-           const error: any = new Error(data.message || "Unauthorized");
-           error.response = response;
-           error.config = response.config;
-           error.response.status = 401;
-           return Promise.reject(error);
+          return Promise.reject(
+            new AxiosError(
+              data.message || "Unauthorized",
+              AxiosError.ERR_BAD_RESPONSE,
+              response.config,
+              response.request,
+              { ...response, status: 401 },
+            ),
+          );
         }
         return response;
       },
-      async (error) => {
+      async (error: AxiosError<ApiErrorBody>) => {
         const originalRequest = error.config;
+        if (!originalRequest) return Promise.reject(error);
+        const requestUrl = originalRequest.url ?? "";
 
         const isOnboardingPath =
           typeof window !== "undefined" &&
           window.location.pathname.includes("onboarding");
 
-        const isAuthRequest = originalRequest.url?.includes("auth");
+        const isAuthRequest = requestUrl.includes("auth");
 
         if (error.response?.status === 401 && !isAuthRequest && !isOnboardingPath) {
           if (!originalRequest._retry) {
-            if (isRefreshing) {
-              return new Promise(function(resolve, reject) {
-                  failedQueue.push({ resolve, reject });
-              }).then(token => {
-                  originalRequest.headers.Authorization = `Bearer ${token}`;
-                  return instance(originalRequest);
-              }).catch(err => {
-                  return Promise.reject(err);
-              });
-            }
-
             originalRequest._retry = true;
-            isRefreshing = true;
 
             try {
-              const refreshResponse = await axios.post(
-                `${BASEURL}auth/refresh`,
-                {},
-                { withCredentials: true }
+              const { accessToken: newToken } = await refreshAccessToken();
+              originalRequest.headers.set(
+                "Authorization",
+                `Bearer ${newToken}`,
               );
-              // Store the new token if the backend returns one in the body
-              const newToken =
-                refreshResponse.data?.data?.accessToken ||
-                refreshResponse.data?.accessToken ||
-                null;
-              if (newToken) {
-                useAuthStore.getState().setAccessToken(newToken);
-                originalRequest.headers = {
-                  ...originalRequest.headers,
-                  Authorization: `Bearer ${newToken}`,
-                };
-                // Restart proactive refresh with the new token's lifetime
-                const newExpiresInMs =
-                  refreshResponse.data?.data?.accessTokenExpiresInMs ??
-                  refreshResponse.data?.accessTokenExpiresInMs ??
-                  3600000;
-                scheduleTokenRefresh(newExpiresInMs);
-
-                processQueue(null, newToken);
-              } else {
-                processQueue(new Error("No token returned"), null);
-              }
               return instance(originalRequest);
             } catch (refreshError) {
-              processQueue(refreshError, null);
               useAuthStore.getState().logout();
-              if (
-                typeof window !== "undefined" &&
-                !window.location.pathname.startsWith("/login")
-              ) {
-                window.location.href = "/login";
-              }
+              router.replace("/login");
               return Promise.reject(refreshError);
-            } finally {
-              isRefreshing = false;
             }
           } else {
             // We already retried and still got 401, or something else is wrong.
             useAuthStore.getState().logout();
-            if (
-              typeof window !== "undefined" &&
-              !window.location.pathname.startsWith("/login")
-            ) {
-              window.location.href = "/login";
-            }
+            router.replace("/login");
             return Promise.reject(error);
           }
         }
@@ -142,8 +94,8 @@ export function useAxios(): AxiosInstance {
         if (
           error.response?.status !== 401 &&
           !originalRequest._skipErrorToast &&
-          !originalRequest.url.includes("account-confirmation") &&
-          !originalRequest.url.includes("onboardings/pre-fetch")
+          !requestUrl.includes("account-confirmation") &&
+          !requestUrl.includes("onboardings/pre-fetch")
         ) {
           let errorMessage =
             error.response?.data?.message ||
@@ -151,7 +103,7 @@ export function useAxios(): AxiosInstance {
             error.message;
 
           if (Array.isArray(errorMessage)) {
-             errorMessage = errorMessage.map((msg: any) => {
+             errorMessage = errorMessage.map((msg: unknown) => {
                 if (typeof msg !== 'string') return String(msg);
                 const parts = msg.split(': ');
                 let rawError = parts.length > 1 ? parts[1] : parts[0];

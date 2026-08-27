@@ -16,6 +16,49 @@ const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const EARLY_REFRESH_MS = 5 * 60 * 1000;
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let activeRefresh: Promise<RefreshedAccessToken> | null = null;
+
+export interface RefreshedAccessToken {
+  accessToken: string;
+  expiresInMs: number;
+}
+
+/**
+ * Exchanges the HTTP-only refresh cookie for an access token. Concurrent
+ * callers share one request so page boot and reactive Axios retries cannot
+ * rotate the refresh token twice.
+ */
+export function refreshAccessToken(): Promise<RefreshedAccessToken> {
+  if (activeRefresh) return activeRefresh;
+
+  activeRefresh = (async () => {
+    const response = await axios.post(
+      `${BASEURL}auth/refresh`,
+      {},
+      { withCredentials: true },
+    );
+    const accessToken =
+      response.data?.data?.accessToken || response.data?.accessToken || null;
+    const expiresInMs =
+      response.data?.data?.accessTokenExpiresInMs ||
+      response.data?.accessTokenExpiresInMs ||
+      3600000;
+
+    if (!accessToken) {
+      throw new Error("Refresh response did not contain an access token");
+    }
+
+    const { useAuthStore } = await import("@/stores/auth-stores");
+    useAuthStore.getState().setAccessToken(accessToken);
+    scheduleTokenRefresh(expiresInMs);
+
+    return { accessToken, expiresInMs };
+  })().finally(() => {
+    activeRefresh = null;
+  });
+
+  return activeRefresh;
+}
 
 /**
  * Schedule a proactive token refresh.
@@ -28,29 +71,7 @@ export function scheduleTokenRefresh(expiresInMs: number) {
 
   refreshTimer = setTimeout(async () => {
     try {
-      const response = await axios.post(
-        `${BASEURL}auth/refresh`,
-        {},
-        { withCredentials: true }
-      );
-
-      const newToken =
-        response.data?.data?.accessToken ||
-        response.data?.accessToken ||
-        null;
-
-      const newExpiresInMs =
-        response.data?.data?.accessTokenExpiresInMs ||
-        response.data?.accessTokenExpiresInMs ||
-        3600000; // default 1 hour
-
-      if (newToken) {
-        // Import dynamically to avoid circular deps
-        const { useAuthStore } = await import("@/stores/auth-stores");
-        useAuthStore.getState().setAccessToken(newToken);
-        // Schedule the next refresh
-        scheduleTokenRefresh(newExpiresInMs);
-      }
+      await refreshAccessToken();
     } catch {
       // Proactive refresh failed — the reactive interceptor in useAxios
       // will handle the 401 when the next request fires.
