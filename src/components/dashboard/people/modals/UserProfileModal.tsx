@@ -785,19 +785,8 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
     const handleResendInvitation = async () => {
         if (!user) return
         try {
-            const payload: any = { email: user.email }
-            
-            // The backend expects employeeId to be a "number string".
-            // Extract digits from employeeExternalId (e.g. "E1006" -> "1006")
-            if (user.employeeExternalId) {
-                const numericId = user.employeeExternalId.replace(/\D/g, "")
-                if (numericId) {
-                    payload.employeeId = numericId
-                }
-            }
-
-            await resendInvitation.mutateAsync(payload)
-            toast.success("Invitation resent successfully")
+            await resendInvitation.mutateAsync({ email: user.email })
+            toast.success("Invitation sent successfully!")
         } catch {
             toast.error("Failed to resend invitation. Please try again.")
         }
