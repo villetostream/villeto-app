@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type UseMutationResult, useMutation } from "@tanstack/react-query";
+import { type UseMutationResult, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { loginSchema } from "@/lib/schemas/schemas";
@@ -27,12 +27,16 @@ type payload = z.infer<typeof loginSchema>
 
 export const useLogin = (): UseMutationResult<Response, Error, payload> => {
     const axiosInstance = useAxios();
+    const queryClient = useQueryClient();
     return useMutation<Response, Error, payload>({
         retry: false,
         mutationFn: async (payload: payload) => {
-
             const res = await axiosInstance.post(API_KEYS.AUTH.LOGIN, payload,);
             return res.data;
         },
+        onSuccess: () => {
+            // Clear React Query cache on login to prevent cross-account state leakage
+            queryClient.clear();
+        }
     });
 };

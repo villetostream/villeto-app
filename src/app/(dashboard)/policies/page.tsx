@@ -700,12 +700,6 @@ function PoliciesPage() {
   const policyType: "expense" | "procurement" =
     pathname.includes("procurement") ? "procurement" : "expense";
 
-  useEffect(() => {
-    if (pathname === "/policies") {
-      router.replace("/policies/expense-policy");
-    }
-  }, [pathname, router]);
-
   const procurementView = searchParams.get("action") === "create" ? "create" : "list";
   const setProcurementView = useCallback((view: "list" | "create") => {
     const params = new URLSearchParams(searchParams.toString());
@@ -734,8 +728,31 @@ function PoliciesPage() {
   const [procurementWizardStep, setProcurementWizardStep] = useState<number>(1);
 
   const can = useAuthStore(s => s.can);
+
+  const canAccessExpense = can('policy.domain', 'all') || can('policy.domain', 'expense') || can('policy', 'manage');
+  const canAccessProcurement = can('policy.domain', 'all') || can('policy.domain', 'procurement') || can('policy', 'manage');
+
+  useEffect(() => {
+    if (pathname === "/policies") {
+      if (canAccessExpense) {
+        router.replace("/policies/expense-policy");
+      } else if (canAccessProcurement) {
+        router.replace("/policies/procurement-policy");
+      } else {
+        router.replace("/dashboard");
+      }
+      return;
+    }
+
+    if (policyType === "expense" && !canAccessExpense) {
+      router.replace(canAccessProcurement ? "/policies/procurement-policy" : "/dashboard");
+    } else if (policyType === "procurement" && !canAccessProcurement) {
+      router.replace(canAccessExpense ? "/policies/expense-policy" : "/dashboard");
+    }
+  }, [pathname, router, policyType, canAccessExpense, canAccessProcurement]);
+
   const canReadExpenseCategories = can('expense.category', 'read') || can('expense.category', 'manage');
-  const canReadPolicies = can('policy', 'read') || can('policy', 'manage') || can('policy', 'create');
+  const canReadPolicies = can('policy', 'read') || can('policy', 'manage') || can('policy', 'create') || can('policy', 'read_company') || can('policy.domain', 'expense') || can('policy.domain', 'procurement');
 
   const { data: eligibleRolesData } = useGetEligibleRoles("expense_policy");
   const eligibleRoles = eligibleRolesData?.data || [];
@@ -770,7 +787,7 @@ function PoliciesPage() {
   const policiesApi = useGetPoliciesApi({ 
     page: 1, 
     limit: 1000, 
-    excludeDrafts: false 
+    excludeDrafts: false
   }, { enabled: canReadPolicies });
 
 
