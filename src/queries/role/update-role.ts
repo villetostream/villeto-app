@@ -21,7 +21,9 @@ export const useUpdateRoleApi = () => {
             
             // Reactively update current user's permissions if they modified their own role
             const { user, login, setCompanyPermissions } = useAuthStore.getState();
-            const currentUserRoleId = (user?.companyRole as any)?.id || user?.companyRole?.roleId;
+            if (!user) return;
+            
+            const currentUserRoleId = (user.companyRole as any)?.id || user.companyRole?.roleId;
             if (currentUserRoleId === variables.id) {
                 try {
                     const me = await axiosInstance.get(API_KEYS.USER.ME);
