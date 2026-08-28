@@ -113,18 +113,30 @@ export const navigationItems: NavItem[] = [
     icon: <DocumentText />,
     label: "Policies",
     href: "/policies/expense-policy",
-    permissions: [{ resource: "policy", action: "read_company" }],
+    permissions: [
+      { resource: "policy.domain", action: "expense" },
+      { resource: "policy.domain", action: "procurement" },
+      { resource: "policy.domain", action: "all" },
+      { resource: "policy", action: "read_company" },
+      { resource: "policy", action: "manage" }
+    ],
     section: "MANAGEMENT",
     subItems: [
       {
         label: "Expense Policy",
         href: "/policies/expense-policy",
-        permissions: [{ resource: "policy", action: "read_company" }],
+        permissions: [
+          { resource: "policy.domain", action: "expense" },
+          { resource: "policy.domain", action: "all" }
+        ],
       },
       {
         label: "Procurement Policy",
         href: "/policies/procurement-policy",
-        permissions: [{ resource: "policy", action: "read_company" }],
+        permissions: [
+          { resource: "policy.domain", action: "procurement" },
+          { resource: "policy.domain", action: "all" }
+        ],
       },
       {
         label: "Policy Governance",
