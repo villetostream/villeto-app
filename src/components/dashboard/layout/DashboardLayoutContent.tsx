@@ -17,7 +17,6 @@ import { UserSection } from "@/components/user/user-section";
 import { useSyncExternalStore, useEffect, useCallback, useRef, useState } from "react";
 import { useAuthStore, User } from "@/stores/auth-stores";
 import { useAxios } from "@/hooks/useAxios";
-import { useRouter } from "next/navigation";
 import DashboardModals from "@/components/dashboard/layout/DashboardModals";
 import IdleSessionManager from "./IdleSessionManager";
 import VilletoTourGuide from "@/components/tour/VilletoTourGuide";
@@ -52,7 +51,6 @@ export default function DashboardLayoutContent({
   const axios = useAxios();
   const { setCompanyPermissions, login, logout, user, isLoading } = useAuthStore();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const router = useRouter();
   const isTourActive = useTourStore((s) => s.isTourActive);
   const setupGuideReady = useTourStore((s) => s.setupGuideReady);
   const [profileFetched, setProfileFetched] = useState(false);

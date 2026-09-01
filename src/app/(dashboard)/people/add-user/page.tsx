@@ -119,7 +119,7 @@ function AddSingleUser() {
                 if (!data.id) throw new Error("Missing user ID for update");
                 await updateUser.mutateAsync({ id: data.id, companyRoleIds: data.roleIds } as any);
             } else {
-                await inviteUser.mutateAsync(data as any);
+                await inviteUser.mutateAsync(data);
             }
 
             const promises = [allUsers.refetch()];
