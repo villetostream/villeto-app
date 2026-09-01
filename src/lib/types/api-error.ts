@@ -105,12 +105,9 @@ export interface PolicyExpenseResult {
   violations?: PolicyViolationItem[];
 }
 
-function parseViolationItems(items: unknown[]): PolicyViolationItem[] {
-  return items.filter(isRecord).map((v) => ({
-    type: getOptionalString(v.type),
-    message: getOptionalString(v.message) ?? getOptionalString(v.ruleMessage),
-    enforcementAction: getOptionalString(v.enforcementAction),
-    limitChecks: Array.isArray(v.limitChecks)
+function parseViolationItems(items: unknown[], expenseAmount?: number): PolicyViolationItem[] {
+  return items.filter(isRecord).map((v) => {
+    let limitChecks = Array.isArray(v.limitChecks)
       ? v.limitChecks.filter(isRecord).map((lc) => ({
           timeUnit: getOptionalString(lc.timeUnit),
           limit: getNumber(lc.limit),
@@ -120,9 +117,43 @@ function parseViolationItems(items: unknown[]): PolicyViolationItem[] {
           exceeded: getBoolean(lc.exceeded),
           overage: getNumber(lc.overage),
         }))
-      : undefined,
-    categoryName: getOptionalString(v.categoryName),
-  }));
+      : undefined;
+
+    const type = getOptionalString(v.type);
+    const message = getOptionalString(v.message) ?? getOptionalString(v.ruleMessage);
+
+    // Parse limits from message if backend didn't provide limitChecks for SPEND_LIMIT
+    if (type === "SPEND_LIMIT" && (!limitChecks || limitChecks.length === 0) && message) {
+      const match = message.match(/over the (daily|monthly|weekly) .* limit by [A-Z$€£]+\s*([\d,\.]+)\. Limit: [A-Z$€£]+\s*([\d,\.]+)\. Total after this submission: [A-Z$€£]+\s*([\d,\.]+)\./i);
+      if (match) {
+        const timeUnit = match[1].toLowerCase();
+        const overage = parseFloat(match[2].replace(/,/g, ""));
+        const limit = parseFloat(match[3].replace(/,/g, ""));
+        const totalAfterThisReport = parseFloat(match[4].replace(/,/g, ""));
+        
+        const thisReportAmount = expenseAmount || 0;
+        const spentBeforeThisReport = Math.max(0, totalAfterThisReport - thisReportAmount);
+        
+        limitChecks = [{
+          timeUnit,
+          limit,
+          totalAfterThisReport,
+          overage,
+          thisReportAmount,
+          spentBeforeThisReport,
+          exceeded: true,
+        }];
+      }
+    }
+
+    return {
+      type,
+      message,
+      enforcementAction: getOptionalString(v.enforcementAction),
+      limitChecks,
+      categoryName: getOptionalString(v.categoryName),
+    };
+  });
 }
 
 export function isPolicyViolationError(error: unknown): boolean {
@@ -138,8 +169,9 @@ export function isPolicyViolationError(error: unknown): boolean {
     return true;
   }
 
-  // New backend shape: resolution = "BLOCK" with top-level violations[]
-  if (getString(nested.resolution) === "BLOCK") {
+  // New backend shape: resolution = "BLOCK" or "ACTION_REQUIRED" with top-level violations[] or expenses[]
+  const resolution = getString(nested.resolution).toUpperCase();
+  if (resolution === "BLOCK" || resolution === "ACTION_REQUIRED") {
     return true;
   }
 
@@ -168,7 +200,7 @@ export function getPolicyExpenseResults(error: unknown): PolicyExpenseResult[] {
   const data = getApiErrorResponseData(error);
   const nested = asRecord(data.data);
 
-  const expenseResults = nested.expenseResults;
+  const expenseResults = nested.expenseResults ?? nested.expenses;
   if (Array.isArray(expenseResults) && expenseResults.length > 0) {
     // Parse each expense result
     const parsed: PolicyExpenseResult[] = expenseResults.filter(isRecord).map((r) => ({
@@ -180,7 +212,7 @@ export function getPolicyExpenseResults(error: unknown): PolicyExpenseResult[] {
         typeof r.amount === "number" || typeof r.amount === "string"
           ? r.amount
           : undefined,
-      violations: parseViolationItems(asArray(r.violations)),
+      violations: parseViolationItems(asArray(r.violations ?? r.issues), typeof r.amount === "number" ? r.amount : Number(r.amount)),
     }));
 
     // NEW backend shape: top-level violations[] carry full details (message, limitChecks, etc.)
@@ -343,7 +375,10 @@ export function getPolicyViolationCauses(error: unknown): PolicyCauseItem[] {
         : typeof c.amount === "number" || typeof c.amount === "string"
           ? c.amount
           : undefined,
-    violations: parseViolationItems(asArray(c.violations)),
+    violations: parseViolationItems(
+      asArray(c.violations),
+      typeof c.expenseAmount === "number" ? c.expenseAmount : Number(c.expenseAmount) || (typeof c.amount === "number" ? c.amount : Number(c.amount))
+    ),
   }));
 }
 

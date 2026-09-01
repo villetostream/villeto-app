@@ -6,6 +6,7 @@
  *   - src/queries/auth/auth-permissions.ts  (Permission)
  */
 
+
 import type { Role } from '@/features/people/types';
 
 // ─── Permission Types ─────────────────────────────────────────────────────────
@@ -160,5 +161,11 @@ export interface User {
     companyRole?: CompanyRoleSummary;
     /** Complete set of active company roles assigned to this user. */
     companyRoles?: CompanyRoleSummary[];
+
+
+
+
+
+
     capabilityGroups?: CapabilityGroup[];
 }

@@ -7,6 +7,7 @@ import {
     Building2, User2, Lock
 } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -427,20 +428,7 @@ function OverviewTab({
             )}
 
             {/* ── Action Buttons ── */}
-            <div className="flex justify-end gap-3 pt-4">
-                {(!isActive && (user.loginCount === 0 || user.loginCount === undefined)) && (
-                    <Button 
-                        className="h-10 px-6 font-medium bg-primary/10 text-primary hover:bg-primary/20"
-                        variant="secondary" 
-                        onClick={onResendInvitation}
-                        disabled={isResending}
-                    >
-                        {isResending ? (
-                            <><Loader2 className="w-4 h-4 animate-spin mr-2" />Resending...</>
-                        ) : "Resend Invitation"}
-                    </Button>
-                )}
-                
+            <div className="flex justify-between gap-3 pt-4">
                 {isActive && canDeactivate && (
                     <Button 
                         className="h-10 px-6 font-medium bg-[#E63946] hover:bg-[#E63946]/90 text-white"
@@ -449,6 +437,19 @@ function OverviewTab({
                         disabled={isToggling}
                     >
                         {isToggling ? "Processing..." : "Deactivate User"}
+                    </Button>
+                )}
+
+                {(!isActive && (user.loginCount === 0 || user.loginCount === undefined)) && (
+                    <Button 
+                        className="h-10 px-6 font-medium bg-primary/10 text-primary hover:bg-primary/20 ml-auto"
+                        variant="secondary" 
+                        onClick={onResendInvitation}
+                        disabled={isResending}
+                    >
+                        {isResending ? (
+                            <><Loader2 className="w-4 h-4 animate-spin mr-2" />Resending...</>
+                        ) : "Resend Invitation"}
                     </Button>
                 )}
             </div>
@@ -778,7 +779,7 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
                     </div>
 
                     {/* Scrollable body */}
-                    <div className="flex-1 overflow-y-auto px-6 pt-5 pb-3">
+                    <div className="flex-1 min-h-0 overflow-y-auto modal-scrollbar px-6 pt-5 pb-3">
                         <TabsContent value="overview" className="mt-0 focus-visible:ring-0 focus-visible:outline-none">
                             <OverviewTab
                                 user={user}

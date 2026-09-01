@@ -917,24 +917,6 @@ export function ManualExpenseForm({
 
   const onSubmit = async (data: ExpenseFormValues) => {
     // Receipt is mandatory for final submission.
-    const missingReceiptIndexes = data.expenses
-      .map((expense, idx) => {
-        const receiptBase64 = files[idx] || expense.receipt;
-        return receiptBase64 ? null : idx;
-      })
-      .filter((v): v is number => v !== null);
-
-    if (missingReceiptIndexes.length > 0) {
-      missingReceiptIndexes.forEach((idx) => {
-        form.setError(`expenses.${idx}.receipt`, {
-          type: "manual",
-          message: "Receipt is required to submit.",
-        });
-      });
-      toast.error("Please upload a receipt before submitting.");
-      return;
-    }
-
     // Validate splits
     const invalidSplits = data.expenses.some((expense) => {
       if (expense.splits && expense.splits.length > 0) {

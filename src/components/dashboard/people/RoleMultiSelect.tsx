@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export interface RoleMultiSelectOption {
@@ -59,7 +60,7 @@ export function RoleMultiSelect({
 
   return (
     <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen} modal={true}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -92,8 +93,9 @@ export function RoleMultiSelect({
               className="h-9 w-full rounded-md bg-muted/40 pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
-          <div className="max-h-60 overflow-y-auto p-1">
-            {filteredOptions.length === 0 ? (
+          <div className="h-60 overflow-y-auto modal-scrollbar">
+            <div className="p-1">
+              {filteredOptions.length === 0 ? (
               <p className="px-3 py-5 text-center text-sm text-muted-foreground">No roles found</p>
             ) : (
               filteredOptions.map((option) => {
@@ -120,15 +122,28 @@ export function RoleMultiSelect({
                       {selected && <Check className="h-3 w-3" />}
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium">{option.label}</span>
-                      {option.description && (
-                        <span className="block truncate text-xs text-muted-foreground">{option.description}</span>
+                       <span className="block text-sm font-medium">{option.label}</span>
+                       {option.description && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="line-clamp-2 text-xs text-muted-foreground cursor-default">
+                              {option.description}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="right"
+                            className="max-w-[220px] whitespace-normal text-xs"
+                          >
+                            {option.description}
+                          </TooltipContent>
+                        </Tooltip>
                       )}
-                    </span>
+                     </span>
                   </button>
                 );
               })
             )}
+            </div>
           </div>
         </PopoverContent>
       </Popover>

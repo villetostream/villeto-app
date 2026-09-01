@@ -82,7 +82,8 @@ export const API_KEYS = {
   EXPENSE: {
     CATEGORIES: "companies/categories?module=expense",
     CATEGORY_DETAIL: (id: string) => `companies/expense/categories/${id}` as const,
-    CATEGORIES_WITH_POLICIES: "companies/categories?withPolicies=true&module=expense&status=active",
+    CATEGORIES_WITH_POLICIES: "companies/categories/policy-coverage?module=expense&status=active&scope=me&policyStatus=active",
+    CATEGORIES_POLICY_COVERAGE_ADMIN: "companies/categories/policy-coverage?module=expense&status=all&scope=all&includeCategoriesWithoutPolicies=true",
     POLICIES: "policy",
     POLICY_BY_ID: (id: string) => `policy/${id}` as const,
     POLICY_ACTION: (id: string, action: "approve" | "reject") => `policy/${id}/${action}` as const,

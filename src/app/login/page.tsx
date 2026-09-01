@@ -49,7 +49,7 @@ export default function LoginPage() {
       const response = await login.mutateAsync(data);
       setAccessToken(response.data.accessToken);
       setUser(response.data.user as User);
-      const rootData = response.data;
+      const rootData = response.data as any;
       const userPermissions = getEffectiveCompanyPermissions(rootData.user ?? rootData);
       setCompanyPermissions(userPermissions);
       // Start proactive refresh so the token is renewed 5 min before expiry

@@ -99,7 +99,7 @@ function AddSingleUser() {
                 jobTitle: data?.jobTitle ?? "",
                 location: data?.location ?? "",
                 departmentId: data?.departmentId ?? "",
-                roleIds: data.companyRoles?.map(role => role.roleId)
+                roleIds: data.companyRoles?.map((role: any) => role.roleId)
                     ?? (data.companyRole ? [data.companyRole.roleId] : []),
                 id: data?.userId
             })
@@ -117,7 +117,7 @@ function AddSingleUser() {
         try {
             if (isEdit) {
                 if (!data.id) throw new Error("Missing user ID for update");
-                await updateUser.mutateAsync({ id: data.id, companyRoleIds: data.roleIds });
+                await updateUser.mutateAsync({ id: data.id, companyRoleIds: data.roleIds } as any);
             } else {
                 await inviteUser.mutateAsync(data);
             }
@@ -195,19 +195,19 @@ function AddSingleUser() {
                                     <RoleMultiSelect
                                         value={roleIds}
                                         options={(allRoles.data?.data ?? [])
-                                            .filter((role) => role.isActive)
+                                            .filter((role: any) => role.isActive)
                                             .slice()
-                                            .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-                                            .map((role) => ({
+                                            .sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""))
+                                            .map((role: any) => ({
                                                 id: role.roleId,
                                                 label: role.name,
                                                 description: role.description,
                                             }))}
-                                        onChange={(ids) => setValue("roleIds", ids, {
+                                        onChange={(ids) => setValue("roleIds" as any, ids, {
                                             shouldValidate: true,
                                             shouldDirty: true,
                                         })}
-                                        error={errors.roleIds?.message}
+                                        error={(errors as any).roleIds?.message}
                                     />
                                 </div>
 
