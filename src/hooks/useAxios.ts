@@ -14,6 +14,7 @@ import { useAuthStore } from "@/stores/auth-stores";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
+import { getEffectiveCompanyPermissions } from "@/features/auth/role-access";
 
 const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -171,7 +172,7 @@ export function useAxios(): AxiosInstance {
             try {
                 const me = await instance.get("/users/me");
                 const responseData = me?.data?.data || me?.data;
-                const { role, _company, companyId, ...userData } = responseData || {};
+                const { _company, companyId, ...userData } = responseData || {};
 
                 if (userData) {
                     const store = useAuthStore.getState();
@@ -182,10 +183,9 @@ export function useAxios(): AxiosInstance {
                     } as any);
                 }
 
-                if (role || responseData?.companyRole) {
-                    const permissions = responseData?.companyRole?.permissions ?? role?.permissions ?? [];
-                    useAuthStore.getState().setCompanyPermissions(permissions);
-                }
+                useAuthStore.getState().setCompanyPermissions(
+                    getEffectiveCompanyPermissions(responseData),
+                );
 
                 processPermissionQueue(null);
                 return instance(originalRequest);

@@ -10,6 +10,7 @@ interface Response {
     data: {
         accessToken: string,
         user: User,
+        accessTokenExpiresInMs?: number,
     }
     error: {
         error: string;

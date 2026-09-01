@@ -19,6 +19,7 @@ import { useLogin } from "@/queries/auth/auth-login";
 import { loginSchema } from "@/lib/schemas/schemas";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
+import { getEffectiveCompanyPermissions } from "@/features/auth/role-access";
 
 type FormData = z.infer<typeof loginSchema>;
 
@@ -48,16 +49,11 @@ export default function LoginPage() {
       const response = await login.mutateAsync(data);
       setAccessToken(response.data.accessToken);
       setUser(response.data.user as User);
-      const rootData = response.data as any;
-      const userPermissions =
-        rootData.user?.companyRole?.permissions ??
-        rootData.user?.role?.permissions ??
-        rootData.companyRole?.permissions ??
-        rootData.role?.permissions ??
-        [];
+      const rootData = response.data;
+      const userPermissions = getEffectiveCompanyPermissions(rootData.user ?? rootData);
       setCompanyPermissions(userPermissions);
       // Start proactive refresh so the token is renewed 5 min before expiry
-      const expiresInMs = (response.data as any).accessTokenExpiresInMs ?? 3600000;
+      const expiresInMs = response.data.accessTokenExpiresInMs ?? 3600000;
       scheduleTokenRefresh(expiresInMs);
       router.push("/dashboard");
     } catch (err: unknown) {
