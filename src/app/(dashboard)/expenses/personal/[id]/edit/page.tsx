@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ReceiptUploadSection } from "@/components/expenses/new-report/ReceiptUploadSection";
 import { ExpensePreviewList, type ExpenseItem } from "@/components/expenses/new-report/ExpensePreviewList";
@@ -95,6 +95,9 @@ export default function EditReportPage() {
   const params = useParams();
   const reportId = params.id as string;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode = searchParams.get("mode"); // e.g. "resubmit"
+  const isResubmitMode = mode === "resubmit";
   const axios = useAxios();
   const queryClient = useQueryClient();
 
@@ -145,20 +148,29 @@ export default function EditReportPage() {
         }
 
         // 2. Fetch Report Details
-        const reportResponse = await axios.get<any>(
-          `reports/drafts/${reportId}`
-        );
-        // Handle double-nested data if present
-        const innerData = reportResponse.data?.data || {};
-        const reportData = innerData.data ? innerData.data : innerData;
+        let reportData;
+        if (isResubmitMode) {
+          const reportResponse = await axios.get<any>(
+            `${API_KEYS.EXPENSE.PERSONAL_EXPENSES}/${reportId}`
+          );
+          reportData = reportResponse.data?.data || {};
+        } else {
+          const reportResponse = await axios.get<any>(
+            `reports/drafts/${reportId}`
+          );
+          // Handle double-nested data if present
+          const innerData = reportResponse.data?.data || {};
+          reportData = innerData.data ? innerData.data : innerData;
+        }
         
         setReportTitle(reportData.reportTitle || "Draft");
 
         // Map existing expenses to local state (handle both expenses and expensesPayload)
         const rawExpenses = reportData.expenses || reportData.expensesPayload || [];
         const mappedExpenses: ExpenseItem[] = await Promise.all(rawExpenses.map(async (e: any, index: number) => {
-          // Find the category name since backend only returns category ID
-          const categoryName = categoriesResponse.data?.data?.find((c: ExpenseCategory) => c.categoryId === e.expenseCategoryId)?.name || "Uncategorized";
+          // Find the category name since backend only returns category ID in some endpoints,
+          // or we get categoryName directly in others.
+          const categoryName = e.categoryName || categoriesResponse.data?.data?.find((c: ExpenseCategory) => c.categoryId === e.expenseCategoryId)?.name || "Uncategorized";
 
           // Convert raw base64 to a full data URL if the receipt is not already one
           let receiptImage = e.receiptImage || "";
@@ -178,16 +190,22 @@ export default function EditReportPage() {
           }
 
           return {
-            id: `draft-${index}-${Date.now()}`,
+            id: isResubmitMode && e.expenseId ? e.expenseId : `draft-${index}-${Date.now()}`,
             name: e.title,
             category: categoryName,
             amount: Number(e.amount),
             merchantName: e.merchantName || "",
             description: e.description || "",
-            transactionDate: new Date(e.transactionDate),
+            transactionDate: e.transactionDate ? new Date(e.transactionDate) : new Date(),
             receiptImage,
             receiptExtractionId: e.receiptExtractionId,
-          };
+            ...(isResubmitMode && e.expenseId ? { originalExpenseId: e.expenseId } : {}),
+            isSplit: e.isSplit,
+            expenseType: e.expenseType,
+            splitParticipants: e.splitParticipants,
+            splitAllocationMode: e.splitAllocationMode,
+            splitAllocations: e.splitAllocations,
+          } as ExpenseItem;
         }));
 
         setExpenses(mappedExpenses);
@@ -407,16 +425,6 @@ export default function EditReportPage() {
     }
 
     // Validation
-    if (status === "pending") {
-      const missingReceipts = activeExpenses.filter(
-        (expense) => !expense.receiptImage && !expense.receiptExtractionId,
-      );
-      if (missingReceipts.length > 0) {
-        toast.error("All expenses must have receipts before submitting");
-        return;
-      }
-    }
-
     const invalidExpenses = activeExpenses.filter(
       (exp) => !exp.name || exp.amount < 0 || !exp.category
     );
@@ -469,6 +477,7 @@ export default function EditReportPage() {
           // splitAllocationMode: expense.splitAllocationMode,
           // splitAllocations: expense.splitAllocations,
           ...(justificationValue && isActionRequired ? { policyJustification: justificationValue } : {}),
+          ...(isResubmitMode && expense.originalExpenseId ? { expenseId: expense.originalExpenseId } : {}),
         };
         
         // Add receipt if it's new (base64)
@@ -491,13 +500,22 @@ export default function EditReportPage() {
         // Use PATCH to update the draft
         await axios.patch(`reports/drafts/${reportId}`, requestPayload, { _skipErrorToast: true });
       } else {
-        const requestPayload = {
-          reportTitle: reportTitle,
-          draftId: reportId,
-          expenses: expensesPayload,
-        };
-        // Use POST to submit the draft
-        const res = await axios.post(API_KEYS.EXPENSE.REPORTS, requestPayload, { _skipErrorToast: true });
+        let res;
+        if (isResubmitMode) {
+          const requestPayload = {
+            reportTitle: reportTitle,
+            expenses: expensesPayload,
+          };
+          res = await axios.post(`reports/${reportId}/resubmit`, requestPayload, { _skipErrorToast: true });
+        } else {
+          const requestPayload = {
+            reportTitle: reportTitle,
+            draftId: reportId,
+            expenses: expensesPayload,
+          };
+          // Use POST to submit the draft
+          res = await axios.post(API_KEYS.EXPENSE.REPORTS, requestPayload, { _skipErrorToast: true });
+        }
 
         // ── Check if the policy engine requires ACTION_REQUIRED (201 but not submitted) ──
         const responseData = res.data?.data;
@@ -727,29 +745,35 @@ export default function EditReportPage() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <button 
-              type="button"
-              className="flex items-center text-[13px] font-semibold text-[#d33d44] hover:text-[#c33339] hover:bg-[#fdf2f2] px-3 py-1.5 rounded-[6px] transition-colors disabled:opacity-50"
-              onClick={() => setIsDeleteReportModalOpen(true)}
-          >
-              <Trash2 className="w-4 h-4 mr-1.5" />
-              Delete Report
-          </button>
+          {!isResubmitMode && (
+            <button 
+                type="button"
+                className="flex items-center text-[13px] font-semibold text-[#d33d44] hover:text-[#c33339] hover:bg-[#fdf2f2] px-3 py-1.5 rounded-[6px] transition-colors disabled:opacity-50"
+                onClick={() => setIsDeleteReportModalOpen(true)}
+            >
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                Delete Report
+            </button>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <button
-            onClick={() => handleSubmit("draft")}
-            disabled={isSaveDisabled}
-            className={saveDraftClass}
-          >
-            {isActionInProgress ? (isSavingDraft ? "Saving..." : "Processing...") : "Save Changes"}
-          </button>
+          {!isResubmitMode && (
+            <button
+              onClick={() => handleSubmit("draft")}
+              disabled={isSaveDisabled}
+              className={saveDraftClass}
+            >
+              {isActionInProgress ? (isSavingDraft ? "Saving..." : "Processing...") : "Save Changes"}
+            </button>
+          )}
           <button
             onClick={() => handleSubmit("pending")}
             disabled={isSubmitDisabled}
             className={submitClass}
           >
-            {isActionInProgress ? (isSubmittingReport ? "Submitting..." : "Processing...") : "Submit Report"}
+            {isActionInProgress 
+              ? (isSubmittingReport ? (isResubmitMode ? "Resubmitting..." : "Submitting...") : "Processing...") 
+              : (isResubmitMode ? "Resubmit Report" : "Submit Report")}
           </button>
         </div>
       </div>

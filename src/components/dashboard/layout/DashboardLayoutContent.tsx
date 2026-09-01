@@ -25,6 +25,7 @@ import VilletoSetupGuide from "@/components/tour/VilletoSetupGuide";
 import { useTourStore } from "@/stores/useTourStore";
 import { ChatPortal } from "@/components/chat";
 import { SplashScreen } from "@/components/ui/splash-screen";
+import { getEffectiveCompanyPermissions } from "@/features/auth/role-access";
 
 function subscribe() {
   return () => {};
@@ -73,7 +74,7 @@ export default function DashboardLayoutContent({
     try {
       const me = await axios.get("/users/me");
       const responseData = me?.data?.data || me?.data;
-      const { role, _company, companyId, ...userData } = responseData || {};
+      const { _company, companyId, ...userData } = responseData || {};
 
       if (userData) {
         if (
@@ -95,10 +96,7 @@ export default function DashboardLayoutContent({
         } as User);
       }
 
-      if (role || responseData?.companyRole) {
-        const permissions = responseData?.companyRole?.permissions ?? role?.permissions ?? [];
-        setCompanyPermissions(permissions);
-      }
+      setCompanyPermissions(getEffectiveCompanyPermissions(responseData));
     } catch {
       // Silently handle — user session may still be valid
     } finally {

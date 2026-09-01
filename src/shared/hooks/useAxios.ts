@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/features/auth/store";
 import { isConnectionPoolError, CONNECTION_POOL_MESSAGE } from "@/shared/lib/errors/api-errors";
 import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
+import { getEffectiveCompanyPermissions } from "@/features/auth/role-access";
 
 declare module "axios" {
     export interface AxiosRequestConfig {
@@ -181,7 +182,7 @@ export function useAxios(): AxiosInstance {
                     try {
                         const me = await instance.get("/users/me");
                         const responseData = me?.data?.data || me?.data;
-                        const { role, _company, companyId, ...userData } = responseData || {};
+                        const { _company, companyId, ...userData } = responseData || {};
 
                         if (userData) {
                             const store = useAuthStore.getState();
@@ -192,10 +193,9 @@ export function useAxios(): AxiosInstance {
                             } as any);
                         }
 
-                        if (role || responseData?.companyRole) {
-                            const permissions = responseData?.companyRole?.permissions ?? role?.permissions ?? [];
-                            useAuthStore.getState().setCompanyPermissions(permissions);
-                        }
+                        useAuthStore.getState().setCompanyPermissions(
+                            getEffectiveCompanyPermissions(responseData),
+                        );
 
                         processPermissionQueue(null);
                         return instance(originalRequest);

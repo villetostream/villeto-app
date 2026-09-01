@@ -369,25 +369,27 @@ export default function CompanyExpenseDetailPage() {
                 <p className="text-sm text-muted-foreground mt-1">{reportDate}</p>
               </div>
 
-              {/* Approve / Reject Actions */}
-              {canTakeAction && (
-                <div className="flex items-center gap-3 shrink-0">
-                  <Button
-                    onClick={handleApprove}
-                    disabled={isApproving || isRejecting}
-                    className="bg-[#087f70] text-white hover:bg-[#076b5e] rounded-[8px] h-10 px-6 font-semibold shadow-sm"
-                  >
-                    {isApproving ? "Processing..." : "Approve"}
-                  </Button>
-                  <Button
-                    onClick={() => setRejectOpen(true)}
-                    disabled={isApproving || isRejecting}
-                    className="bg-[#d33d44] text-white hover:bg-[#c33339] rounded-[8px] h-10 px-6 font-semibold shadow-sm"
-                  >
-                    Reject
-                  </Button>
-                </div>
-              )}
+              {/* Actions */}
+              <div className="flex items-center gap-3 shrink-0">
+                {canTakeAction && (
+                  <>
+                    <Button
+                      onClick={handleApprove}
+                      disabled={isApproving || isRejecting}
+                      className="bg-[#087f70] text-white hover:bg-[#076b5e] rounded-[8px] h-10 px-6 font-semibold shadow-sm"
+                    >
+                      {isApproving ? "Processing..." : "Approve"}
+                    </Button>
+                    <Button
+                      onClick={() => setRejectOpen(true)}
+                      disabled={isApproving || isRejecting}
+                      className="bg-[#d33d44] text-white hover:bg-[#c33339] rounded-[8px] h-10 px-6 font-semibold shadow-sm"
+                    >
+                      Reject
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -37,6 +37,7 @@ export interface ExpenseItem {
   splitAllocationMode?: "equal" | "manual";
   /** Keyed by userId */
   splitAllocations?: Record<string, string>;
+  originalExpenseId?: string;
 }
 
 interface ExpensePreviewListProps {

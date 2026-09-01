@@ -580,6 +580,10 @@ export function UserSection() {
       router.push(`/expenses/new-expense/upload?${params.toString()}`);
       return;
     }
+    if (isPersonalExpenseEditPage && searchParams.get("mode") === "resubmit") {
+      router.back();
+      return;
+    }
     if (isPersonalExpenseDetailPage || isPersonalExpenseEditPage || isPersonalExpenseDeletePage) {
       router.push(`/expenses?tab=${sessionStorage.getItem("expensesReturnTab") || "personal-expenses"}&page=${sessionStorage.getItem("expensesReturnPage") || "1"}`);
       return;

@@ -162,7 +162,11 @@ export default function PersonalExpenseDetailPage() {
 
 
   const handleEditExpenses = () => {
-    router.push(`/expenses/personal/${reportId}/edit`);
+    if (reportStatus === "rejected") {
+      router.push(`/expenses/personal/${reportId}/edit?mode=resubmit`);
+    } else {
+      router.push(`/expenses/personal/${reportId}/edit`);
+    }
   };
 
   return (
@@ -170,14 +174,28 @@ export default function PersonalExpenseDetailPage() {
       <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
       {/* Header - Transparent with exact original padding */}
       <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
-        <div className="max-w-7xl mx-auto w-full flex flex-col justify-center">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-foreground">
-              {reportName}
-            </h1>
-            <ExpenseStatusBadge status={rawReportStatus} />
+        <div className="max-w-7xl mx-auto w-full flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col justify-center">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-foreground">
+                {reportName}
+              </h1>
+              <ExpenseStatusBadge status={rawReportStatus} />
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">{reportDate}</p>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">{reportDate}</p>
+
+          {/* Edit Report Button for Flagged or Rejected Status */}
+          {(reportStatus === "flagged" || reportStatus === "rejected") && (
+            <div className="flex items-center shrink-0">
+              <Button
+                onClick={handleEditExpenses}
+                className="bg-[#087f70] text-white hover:bg-[#076b5e] px-8 h-10 rounded-[8px] font-semibold shadow-sm"
+              >
+                Edit Report
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -299,18 +317,6 @@ export default function PersonalExpenseDetailPage() {
               rejectionReason={expenseDetail.rejectionReason}
               actionedBy={actionedBy}
             />
-          )}
-
-          {/* Edit Expenses Button for Flagged Status */}
-          {reportStatus === "flagged" && (
-            <div className="flex justify-end">
-              <Button
-                onClick={handleEditExpenses}
-                className="bg-[#087f70] text-white hover:bg-[#076b5e] px-8 h-10 rounded-[8px] font-semibold"
-              >
-                Edit Expenses
-              </Button>
-            </div>
           )}
         </div>
 

@@ -33,6 +33,9 @@ export interface AppUser {
     jobTitle?: string;
     manager?: any;
     villetoRole?: any;
+    role?: any;
+    companyRole?: any;
+    companyRoles?: any[];
     employeeExternalId?: string;
     businessUnit?: string;
     location?: string;

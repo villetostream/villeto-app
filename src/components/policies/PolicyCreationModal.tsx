@@ -6,13 +6,14 @@ import {
   MapPin, Users, Tag, ShieldCheck, Info, AlertTriangle
 } from "lucide-react";
 import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
-import { useGetExpenseCategoriesApi } from "@/queries/companies/get-expense-categories";
+import { useGetExpenseCategoryCoverageAllApi } from "@/queries/companies/get-expense-categories";
 import { useGetInvitedUsersApi, useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useCreatePolicyApi, type CreatePolicyPayload } from "@/queries/companies/create-policy";
 import type { UpdatePolicyPayload } from "@/queries/companies/update-policy";
 import { useUpdatePolicyApi } from "@/queries/companies/update-policy";
 import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
+import { useGetExpenseCategoryDetailApi } from "@/queries/companies/get-expense-category-by-id";
 import {
   useCreateExpensePolicyDraft,
   useUpdateExpensePolicyDraft,
@@ -127,15 +128,26 @@ function PortalDropdown({
    PolicyPeekPanel — inline panel showing policies on a category
 ───────────────────────────────────────────────────────────── */
 function PolicyPeekPanel({
-  categoryName, policyNames, onClose,
+  categoryName, categoryId, policyNames, onClose,
 }: {
   categoryName: string;
+  categoryId?: string;
   policyNames: string[];
   onClose: () => void;
 }) {
+  const [viewAll, setViewAll] = useState(false);
+  const detailApi = useGetExpenseCategoryDetailApi(viewAll && categoryId ? categoryId : "");
+
+  const policiesToDisplay = viewAll 
+    ? (detailApi.data?.data?.policies?.map((p: any) => p?.name || p?.policyName || "Unnamed Policy") || policyNames)
+    : policyNames.slice(0, 5);
+
+  const overflow = policyNames.length - 5;
+  const isLoading = viewAll && detailApi.isLoading;
+
   return (
-    <div className="m-2 mt-1 rounded-[14px] border border-[#087f70]/30 bg-[#087f70]/5 p-3">
-      <div className="flex items-start justify-between gap-2 mb-2">
+    <div className="m-2 mt-1 rounded-[14px] border border-[#087f70]/30 bg-[#087f70]/5 p-3 flex flex-col transition-all">
+      <div className="flex items-start justify-between gap-2 mb-2 shrink-0">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold text-[#087f70] uppercase tracking-widest leading-none mb-0.5">Attached policies</p>
           <p className="text-xs font-semibold text-[#0b100e] leading-snug truncate">{categoryName}</p>
@@ -145,15 +157,33 @@ function PolicyPeekPanel({
           <X className="w-2.5 h-2.5 text-[#68726d]" />
         </button>
       </div>
-      {policyNames.length > 0 && (
-        <ul className="space-y-1">
-          {policyNames.map((name, i) => (
-            <li key={i} className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#087f70] shrink-0" />
-              <span className="text-xs text-[#0b100e] font-medium leading-snug">{name}</span>
-            </li>
-          ))}
-        </ul>
+      
+      {isLoading ? (
+        <div className="py-4 flex justify-center items-center">
+          <Loader2 className="w-4 h-4 text-[#087f70] animate-spin" />
+        </div>
+      ) : (
+        <div className={`flex flex-col gap-1.5 ${viewAll ? "max-h-[200px] overflow-y-auto modal-scrollbar pr-1" : ""}`}>
+          {policiesToDisplay.length > 0 && (
+            <ul className="space-y-1">
+              {policiesToDisplay.map((name: string, i: number) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#087f70] shrink-0" />
+                  <span className="text-xs text-[#0b100e] font-medium leading-snug truncate">{name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!viewAll && overflow > 0 && categoryId && (
+            <button 
+              type="button" 
+              onClick={() => setViewAll(true)}
+              className="text-xs font-semibold text-[#087f70] hover:text-[#066357] text-left mt-1"
+            >
+              View all {policyNames.length} policies
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -332,6 +362,7 @@ function DropdownList({
       {peekOpt && (
         <PolicyPeekPanel
           categoryName={peekOpt.label}
+          categoryId={peekOpt.value}
           policyNames={peekOpt.policyNames ?? []}
           onClose={() => setPeekOpt(null)}
         />
@@ -861,8 +892,8 @@ export default function PolicyCreationModal({
   const departmentsApi   = useGetAllDepartmentsApi({ enabled: open });
   const jobGradesApi = useGetJobGradesApi({ enabled: open });
   const managementLevelsApi = useGetManagementLevelsApi({ enabled: open });
-  // Expense categories are viewed within the context of Expense / Policies.
-  const expCatApi        = useGetExpenseCategoriesApi({ enabled: open });
+  // Expense categories with full policy coverage — admin scoped (all categories + their attached policies)
+  const expCatApi        = useGetExpenseCategoryCoverageAllApi({ enabled: open });
 
   const createPolicyMutation   = useCreatePolicyApi();
   const updatePolicyMutation   = useUpdatePolicyApi();
@@ -965,9 +996,8 @@ export default function PolicyCreationModal({
             })
             .filter(Boolean)
         : [];
-      const policyCount = c.isPolicyAttached
-        ? (policyNames.length > 0 ? policyNames.length : 1)
-        : 0;
+      // Prefer policyCount from the new endpoint if available, else derive from array
+      const policyCount = typeof c.policyCount === "number" ? c.policyCount : policyNames.length;
       return {
         label: c.name,
         value: c.categoryId ?? c.name,

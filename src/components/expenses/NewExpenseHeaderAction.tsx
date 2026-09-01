@@ -22,7 +22,9 @@ export default function NewExpenseHeaderAction() {
   const router = useRouter();
 
   const categoriesWithPoliciesApi = useGetExpenseCategoriesWithPoliciesApi();
-  const hasPolicies = Array.isArray(categoriesWithPoliciesApi.data?.data) && categoriesWithPoliciesApi.data.data.length > 0;
+  const hasPolicies = categoriesWithPoliciesApi.data?.meta?.totalCount 
+    ? categoriesWithPoliciesApi.data.meta.totalCount > 0 
+    : (Array.isArray(categoriesWithPoliciesApi.data?.data) && categoriesWithPoliciesApi.data.data.length > 0);
   const isLoadingPolicies = categoriesWithPoliciesApi.isLoading;
   const canCreatePolicy = useAuthStore((s) => s.can)("policy", "create");
 

@@ -29,7 +29,12 @@ export const useInviteUserApi = () => {
     return useMutation<Response, Error, UserFormData>({
         retry: false,
         mutationFn: async (payload: UserFormData) => {
-            const res = await axiosInstance.post(API_KEYS.USER.INVITEUSER, payload);
+            const res = await axiosInstance.post(API_KEYS.COMPANY.ADMIN_INVITES, {
+                admins: [{
+                    email: payload.email,
+                    roleIds: payload.roleIds,
+                }],
+            });
             return res.data;
         },
         onSuccess: () => {

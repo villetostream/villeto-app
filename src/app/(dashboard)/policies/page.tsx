@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
-import { useGetExpenseCategoriesApi } from "@/queries/companies/get-expense-categories";
+import { useGetExpenseCategoriesApi, useGetExpenseCategoryCoverageAllApi } from "@/queries/companies/get-expense-categories";
 import { useDeleteCategoryApi } from "@/queries/companies/delete-category";
 import { useGetPoliciesApi } from "@/queries/companies/get-policies";
 import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
@@ -94,6 +94,8 @@ type ExpenseCategory = {
   createdBy: string;
   date: string;
   isPolicyAttached: boolean;
+  policyCount: number;
+  policies: Array<{ policyId: string; name: string; status: string }>;
 };
 
 type ExpenseCategoryDetails = {
@@ -104,6 +106,7 @@ type ExpenseCategoryDetails = {
   name: string;
   description: string | null;
   isPolicyAttached: boolean;
+  policyCount: number;
   policies: unknown[];
   createdBy: string | null;
 };
@@ -202,6 +205,8 @@ function ExpenseCategoryDetailsModal({
   isLoading: boolean;
   onClose: () => void;
 }) {
+  const [showAllPolicies, setShowAllPolicies] = useState(false);
+  
   if (!category && !isLoading) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -262,17 +267,52 @@ function ExpenseCategoryDetailsModal({
                 <>
                   <div className="h-px bg-black/[0.04]" />
                   <div>
-                    <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-2">Attached Policies</p>
-                    <div className="flex flex-wrap gap-2">
-                      {category.policies.map((pol, i: number) => {
-                        const policy = asRecord(pol);
-                        return (
-                          <div key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-black/[0.06] shadow-sm rounded-lg text-[13px] font-medium text-[#0b100e]">
-                            <Shield className="w-3.5 h-3.5 text-[#087f70]" />
-                            {pickString(policy, "name") || `Policy ${i + 1}`}
-                          </div>
-                        );
-                      })}
+                    <div className="flex justify-between items-center mb-3">
+                      <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider">
+                        Attached Policies ({category.policies.length})
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {category.policies
+                        .slice(0, showAllPolicies ? undefined : 5)
+                        .map((pol, i: number) => {
+                          const policy = asRecord(pol);
+                          const name = pickString(policy, "name") || `Policy ${i + 1}`;
+                          return (
+                            <TooltipProvider key={i} delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-2.5 px-3 py-2.5 bg-white border border-black/[0.06] shadow-sm rounded-xl">
+                                    <div className="w-6 h-6 rounded-full bg-[#087f70]/10 flex items-center justify-center shrink-0">
+                                      <Shield className="w-3.5 h-3.5 text-[#087f70]" />
+                                    </div>
+                                    <p className="text-[13px] font-semibold text-[#0b100e] truncate flex-1 text-left">
+                                      {name}
+                                    </p>
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[#eaf5ef] text-[#087f70] shrink-0 uppercase tracking-widest">
+                                      Active
+                                    </span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[300px] break-words">
+                                  <p>{name}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })}
+                      
+                      {category.policies.length > 5 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllPolicies(!showAllPolicies)}
+                          className="mt-1 text-[12px] font-semibold text-[#087f70] hover:text-[#066357] transition-colors text-left inline-flex w-max"
+                        >
+                          {showAllPolicies 
+                            ? "Show less" 
+                            : `Show all ${category.policies.length} policies`}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </>
@@ -757,7 +797,7 @@ function PoliciesPage() {
   const { data: eligibleRolesData } = useGetEligibleRoles("expense_policy");
   const eligibleRoles = eligibleRolesData?.data || [];
 
-  const expCatApi = useGetExpenseCategoriesApi({ enabled: canReadExpenseCategories });
+  const expCatApi = useGetExpenseCategoryCoverageAllApi({ enabled: canReadExpenseCategories });
   const canManageCategories = can('expense.category', 'manage');
   const canCreatePolicy = can('policy', 'create');
 
@@ -768,7 +808,18 @@ function PoliciesPage() {
       description: getString(c.description),
       createdBy: formatUser(c.createdBy),
       date: c.createdAt ? new Date(getString(c.createdAt)).toLocaleDateString() : "—",
-      isPolicyAttached: Boolean(c.isPolicyAttached),
+      isPolicyAttached: Array.isArray(c.policies) ? (c.policies as unknown[]).length > 0 : Boolean(c.isPolicyAttached),
+      policyCount: typeof c.policyCount === "number" ? c.policyCount : (Array.isArray(c.policies) ? (c.policies as unknown[]).length : 0),
+      policies: Array.isArray(c.policies)
+        ? (c.policies as unknown[]).map((p) => {
+            const pol = p as Record<string, unknown>;
+            return {
+              policyId: String(pol.policyId || pol.id || ""),
+              name: String(pol.name || pol.policyName || "Unnamed Policy"),
+              status: String(pol.status || "active"),
+            };
+          })
+        : [],
     }));
   }, [expCatApi.data?.data]);
 
@@ -1330,18 +1381,77 @@ function PoliciesPage() {
     },
     {
       accessorKey: "isPolicyAttached",
-      header: "Policy",
-      cell: ({ row }) => (
-        <span
-          className={`inline-flex items-center px-4 py-1 rounded-full text-xs font-semibold ${
-            row.original.isPolicyAttached
-              ? "bg-success/10 text-success"
-              : "bg-[#f9faf9] text-[#68726d]"
-          }`}
-        >
-          {row.original.isPolicyAttached ? "Policy Attached" : "No Policy"}
-        </span>
-      ),
+      header: "Attached Policies",
+      cell: ({ row }) => {
+        const cat = row.original;
+        if (!cat.isPolicyAttached || cat.policies.length === 0) {
+          return (
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#f9faf9] text-[#68726d]">
+              No Policy
+            </span>
+          );
+        }
+
+        const count = cat.policyCount;
+        const visibleNames = cat.policies.slice(0, 5).map(p => p.name);
+        const overflow = count - visibleNames.length;
+
+        if (count === 1) {
+          const name = visibleNames[0];
+          return (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => handleViewCategory(cat.id)}
+                    className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[#087f70]/10 text-[#087f70] hover:bg-[#087f70]/20 transition-colors text-[12px] font-semibold max-w-[160px]"
+                  >
+                    <Shield className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{name}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{name}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        }
+
+        return (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => handleViewCategory(cat.id)}
+                  className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[#087f70]/10 text-[#087f70] hover:bg-[#087f70]/20 transition-colors text-[12px] font-semibold"
+                >
+                  <Shield className="w-3 h-3" />
+                  <span>{count} policies</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="p-2 max-w-[280px]">
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-[10px] font-semibold text-white/70 uppercase tracking-wider mb-1">Attached Policies</p>
+                  <ul className="space-y-1">
+                    {visibleNames.map((name, i) => (
+                      <li key={i} className="flex items-center gap-1.5">
+                        <span className="w-1 h-1 rounded-full bg-white/70 shrink-0" />
+                        <span className="text-xs truncate">{name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {overflow > 0 && (
+                    <p className="text-[11px] text-white/70 mt-1 italic font-medium">
+                      + {overflow} more. Click to view all.
+                    </p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      },
     },
     {
       id: "actions",

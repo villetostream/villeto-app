@@ -45,6 +45,8 @@ export interface AppUser {
     departmentId?: string | null;
     villetoRole?: Role;
     role?: Role;
+    companyRole?: Role;
+    companyRoles?: Role[];
     position?: string | null;
     cardIssued?: boolean;
     jobTitle?: string;
