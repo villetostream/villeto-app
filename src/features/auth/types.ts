@@ -6,7 +6,6 @@
  *   - src/queries/auth/auth-permissions.ts  (Permission)
  */
 
-import type { Department } from '@/features/people/types';
 import type { Role } from '@/features/people/types';
 
 // ─── Permission Types ─────────────────────────────────────────────────────────
@@ -53,6 +52,17 @@ export interface CapabilityGroup {
     createdAt: string;
     updatedAt: string;
     deletedAt: string | null;
+}
+
+export interface CompanyRoleSummary {
+    roleId: string;
+    name: string;
+    description?: string | null;
+    isActive: string;
+    templateKey?: string | null;
+    source?: string | null;
+    isDefault: boolean;
+    permissions: CompanyPermission[];
 }
 
 export interface User {
@@ -146,15 +156,9 @@ export interface User {
      */
     departmentName?: string | null;
     /** Company role holds the user's explicit capability permissions. */
-    companyRole?: {
-        roleId: string;
-        name: string;
-        description?: string | null;
-        isActive: string;
-        templateKey?: string | null;
-        source?: string | null;
-        isDefault: boolean;
-        permissions: CompanyPermission[];
-    };
+    /** @deprecated Primary-role compatibility alias. */
+    companyRole?: CompanyRoleSummary;
+    /** Complete set of active company roles assigned to this user. */
+    companyRoles?: CompanyRoleSummary[];
     capabilityGroups?: CapabilityGroup[];
 }

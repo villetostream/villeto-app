@@ -1,25 +1,25 @@
 "use client"
 
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
     X, ShieldCheck, Copy, Eye, EyeOff,
-    ChevronDown, Check, Loader2, Pencil,
-    Building2, Briefcase, User2, Lock, Search
+    Check, Loader2, Pencil,
+    Building2, User2, Lock
 } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useGetAUsersApi } from "@/queries/users/get-a-user"
 import { useGetAllUsersApi } from "@/queries/users/get-all-users"
-import { useUpdateUserApi } from "@/queries/users/update-user"
+import { useUpdateUserApi, type UserUpdatePayload } from "@/queries/users/update-user"
 import { useGetAllRolesApi, Role, CapabilityGroup } from "@/queries/role/get-all-roles"
 import { useGetAllDepartmentsApi, Department } from "@/queries/departments/get-all-departments"
 import { useResendInvitationApi } from "@/queries/users/resend-invitation"
 import { useAuthStore } from "@/stores/auth-stores"
 import { toast } from "sonner"
+import { RoleMultiSelect, type RoleMultiSelectOption } from "@/components/dashboard/people/RoleMultiSelect"
 
 // ─── Extended types matching GET /users/{id} response ─────────────────────────
 
@@ -53,6 +53,7 @@ interface RichUser {
     managerId?: string | null
     createdAt?: string
     companyRole?: RichCompanyRole
+    companyRoles?: RichCompanyRole[]
     department?: Department | string | null
     manager?: { firstName?: string; lastName?: string } | null
     lastLoginAt?: string
@@ -61,21 +62,27 @@ interface RichUser {
 // ─── Edit state ───────────────────────────────────────────────────────────────
 
 interface EditState {
-    roleId: string
+    roleIds: string[]
     jobTitle: string
     departmentId: string
 }
 
 function getInitialEditState(user: RichUser): EditState {
     return {
-        roleId: user.companyRole?.roleId ?? "",
+        roleIds: user.companyRoles?.map(role => role.roleId)
+            ?? (user.companyRole ? [user.companyRole.roleId] : []),
         jobTitle: user.jobTitle ?? "",
         departmentId: user.departmentId ?? "",
     }
 }
 
 function statesMatch(a: EditState, b: EditState): boolean {
-    return a.roleId === b.roleId && a.jobTitle === b.jobTitle && a.departmentId === b.departmentId
+    const aRoleIds = [...a.roleIds].sort()
+    const bRoleIds = [...b.roleIds].sort()
+    return aRoleIds.length === bRoleIds.length
+        && aRoleIds.every((roleId, index) => roleId === bRoleIds[index])
+        && a.jobTitle === b.jobTitle
+        && a.departmentId === b.departmentId
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -99,11 +106,6 @@ function formatDateTime(iso?: string | null): string {
     } catch { return iso }
 }
 
-function capitalize(str?: string | null): string {
-    if (!str) return "—"
-    return str.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
-}
-
 function getDeptName(dept: RichUser["department"]): string {
     if (!dept) return "—"
     if (typeof dept === "string") return dept || "—"
@@ -125,145 +127,6 @@ function CopyButton({ text, className, successClass = "text-emerald-500" }: { te
         <button onClick={handleCopy} className={`hover:opacity-70 transition-opacity flex items-center justify-center ${className || ""}`}>
             {copied ? <Check className={`w-3.5 h-3.5 ${successClass}`} /> : <Copy className="w-3.5 h-3.5" />}
         </button>
-    )
-}
-
-// ─── Inline Dropdown (shared by Role + Department pickers) ────────────────────
-
-interface DropdownOption { id: string; label: string; sublabel?: string }
-
-function InlineDropdown({
-    value,
-    options,
-    placeholder,
-    onChange,
-}: {
-    value: string
-    options: DropdownOption[]
-    placeholder?: string
-    onChange: (id: string) => void
-}) {
-    const [open, setOpen] = useState(false)
-    const [search, setSearch] = useState("")
-    const [activeIndex, setActiveIndex] = useState(-1)
-    const inputRef = useRef<HTMLInputElement>(null)
-    const listRef = useRef<HTMLDivElement>(null)
-    
-    const selected = options.find(o => o.id === value)
-
-    const filteredOptions = useMemo(() => {
-        if (!search.trim()) return options
-        const q = search.toLowerCase()
-        return options.filter(o => o.label.toLowerCase().includes(q) || o.sublabel?.toLowerCase().includes(q))
-    }, [options, search])
-
-    useEffect(() => {
-        if (open) {
-            setSearch("")
-            setActiveIndex(-1)
-            setTimeout(() => inputRef.current?.focus(), 0)
-        }
-    }, [open])
-
-    useEffect(() => {
-        if (activeIndex >= 0 && listRef.current) {
-            const activeEl = listRef.current.children[activeIndex] as HTMLElement
-            if (activeEl) {
-                activeEl.scrollIntoView({ block: "nearest" })
-            }
-        }
-    }, [activeIndex])
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "ArrowDown") {
-            e.preventDefault()
-            setActiveIndex(prev => (prev < filteredOptions.length - 1 ? prev + 1 : prev))
-        } else if (e.key === "ArrowUp") {
-            e.preventDefault()
-            setActiveIndex(prev => (prev > 0 ? prev - 1 : prev))
-        } else if (e.key === "Enter") {
-            e.preventDefault()
-            if (activeIndex >= 0 && activeIndex < filteredOptions.length) {
-                onChange(filteredOptions[activeIndex].id)
-                setOpen(false)
-            }
-        }
-    }
-
-    return (
-        <Popover open={open} onOpenChange={setOpen} modal={true}>
-            <PopoverTrigger asChild>
-                <button
-                    type="button"
-                    className="w-full flex items-center justify-between gap-2 h-9 px-3 rounded-lg border border-border bg-white text-sm font-medium text-foreground hover:border-primary/50 focus:outline-none focus:border-primary transition-colors"
-                >
-                    <span className={selected ? "text-foreground" : "text-muted-foreground"}>
-                        {selected?.label ?? placeholder ?? "Select…"}
-                    </span>
-                    <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
-                </button>
-            </PopoverTrigger>
-
-            <PopoverContent 
-                className="p-0 rounded-xl overflow-hidden flex flex-col shadow-xl" 
-                style={{ width: "var(--radix-popover-trigger-width)" }}
-                align="start"
-            >
-                <div className="p-2 border-b border-border/50 shrink-0">
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            placeholder="Search..."
-                            value={search}
-                            onChange={e => { setSearch(e.target.value); setActiveIndex(0) }}
-                            onKeyDown={handleKeyDown}
-                            className="w-full h-8 pl-8 pr-3 rounded-md bg-muted/30 border-0 text-xs font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-shadow"
-                        />
-                    </div>
-                </div>
-                <div 
-                    ref={listRef} 
-                    className="max-h-48 overflow-y-auto py-1 outline-none overscroll-contain" 
-                    tabIndex={-1}
-                    onWheel={e => e.stopPropagation()}
-                    onTouchMove={e => e.stopPropagation()}
-                >
-                    {filteredOptions.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-4">No results found</p>
-                    ) : (
-                        filteredOptions.map((opt, i) => {
-                            const isSel = opt.id === value
-                            const isHighlighted = i === activeIndex
-                            return (
-                                <button
-                                    key={opt.id}
-                                    type="button"
-                                    onMouseEnter={() => setActiveIndex(i)}
-                                    onClick={() => { onChange(opt.id); setOpen(false) }}
-                                    className={`w-full text-left px-3 py-2.5 flex items-start gap-2.5 transition-colors hover:bg-muted/40 ${isSel ? "bg-primary/5" : ""} ${isHighlighted ? "bg-muted/40" : ""}`}
-                                >
-                                    <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${isSel ? "border-primary bg-primary" : "border-border"}`}>
-                                        {isSel && <Check className="w-2.5 h-2.5 text-white" />}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className={`text-sm font-medium leading-tight ${isSel ? "text-primary" : "text-foreground"}`}>
-                                            {opt.label}
-                                        </p>
-                                        {opt.sublabel && (
-                                            <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-1">
-                                                {opt.sublabel}
-                                            </p>
-                                        )}
-                                    </div>
-                                </button>
-                            )
-                        })
-                    )}
-                </div>
-            </PopoverContent>
-        </Popover>
     )
 }
 
@@ -321,15 +184,19 @@ function OverviewTab({
     isResending: boolean
 }) {
     const isActive = (user.status ?? "").toLowerCase() === "active"
-    const capabilityGroups: CapabilityGroup[] = useMemo(
-        () => user.companyRole?.capabilityGroups ?? [],
-        [user.companyRole]
-    )
+    const capabilityGroups: CapabilityGroup[] = useMemo(() => [
+        ...new Map(
+            (user.companyRoles ?? (user.companyRole ? [user.companyRole] : []))
+                .flatMap(role => role.capabilityGroups ?? [])
+                .map(group => [group.capabilityGroupId, group]),
+        ).values(),
+    ], [user.companyRole, user.companyRoles])
     const [showAllCapabilities, setShowAllCapabilities] = useState(false);
 
     const currentUserId = useAuthStore.getState().user?.userId;
-    const roleName = String(user.companyRole?.name || user.position || "").toUpperCase();
-    const isOwner = roleName.includes("OWNER");
+    const assignedRoles = user.companyRoles ?? (user.companyRole ? [user.companyRole] : [])
+    const isOwner = assignedRoles.some(role => role.name.toUpperCase().includes("OWNER"))
+        || String(user.position || "").toUpperCase() === "OWNER";
     const isSelf = user.userId === currentUserId;
     const canDeactivate = !isOwner && !isSelf;
 
@@ -350,15 +217,10 @@ function OverviewTab({
         return `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() || "—"
     }, [user.managerId, user.manager, allUsers])
 
-    const roleOptions: DropdownOption[] = roles.map(r => ({
+    const roleOptions: RoleMultiSelectOption[] = roles.map(r => ({
         id: r.roleId,
         label: r.name,
-        sublabel: r.description,
-    }))
-
-    const deptOptions: DropdownOption[] = departments.map(d => ({
-        id: d.departmentId,
-        label: d.departmentName || d.name || "Unknown Department",
+        description: r.description,
     }))
 
     const currentDeptName = useMemo(() => {
@@ -369,14 +231,9 @@ function OverviewTab({
         return getDeptName(user.department)
     }, [editState.departmentId, departments, user.department])
 
-    const currentRoleName = useMemo(() => {
-        if (editState.roleId) {
-            return roles.find(r => r.roleId === editState.roleId)?.name
-                ?? user.companyRole?.name
-                ?? "—"
-        }
-        return user.companyRole?.name ?? "—"
-    }, [editState.roleId, roles, user.companyRole])
+    const currentRoleNames = useMemo(() => editState.roleIds
+        .map(roleId => roles.find(role => role.roleId === roleId)?.name)
+        .filter((name): name is string => Boolean(name)), [editState.roleIds, roles])
 
     return (
         <div className="space-y-5">
@@ -456,22 +313,22 @@ function OverviewTab({
                         <FieldLabel>
                             <span className="flex items-center gap-1">
                                 Role
-                                {isEditing && user.position?.toUpperCase() !== "OWNER" && (
+                                {isEditing && !isOwner && (
                                     <span className="text-primary normal-case font-medium tracking-normal ml-1">• editable</span>
                                 )}
                             </span>
                         </FieldLabel>
-                        {isEditing && user.position?.toUpperCase() !== "OWNER" ? (
-                            <InlineDropdown
-                                value={editState.roleId}
+                        {isEditing && !isOwner ? (
+                            <RoleMultiSelect
+                                value={editState.roleIds}
                                 options={roleOptions}
                                 placeholder="Select role"
-                                onChange={(id) => setEditState({ ...editState, roleId: id })}
+                                onChange={(roleIds) => setEditState({ ...editState, roleIds })}
                             />
                         ) : (
-                            <ReadOnlyValue>{currentRoleName}</ReadOnlyValue>
+                            <ReadOnlyValue>{currentRoleNames.join(", ") || user.companyRole?.name || "—"}</ReadOnlyValue>
                         )}
-                        {isEditing && user.position?.toUpperCase() === "OWNER" && (
+                        {isEditing && isOwner && (
                             <p className="text-[10px] text-muted-foreground/60 mt-1 flex items-center gap-1">
                                 <Lock className="w-2.5 h-2.5" /> Owner role cannot be changed
                             </p>
@@ -536,7 +393,7 @@ function OverviewTab({
                                 Capability Groups
                             </h3>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                                Via <span className="font-medium text-foreground">{user.companyRole?.name || "Role"}</span>
+                                Via <span className="font-medium text-foreground">{currentRoleNames.join(", ") || user.companyRole?.name || "Role"}</span>
                             </p>
                         </div>
                         <Badge className="text-[10px] bg-primary/10 text-primary border-0 font-semibold">
@@ -734,7 +591,7 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
         return getInitialEditState(user)
     }, [user])
 
-    const [editState, setEditState] = useState<EditState>({ roleId: "", jobTitle: "", departmentId: "" })
+    const [editState, setEditState] = useState<EditState>({ roleIds: [], jobTitle: "", departmentId: "" })
     const [isEditing, setIsEditing] = useState(false)
 
     // Sync once user data lands
@@ -754,13 +611,16 @@ export function UserProfileModal({ isOpen, onClose, userId }: UserProfileModalPr
 
     const handleSave = async () => {
         if (!user || !isDirty) return
-        const payload: Record<string, string> = { id: user.userId }
-        if (editState.roleId !== originalState?.roleId) {
-            payload.companyRoleId = editState.roleId
+        const payload: UserUpdatePayload = { id: user.userId }
+        if (originalState && !statesMatch(
+            { ...originalState, jobTitle: editState.jobTitle, departmentId: editState.departmentId },
+            editState,
+        )) {
+            payload.companyRoleIds = editState.roleIds
         }
 
         try {
-            await updateUser.mutateAsync(payload as Parameters<typeof updateUser.mutateAsync>[0])
+            await updateUser.mutateAsync(payload)
             toast.success("User updated successfully")
             setIsEditing(false)
         } catch {

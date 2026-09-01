@@ -78,9 +78,15 @@ export const columns = (
         header: "ROLE",
         cell: (info) => {
             const original = info.row.original;
-            const roleName = (original as any).role?.name || (original as any).companyRole?.name || (original as any).villetoRole?.name || info.getValue();
-            const formattedRole = formatName(roleName) || "-";
-            return <p className="capitalize text-sm">{formattedRole}</p>;
+            const roleNames = (original.companyRoles ?? [])
+                .map((role) => formatName(role.name))
+                .filter(Boolean);
+            const fallbackRole = original.role?.name || original.companyRole?.name || original.villetoRole?.name || info.getValue();
+            return (
+                <p className="capitalize text-sm">
+                    {roleNames.length > 0 ? roleNames.join(", ") : formatName(fallbackRole) || "-"}
+                </p>
+            );
         },
     }),
     columnHelper.accessor("department", {

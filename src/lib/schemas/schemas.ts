@@ -311,7 +311,10 @@ export const userSchema = z.object({
   // unselected dropdown would also fail the .uuid() check with a
   // confusing "Invalid department ID" message instead of "required".
   departmentId: z.string().uuid("Invalid department ID").optional(),
-  roleId: z.string().min(1, "Role is required"),
+  roleIds: z
+    .array(z.string().uuid("Invalid role ID"))
+    .min(1, "Select at least one role")
+    .refine((roleIds) => new Set(roleIds).size === roleIds.length, "Roles must be unique"),
   id: z.string().optional(),
 });
 

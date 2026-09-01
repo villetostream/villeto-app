@@ -28,6 +28,7 @@ import { useGetAUsersApi } from "@/queries/users/get-a-user";
 import { useEffect, useMemo } from "react";
 import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 import toast from "react-hot-toast";
+import { RoleMultiSelect } from "@/components/dashboard/people/RoleMultiSelect";
 
 // Zod schema matching the API request body
 
@@ -58,7 +59,7 @@ function AddSingleUser() {
         return (
             allDepts?.data?.data
                 .map((dept: Department) => ({
-                    label: (dept as any).departmentName || dept.name || "Unknown Department",
+                    label: dept.departmentName || dept.name || "Unknown Department",
                     value: dept.departmentId.toString(),
                 })) || []
         );
@@ -74,7 +75,7 @@ function AddSingleUser() {
             cardIssued: false,
             jobTitle: "",
             departmentId: "",
-            roleId: "",
+            roleIds: [],
         },
     });
     const {
@@ -98,7 +99,8 @@ function AddSingleUser() {
                 jobTitle: data?.jobTitle ?? "",
                 location: data?.location ?? "",
                 departmentId: data?.departmentId ?? "",
-                roleId: (data as any)?.role?.roleId ?? (data as any)?.roleId ?? "",
+                roleIds: data.companyRoles?.map(role => role.roleId)
+                    ?? (data.companyRole ? [data.companyRole.roleId] : []),
                 id: data?.userId
             })
         }
@@ -107,6 +109,7 @@ function AddSingleUser() {
 
     const cardIssued = useWatch({ control, name: "cardIssued" });
     const location = useWatch({ control, name: "location" });
+    const roleIds = useWatch({ control, name: "roleIds" }) ?? [];
 
     logger.log({ cardIssued })
     // Handle form submission
@@ -114,9 +117,9 @@ function AddSingleUser() {
         try {
             if (isEdit) {
                 if (!data.id) throw new Error("Missing user ID for update");
-                await updateUser.mutateAsync({ ...data, id: data.id } as any);
+                await updateUser.mutateAsync({ id: data.id, companyRoleIds: data.roleIds });
             } else {
-                await inviteUser.mutateAsync(data as any);
+                await inviteUser.mutateAsync(data);
             }
 
             const promises = [allUsers.refetch()];
@@ -187,19 +190,26 @@ function AddSingleUser() {
                                     type="tel"
                                 />
 
-                                <FormFieldSelect
-                                    name="roleId"
-                                    placeholder="Select role"
-                                    values={(allRoles.data?.data ?? [])
-                                        .slice()
-                                        .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-                                        .map((role) => ({
-                                        label: role.name,
-                                        value: role.roleId
-                                    }))}
-                                    control={control}
-                                    label="User Type/Role"
-                                />
+                                <div className="space-y-2">
+                                    <Label>Roles</Label>
+                                    <RoleMultiSelect
+                                        value={roleIds}
+                                        options={(allRoles.data?.data ?? [])
+                                            .filter((role) => role.isActive)
+                                            .slice()
+                                            .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+                                            .map((role) => ({
+                                                id: role.roleId,
+                                                label: role.name,
+                                                description: role.description,
+                                            }))}
+                                        onChange={(ids) => setValue("roleIds", ids, {
+                                            shouldValidate: true,
+                                            shouldDirty: true,
+                                        })}
+                                        error={errors.roleIds?.message}
+                                    />
+                                </div>
 
 
                             </div>
