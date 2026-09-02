@@ -11,7 +11,9 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Eye, Lock, MoreHorizontal, UserCheck, Mail } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Close as PopoverClose } from "@radix-ui/react-popover";
+import { Eye, Lock, MoreHorizontal, UserCheck, Mail, X } from "lucide-react";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import { useAuthStore } from "@/stores/auth-stores";
 
@@ -78,14 +80,69 @@ export const columns = (
         header: "ROLE",
         cell: (info) => {
             const original = info.row.original;
-            const roleNames = (original.companyRoles ?? [])
-                .map((role) => formatName(role.name))
-                .filter(Boolean);
-            const fallbackRole = original.role?.name || original.companyRole?.name || original.villetoRole?.name || info.getValue();
+            
+            const allRoles: string[] = [];
+            
+            if (Array.isArray((original as any).companyRoles) && (original as any).companyRoles.length > 0) {
+                (original as any).companyRoles.forEach((r: any) => {
+                    const name = r?.role?.name || r?.name;
+                    if (name) allRoles.push(name);
+                });
+            } else if (Array.isArray((original as any).roles) && (original as any).roles.length > 0) {
+                (original as any).roles.forEach((r: any) => {
+                    const name = r?.name;
+                    if (name) allRoles.push(name);
+                });
+            }
+            
+            // Deduplicate in case of duplicate roles
+            const uniqueRoles = Array.from(new Set(allRoles));
+            
+            if (uniqueRoles.length === 0) {
+                const singleRole = (original as any).role?.name || (original as any).companyRole?.name || (original as any).villetoRole?.name || info.getValue();
+                if (singleRole) {
+                    uniqueRoles.push(singleRole);
+                }
+            }
+
+            if (uniqueRoles.length === 0) {
+                return <p className="capitalize text-sm">-</p>;
+            }
+
+            const firstRole = formatName(uniqueRoles[0]);
+            
+            if (uniqueRoles.length === 1) {
+                return <p className="capitalize text-sm">{firstRole}</p>;
+            }
+
+            const extraRolesCount = uniqueRoles.length - 1;
+
             return (
-                <p className="capitalize text-sm">
-                    {roleNames.length > 0 ? roleNames.join(", ") : formatName(fallbackRole) || "-"}
-                </p>
+                <div className="flex items-center gap-2">
+                    <p className="capitalize text-sm">{firstRole}</p>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button className="text-xs text-[#087F70] font-medium bg-[#E8F5F3] px-2 py-0.5 rounded-full hover:bg-[#D1EBE7] transition-colors">
+                                +{extraRolesCount}
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-5 rounded-[20px] border shadow-lg" align="start">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-semibold text-base text-[#101828]">Assigned roles</h3>
+                                <PopoverClose className="h-7 w-7 rounded-full border border-[#EAECF0] flex items-center justify-center hover:bg-gray-50 focus:outline-none transition-colors">
+                                    <X className="h-4 w-4 text-[#667085]" strokeWidth={2} />
+                                </PopoverClose>
+                            </div>
+                            <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                                {uniqueRoles.map((role, idx) => (
+                                    <div key={idx} className="py-3 px-4 border border-[#EAECF0] rounded-[12px] flex items-center">
+                                        <p className="font-medium text-[14px] text-[#344054]">{formatName(role)}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                </div>
             );
         },
     }),

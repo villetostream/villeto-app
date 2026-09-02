@@ -20,6 +20,7 @@ import {
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import EditPOHeaderModal from "@/components/procurement/EditPOHeaderModal";
+import ConfirmReceiptModal from "@/components/procurement/modals/ConfirmReceiptModal";
 import { useAuthStore } from "@/stores/auth-stores";
 import { getPOStatusLabel } from "@/lib/constants/purchase-order-status";
 import {
@@ -218,125 +219,6 @@ function WithdrawModal({
             className="flex-1 h-10 rounded-[12px] bg-[#d33d44] text-white text-sm font-semibold hover:bg-[#b83038] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Withdraw PO"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Confirm Receipt Modal ─────────────────────────────────────────────────────
-
-function ConfirmReceiptModal({
-  open, onClose, onConfirm, isPending, lineItems,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onConfirm: (payload: ConfirmReceiptPayload) => void;
-  isPending: boolean;
-  lineItems: any[];
-}) {
-  const today = new Date().toISOString().slice(0, 10);
-  const [receivedAt, setReceivedAt] = useState(today);
-  const [notes, setNotes] = useState("");
-  const [quantities, setQuantities] = useState<Record<string, number>>(() =>
-    Object.fromEntries((lineItems || []).map((li: any) => [li.purchaseOrderLineItemId, li.quantity ?? 1]))
-  );
-
-  if (!open) return null;
-
-  const handleSubmit = () => {
-    onConfirm({
-      receivedAt: new Date(receivedAt).toISOString(),
-      notes: notes || undefined,
-      lineItems: lineItems.map((li: any) => ({
-        purchaseOrderLineItemId: li.purchaseOrderLineItemId,
-        name: li.name,
-        quantityReceived: quantities[li.purchaseOrderLineItemId] ?? li.quantity,
-        notes: undefined,
-      })),
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-lg mx-4 p-6 space-y-5 max-h-[90vh] overflow-y-auto">
-        <button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
-          <X className="w-4 h-4 text-[#68726d]" />
-        </button>
-
-        <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-full bg-[#f0faf8] flex items-center justify-center shrink-0">
-            <PackageCheck className="w-5 h-5 text-[#087f70]" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-[#0b100e]">Confirm Delivery Receipt</h3>
-            <p className="text-sm text-[#68726d] mt-0.5">Enter the quantities received for each line item.</p>
-          </div>
-        </div>
-
-        {/* Received At */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-[#0b100e]">Date Received <span className="text-[#d33d44]">*</span></label>
-          <input
-            type="date" value={receivedAt} onChange={e => setReceivedAt(e.target.value)}
-            className="w-full h-9 rounded-lg border border-black/[0.06] px-3 text-sm focus:outline-none focus:border-[#087f70] transition-colors"
-          />
-        </div>
-
-        {/* Line Items */}
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-[#0b100e]">Line Items</p>
-          <div className="border border-black/[0.06] rounded-[12px] overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[#f9faf9] border-b border-border/60">
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-[#68726d]">Item</th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-[#68726d]">Ordered</th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-[#68726d]">Received</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(lineItems || []).map((li: any) => (
-                  <tr key={li.purchaseOrderLineItemId} className="border-b border-border/40 last:border-0">
-                    <td className="px-4 py-3 font-medium text-[#0b100e]">{li.name}</td>
-                    <td className="px-4 py-3 text-center text-[#68726d]">{li.quantity}</td>
-                    <td className="px-4 py-3 text-center">
-                      <input
-                        type="number" min={0} max={li.quantity}
-                        value={quantities[li.purchaseOrderLineItemId] ?? li.quantity}
-                        onChange={e => setQuantities(prev => ({
-                          ...prev,
-                          [li.purchaseOrderLineItemId]: Math.min(li.quantity, Math.max(0, Number(e.target.value))),
-                        }))}
-                        className="w-20 h-8 text-center rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors mx-auto block"
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Notes */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-[#0b100e]">Notes <span className="text-[#68726d] font-normal">(optional)</span></label>
-          <textarea
-            value={notes} onChange={e => setNotes(e.target.value)}
-            placeholder="Any notes about the delivery…" rows={3}
-            className="w-full rounded-[12px] border border-black/[0.06] px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:border-[#087f70] transition-all"
-          />
-        </div>
-
-        <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium hover:bg-[#f9faf9] transition-colors">Cancel</button>
-          <button
-            onClick={handleSubmit} disabled={!receivedAt || isPending}
-            className="flex-1 h-10 rounded-[12px] bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Receipt"}
           </button>
         </div>
       </div>

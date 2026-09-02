@@ -44,7 +44,7 @@ function ConfirmationPage() {
         {isLoading ? <div className="flex items-center justify-center gap-2 py-20 text-[12px] text-[#75807b]"><Loader2 className="size-4 animate-spin text-[#087f70]" /> Loading receiving activity</div> : isError ? <div className="py-16 text-center"><p className="text-[12px] text-[#b93643]">Unable to load receiving activity.</p><button onClick={() => refetch()} className="mt-3 text-[11px] font-semibold text-[#087f70]">Try again</button></div> : filtered.length ? <div className="divide-y divide-black/[0.055] overflow-auto flex-1 min-h-0">{filtered.map((item) => {
           const id = item.purchaseOrderId || item.id || "";
           return (
-            <Link key={id} href={`/procurement/purchase-order/${id}`} className="group grid gap-3 px-5 py-4 transition hover:bg-[#f8fbfa] sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center">
+            <Link key={id} href={`/procurement/confirmation/${id}`} className="group grid gap-3 px-5 py-4 transition hover:bg-[#f8fbfa] sm:grid-cols-[1fr_1fr_auto] sm:items-center">
               <div>
                 <p className="text-[12px] font-semibold text-[#17211d]">{item.poNumber || "Purchase order"}</p>
                 <p className="mt-1 text-[10px] text-[#89918d]">{item.vendor?.displayName || item.vendor?.legalName || "Vendor pending"}</p>
@@ -55,8 +55,27 @@ function ConfirmationPage() {
                   {item.deliveryDate ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(item.deliveryDate)) : "Not specified"}
                 </p>
               </div>
-              <StatusBadge status={item.status} label={labels[item.status || ""] || item.status} />
-              <ArrowRight className="hidden size-4 text-[#a6adaa] transition group-hover:translate-x-0.5 group-hover:text-[#087f70] sm:block" />
+              <div className="flex justify-end">
+                {(() => {
+                  if (item.fulfillmentState === "fully_ready" || item.status === "ready_for_delivery") {
+                    return (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#f0faf8] text-[#087f70]">
+                        Fully Fulfilled
+                      </span>
+                    );
+                  }
+                  if (item.fulfillmentState === "partial" || item.status === "partially_delivered") {
+                    return (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
+                        Partially Fulfilled
+                      </span>
+                    );
+                  }
+                  return (
+                    <StatusBadge status={item.status} label={labels[item.status || ""] || item.status} />
+                  );
+                })()}
+              </div>
             </Link>
           );
         })}</div> : <div className="flex flex-col items-center py-16 text-center"><span className="flex size-11 items-center justify-center rounded-xl bg-[#edf4ff] text-[#3b67b0]"><Clock3 className="size-5" /></span><p className="mt-3 text-[13px] font-semibold">No receiving activity</p><p className="mt-1 text-[11px] text-[#89918d]">Issued purchase orders will appear here as suppliers prepare delivery.</p></div>}
