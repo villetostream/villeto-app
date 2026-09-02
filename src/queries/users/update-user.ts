@@ -14,7 +14,9 @@ import { QUERY_KEYS } from "@/shared/lib/query/keys";
  */
 export interface UserUpdatePayload {
     id: string;
-    roleId?: string;
+    companyRoleIds?: string[];
+    /** @deprecated Compatibility only; new screens must use companyRoleIds. */
+    companyRoleId?: string;
     jobTitle?: string;
     departmentId?: string;
     firstName?: string;

@@ -53,7 +53,7 @@ export default function LoginPage() {
       const userPermissions = getEffectiveCompanyPermissions(rootData.user ?? rootData);
       setCompanyPermissions(userPermissions);
       // Start proactive refresh so the token is renewed 5 min before expiry
-      const expiresInMs = (response.data as any).accessTokenExpiresInMs ?? 3600000;
+      const expiresInMs = response.data.accessTokenExpiresInMs ?? 3600000;
       scheduleTokenRefresh(expiresInMs);
       router.push("/dashboard");
     } catch (err: unknown) {
