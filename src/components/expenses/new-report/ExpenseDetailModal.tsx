@@ -21,6 +21,7 @@ interface PolicyViolationEntry {
   message: string;
   ruleType?: string;
   limitChecks?: any[];
+  actionText?: string;
 }
 
 interface ExpenseDetailModalProps {
@@ -205,23 +206,39 @@ export function ExpenseDetailModal({
                   const isDuplicate = v.ruleType === "DUPLICATE_RECEIPT" || v.ruleType === "duplicate_receipt";
                   const isApproval = v.ruleType === "APPROVAL_REQUIRED" || v.ruleType === "APPROVAL_THRESHOLD";
                   const timeLabel = lc?.timeUnit === "daily" ? "Today's" : lc?.timeUnit === "monthly" ? "This month's" : lc?.timeUnit === "weekly" ? "This week's" : "Period";
-                  const humanMsg = isReceipt
-                    ? "A receipt is required for this expense. You won't be able to submit until a receipt is attached."
-                    : isCategoryRestriction
-                    ? "Your company's policy doesn't allow expenses in this category for your role. Please choose a different category."
-                    : isDuplicate
-                    ? "This receipt appears to have been submitted before. Please use a different receipt."
-                    : isApproval
-                    ? "This expense requires additional approval and cannot be submitted without it."
-                    : lc
-                    ? `This expense exceeds your ${lc.timeUnit} spending limit. Reduce the amount to continue.`
-                    : (() => {
-                        let c = v.message;
-                        c = c.replace(/\s*\([A-Z][a-z]+ [A-Z][a-z]+\)/g, '');
-                        c = c.replace(/from\s+\d+\s+expenses?\s+in\s+the\s+same\s+\w+\s+[\w\s]+bucket,?\s*/gi, '');
-                        c = c.replace(/\bNGN\s*/g, '₦');
-                        return c;
-                      })();
+                  
+                  const cleanRawMessage = (msg: string) => {
+                    let c = msg;
+                    c = c.replace(/\s*\([A-Z][a-z]+ [A-Z][a-z]+\)/g, '');
+                    c = c.replace(/from\s+\d+\s+expenses?\s+in\s+the\s+same\s+\w+\s+[\w\s]+bucket,?\s*/gi, '');
+                    c = c.replace(/\bNGN\s*/g, '₦');
+                    return c;
+                  };
+
+                  let humanMsg = "";
+                  let bottomActionMsg = "";
+
+                  if (v.actionText && v.message) {
+                    humanMsg = cleanRawMessage(v.message);
+                    bottomActionMsg = v.actionText;
+                  } else {
+                    humanMsg = isReceipt
+                      ? "A receipt is required for this expense. You won't be able to submit until a receipt is attached."
+                      : isCategoryRestriction
+                      ? "Your company's policy doesn't allow expenses in this category for your role. Please choose a different category."
+                      : isDuplicate
+                      ? "This receipt appears to have been submitted before. Please use a different receipt."
+                      : isApproval
+                      ? "This expense requires additional approval and cannot be submitted without it."
+                      : lc
+                      ? `This expense exceeds your ${lc.timeUnit} spending limit. Reduce the amount to continue.`
+                      : cleanRawMessage(v.message);
+                      
+                    bottomActionMsg = isReceipt
+                      ? "Upload a receipt to resolve this block before saving."
+                      : "Adjust the expense details (e.g. reduce the amount) to resolve this block before saving.";
+                  }
+                  
                   return (
                   <div key={i} className="px-3 py-2.5 rounded-xl border bg-red-50 border-red-200 space-y-2">
                     <div className="flex items-start gap-2">
@@ -262,11 +279,7 @@ export function ExpenseDetailModal({
                         </div>
                       </div>
                     )}
-                    <p className="text-xs text-red-500">
-                      {isReceipt
-                        ? "Upload a receipt to resolve this block before saving."
-                        : "Adjust the expense details (e.g. reduce the amount) to resolve this block before saving."}
-                    </p>
+                    <p className="text-xs text-red-500">{bottomActionMsg}</p>
                   </div>
                 )})}
 
@@ -277,21 +290,33 @@ export function ExpenseDetailModal({
                 const isCategoryRestriction = v.ruleType === "CATEGORY_RESTRICTION" || v.ruleType === "CATEGORY_RESTRICTED";
                 const isApproval = v.ruleType === "APPROVAL_REQUIRED" || v.ruleType === "APPROVAL_THRESHOLD";
                 const timeLabel = lc?.timeUnit === "daily" ? "Today's" : lc?.timeUnit === "monthly" ? "This month's" : lc?.timeUnit === "weekly" ? "This week's" : "Period";
-                const humanMsg = isReceipt
-                  ? "A receipt is requested for this expense. You can still save it without one, but you'll need to explain why when submitting."
-                  : isCategoryRestriction
-                  ? "This category has restrictions under your company's policy. Contact your manager for guidance."
-                  : isApproval
-                  ? "This expense requires additional approval. Please provide a justification when submitting."
-                  : lc
-                  ? `This expense goes over your ${lc.timeUnit} spending limit. You can still save it, but you'll need to explain why when submitting.`
-                  : (() => {
-                      let c = v.message;
-                      c = c.replace(/\s*\([A-Z][a-z]+ [A-Z][a-z]+\)/g, '');
-                      c = c.replace(/from\s+\d+\s+expenses?\s+in\s+the\s+same\s+\w+\s+[\w\s]+bucket,?\s*/gi, '');
-                      c = c.replace(/\bNGN\s*/g, '₦');
-                      return c;
-                    })();
+                
+                const cleanRawMessage = (msg: string) => {
+                  let c = msg;
+                  c = c.replace(/\s*\([A-Z][a-z]+ [A-Z][a-z]+\)/g, '');
+                  c = c.replace(/from\s+\d+\s+expenses?\s+in\s+the\s+same\s+\w+\s+[\w\s]+bucket,?\s*/gi, '');
+                  c = c.replace(/\bNGN\s*/g, '₦');
+                  return c;
+                };
+
+                let humanMsg = "";
+                let hasActionText = false;
+                
+                if (v.actionText && v.message) {
+                  humanMsg = `${cleanRawMessage(v.message)} ${v.actionText}`;
+                  hasActionText = true;
+                } else {
+                  humanMsg = isReceipt
+                    ? "A receipt is requested for this expense. You can still save it without one, but you'll need to explain why when submitting."
+                    : isCategoryRestriction
+                    ? "This category has restrictions under your company's policy. Contact your manager for guidance."
+                    : isApproval
+                    ? "This expense requires additional approval. Please provide a justification when submitting."
+                    : lc
+                    ? `This expense goes over your ${lc.timeUnit} spending limit. You can still save it, but you'll need to explain why when submitting.`
+                    : cleanRawMessage(v.message);
+                }
+                
                 return (
                 <div key={i} className="px-3 py-2.5 rounded-xl border bg-amber-50 border-amber-200 space-y-2">
                   <div className="flex items-start gap-2">
