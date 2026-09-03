@@ -89,7 +89,7 @@ export default function ConfirmReceiptModal({
                 <thead>
                   <tr className="bg-[#f9faf9] border-b border-border/60">
                     <th className="px-4 py-3 text-left text-xs font-semibold text-[#68726d]">Item</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-[#68726d]">Expected</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-[#68726d]">Delivered</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-[#68726d] w-32">Received</th>
                   </tr>
                 </thead>

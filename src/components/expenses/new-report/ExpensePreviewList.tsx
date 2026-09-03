@@ -15,6 +15,8 @@ export interface PolicyViolation {
   ruleType?: string;
   limitChecks?: any[];
   categoryName?: string;
+  actionText?: string;
+  requiredFields?: string[];
 }
 
 export interface ExpenseItem {

@@ -45,7 +45,9 @@ export function PolicyCheckModal({
   // Deduplicate violations to handle backend duplicates
   const uniqueViolations = violations.filter((v, index, self) => 
     index === self.findIndex((t) => (
-      t.expenseId === v.expenseId && t.violation.ruleType === v.violation.ruleType
+      t.expenseId === v.expenseId && 
+      t.violation.ruleType === v.violation.ruleType && 
+      t.violation.message === v.violation.message
     ))
   );
 
@@ -140,15 +142,28 @@ export function PolicyCheckModal({
     );
   };
 
-  /** Creates a plain-English summary for all policy violation types */
   const getHumanSummary = (
     lc: NonNullable<PolicyViolation["limitChecks"]>[0] | undefined,
     categoryName: string | undefined,
     isHardBlock: boolean,
     ruleType?: string,
     rawMessage?: string,
+    actionText?: string,
   ) => {
     const catLabel = categoryName || "this category";
+
+    const cleanRawMessage = (msg: string) => {
+      let cleaned = msg;
+      cleaned = cleaned.replace(/\s*\([A-Z][a-z]+ [A-Z][a-z]+\)/g, '');
+      cleaned = cleaned.replace(/from\s+\d+\s+expenses?\s+in\s+the\s+same\s+\w+\s+[\w\s]+bucket,?\s*/gi, '');
+      cleaned = cleaned.replace(/\bNGN\s*/g, '₦');
+      return cleaned;
+    };
+
+    // If backend provides explicit actionText, it means we have the new dynamic response structure
+    if (actionText && rawMessage) {
+      return `${cleanRawMessage(rawMessage)} ${actionText}`;
+    }
 
     // Receipt requirement
     if (ruleType === "RECEIPT_REQUIRED" || ruleType === "RECEIPT_REQUIREMENT") {
@@ -160,16 +175,13 @@ export function PolicyCheckModal({
 
     // Category restriction / Scope
     if (ruleType === "CATEGORY_RESTRICTION" || ruleType === "CATEGORY_RESTRICTED" || ruleType === "SCOPE" || /restricted to:/i.test(rawMessage || "")) {
-      // Try to extract the restricted groups (e.g. "restricted to: People.")
       const match = rawMessage?.match(/restricted to:\s*([^.]+)\./i);
       const restrictedTo = match ? match[1].trim() : "specific roles or departments";
-      // Attempt to extract category from rawMessage as a bulletproof fallback if categoryName is missing
       let finalCatLabel = catLabel;
       if (finalCatLabel === "this category" && rawMessage) {
         const catMatch = rawMessage.match(/Category\s+"([^"]+)"/i);
         if (catMatch) finalCatLabel = catMatch[1];
       }
-
       return `Your profile does not match the active policy scope for the "${finalCatLabel}" category. This category's policies are restricted to designated departments, job grades, or management levels (e.g., ${restrictedTo}). Please choose a different category or contact your manager.`;
     }
 
@@ -192,16 +204,9 @@ export function PolicyCheckModal({
       return `This expense goes over your ${timeWord} spending limit for ${catLabel}. You can still submit it, but you'll need to explain why.`;
     }
 
-    // Generic fallback — clean up the raw backend message
+    // Generic fallback
     if (rawMessage) {
-      let cleaned = rawMessage;
-      // Remove parenthesized user names like "(Sarah Lee)"
-      cleaned = cleaned.replace(/\s*\([A-Z][a-z]+ [A-Z][a-z]+\)/g, '');
-      // Remove "from X expense(s) in the same daily/monthly ... bucket"
-      cleaned = cleaned.replace(/from\s+\d+\s+expenses?\s+in\s+the\s+same\s+\w+\s+[\w\s]+bucket,?\s*/gi, '');
-      // Replace "NGN" with ₦ for readability
-      cleaned = cleaned.replace(/\bNGN\s*/g, '₦');
-      return cleaned;
+      return cleanRawMessage(rawMessage);
     }
 
     return "This expense doesn't meet your company's policy requirements.";
@@ -253,12 +258,12 @@ export function PolicyCheckModal({
               {/* Hard Blocks */}
               {showHardSection && (
                 <div className="space-y-2">
-                  {hardBlocks.map((v) => {
+                  {hardBlocks.map((v, i) => {
                     const isReceiptViolation = v.violation.ruleType === "RECEIPT_REQUIRED";
                     const lc = v.violation.limitChecks?.[0];
                     return (
                     <div
-                      key={`${v.expenseId}-${v.violation.ruleType}`}
+                      key={`${v.expenseId}-${v.violation.ruleType}-${i}`}
                       className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start justify-between gap-3"
                     >
                       <div className="flex-1 min-w-0 space-y-2.5">
@@ -267,7 +272,7 @@ export function PolicyCheckModal({
                           <p className="text-sm font-semibold text-foreground">{v.expenseName}</p>
                         </div>
                         <p className="text-[13px] text-red-800 leading-relaxed">
-                          {getHumanSummary(lc, v.violation.categoryName, true, v.violation.ruleType, v.violation.message)}
+                          {getHumanSummary(lc, v.violation.categoryName, true, v.violation.ruleType, v.violation.message, v.violation.actionText)}
                         </p>
                         {lc && renderSpendingBreakdown(lc, v.violation.categoryName, "red")}
                       </div>
@@ -289,11 +294,11 @@ export function PolicyCheckModal({
               {/* Soft Warnings — only show justification textareas when NO hard block exists */}
               {showSoftSection && !hasHardBlocks && (
                 <div className="space-y-3">
-                  {softWarnings.map((v) => {
+                  {softWarnings.map((v, i) => {
                     const lc = v.violation.limitChecks?.[0];
                     return (
                     <div
-                      key={`${v.expenseId}-${v.violation.ruleType}`}
+                      key={`${v.expenseId}-${v.violation.ruleType}-${i}`}
                       className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-3"
                     >
                       <div className="space-y-2.5">
@@ -302,7 +307,7 @@ export function PolicyCheckModal({
                           <p className="text-sm font-semibold text-foreground">{v.expenseName}</p>
                         </div>
                         <p className="text-[13px] text-amber-800 leading-relaxed">
-                          {getHumanSummary(lc, v.violation.categoryName, false, v.violation.ruleType, v.violation.message)}
+                          {getHumanSummary(lc, v.violation.categoryName, false, v.violation.ruleType, v.violation.message, v.violation.actionText)}
                         </p>
                         {lc && renderSpendingBreakdown(lc, v.violation.categoryName, "amber")}
                       </div>
@@ -328,11 +333,11 @@ export function PolicyCheckModal({
                   <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mt-2">
                     Also in this report — pending
                   </p>
-                  {softWarnings.map((v) => {
+                  {softWarnings.map((v, i) => {
                     const lc = v.violation.limitChecks?.[0];
                     return (
                     <div
-                      key={v.expenseId}
+                      key={`${v.expenseId}-${i}`}
                       className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-2"
                     >
                       <div className="flex items-center gap-2 mb-0.5">
@@ -340,7 +345,7 @@ export function PolicyCheckModal({
                         <p className="text-sm font-semibold text-foreground">{v.expenseName}</p>
                       </div>
                       <p className="text-[13px] text-amber-800 leading-relaxed">
-                        {getHumanSummary(lc, v.violation.categoryName, false, v.violation.ruleType, v.violation.message)}
+                        {getHumanSummary(lc, v.violation.categoryName, false, v.violation.ruleType, v.violation.message, v.violation.actionText)}
                       </p>
                       {lc && renderSpendingBreakdown(lc, v.violation.categoryName, "amber")}
                       <p className="text-xs text-muted-foreground mt-1 italic">

@@ -86,8 +86,10 @@ export interface PolicyViolationItem {
   type?: string;
   message?: string;
   enforcementAction?: string;
+  actionText?: string;
   limitChecks?: PolicyLimitCheck[];
   categoryName?: string;
+  requiredFields?: string[];
 }
 
 export interface PolicyCauseItem {
@@ -149,9 +151,11 @@ function parseViolationItems(items: unknown[], expenseAmount?: number): PolicyVi
     return {
       type,
       message,
-      enforcementAction: getOptionalString(v.enforcementAction),
+      enforcementAction: getOptionalString(v.enforcementAction) ?? (getOptionalString(v.actionStatus)?.toLowerCase() === "block" ? "block" : getOptionalString(v.actionStatus)?.toLowerCase() === "action_required" ? "soft_warn" : undefined),
+      actionText: getOptionalString(v.actionText),
       limitChecks,
       categoryName: getOptionalString(v.categoryName),
+      requiredFields: asArray(v.requiredFields).map((f) => getString(f)),
     };
   });
 }
@@ -501,6 +505,8 @@ export function mapPolicyResultsToExpenses<
           message: v.message || "Policy violation",
           ruleType: v.type,
           limitChecks: v.limitChecks,
+          actionText: v.actionText,
+          requiredFields: v.requiredFields,
         };
       }),
     };

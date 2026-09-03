@@ -763,6 +763,8 @@ export default function NewReportPage() {
                     ruleType: v.type,
                     limitChecks: (v as any).limitChecks,
                     categoryName: (v as any).categoryName ?? result.categoryName ?? undefined,
+                    actionText: v.actionText,
+                    requiredFields: v.requiredFields,
                   },
                   justification: exp.justification,
                 });
@@ -770,7 +772,7 @@ export default function NewReportPage() {
                 // so the next submit payload includes it (even if user bypasses the modal)
                 if (!isHard) {
                   newRequiredActions[exp.id] = {
-                    requiredFields: ["policyJustification"],
+                    requiredFields: v.requiredFields?.length ? v.requiredFields : ["policyJustification"],
                     message: humanizeReceiptMessage(v.message ?? "Justification required"),
                     type: v.type,
                     expenseIndex: idx,
