@@ -189,7 +189,7 @@ export default function Reimbursements() {
   // ── Stats helpers ─────────────────────────────────────────────────────────
   const calculateStats = (data: CompanyExpenseReport[]) => ({
     totalExpenses:    data.length,
-    pendingApprovals: data.filter(i => i.status === "pending").length,
+    pendingApprovals: data.filter(i => i.status === "submitted").length,
     approvedExpenses: data.filter(i => i.status === "approved" || i.status === "paid").length,
     paidExpenses:     data.filter(i => i.status === "paid").length,
   });
@@ -208,7 +208,7 @@ export default function Reimbursements() {
   // ── Status filter tabs (shared definition) ────────────────────────────────
   const expenseStatusTabs = [
     { key: "all",      filter: null as string | null },
-    { key: "pending",  filter: "pending" },
+    { key: "pending",  filter: "submitted" },
     { key: "approved", filter: "approved" },
     { key: "rejected", filter: "rejected" },
     { key: "paid",     filter: "paid" },
@@ -220,12 +220,8 @@ export default function Reimbursements() {
 
   /** Pending badge counts — computed client-side from already-fetched data.
    *  When the backend adds requiresMyApproval, swap these for a dedicated query. */
-  const companyPendingCount = canApproveExpense
-    ? companyExpenses.filter(e => e.status === "pending").length
-    : 0;
-  const teamPendingCount = canApproveExpense
-    ? teamExpenses.filter(e => e.status === "pending").length
-    : 0;
+  const companyPendingCount = companyExpenses.filter(e => e.status === "submitted").length;
+  const teamPendingCount = teamExpenses.filter(e => e.status === "submitted").length;
 
 
   // ── Render helpers ────────────────────────────────────────────────────────
@@ -281,7 +277,7 @@ export default function Reimbursements() {
                 <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">All</TabsTrigger>
                 <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">
                   Awaiting Approval
-                  {pendingCount > 0 && (
+                  {scope === "team" && pendingCount > 0 && (
                     <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#d33d44] text-white text-[10px] font-bold leading-none">
                       {pendingCount > 99 ? "99+" : pendingCount}
                     </span>

@@ -187,6 +187,7 @@ export interface CompanyExpensesResponse {
 export const usePersonalExpenses = (
   page: number = 1,
   limit: number = 10,
+  status?: string | null,
   sortBy?: string,
   sortOrder?: "asc" | "desc"
 ) => {
@@ -200,11 +201,12 @@ export const usePersonalExpenses = (
   // Returning `error`/`refetch` here lets the caller show a real
   // error state with a retry action instead of a misleading empty one.
   return useQuery({
-    queryKey: [...QUERY_KEYS.expenses.reports("own"), page, limit, sortBy, sortOrder],
+    queryKey: [...QUERY_KEYS.expenses.reports("own"), page, limit, status, sortBy, sortOrder],
     enabled: authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("scope", "own");
+      if (status) params.append("status", status);
       params.append("page", page.toString());
       params.append("limit", limit.toString());
       if (sortBy) params.append("sortBy", sortBy);
@@ -238,31 +240,33 @@ export const useDraftExpenses = (
     enabled: authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.append("scope", "own");
+      params.append("status", "draft");
       params.append("page", page.toString());
       params.append("limit", limit.toString());
       if (sortBy) params.append("sortBy", sortBy);
       if (sortOrder) params.append("sortOrder", sortOrder);
 
-      // The draft endpoint wraps the data inside an extra 'data' object
-      const response = await axios.get<any>(
-        `reports/drafts?${params.toString()}`
+      // The draft endpoint now uses the standard reports endpoint
+      const response = await axios.get<PersonalExpensesApiResponse>(
+        `reports?${params.toString()}`
       );
       
-      const innerData = response.data?.data || {};
+      const innerData = response.data || {};
       const reportsArray = Array.isArray(innerData.data) ? innerData.data : [];
       
       // Map draft fields to match PersonalExpenseReport structure
       const reports = reportsArray.map((r: any) => {
-        const totalAmount = Array.isArray(r.expensesPayload)
+        const totalAmount = r.totalAmount ?? (Array.isArray(r.expensesPayload)
           ? r.expensesPayload.reduce((sum: number, exp: any) => sum + (Number(exp.amount) || 0), 0)
-          : 0;
+          : 0);
 
         return {
           ...r,
           status: "draft" as const,
-          reportId: r.draftId, // Map draftId to reportId so the Edit link works
+          reportId: r.reportId || r.draftId, // Map draftId to reportId so the Edit link works
           totalAmount: totalAmount,
-          costCenter: "Uncategorized", // Drafts don't have a cost center yet
+          costCenter: r.costCenter || "Uncategorized", 
         };
       });
       

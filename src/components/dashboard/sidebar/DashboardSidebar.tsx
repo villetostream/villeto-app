@@ -224,11 +224,10 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   );
   const totalPOActionCount = (poApprovalData as unknown as number) ?? 0;
 
-  const canApproveExpense = can("expense.report", "approve");
-  const expScope = can("expense.report", "read_company") ? "company" : can("expense.report", "read_department") ? "team" : null;
-  const { data: expensesData } = useCompanyExpenses(1, 100, expScope || "company", undefined, undefined, !!expScope && canApproveExpense);
-  const totalExpenseActionCount = canApproveExpense && expensesData?.reports
-    ? expensesData.reports.filter(e => e.status === "pending").length
+  const canReadTeam = can("expense.report", "read_department");
+  const { data: expensesData } = useCompanyExpenses(1, 100, "team", undefined, undefined, canReadTeam);
+  const totalExpenseActionCount = canReadTeam && expensesData?.reports
+    ? expensesData.reports.filter(e => e.status === "submitted").length
     : 0;
 
   const filterItems = (items: NavItem[]): NavItem[] => {
