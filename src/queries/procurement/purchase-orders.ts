@@ -335,16 +335,55 @@ export const useClosePurchaseOrder = () => {
   });
 };
 
+export const useShortClosePOLine = (purchaseOrderId: string) => {
+  const axios = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ lineItemId, quantity, reason }: { lineItemId: string; quantity: number; reason: string }) => {
+      const response = await axios.post(
+        PROCUREMENT_KEYS.SHORT_CLOSE_PO_LINE(purchaseOrderId, lineItemId),
+        { quantity, reason },
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
+    },
+  });
+};
+
+export const useConfirmPOFinalBilling = (purchaseOrderId: string) => {
+  const axios = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ reason }: { reason: string }) => {
+      const response = await axios.post(
+        PROCUREMENT_KEYS.CONFIRM_FINAL_BILLING(purchaseOrderId),
+        { reason },
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
+    },
+  });
+};
+
 // ── Confirm Receipt ─────────────────────────────────────────────────────────
 
 export interface ReceiptLineItem {
-  purchaseOrderLineItemId: string;
+  fulfillmentLineItemId: string;
   name?: string;
   quantityReceived: number;
   notes?: string;
 }
 
 export interface ConfirmReceiptPayload {
+  receiptReference: string;
   receivedAt: string;
   notes?: string;
   lineItems: ReceiptLineItem[];
@@ -355,8 +394,11 @@ export const useConfirmPOReceipt = (id: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: ConfirmReceiptPayload) => {
-      const response = await axios.post(PROCUREMENT_KEYS.CONFIRM_RECEIPT(id), payload);
+    mutationFn: async ({ fulfillmentId, payload }: { fulfillmentId: string; payload: ConfirmReceiptPayload }) => {
+      const response = await axios.post(
+        PROCUREMENT_KEYS.CONFIRM_FULFILLMENT_RECEIPT(id, fulfillmentId),
+        payload,
+      );
       return response.data;
     },
     onSuccess: () => {

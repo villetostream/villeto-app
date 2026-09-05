@@ -67,10 +67,14 @@ function WorkflowStep({ label, person, timestamp, done, pending, isLast, badge, 
   );
 }
 
-function FulfillmentHistoryCard({ notice, index, canReceive, onReceive }: { notice: any; index: number; canReceive: boolean; onReceive: () => void; }) {
+function FulfillmentHistoryCard({ notice, index, canReceive, onReceive, purchaseOrderLineItems, outstandingAfterReceiptByFulfillmentLineId }: { notice: any; index: number; canReceive: boolean; onReceive: () => void; purchaseOrderLineItems: any[]; outstandingAfterReceiptByFulfillmentLineId: Map<string, number>; }) {
   const [expanded, setExpanded] = useState(false);
   const isDigital = notice.fulfillmentMethod === "digital";
   const titlePrefix = isDigital ? "Digital Delivery" : "Shipment";
+  const canReceiveThisFulfillment =
+    canReceive &&
+    notice.dispatchStatus === "dispatched" &&
+    (notice.lineItems || []).some((item: any) => Number(item.quantityAwaitingReceipt || 0) > 0);
 
   return (
     <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
@@ -94,7 +98,7 @@ function FulfillmentHistoryCard({ notice, index, canReceive, onReceive }: { noti
               {notice.dispatchStatus === "dispatched" ? "Dispatched" : "Pending Dispatch"}
             </span>
           )}
-          {canReceive && (
+          {canReceiveThisFulfillment && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -146,16 +150,38 @@ function FulfillmentHistoryCard({ notice, index, canReceive, onReceive }: { noti
                 <tr className="border-y border-black/[0.06] bg-[#f9faf9]">
                   <th className="px-5 py-2.5 text-left text-xs font-semibold text-[#68726d] whitespace-nowrap">Item</th>
                   <th className="px-5 py-2.5 text-left text-xs font-semibold text-[#68726d] whitespace-nowrap">Included Qty</th>
+                  <th className="px-5 py-2.5 text-left text-xs font-semibold text-[#68726d] whitespace-nowrap">Received in Shipment</th>
+                  <th className="px-5 py-2.5 text-left text-xs font-semibold text-[#68726d] whitespace-nowrap">Awaiting Receipt</th>
+                  <th className="px-5 py-2.5 text-left text-xs font-semibold text-[#68726d] whitespace-nowrap">PO Outstanding After Receipt</th>
                   <th className="px-5 py-2.5 text-left text-xs font-semibold text-[#68726d] whitespace-nowrap">Remaining Disposition</th>
                 </tr>
               </thead>
               <tbody>
                 {(notice.lineItems || []).map((item: any, i: number) => {
-                  const remainingQty = Math.max(0, (item.quantityOrdered || item.quantity || 0) - (item.quantityReady || 0));
+                  const poLineItem = purchaseOrderLineItems.find(
+                    (lineItem: any) => lineItem.purchaseOrderLineItemId === item.purchaseOrderLineItemId,
+                  );
+                  const orderedQuantity = Number(poLineItem?.quantity ?? item.quantityOrdered ?? item.quantity ?? 0);
+                  const outstandingAfterReceipt = outstandingAfterReceiptByFulfillmentLineId.get(
+                    item.vendorDeliveryNoticeLineItemId,
+                  );
+                  const remainingQty = Math.max(0, orderedQuantity - (item.quantityReady || 0));
                   return (
                   <tr key={i} className="border-b border-black/[0.04] last:border-b-0">
                     <td className="px-5 py-3 font-medium text-[#111815]">{item.name || "Item"}</td>
-                    <td className="px-5 py-3 text-[#111815]">{item.quantityReady || 0} / {item.quantityOrdered || item.quantity || 0} total</td>
+                    <td className="px-5 py-3 text-[#111815]">{item.quantityReady || 0} included</td>
+                    <td className="px-5 py-3 text-[#111815]">{item.quantityReceived || 0}</td>
+                    <td className="px-5 py-3 text-[#111815]">{item.quantityAwaitingReceipt || 0}</td>
+                    <td className="px-5 py-3 text-[#111815]">
+                      {outstandingAfterReceipt === undefined ? (
+                        "—"
+                      ) : (
+                        <div>
+                          <p className="font-medium">{outstandingAfterReceipt} remaining</p>
+                          <p className="text-[11px] text-[#89918d]">of {orderedQuantity} ordered</p>
+                        </div>
+                      )}
+                    </td>
                     <td className="px-5 py-3">
                       <div className="flex flex-col gap-1 items-start">
                         {item.remainingDisposition === "cannot_fulfill" ? (
@@ -218,6 +244,46 @@ function ConfirmationDetailPage() {
 
   const po = data.data as any;
   const canReceive = po.status === "ready_for_delivery" || po.status === "partially_delivered";
+  const fulfillmentHistory = [...(po.deliveryNotices || [])].sort(
+    (left: any, right: any) =>
+      new Date(left.readyAt || left.shippedAt).getTime() -
+      new Date(right.readyAt || right.shippedAt).getTime(),
+  );
+  const outstandingAfterReceiptByFulfillmentLineId = new Map<string, number>();
+  const outstandingByPurchaseOrderLineId = new Map<string, number>(
+    (po.lineItems || []).map((lineItem: any) => [
+      lineItem.purchaseOrderLineItemId,
+      Math.max(
+        Number(lineItem.quantity || 0) - Number(lineItem.shortClosedQuantity || 0),
+        0,
+      ),
+    ]),
+  );
+
+  for (const notice of fulfillmentHistory) {
+    for (const lineItem of notice.lineItems || []) {
+      const purchaseOrderLineItemId = lineItem.purchaseOrderLineItemId;
+      if (!purchaseOrderLineItemId) continue;
+
+      const outstandingBeforeReceipt = outstandingByPurchaseOrderLineId.get(
+        purchaseOrderLineItemId,
+      );
+      if (outstandingBeforeReceipt === undefined) continue;
+
+      const outstandingAfterReceipt = Math.max(
+        outstandingBeforeReceipt - Number(lineItem.quantityReceived || 0),
+        0,
+      );
+      outstandingByPurchaseOrderLineId.set(
+        purchaseOrderLineItemId,
+        outstandingAfterReceipt,
+      );
+      outstandingAfterReceiptByFulfillmentLineId.set(
+        lineItem.vendorDeliveryNoticeLineItemId,
+        outstandingAfterReceipt,
+      );
+    }
+  }
 
   const stage = (po.status || "").toLowerCase();
   const isDelivered = stage === "partially_delivered" || stage === "delivered";
@@ -459,8 +525,16 @@ function ConfirmationDetailPage() {
             <div className="space-y-4">
               <h2 className="text-base font-semibold text-[#0b100e]">Shipment History</h2>
               <div className="flex flex-col gap-4">
-                {po.deliveryNotices.map((notice: any, idx: number) => (
-                  <FulfillmentHistoryCard key={idx} notice={notice} index={idx} canReceive={canReceive} onReceive={() => setActiveNotice(notice)} />
+                {fulfillmentHistory.map((notice: any, idx: number) => (
+                  <FulfillmentHistoryCard
+                    key={notice.vendorDeliveryNoticeId || idx}
+                    notice={notice}
+                    index={idx}
+                    canReceive={canReceive}
+                    onReceive={() => setActiveNotice(notice)}
+                    purchaseOrderLineItems={po.lineItems || []}
+                    outstandingAfterReceiptByFulfillmentLineId={outstandingAfterReceiptByFulfillmentLineId}
+                  />
                 ))}
               </div>
             </div>
@@ -502,7 +576,10 @@ function ConfirmationDetailPage() {
           onClose={() => setActiveNotice(null)}
           onConfirm={async (payload) => {
             try {
-              await receiptMut.mutateAsync(payload);
+              await receiptMut.mutateAsync({
+                fulfillmentId: activeNotice.vendorDeliveryNoticeId,
+                payload,
+              });
               toast.success("Delivery receipt confirmed.");
               setActiveNotice(null);
             } catch (err: any) {

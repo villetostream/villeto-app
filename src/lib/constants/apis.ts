@@ -122,12 +122,17 @@ export const PROCUREMENT_KEYS = {
   CANCEL_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/cancel` as const,
   ISSUE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/issue` as const,
   CLOSE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/close` as const,
+  SHORT_CLOSE_PO_LINE: (purchaseOrderId: string, purchaseOrderLineItemId: string) =>
+    `procurement/purchase-orders/${purchaseOrderId}/line-items/${purchaseOrderLineItemId}/short-close` as const,
+  CONFIRM_FINAL_BILLING: (id: string) =>
+    `procurement/purchase-orders/${id}/finalize-billing` as const,
   /** PATCH — submit a standalone (non-PR) PO into the approval chain */
   SUBMIT_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/submit-for-approval` as const,
   /** PATCH — approve or reject a submitted PO */
   APPROVE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/approval-decision` as const,
-  /** POST — confirm delivery receipt for an issued/delivered PO */
-  CONFIRM_RECEIPT: (id: string) => `procurement/purchase-orders/${id}/confirm-receipt` as const,
+  /** POST — confirm physical receipt against one dispatched fulfillment */
+  CONFIRM_FULFILLMENT_RECEIPT: (purchaseOrderId: string, fulfillmentId: string) =>
+    `procurement/purchase-orders/${purchaseOrderId}/fulfillments/${fulfillmentId}/receipts` as const,
   /** POST — add line items to a draft (non-PR) PO */
   PO_LINE_ITEMS: (id: string) => `procurement/purchase-orders/${id}/line-items` as const,
   // ── Procurement Policy endpoints ─────────────────────────────────────────
@@ -150,4 +155,3 @@ export const POLICY_GOVERNANCE_KEYS = {
   /** GET  /policy/approval-settings/eligible-roles?target=:target */
   ELIGIBLE_ROLES:            (target: string) => `policy/approval-settings/eligible-roles?target=${target}` as const,
 } as const;
-
