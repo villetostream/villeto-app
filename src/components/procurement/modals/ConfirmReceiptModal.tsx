@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PackageCheck, Loader2 } from "lucide-react";
 import { type ConfirmReceiptPayload } from "@/queries/procurement/purchase-orders";
 
@@ -31,23 +31,39 @@ export default function ConfirmReceiptModal({
 }) {
   const [receivedAt, setReceivedAt] = useState<Date | undefined>(new Date());
   const [notes, setNotes] = useState("");
+  const [receiptReference, setReceiptReference] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>(() =>
     Object.fromEntries((lineItems || []).map((li: any) => [
-      li.purchaseOrderLineItemId, 
-      li.quantityReady ?? li.quantity ?? 1
+      li.vendorDeliveryNoticeLineItemId,
+      li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1
     ]))
   );
+
+  useEffect(() => {
+    if (!open) return;
+    setReceivedAt(new Date());
+    setNotes("");
+    setQuantities(Object.fromEntries((lineItems || []).map((li: any) => [
+      li.vendorDeliveryNoticeLineItemId,
+      li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1,
+    ])));
+    setReceiptReference(typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `RCV-${Date.now()}`);
+  }, [open, lineItems]);
 
   const handleSubmit = () => {
     if (!receivedAt) return;
     
     onConfirm({
+      receiptReference,
       receivedAt: receivedAt.toISOString(),
       notes: notes || undefined,
       lineItems: lineItems.map((li: any) => ({
-        purchaseOrderLineItemId: li.purchaseOrderLineItemId,
+        fulfillmentLineItemId: li.vendorDeliveryNoticeLineItemId,
         name: li.name,
-        quantityReceived: quantities[li.purchaseOrderLineItemId] ?? (li.quantityReady ?? li.quantity),
+        quantityReceived: quantities[li.vendorDeliveryNoticeLineItemId] ??
+          (li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity),
         notes: undefined,
       })),
     });
@@ -89,15 +105,15 @@ export default function ConfirmReceiptModal({
                 <thead>
                   <tr className="bg-[#f9faf9] border-b border-border/60">
                     <th className="px-4 py-3 text-left text-xs font-semibold text-[#68726d]">Item</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-[#68726d]">Delivered</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-[#68726d]">Awaiting receipt</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-[#68726d] w-32">Received</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(lineItems || []).map((li: any) => {
-                    const maxQty = li.quantityReady ?? li.quantity;
+                    const maxQty = li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity;
                     return (
-                      <tr key={li.purchaseOrderLineItemId} className="border-b border-border/40 last:border-0">
+                      <tr key={li.vendorDeliveryNoticeLineItemId} className="border-b border-border/40 last:border-0">
                         <td className="px-4 py-3 font-medium text-[#0b100e] align-middle">{li.name}</td>
                         <td className="px-4 py-3 text-center text-[#68726d] align-middle">{maxQty}</td>
                         <td className="px-4 py-2 text-center align-middle">
@@ -105,10 +121,10 @@ export default function ConfirmReceiptModal({
                             type="number" 
                             min={0} 
                             max={maxQty}
-                            value={quantities[li.purchaseOrderLineItemId] ?? maxQty}
+                            value={quantities[li.vendorDeliveryNoticeLineItemId] ?? maxQty}
                             onChange={e => setQuantities(prev => ({
                               ...prev,
-                              [li.purchaseOrderLineItemId]: Math.min(maxQty, Math.max(0, Number(e.target.value))),
+                              [li.vendorDeliveryNoticeLineItemId]: Math.min(maxQty, Math.max(0, Number(e.target.value))),
                             }))}
                             disabled={isPending}
                             className="w-20 text-center mx-auto"
