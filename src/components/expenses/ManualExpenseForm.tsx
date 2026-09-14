@@ -43,8 +43,7 @@ import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 import { CompanyExpenseItemModal } from "@/components/expenses/company/CompanyExpenseItemModal";
 import { PolicyJustificationDrawer, type PolicyRequiredAction } from "@/components/expenses/PolicyJustificationDrawer";
 import {
-  extractedReceiptValues,
-  uploadAndExtractReceipt,
+  uploadReceiptOnly,
 } from "@/lib/receipt-extraction";
 
 interface ExpenseCategory {
@@ -489,37 +488,17 @@ export function ManualExpenseForm({
     }
 
     try {
-      const toastId = toast.loading("Reading receipt…");
+      const toastId = toast.loading("Uploading receipt…");
       try {
-        const extraction = await uploadAndExtractReceipt(axios, file);
-        const extracted = extractedReceiptValues(extraction);
+        // Manual entry: only upload the file — no OCR needed.
+        // The user is entering expense details themselves, so calling the OCR
+        // service here causes significant lag and blocks the UI unnecessarily.
+        const extraction = await uploadReceiptOnly(axios, file);
         form.setValue(`expenses.${expenseIndex}.pendingReceipt`, extraction.receiptUrl, { shouldDirty: true });
         form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, extraction.expenseReceiptExtractionId, { shouldDirty: true });
-        if (extracted.merchantName) {
-          form.setValue(`expenses.${expenseIndex}.vendor`, extracted.merchantName, {
-            shouldDirty: true,
-          });
-          if (!form.getValues(`expenses.${expenseIndex}.title`)) {
-            form.setValue(`expenses.${expenseIndex}.title`, extracted.merchantName, {
-              shouldDirty: true,
-            });
-          }
-        }
-        if (extracted.amount > 0) {
-          form.setValue(`expenses.${expenseIndex}.amount`, extracted.amount, {
-            shouldDirty: true,
-          });
-        }
-        form.setValue(
-          `expenses.${expenseIndex}.transactionDate`,
-          extracted.transactionDate,
-          { shouldDirty: true },
-        );
-        toast.success("Receipt details added. Review them before saving.", {
-          id: toastId,
-        });
+        toast.success("Receipt attached.", { id: toastId });
       } catch (error) {
-        logger.error("Receipt extraction failed:", error);
+        logger.error("Receipt upload failed:", error);
         const base64 = await fileToBase64(file);
         form.setValue(`expenses.${expenseIndex}.pendingReceipt`, base64, { shouldDirty: true });
         form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", { shouldDirty: true });

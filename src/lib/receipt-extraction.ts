@@ -71,6 +71,18 @@ export async function uploadReceipt(
   return unwrap<ReceiptExtraction>(response.data);
 }
 
+/**
+ * Uploads a receipt document without waiting for OCR extraction.
+ * Use this for manual entry flows where the user is entering data themselves —
+ * triggering OCR polling causes significant lag and blocks the UI unnecessarily.
+ */
+export async function uploadReceiptOnly(
+  axios: AxiosInstance,
+  file: File,
+): Promise<ReceiptExtraction> {
+  return uploadReceipt(axios, file);
+}
+
 export async function waitForReceiptExtraction(
   axios: AxiosInstance,
   extractionId: string,

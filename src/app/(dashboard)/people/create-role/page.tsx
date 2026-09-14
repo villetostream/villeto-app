@@ -23,7 +23,6 @@ import { useGetAllRoleCapabilitiesApi } from "@/queries/role/get-role-capabiliti
 import { useGetARoleApi } from "@/queries/role/get-a-role";
 import type { CapabilityGroup, Role, RoleCapabilityInput } from "@/queries/role/get-all-roles";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
-import { useLegalEntities } from "@/queries/legal-entities";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
@@ -37,7 +36,6 @@ import { RoleCapabilityEditor } from "@/components/dashboard/people/role/RoleCap
 import {
   capabilitiesEqual,
   capabilitiesFromRole,
-  newlySelectedSensitiveCapabilities,
   normalizeCapabilities,
 } from "@/features/auth/role-capability-form";
 
@@ -57,17 +55,14 @@ function RoleEditorForm({
   const isCurrentUserOwner = (user?.companyRole?.templateKey || (user as any)?.villetoRole?.templateKey) === "owner";
   
   const { data: departmentsData } = useGetAllDepartmentsApi();
-  const { data: legalEntitiesData } = useLegalEntities({ enabled: true });
   
   const departments = useMemo(() => departmentsData?.data || [], [departmentsData]);
-  const legalEntities = useMemo(() => legalEntitiesData?.data || [], [legalEntitiesData]);
 
   const [initialCapabilities] = useState<RoleCapabilityInput[]>(() =>
     capabilitiesFromRole(role?.selectedCapabilities, catalog),
   );
   
   const [capabilities, setCapabilities] = useState<RoleCapabilityInput[]>(initialCapabilities);
-  const [confirmedSensitiveAccess, setConfirmedSensitiveAccess] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const createRole = useCreateRoleApi();
@@ -93,11 +88,6 @@ function RoleEditorForm({
 
   const capabilitiesChanged = !capabilitiesEqual(capabilities, initialCapabilities);
   const hasChanges = !isEditMode || isDirty || capabilitiesChanged;
-  
-  const newlySensitiveKeys = useMemo(
-    () => newlySelectedSensitiveCapabilities(initialCapabilities, capabilities, catalog),
-    [capabilities, catalog, initialCapabilities],
-  );
   
   const isSaving = createRole.isPending || updateRole.isPending || updateCapabilities.isPending;
 
@@ -137,10 +127,6 @@ function RoleEditorForm({
 
   const handleSubmit = async () => {
     const data = getValues();
-    if (newlySensitiveKeys.length && !confirmedSensitiveAccess) {
-      toast.error("Confirm the sensitive capabilities before saving this role.");
-      return;
-    }
 
     try {
       if (roleId) {
@@ -225,8 +211,10 @@ function RoleEditorForm({
                   onCheckedChange={(checked) => reset({ ...getValues(), isActive: checked === true })}
                 />
                 <span>
-                  <span className="block text-[13px] font-semibold text-[#303834]">Role is active</span>
-                  <span className="block text-[11px] text-[#66706b]">Inactive roles cannot remain the only active role for an assigned user.</span>
+                  <span className="block text-[13px] font-semibold text-[#303834]">
+                    Role Status: {formValues.isActive ? "Enabled" : "Disabled"}
+                  </span>
+                  <span className="block text-[11px] text-[#66706b]">Turn off to disable this role. Disabled roles will stop granting access and cannot be assigned to new people.</span>
                 </span>
               </label>
             )}
@@ -241,27 +229,11 @@ function RoleEditorForm({
               value={capabilities}
               onChange={(next) => {
                 setCapabilities(next);
-                setConfirmedSensitiveAccess(false);
               }}
               departments={departments}
-              legalEntities={legalEntities}
               isEditDisabled={blockedFromEditing}
             />
           </section>
-
-          {newlySensitiveKeys.length > 0 && (
-            <Alert className="border-red-200 bg-red-50 text-red-800">
-              <ShieldAlert className="size-4" />
-              <AlertTitle>Sensitive access is being added</AlertTitle>
-              <AlertDescription>
-                <p>Review the scope carefully for: {newlySensitiveKeys.map((key) => catalog.find((group) => group.key === key)?.name ?? key).join(", ")}.</p>
-                <label className="mt-3 flex cursor-pointer items-start gap-2 font-medium text-red-900">
-                  <Checkbox checked={confirmedSensitiveAccess} onCheckedChange={(checked) => setConfirmedSensitiveAccess(checked === true)} />
-                  <span>I confirm this role needs the selected sensitive access.</span>
-                </label>
-              </AlertDescription>
-            </Alert>
-          )}
 
           <div className="sticky bottom-0 pb-6 pt-4 mt-8 bg-[#f4f7f5] border-t border-black/[0.08] flex justify-end gap-4 z-20 after:absolute after:top-full after:left-0 after:right-0 after:h-[100px] after:bg-[#f4f7f5]">
             <Button type="button" variant="outline" onClick={handleCancel} disabled={isSaving} className="px-8 h-[46px] rounded-[10px]">Cancel</Button>

@@ -436,10 +436,21 @@ function PODetailPage() {
     );
   }
 
-  const createdById = typeof po.createdBy === "object" && po.createdBy
-    ? (po.createdBy as { userId?: string }).userId
-    : undefined;
-  const isOwnPO = !!user?.userId && !!createdById && user.userId === createdById;
+  const createdById = (po as any)?.createdById || (typeof po.createdBy === "object" && po.createdBy
+    ? (po.createdBy as any).userId || (po.createdBy as any).id
+    : undefined);
+  let isOwnPO = !!user?.userId && !!createdById && user.userId === createdById;
+
+  if (!isOwnPO && user) {
+    const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
+    let creatorName = "";
+    if (typeof po.createdBy === 'object' && po.createdBy) {
+      creatorName = `${(po.createdBy as any).firstName || ''} ${(po.createdBy as any).lastName || ''}`.trim().toLowerCase();
+    }
+    if (userFullName && creatorName && userFullName === creatorName) {
+      isOwnPO = true;
+    }
+  }
   const isSubmitterView = isOwnScope || isOwnPO;
   const stage = (po.status || "").toLowerCase() as WFStage;
 

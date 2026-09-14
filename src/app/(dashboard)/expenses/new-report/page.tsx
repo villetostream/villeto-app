@@ -38,6 +38,7 @@ import {
   extractedReceiptValues,
   type ReceiptExtraction,
   uploadAndExtractReceipt,
+  uploadReceiptOnly,
 } from "@/lib/receipt-extraction";
 
 interface ExpenseCategory {
@@ -345,15 +346,17 @@ function NewReportPage() {
     if (newReceipt?.startsWith("data:")) {
       replacementExtractionId = undefined;
       try {
-        const extraction = await uploadAndExtractReceipt(
+        // Editing an existing expense: only upload the file — no OCR needed.
+        // The user is updating details manually, so polling OCR causes lag.
+        const extraction = await uploadReceiptOnly(
           axios,
           dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
         );
         resolvedReceipt = extraction.receiptUrl;
         replacementExtractionId = extraction.expenseReceiptExtractionId;
       } catch (error) {
-        logger.error("Replacement receipt extraction failed:", error);
-        toast.warning("Receipt attached, but its details could not be read automatically.");
+        logger.error("Receipt upload failed during expense edit:", error);
+        toast.warning("Receipt attached, but it could not be saved to the server. Try again.");
       }
     }
     // Check if amount, category, or receipt changed BEFORE updating state (while old value is still in closure)
@@ -409,15 +412,16 @@ function NewReportPage() {
       let receiptExtractionId: string | undefined;
       if (newReceipt.startsWith("data:")) {
         try {
-          const extraction = await uploadAndExtractReceipt(
+          // Changing receipt from preview panel: only upload the file — no OCR needed.
+          const extraction = await uploadReceiptOnly(
             axios,
             dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
           );
           resolvedReceipt = extraction.receiptUrl;
           receiptExtractionId = extraction.expenseReceiptExtractionId;
         } catch (error) {
-          logger.error("Receipt replacement extraction failed:", error);
-          toast.warning("Receipt updated, but its details could not be read automatically.");
+          logger.error("Receipt upload failed during receipt change:", error);
+          toast.warning("Receipt could not be uploaded. Please try again.");
         }
       }
       setExpenses((prev) =>
