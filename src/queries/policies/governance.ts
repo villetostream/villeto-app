@@ -14,6 +14,7 @@ export interface ApproverRole {
   templateKey: string;
   /** user count — not yet provided by backend, will be undefined */
   userCount?: number;
+  description?: string;
 }
 
 export interface ApprovalSetting {

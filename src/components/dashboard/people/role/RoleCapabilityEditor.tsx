@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/tooltip";
 import type { CapabilityGroup, RoleCapabilityInput, CapabilityScopeType } from "@/queries/role/get-all-roles";
 import type { Department } from "@/queries/departments/get-all-departments";
-import type { LegalEntity } from "@/queries/legal-entities";
 import {
   selectCapability,
   removeCapability,
@@ -35,7 +34,6 @@ interface RoleCapabilityEditorProps {
   value: RoleCapabilityInput[];
   onChange: (capabilities: RoleCapabilityInput[]) => void;
   departments: Department[];
-  legalEntities: LegalEntity[];
   isEditDisabled?: boolean;
 }
 
@@ -64,7 +62,6 @@ export function RoleCapabilityEditor({
   value,
   onChange,
   departments,
-  legalEntities,
   isEditDisabled = false,
 }: RoleCapabilityEditorProps) {
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
@@ -180,11 +177,6 @@ export function RoleCapabilityEditor({
   const handleDepartmentToggle = (key: string, deptId: string) => {
     if (isEditDisabled) return;
     onChange(toggleScopeResource(value, key, "departmentIds", deptId));
-  };
-
-  const handleLegalEntityToggle = (key: string, entityId: string) => {
-    if (isEditDisabled) return;
-    onChange(toggleScopeResource(value, key, "legalEntityIds", entityId));
   };
 
   return (
@@ -341,7 +333,7 @@ export function RoleCapabilityEditor({
                                                   onCheckedChange={() => handleDepartmentToggle(group.key, dept.departmentId)}
                                                   className="w-4 h-4"
                                                 />
-                                                <span className="text-[13px] text-[#303834] truncate">{dept.name}</span>
+                                                <span className="text-[13px] text-[#303834] truncate">{dept.name || dept.departmentName || "Unnamed Department"}</span>
                                               </label>
                                             );
                                           })}
@@ -349,37 +341,6 @@ export function RoleCapabilityEditor({
                                       )}
                                     </div>
                                   )}
-
-                                  <div className="bg-[#fcfdfc] border border-black/[0.08] rounded-[8px] p-4">
-                                    <h4 className="text-[13px] font-semibold text-[#0b100e] mb-1">
-                                      Restrict to legal entities (optional)
-                                    </h4>
-                                    <p className="text-[12px] text-[#66706b] mb-3">
-                                      Leave blank to allow matching records across all legal entities in this company.
-                                    </p>
-                                    {legalEntities.length === 0 ? (
-                                      <p className="text-[12px] text-slate-400">No legal entities available.</p>
-                                    ) : (
-                                      <div className="space-y-1 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
-                                        {legalEntities.map((entity) => {
-                                          const isEntitySelected = currentValue?.scopeConfig?.legalEntityIds?.includes(entity.legalEntityId);
-                                          return (
-                                            <label key={entity.legalEntityId} className="flex items-center gap-3 hover:bg-slate-50 p-2 rounded-md cursor-pointer transition-colors">
-                                              <Checkbox
-                                                checked={isEntitySelected}
-                                                disabled={isEditDisabled}
-                                                onCheckedChange={() => handleLegalEntityToggle(group.key, entity.legalEntityId)}
-                                                className="w-4.5 h-4.5 rounded-full border-black/[0.2] data-[state=checked]:border-[#0ea894] data-[state=checked]:bg-[#0ea894]"
-                                              />
-                                              <span className="text-[13px] text-[#303834] flex-1 truncate">
-                                                {entity.code} — {entity.legalName}
-                                              </span>
-                                            </label>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
                                 </div>
                               </div>
                             )}

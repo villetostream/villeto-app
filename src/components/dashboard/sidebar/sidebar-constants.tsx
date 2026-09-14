@@ -217,7 +217,7 @@ export const navigationItems: NavItem[] = [
     section: "MANAGEMENT",
     subItems: [
       {
-        label: "Expense Policy",
+        label: "Expense",
         href: "/policies/expense-policy",
         permissions: [
           { resource: "policy.domain", action: "expense" },
@@ -225,7 +225,7 @@ export const navigationItems: NavItem[] = [
         ],
       },
       {
-        label: "Procurement Policy",
+        label: "Procurement",
         href: "/policies/procurement-policy",
         permissions: [
           { resource: "policy.domain", action: "procurement" },

@@ -1364,7 +1364,19 @@ function PRDetailPage() {
   // approve permission could still open their own request via the team/company
   // tab; this flag ensures self-approval is blocked everywhere, matching the
   // backend's rejection of self-approval.
-  const isOwnRequest = !!user?.userId && !!pr?.requesterId && user.userId === pr.requesterId;
+  const prCreatorId = pr?.requesterId || (pr as any)?.createdById || (typeof pr?.creator === "object" ? (pr?.creator as any)?.userId || (pr?.creator as any)?.id : undefined);
+  let isOwnRequest = !!user?.userId && !!prCreatorId && user.userId === prCreatorId;
+  
+  if (!isOwnRequest && user) {
+    const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
+    let creatorName = pr?.requesterName?.trim().toLowerCase() || "";
+    if (!creatorName && typeof pr?.creator === 'object') {
+      creatorName = `${(pr.creator as any)?.firstName || ''} ${(pr.creator as any)?.lastName || ''}`.trim().toLowerCase();
+    }
+    if (userFullName && creatorName && userFullName === creatorName) {
+      isOwnRequest = true;
+    }
+  }
 
   // Edit/manage own draft — only meaningful on own scope
   const canEdit   = isOwnRequest && isDraft && policies.purchaseRequests.canUpdateOwnDraft;

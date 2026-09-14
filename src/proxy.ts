@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // 1. Routes that are not yet implemented and should be redirected to dashboard
+  // 1. Routes that are not yet implemented — redirect to dashboard
   const comingSoonRoutes = [
     '/cards',
     '/insights',
@@ -19,28 +19,29 @@ export function middleware(request: NextRequest) {
   }
 
   // 2. Auth cookie check for dashboard routes
-  const isPublicPath = pathname.startsWith('/login') || 
-                       pathname.startsWith('/onboarding') || 
-                       pathname.startsWith('/account-confirmation') ||
-                       pathname === '/' ||
-                       pathname.startsWith('/_next') ||
-                       pathname.startsWith('/images') ||
-                       pathname.startsWith('/favicon.ico');
+  const isPublicPath =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/onboarding') ||
+    pathname.startsWith('/pre-onboarding') ||
+    pathname.startsWith('/forgot-password') ||
+    pathname.startsWith('/invitation') ||
+    pathname.startsWith('/account-confirmation') ||
+    pathname === '/' ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/images') ||
+    pathname.startsWith('/favicon.ico');
 
   if (!isPublicPath) {
-    const allCookies = request.cookies.getAll();
-    const hasPotentialAuthCookie = allCookies.some(c => 
-      !['sidebar_state', 'villeto_lastActivityTime', 'villeto-tour'].includes(c.name)
-    );
+    const hasAuthCookie = request.cookies.has('villeto_auth');
 
-    if (!hasPotentialAuthCookie) {
+    if (!hasAuthCookie) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
   }
 
   // 3. Security headers
   const response = NextResponse.next();
-  
+
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -54,7 +55,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };

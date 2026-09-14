@@ -1,15 +1,15 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { POLICY_GROUPS } from "../constants";
-import type { ProcurementPolicyGroup } from "../types";
+import { SPEND_PROGRAM_GROUPS } from "../constants";
+import type { SpendProgramGroup } from "../types";
 
 export function StepPolicyGroup({
   value,
   onChange,
 }: {
-  value: ProcurementPolicyGroup | null;
-  onChange: (group: ProcurementPolicyGroup) => void;
+  value: SpendProgramGroup | null;
+  onChange: (group: SpendProgramGroup) => void;
 }) {
   return (
     <div>
@@ -19,7 +19,7 @@ export function StepPolicyGroup({
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {POLICY_GROUPS.map((group) => {
+        {SPEND_PROGRAM_GROUPS.map((group) => {
           const selected = value === group.value;
           const Icon = group.icon;
           return (
@@ -47,8 +47,8 @@ export function StepPolicyGroup({
                   {selected && <div className="w-[9px] h-[9px] rounded-full bg-primary" />}
                 </div>
               </div>
-              <h3 className="text-sm font-bold text-foreground mb-2">{group.title}</h3>
-              <p className="text-xs leading-relaxed text-[#68726d]">{group.description}</p>
+              <h3 className="text-sm font-bold text-foreground mb-2">{group.label}</h3>
+              <p className="text-xs leading-relaxed text-[#68726d]">{group.subtitle}</p>
             </button>
           );
         })}

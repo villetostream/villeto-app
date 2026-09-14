@@ -145,6 +145,18 @@ export const PROCUREMENT_KEYS = {
   PROCUREMENT_POLICY_DRAFT_BY_ID: (draftId: string) => `policy/procurement/drafts/${draftId}` as const,
   // ── Approved Vendors (no pagination — returns all approved) ─────────────
   APPROVED_VENDORS: "vendors?approvalStatus=approved",
+  // ── Spend Programs V1 endpoints ────────────────────────────────────────
+  SPEND_PROGRAMS: "policy/procurement/spend-programs",
+  SPEND_PROGRAM: (id: string) => `policy/procurement/spend-programs/${id}` as const,
+  SPEND_PROGRAM_ACTION: (id: string, action: "approve" | "reject") => `policy/procurement/spend-programs/${id}/${action}` as const,
+  SPEND_PROGRAM_DRAFTS: "policy/procurement/spend-programs/drafts",
+  SPEND_PROGRAM_DRAFT: (id: string) => `policy/procurement/spend-programs/drafts/${id}` as const,
+  SPEND_PROGRAM_SETTINGS: "policy/procurement/spend-programs/settings",
+  SPEND_PROGRAM_SETTINGS_CATEGORIES: "policy/procurement/spend-programs/settings/categories",
+  SPEND_PROGRAM_RULE_DEFINITIONS: "policy/procurement/spend-programs/rule-definitions",
+  SPEND_PROGRAM_RULE_DEFINITION_DELETE: (ruleType: string) => `policy/procurement/spend-programs/rule-definitions/${ruleType}` as const,
+  SPEND_PROGRAM_RULE_DEFINITIONS_SEED: "policy/procurement/spend-programs/rule-definitions/seed-defaults",
+  SPEND_PROGRAM_ELIGIBLE_ROLES: "policy/procurement/spend-programs/eligible-approval-roles",
 } as const;
 
 export const POLICY_GOVERNANCE_KEYS = {
