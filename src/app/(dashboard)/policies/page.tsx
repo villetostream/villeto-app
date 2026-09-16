@@ -1225,6 +1225,43 @@ function PoliciesPage() {
     }
 
     const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
+    // Show the Review button for approvers AND for the creator (so creators can track status)
+    return isPending && (isApprover || isCreator);
+  }, [user, eligibleRoles]);
+
+  // Separate check: can this user actually approve/reject (i.e. not just view)
+  const checkIfCanApprove = useCallback((policy: Policy) => {
+    let isApprover = false;
+    const currentUserRoleId = 
+      user?.companyRole?.roleId || 
+      (user as any)?.companyRole?.id || 
+      (user as any)?.villetoRole?.roleId || 
+      (user as any)?.villetoRole?.id || 
+      (user as any)?.role?.roleId || 
+      (user as any)?.role?.id || 
+      "";
+
+    if (policy.approvalSetting?.allRolesCanApprove) {
+      isApprover = eligibleRoles.some(r => r.roleId === currentUserRoleId);
+    } else if (policy.approvalSetting?.approverRoleIds?.length) {
+      isApprover = policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
+    } else {
+      isApprover = (policy.approversRaw || []).some((rawApprover) => {
+        const a = asRecord(rawApprover);
+        return pickString(a, "userId") === user?.userId;
+      }) || (user?.userId ? (policy.approverIds?.includes(user.userId) ?? false) : false);
+    }
+
+    const createdByObj = (policy as any).createdBy;
+    const creatorId = isRecord(createdByObj) 
+      ? pickString(createdByObj, "id", "userId") 
+      : (policy as any).createdById;
+    const isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
+
+    // If also the creator, cannot approve their own policy
+    if (isApprover && isCreator) isApprover = false;
+
+    const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
     return isPending && isApprover;
   }, [user, eligibleRoles]);
 
@@ -1315,7 +1352,7 @@ function PoliciesPage() {
         );
       },
     },
-  ], [handleOpenReview, handleEdit, handleArchive, checkIfReviewable]);
+  ], [handleOpenReview, handleEdit, handleArchive, checkIfReviewable, checkIfCanApprove]);
 
   /* DataTable columns for Archived tab */
   const archivedColumns = useMemo<ColumnDef<Policy>[]>(() => [

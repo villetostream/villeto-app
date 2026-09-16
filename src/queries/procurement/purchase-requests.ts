@@ -36,6 +36,7 @@ export interface PurchaseRequestLineItem {
   sku?: string;
   unitOfMeasure?: string;
   categoryId?: string;
+  categoryName?: string;
   departmentId?: string;
   accountingAccountRef?: string;
   accountingItemRef?: string;
@@ -340,7 +341,7 @@ export const useDeleteLineItem = (
 
 export const useSubmitPurchaseRequest = (
   id: string
-): UseMutationResult<ApiResponse<PurchaseRequest>, Error, { policyJustifications?: Record<string, string> } | void> => {
+): UseMutationResult<ApiResponse<PurchaseRequest>, Error, { policyJustification?: string; spendProgramJustification?: string } | void> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
@@ -397,6 +398,8 @@ export interface ConvertToPOPayload {
   deliveryDate?: string;
   notes?: string;
   lineAssignments?: unknown[];
+  policyJustification?: string;
+  spendProgramJustification?: string;
 }
 
 export const useConvertToPO = (
@@ -412,6 +415,7 @@ export const useConvertToPO = (
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };

@@ -19,7 +19,8 @@ import {
   useUpdateSpendProgramDraft, 
   useGetSpendProgramById, 
   useGetSpendProgramDraftById,
-  useGetSpendProgramSettings
+  useGetSpendProgramSettings,
+  mapSpendProgramFromBackend
 } from "@/queries/procurement/policies";
 
 const TOTAL_STEPS = 4;
@@ -56,18 +57,19 @@ export function ProcurementPolicyWizard({
   const { data: settingsData, isLoading: isSettingsLoading } = useGetSpendProgramSettings();
 
   // Derive which stages are active from governance settings (default all if not yet loaded)
-  const activeStages: string[] = settingsData?.data?.activeStages ?? ["pr_submission", "pr_to_po", "po_submission"];
+  const activeStages: string[] = settingsData?.data?.enabledGroups ?? settingsData?.data?.activeStages ?? ["pr_submission", "pr_to_po", "po_submission"];
 
   const isLoading = isActiveLoading || isDraftLoading || isSettingsLoading;
 
   useEffect(() => {
     const data = programId ? activeData?.data : (initialDraftId ? draftData?.data : null);
     if (data) {
+      const mapped = mapSpendProgramFromBackend(data);
       setDraft({
-        name: data.name || "",
-        description: data.description || "",
-        categoryIds: data.categoryIds || [],
-        groups: data.groups || activeStages.map(s => ({ group: s as any, rules: [] })),
+        name: mapped.name || "",
+        description: mapped.description || "",
+        categoryIds: mapped.categoryIds || [],
+        groups: mapped.groups || activeStages.map(s => ({ group: s as any, rules: [] })),
         draftId: initialDraftId || undefined,
         programId: programId || undefined,
       });

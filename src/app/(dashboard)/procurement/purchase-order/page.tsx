@@ -280,9 +280,9 @@ function POTable({
   // Badge count for "Awaiting Approval" tab (only for All POs / elevated scope)
   const { data: approvalCountData } = usePurchaseOrders(
     1, 1, "pending_approval", undefined, undefined, scope,
-    { enabled: canApprove, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canApprove && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const awaitingCount = (approvalCountData as unknown as number) ?? 0;
+  const awaitingCount = scope === "company" ? 0 : ((approvalCountData as unknown as number) ?? 0);
 
   // Filter out drafts from All POs view — drafts are private to the creator and
   // only belong in the My POs tab. The backend doesn't support an exclude-status
@@ -524,8 +524,9 @@ function PurchaseOrderPage() {
   const searchParams             = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
   const policies                 = useAuthorizationPolicies();
-  const hasCompanyPOScope = policies.purchaseOrders.listScope === "company";
-  const hasTeamPOScope    = policies.purchaseOrders.listScope === "team" || hasCompanyPOScope;
+  const authReady         = policies.ready;
+  const hasCompanyPOScope = authReady && policies.purchaseOrders.canReadCompany;
+  const hasTeamPOScope    = authReady && policies.purchaseOrders.canReadDepartment;
   const canCreatePO       = policies.purchaseOrders.canCreate;
   const canApprovePO      = policies.purchaseOrders.canApprove;
 
@@ -545,9 +546,9 @@ function PurchaseOrderPage() {
   const elevatedScope = policies.purchaseOrders.listScope ?? "own";
   const { data: outerBadgeData } = usePurchaseOrders(
     1, 1, "pending_approval", undefined, undefined, elevatedScope,
-    { enabled: canApprovePO && (hasCompanyPOScope || hasTeamPOScope), select: d => d.meta?.totalCount ?? 0 }
+    { enabled: canApprovePO && elevatedScope !== "company" && (hasCompanyPOScope || hasTeamPOScope), select: d => d.meta?.totalCount ?? 0 }
   );
-  const outerAwaitingCount = (outerBadgeData as unknown as number) ?? 0;
+  const outerAwaitingCount = elevatedScope === "company" ? 0 : ((outerBadgeData as unknown as number) ?? 0);
 
   useEffect(() => {
     if (canCreatePO) {

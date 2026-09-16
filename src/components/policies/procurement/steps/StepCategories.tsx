@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { useGetProcurementCategories } from "@/queries/procurement/purchase-requests";
+import { useGetSpendProgramSettingsCategories } from "@/queries/procurement/policies";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export interface StepCategoriesProps {
@@ -16,19 +16,18 @@ export function StepCategories({ categoryIds, onChange }: StepCategoriesProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   
-  const { data, isLoading, error } = useGetProcurementCategories();
+  const { data, isLoading, error } = useGetSpendProgramSettingsCategories();
 
   const allCategories = useMemo(() => {
-    if (!data?.data) return [];
-    return data.data; // Only show main categories, don't flatten subcategories like Laptops
+    if (!data?.data?.categories) return [];
+    return data.data.categories;
   }, [data?.data]);
 
   const filteredCategories = useMemo(() => {
     if (!searchTerm) return allCategories;
     const lower = searchTerm.toLowerCase();
     return allCategories.filter((c) => 
-      c.name?.toLowerCase().includes(lower) || 
-      c.description?.toLowerCase().includes(lower)
+      c.name?.toLowerCase().includes(lower)
     );
   }, [allCategories, searchTerm]);
 
@@ -116,20 +115,70 @@ export function StepCategories({ categoryIds, onChange }: StepCategoriesProps) {
                 {filteredCategories.length === 0 ? (
                   <p className="text-[13px] text-[#84908a] text-center py-4">No categories found.</p>
                 ) : (
-                  filteredCategories.map(category => (
-                    <label
-                      key={category.categoryId}
-                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#f9faf9] cursor-pointer transition-colors"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Checkbox
-                        checked={categoryIds.includes(category.categoryId)}
-                        onCheckedChange={() => toggleCategory(category.categoryId)}
-                        className="rounded-[4px] data-[state=checked]:bg-[#087f70] data-[state=checked]:border-[#087f70]"
-                      />
-                      <span className="text-[14px] text-[#10231d]">{category.name}</span>
-                    </label>
-                  ))
+                  <>
+                    {(() => {
+                      const inSettingsCats = filteredCategories.filter(c => c.inSettings);
+                      const otherCats = filteredCategories.filter(c => !c.inSettings);
+                      
+                      const renderCategory = (category: any) => {
+                        const isSelected = categoryIds.includes(category.categoryId);
+                        const isUnavailable = category.hasSpendProgram && !isSelected;
+                        return (
+                          <label
+                            key={category.categoryId}
+                            className={`flex items-center justify-between gap-3 px-4 py-2.5 transition-colors ${isUnavailable ? "opacity-60 cursor-not-allowed bg-black/[0.02]" : "hover:bg-[#f9faf9] cursor-pointer"}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isUnavailable) toggleCategory(category.categoryId);
+                            }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Checkbox
+                                checked={isSelected}
+                                disabled={isUnavailable}
+                                className="rounded-[4px] data-[state=checked]:bg-[#087f70] data-[state=checked]:border-[#087f70]"
+                              />
+                              <span className={`text-[14px] ${isUnavailable ? "text-[#84908a]" : "text-[#10231d]"}`}>
+                                {category.name}
+                              </span>
+                            </div>
+                            {isUnavailable && (
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-black/[0.05] text-[#68726d]">
+                                Already attached
+                              </span>
+                            )}
+                          </label>
+                        );
+                      };
+
+                      return (
+                        <div className="flex flex-col">
+                          {inSettingsCats.length > 0 && (
+                            <div className="py-1">
+                              <div className="px-4 py-2 bg-[#f4f7f5] text-[11px] font-bold text-[#68726d] uppercase tracking-wider sticky top-0 z-10">
+                                In Policy Settings
+                              </div>
+                              {inSettingsCats.map(renderCategory)}
+                            </div>
+                          )}
+                          
+                          {otherCats.length > 0 && (
+                            <div className="py-1">
+                              <div className="px-4 py-2 bg-[#f9faf9] border-t border-black/[0.04] sticky top-0 z-10">
+                                <div className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider">
+                                  Other Categories
+                                </div>
+                                <div className="text-[10px] text-[#84908a] mt-0.5 leading-tight">
+                                  Selecting these will automatically add them to your policy governance settings.
+                                </div>
+                              </div>
+                              {otherCats.map(renderCategory)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </>
                 )}
               </div>
             </PopoverContent>

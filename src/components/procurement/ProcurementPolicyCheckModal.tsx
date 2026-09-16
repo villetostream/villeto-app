@@ -16,7 +16,7 @@ interface ProcurementPolicyCheckModalProps {
   onClose: () => void;
   violations: ProcurementPolicyViolation[];
   onEditRequest: () => void;
-  onProceedWithWarnings?: (justifications: Record<string, string>) => void;
+  onProceedWithWarnings?: (justification: string) => void;
 }
 
 export function ProcurementPolicyCheckModal({
@@ -28,7 +28,7 @@ export function ProcurementPolicyCheckModal({
 }: ProcurementPolicyCheckModalProps) {
   const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
   const userCurrencySymbol = getCurrencySymbol();
-  const [justifications, setJustifications] = useState<Record<string, string>>({});
+  const [justification, setJustification] = useState("");
 
   // Deduplicate violations by policyId + rule
   const uniqueViolations = violations.filter((v, index, self) => 
@@ -42,23 +42,13 @@ export function ProcurementPolicyCheckModal({
 
   const hasHardBlocks = hardBlocks.length > 0;
   
-  const allWarningsJustified = softWarnings.every(
-    (v) => (justifications[v.policyId] || "").trim().length > 0
-  );
+  const allWarningsJustified = justification.trim().length > 0;
 
   const canProceed = !hasHardBlocks && allWarningsJustified && softWarnings.length > 0;
 
-  const handleJustificationChange = (policyId: string, value: string) => {
-    setJustifications((prev) => ({ ...prev, [policyId]: value }));
-  };
-
   const handleProceed = () => {
     if (!canProceed || !onProceedWithWarnings) return;
-    const merged: Record<string, string> = {};
-    softWarnings.forEach((v) => {
-      merged[v.policyId] = justifications[v.policyId] || "";
-    });
-    onProceedWithWarnings(merged);
+    onProceedWithWarnings(justification);
   };
 
   // Header text
@@ -148,6 +138,31 @@ export function ProcurementPolicyCheckModal({
     return null;
   };
 
+  const renderAffectedItems = (v: ProcurementPolicyViolation, color: "red" | "amber") => {
+    if (!v.lineItems || v.lineItems.length === 0) return null;
+    
+    const textColor = color === "red" ? "text-red-900" : "text-amber-900";
+    const subtextColor = color === "red" ? "text-red-800" : "text-amber-800";
+    const bgClass = color === "red" ? "bg-red-100/50" : "bg-amber-100/50";
+    
+    return (
+      <div className={`mt-2 rounded-lg ${bgClass} p-3 space-y-1.5`}>
+        <p className={`text-xs font-semibold ${textColor}`}>Affected items:</p>
+        <ul className={`text-[11px] ${subtextColor} list-disc list-inside space-y-1`}>
+          {v.lineItems.map((li: any, idx: number) => (
+            <li key={idx}>
+              <span className="font-medium">{li.lineItemName || "Item"}</span>
+              {li.categoryName && <span className="opacity-75"> ({li.categoryName})</span>}
+              {li.lineTotal !== undefined && (
+                <span className="ml-1 opacity-90">— {userCurrencySymbol}{(li.lineTotal || 0).toLocaleString()}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
@@ -202,6 +217,7 @@ export function ProcurementPolicyCheckModal({
                     </div>
                   </div>
                   {renderLimitCheck(v, "red")}
+                  {renderAffectedItems(v, "red")}
                 </div>
               ))}
             </div>
@@ -225,19 +241,21 @@ export function ProcurementPolicyCheckModal({
                     </p>
                   </div>
                   {renderLimitCheck(v, "amber")}
-                  <div>
-                    <label className="text-xs font-medium text-foreground block mb-1.5 mt-2">
-                      Justification Required
-                    </label>
-                    <Textarea
-                      placeholder="Please provide a justification to proceed..."
-                      value={justifications[v.policyId] ?? ""}
-                      onChange={(e) => handleJustificationChange(v.policyId, e.target.value)}
-                      className="text-xs min-h-[72px] bg-white border-amber-200 focus:border-amber-400 resize-none"
-                    />
-                  </div>
+                  {renderAffectedItems(v, "amber")}
                 </div>
               ))}
+              
+              <div className="mt-4">
+                <label className="text-xs font-medium text-foreground block mb-1.5 mt-2">
+                  Justification Required
+                </label>
+                <Textarea
+                  placeholder="Please provide a justification to proceed..."
+                  value={justification}
+                  onChange={(e) => setJustification(e.target.value)}
+                  className="text-xs min-h-[72px] bg-white border-amber-200 focus:border-amber-400 resize-none"
+                />
+              </div>
             </div>
           )}
 
@@ -262,6 +280,7 @@ export function ProcurementPolicyCheckModal({
                     </p>
                   </div>
                   {renderLimitCheck(v, "amber")}
+                  {renderAffectedItems(v, "amber")}
                   <p className="text-xs text-muted-foreground mt-1 italic">
                     Will require justification after the block above is fixed.
                   </p>

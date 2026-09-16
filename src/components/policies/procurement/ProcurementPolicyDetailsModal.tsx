@@ -1,7 +1,7 @@
 "use client";
 
 import { X, Loader2, AlertCircle, Trash2 } from "lucide-react";
-import { useGetSpendProgramById } from "@/queries/procurement/policies";
+import { useGetSpendProgramById, mapSpendProgramFromBackend } from "@/queries/procurement/policies";
 import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -40,7 +40,8 @@ const getConditionText = (rule: any): string => {
     case "final_amount_required": return "Final amount required before PO submission";
     case "contract_required":     return "Valid contract required for conversion";
     default:
-      return cc.amount ? `Amount > ${formatCurrency(cc.amount, cc.currency)}` : ruleType.replace(/_/g, " ");
+      const summary = buildConditionSummary(cc);
+      return summary || ruleType.replace(/_/g, " ");
   }
 };
 
@@ -75,9 +76,9 @@ export function ProcurementPolicyDetailsModal({
   const canDeactivate = useAuthStore((s) => s.can)("policy", "deactivate");
   const canUpdate     = useAuthStore((s) => s.can)("policy", "update");
 
+  const [activeTab, setActiveTab] = useState<string>("");
+  const [pendingAction, setPendingAction] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isPendingAction, setIsPendingAction] = useState(false);
-  const [activeTab, setActiveTab] = useState("pr_submission");
 
   const { data: programData, isLoading } = useGetSpendProgramById(policyId ?? "", {
     enabled: !!policyId,
@@ -86,7 +87,7 @@ export function ProcurementPolicyDetailsModal({
     placeholderData: initialData ? { data: initialData, message: "", status: 200 } : undefined,
   });
   // Use the fetched data preferentially; fall back to initialData while loading.
-  const policy = programData?.data ?? initialData;
+  const policy = programData?.data ? mapSpendProgramFromBackend(programData.data) : initialData;
 
   const { formatExceptionSummary } = useExceptionFormatter();
   const currentUserId = useAuthStore.getState().user?.userId;
@@ -95,23 +96,34 @@ export function ProcurementPolicyDetailsModal({
 
   const handleApprove = async () => {
     if (!onApprove || !policy) return;
-    setError(null); setIsPendingAction(true);
-    try { await onApprove(policy); }
-    catch (err) { setError(getApiErrorMessage(err, "Failed to approve policy")); }
-    finally { setIsPendingAction(false); }
+    setPendingAction("approve");
+    setError(null);
+    try {
+      await onApprove(policy.procurementSpendProgramId ?? policy.procurementPolicyId);
+      onClose();
+    } catch (err: unknown) {
+      setError((err as any)?.response?.data?.message || "Failed to approve policy");
+      setPendingAction(null);
+    }
   };
 
   const handleReject = async () => {
     if (!onReject || !policy) return;
-    setError(null); setIsPendingAction(true);
-    try { await onReject(policy); }
-    catch (err) { setError(getApiErrorMessage(err, "Failed to reject policy")); }
-    finally { setIsPendingAction(false); }
+    setPendingAction("reject");
+    setError(null);
+    try {
+      await onReject(policy.procurementSpendProgramId ?? policy.procurementPolicyId);
+      onClose();
+    } catch (err: unknown) {
+      setError((err as any)?.response?.data?.message || "Failed to reject policy");
+      setPendingAction(null);
+    }
   };
 
   const availableGroups: any[] = policy?.groups || [];
   const visibleTabs = GROUP_ORDER.filter(t => availableGroups.some(g => g.group === t.code));
-  const activeGroupData = availableGroups.find(g => g.group === activeTab);
+  const currentTab = activeTab || visibleTabs[0]?.code || "pr_submission";
+  const activeGroupData = availableGroups.find(g => g.group === currentTab);
   const rulesToDisplay: any[] = activeGroupData?.rules || [];
 
   return (
@@ -242,7 +254,7 @@ export function ProcurementPolicyDetailsModal({
                             <p className="text-[11px] text-gray-400">
                               Applies to: <span className="font-semibold text-gray-600">{appliesToText}</span>
                             </p>
-                            {exceptionSummary && (
+                            {(exceptionSummary || r.exceptionConfig?.action || Object.keys(r.exceptionConfig?.conditionConfig || {}).length > 0) && (
                               <div className="mt-2 pt-2 border-t border-black/[0.04] flex flex-col gap-1 text-[11px]">
                                 {Object.keys(r.exceptionConfig?.conditionConfig || {}).length > 0 && (
                                   <p className="text-gray-600">
@@ -263,9 +275,11 @@ export function ProcurementPolicyDetailsModal({
                                     </span>
                                   </p>
                                 )}
-                                <p className="text-[#c07a10]">
-                                  <span className="font-semibold">Exceptions:</span> {exceptionSummary}
-                                </p>
+                                {exceptionSummary && (
+                                  <p className="text-[#c07a10]">
+                                    <span className="font-semibold">Exceptions:</span> {exceptionSummary}
+                                  </p>
+                                )}
                               </div>
                             )}
                           </div>
@@ -316,13 +330,13 @@ export function ProcurementPolicyDetailsModal({
               {isReviewMode ? (
                 <>
                   {onReject && (
-                    <button onClick={handleReject} disabled={isPendingAction} className="h-10 px-7 rounded-full border border-red-400 text-red-500 text-[13px] font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center">
-                      {isPendingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
+                    <button onClick={handleReject} disabled={pendingAction !== null} className="h-10 px-7 rounded-full border border-red-400 text-red-500 text-[13px] font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]">
+                      {pendingAction === "reject" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
                     </button>
                   )}
                   {onApprove && (
-                    <button onClick={handleApprove} disabled={isPendingAction} className="h-10 px-7 rounded-full bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-50 flex items-center justify-center">
-                      {isPendingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
+                    <button onClick={handleApprove} disabled={pendingAction !== null} className="h-10 px-7 rounded-full bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]">
+                      {pendingAction === "approve" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
                     </button>
                   )}
                 </>
@@ -341,12 +355,12 @@ export function ProcurementPolicyDetailsModal({
                 </>
               ) : (
                 <>
-                  {canDeactivate && onArchive && policy.status !== "pending" && policy.status !== "pending_approval" && (
+                  {canDeactivate && onArchive && policy.status !== "pending" && policy.status !== "pending_approval" && policy.status !== "archived" && policy.status !== "inactive" && (
                     <button onClick={() => { onArchive(policy); onClose(); }} className="h-10 px-7 rounded-[9px] border border-[#c07a10] text-[#c07a10] text-[13px] font-semibold hover:bg-[#fffbf0] transition-colors">
                       Move to Archive
                     </button>
                   )}
-                  {canUpdate && onEdit && policy.status !== "pending" && policy.status !== "pending_approval" && (
+                  {canUpdate && onEdit && policy.status !== "pending" && policy.status !== "pending_approval" && policy.status !== "archived" && policy.status !== "inactive" && (
                     <button onClick={() => { onEdit(policy); onClose(); }} className="h-10 px-7 rounded-[9px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors">
                       Edit
                     </button>

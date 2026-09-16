@@ -96,10 +96,10 @@ export const getActionStyle = (action: string): { color: string; bgColor: string
 
 /** Human-friendly labels for dynamic condition fields from conditionSchema */
 export const CONDITION_FIELD_LABELS: Record<string, string> = {
-  amount: "Amount",
+  amount: "Amount above",
   currency: "Currency",
-  percentage: "Percentage (%)",
-  quantity: "Quantity",
+  percentage: "Percentage above (%)",
+  quantity: "Quantity above",
   roleIds: "Roles",
   departmentIds: "Departments",
   allowedVendorIds: "Allowed vendors",

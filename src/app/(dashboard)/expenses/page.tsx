@@ -36,8 +36,8 @@ function Reimbursements() {
   const authReady = policies.ready;
 
   // ── Scope derivation (safe: false until auth is ready) ───────────────────
-  const hasTeamScope    = authReady && (policies.expenses.listScope === "team" || policies.expenses.listScope === "company");
-  const hasCompanyScope = authReady && policies.expenses.listScope === "company";
+  const hasTeamScope    = authReady && policies.expenses.canReadDepartment;
+  const hasCompanyScope = authReady && policies.expenses.canReadCompany;
   // ── Outer tab list (recalculated once auth is ready) ─────────────────────
   const outerTabs = useMemo(() => [
     ...(hasCompanyScope ? [{ key: "company-expenses", label: "Company Expenses" }] : []),

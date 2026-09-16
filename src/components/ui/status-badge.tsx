@@ -60,7 +60,9 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     // Slate/Blue-gray (Work in progress)
     case "draft":
     case "provisional":
+    case "not_submitted":
       colorClasses = "text-[#4a5568] bg-[#f7fafc] border-[#e2e8f0]";
+      if (normalizedStatus === "not_submitted") defaultLabel = "Draft";
       break;
       
     // Blue (Informational / Onboarding / Processing)
