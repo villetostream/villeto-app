@@ -27,6 +27,8 @@ export interface RuleDefinition {
 export interface SpendProgramRule {
   /** UI-only ID for React keys */
   id: string;
+  /** DB UUID (present when editing existing rules) */
+  procurementSpendProgramRuleId?: string;
   /** Stable key from rule-definitions endpoint */
   ruleType: string;
   /** Rule definition UUID (optional, for reference) */
@@ -134,7 +136,7 @@ export const emptySpendProgramDraft = (): SpendProgramDraft => ({
 
 // ─── Display / list record (from Spend Programs API) ─────────────────────────
 
-export type SpendProgramStatus = "draft" | "pending" | "active" | "inactive" | "archived";
+export type SpendProgramStatus = "draft" | "pending" | "pending_approval" | "active" | "inactive" | "archived";
 
 /** Lightweight record used in the policy list table */
 export interface SpendProgramListItem {

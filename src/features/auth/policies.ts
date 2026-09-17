@@ -205,6 +205,8 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
     purchaseRequests: {
       listScope: prScope,
       canView: prScope !== null,
+      canReadDepartment: has(permissionSet, PERMISSIONS.purchaseRequest.readDepartment),
+      canReadCompany: has(permissionSet, PERMISSIONS.purchaseRequest.readCompany),
       canCreate: has(permissionSet, PERMISSIONS.purchaseRequest.create),
       canSubmit: has(permissionSet, PERMISSIONS.purchaseRequest.submit),
       canUpdateOwnDraft: has(permissionSet, PERMISSIONS.purchaseRequest.updateOwnDraft),
@@ -217,6 +219,8 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
     purchaseOrders: {
       listScope: poScope,
       canView: poScope !== null,
+      canReadDepartment: has(permissionSet, PERMISSIONS.purchaseOrder.readDepartment),
+      canReadCompany: has(permissionSet, PERMISSIONS.purchaseOrder.readCompany),
       canCreate: has(permissionSet, PERMISSIONS.purchaseOrder.create),
       canUpdateDraft: has(permissionSet, PERMISSIONS.purchaseOrder.updateDraft),
       canAssignVendor: has(permissionSet, PERMISSIONS.purchaseOrder.assignVendor),
@@ -237,6 +241,8 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
     expenses: {
       listScope: expenseScope,
       canView: expenseScope !== null,
+      canReadDepartment: has(permissionSet, PERMISSIONS.expense.readDepartment),
+      canReadCompany: has(permissionSet, PERMISSIONS.expense.readCompany),
       canCreate: has(permissionSet, PERMISSIONS.expense.create),
       canSubmit: has(permissionSet, PERMISSIONS.expense.submit),
       canUpdateOwnDraft: has(permissionSet, PERMISSIONS.expense.updateOwnDraft),

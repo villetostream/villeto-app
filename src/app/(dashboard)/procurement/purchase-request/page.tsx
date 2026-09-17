@@ -410,21 +410,21 @@ function PRTable({
 
   const { data: approvalCountData } = useGetPurchaseRequests(
     { scope, status: "submitted", requiresMyApproval: true },
-    { enabled: canApprove, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canApprove && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const awaitingCount = (approvalCountData as unknown as number) ?? 0;
+  const awaitingCount = scope === "company" ? 0 : ((approvalCountData as unknown as number) ?? 0);
 
   const { data: conversionCountData } = useGetPurchaseRequests(
     { scope, status: "approved", requiresMyConversion: true },
-    { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canConvert && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const readyForPOCount = (conversionCountData as unknown as number) ?? 0;
+  const readyForPOCount = scope === "company" ? 0 : ((conversionCountData as unknown as number) ?? 0);
 
   const { data: partialConversionCountData } = useGetPurchaseRequests(
     { scope, status: "partially_converted", requiresMyConversion: true },
-    { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canConvert && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const partialPOCount = (partialConversionCountData as unknown as number) ?? 0;
+  const partialPOCount = scope === "company" ? 0 : ((partialConversionCountData as unknown as number) ?? 0);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -735,8 +735,9 @@ function PurchaseRequestPage() {
   const searchParams             = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
   const policies                 = useAuthorizationPolicies();
-  const hasTeamScope    = policies.purchaseRequests.listScope === "team" || policies.purchaseRequests.listScope === "company";
-  const hasCompanyScope = policies.purchaseRequests.listScope === "company";
+  const authReady        = policies.ready;
+  const hasTeamScope     = authReady && policies.purchaseRequests.canReadDepartment;
+  const hasCompanyScope  = authReady && policies.purchaseRequests.canReadCompany;
 
   // Build outer tab list based on permissions
   const tabs = [

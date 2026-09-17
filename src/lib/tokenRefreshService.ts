@@ -47,7 +47,7 @@ export function scheduleTokenRefresh(expiresInMs: number) {
       if (newToken) {
         // Import dynamically to avoid circular deps
         const { useAuthStore } = await import("@/stores/auth-stores");
-        useAuthStore.getState().setAccessToken(newToken);
+        useAuthStore.getState().setAccessToken(newToken, newExpiresInMs);
         // Schedule the next refresh
         scheduleTokenRefresh(newExpiresInMs);
       }

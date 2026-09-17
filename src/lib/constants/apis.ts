@@ -154,6 +154,7 @@ export const PROCUREMENT_KEYS = {
   SPEND_PROGRAM_SETTINGS: "policy/procurement/spend-programs/settings",
   SPEND_PROGRAM_SETTINGS_CATEGORIES: "policy/procurement/spend-programs/settings/categories",
   SPEND_PROGRAM_RULE_DEFINITIONS: "policy/procurement/spend-programs/rule-definitions",
+  SPEND_PROGRAM_RULE_DEFINITIONS_STATUS: "policy/procurement/spend-programs/rule-definitions/status",
   SPEND_PROGRAM_RULE_DEFINITION_DELETE: (ruleType: string) => `policy/procurement/spend-programs/rule-definitions/${ruleType}` as const,
   SPEND_PROGRAM_RULE_DEFINITIONS_SEED: "policy/procurement/spend-programs/rule-definitions/seed-defaults",
   SPEND_PROGRAM_ELIGIBLE_ROLES: "policy/procurement/spend-programs/eligible-approval-roles",

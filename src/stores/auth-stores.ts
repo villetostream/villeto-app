@@ -15,7 +15,7 @@ import type {
     User,
 } from '@/features/auth/types';
 import { getCurrencyConfig } from '@/lib/utils/currency';
-import { clearTokenRefresh } from '@/lib/tokenRefreshService';
+import { clearTokenRefresh, scheduleTokenRefresh } from '@/lib/tokenRefreshService';
 
 export type {
     AuthorizationCapabilityGrant,
@@ -27,6 +27,8 @@ export type {
 interface AuthState {
     user: User | null;
     accessToken: string | null;
+    /** Unix timestamp (ms) when the access token expires. Null if unknown. */
+    accessTokenExpiresAt: number | null;
     isLoading: boolean;
     
     /** The single server-produced source of truth for client-side access UX. */
@@ -37,7 +39,7 @@ interface AuthState {
     _permissionSet: Set<string>;
     _capabilityGrantsByKey: Map<string, AuthorizationCapabilityGrant[]>;
 
-    setAccessToken: (token: string) => void;
+    setAccessToken: (token: string, expiresInMs?: number) => void;
     login: (data: User) => void;
     logout: () => void;
     hydrate: () => void;
@@ -74,6 +76,7 @@ export const useAuthStore = create<AuthState>()(
         (set, get) => ({
             user: null,
             accessToken: null,
+            accessTokenExpiresAt: null,
             isLoading: true,
             authorization: null,
             authorizationFetchedAt: null,
@@ -84,7 +87,12 @@ export const useAuthStore = create<AuthState>()(
                 return getCurrencyConfig(countryCode).symbol;
             },
 
-            setAccessToken: (accessToken) => set({ accessToken }),
+            setAccessToken: (accessToken, expiresInMs) => set({
+                accessToken,
+                ...(expiresInMs != null
+                    ? { accessTokenExpiresAt: Date.now() + expiresInMs }
+                    : {}),
+            }),
 
             setAuthorization: (authorization) => {
                 set({
@@ -138,6 +146,7 @@ export const useAuthStore = create<AuthState>()(
                 set({
                     user: null,
                     accessToken: null,
+                    accessTokenExpiresAt: null,
                     authorization: null,
                     authorizationFetchedAt: null,
                     ...emptyDerivedAuthorization(),
@@ -170,6 +179,19 @@ export const useAuthStore = create<AuthState>()(
 
             hydrate: () => {
                 const authorization = get().authorization;
+                const expiresAt = get().accessTokenExpiresAt;
+                const token = get().accessToken;
+
+                // Reschedule the proactive refresh timer using remaining token lifetime
+                if (token && expiresAt) {
+                    const remainingMs = expiresAt - Date.now();
+                    if (remainingMs > 0) {
+                        scheduleTokenRefresh(remainingMs);
+                    }
+                    // If the token has already expired, the reactive interceptor
+                    // in useAxios will handle the 401 on the next request.
+                }
+
                 set({
                     isLoading: false,
                     ...buildDerivedAuthorization(authorization),
@@ -181,6 +203,8 @@ export const useAuthStore = create<AuthState>()(
             storage: createJSONStorage(() => sessionStorage),
             partialize: (state) => ({
                 user: state.user,
+                accessToken: state.accessToken,
+                accessTokenExpiresAt: state.accessTokenExpiresAt,
                 authorization: state.authorization,
                 authorizationFetchedAt: state.authorizationFetchedAt,
             }),

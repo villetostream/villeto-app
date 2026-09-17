@@ -221,8 +221,10 @@ export const useSubmitPurchaseOrderForApproval = (id: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async () => {
-      const response = await axios.patch(PROCUREMENT_KEYS.SUBMIT_PURCHASE_ORDER(id));
+    mutationFn: async (payload?: { policyJustification?: string; spendProgramJustification?: string }) => {
+      const response = await axios.patch(PROCUREMENT_KEYS.SUBMIT_PURCHASE_ORDER(id), payload || {}, {
+        _skipErrorToast: true,
+      } as any);
       return response.data;
     },
     onSuccess: () => {

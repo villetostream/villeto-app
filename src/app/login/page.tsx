@@ -47,7 +47,6 @@ export default function LoginPage() {
     try {
       setError(null);
       const response = await login.mutateAsync(data);
-      setAccessToken(response.data.accessToken);
       const user = response.data.user as User;
       
       let authorization;
@@ -63,6 +62,7 @@ export default function LoginPage() {
       
       // Start proactive refresh so the token is renewed 5 min before expiry
       const expiresInMs = response.data.accessTokenExpiresInMs ?? 3600000;
+      setAccessToken(response.data.accessToken, expiresInMs);
       scheduleTokenRefresh(expiresInMs);
       
       // Set an auth cookie so Next.js middleware knows we are authenticated

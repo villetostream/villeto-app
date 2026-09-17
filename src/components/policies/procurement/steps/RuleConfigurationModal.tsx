@@ -546,7 +546,7 @@ export function RuleConfigurationModal({
                               <SelectValue placeholder="Select an action..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {selectedDef.allowedActions.map((action: string) => (
+                              {Array.from(new Set(["allow", "auto_approve", ...selectedDef.allowedActions])).map((action: string) => (
                                 <SelectItem key={action} value={action}>{getActionLabel(action)}</SelectItem>
                               ))}
                             </SelectContent>

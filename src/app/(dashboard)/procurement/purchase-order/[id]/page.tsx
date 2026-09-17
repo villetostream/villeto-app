@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, X, Loader2, XCircle, PackageCheck, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, X, Loader2, XCircle, PackageCheck, Pencil, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   usePurchaseOrder,
   useIssuePurchaseOrder,
@@ -36,6 +37,16 @@ import {
 import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { format } from "date-fns";
+import { LineItemDetailModal } from "@/components/procurement/LineItemDetailModal";
+import { WorkflowProgress } from "@/components/procurement/WorkflowProgress";
+import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
+import { 
+  getApiErrorMessage, 
+  isProcurementPolicyViolationError, 
+  getProcurementPolicyViolations, 
+  applyProcurementPolicyErrorToLineItems, 
+  type ProcurementPolicyViolation 
+} from "@/lib/types/api-error";
 import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -64,67 +75,6 @@ const formatCurrency = (amount: string | number, currency: string = "NGN") =>
 function safeFmt(date: string | null | undefined) {
   if (!date) return null;
   try { return format(new Date(date), "MMM dd, yyyy - hh:mm a"); } catch { return null; }
-}
-
-// ── Workflow Step ─────────────────────────────────────────────────────────────
-
-type WorkflowStepType = {
-  label: string; person?: string; badge?: string; badgeColor?: string;
-  timestamp?: string | null; done?: boolean; pending?: boolean;
-};
-
-function WorkflowProgress({ steps }: { steps: WorkflowStepType[] }) {
-  return (
-    <div className="space-y-0 pt-1 pl-1">
-      {steps.map((step, idx) => {
-        const isLast = idx === steps.length - 1;
-        const status = step.done ? "done" : step.pending ? "pending" : "inactive";
-        return (
-          <div key={idx} className={`flex items-start gap-3 ${status === "inactive" ? "opacity-45" : ""}`}>
-            {/* Icon + connector */}
-            <div className="flex flex-col items-center shrink-0 pt-0.5">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                status === "done"
-                  ? "bg-[#f0faf8]"
-                  : "bg-[#f5f7f6] border border-black/[0.06]"
-              }`}>
-                {status === "done"
-                  ? <svg className="w-3 h-3 text-[#087f70]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                  : <div className={`w-1.5 h-1.5 rounded-full ${status === "pending" ? "bg-amber-400" : "bg-muted-foreground/40"}`} />
-                }
-              </div>
-              {!isLast && (
-                <div className="w-px bg-border/60 flex-1 min-h-[16px] mt-0.5" />
-              )}
-            </div>
-
-            {/* Content */}
-            <div className={`pb-4 min-w-0 ${isLast ? "pb-0" : ""}`}>
-              <p className={`text-xs font-medium ${status === "done" ? "text-[#68726d]" : "text-[#84908a]"}`}>{step.label}</p>
-              {step.person && (
-                <p className={`text-sm font-semibold flex items-center gap-1.5 flex-wrap mt-0.5 ${status === "done" || status === "pending" ? "text-[#0b100e]" : "text-[#84908a]"}`}>
-                  {step.person}
-                  {step.badge && (
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badgeColor}`}>
-                      {step.badge}
-                    </span>
-                  )}
-                </p>
-              )}
-              {!step.person && step.badge && (
-                <span className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badgeColor}`}>
-                  {step.badge}
-                </span>
-              )}
-              {step.timestamp && (
-                <p className="text-xs text-[#68726d] mt-0.5">{safeFmt(step.timestamp)}</p>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 // ── Reject Modal ──────────────────────────────────────────────────────────────
@@ -336,17 +286,29 @@ function PODetailPage() {
   const canUpdateDraft = canPOUpdateDraft(can);
 
   type ModalType = "submit" | "issue" | "close" | "cancel" | "withdraw" | "approve" | "reject" | "delete_draft" | "edit_header" | "line_items" | "delete_line_item" | "final_billing" | null;
-  const [modal, setModal] = useState<ModalType>(null);
-  const [editingLineItem, setEditingLineItem] = useState<any>(null);
-  const [itemToDelete, setItemToDelete] = useState<any>(null);
-  const [shortCloseItem, setShortCloseItem] = useState<any>(null);
+  const [modal, setModal] = useState<string | null>(null);
+  const [editingLineItem, setEditingLineItem] = useState<any | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
+  const [shortCloseItem, setShortCloseItem] = useState<any | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedDetailItem, setSelectedDetailItem] = useState<any | null>(null);
+  const [detailModalStartsInEditMode, setDetailModalStartsInEditMode] = useState(false);
   const [overrideUnlocked, setOverrideUnlocked] = useState(false);
+  
+  const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
 
   const { data, isPending: isQueryPending, isFetching, isError } = usePurchaseOrder(id);
   // Use isFetching (not just isLoading) so we block rendering while React Query
   // silently refreshes stale cached data — this prevents the old-status flash.
   const isPageLoading = isQueryPending || isFetching;
   const po = data?.data;
+
+  const lineItemsToDisplay = useMemo(() => {
+    return policyViolations 
+      ? applyProcurementPolicyErrorToLineItems(po?.lineItems || [], policyViolations)
+      : po?.lineItems || [];
+  }, [po?.lineItems, policyViolations]);
 
   const submitMut   = useSubmitPurchaseOrderForApproval(id);
   const issueMut    = useIssuePurchaseOrder();
@@ -377,7 +339,7 @@ function PODetailPage() {
 
   const handleSimpleAction = async (type: "submit" | "issue" | "close" | "approve") => {
     try {
-      if (type === "submit")  { await submitMut.mutateAsync();    toast.success("Purchase order submitted for approval."); }
+      if (type === "submit")  { await submitMut.mutateAsync({});    toast.success("Purchase order submitted for approval."); }
       if (type === "issue")   { await issueMut.mutateAsync(id);   toast.success("Purchase order issued to vendor."); }
       if (type === "close")   { await closeMut.mutateAsync(id);   toast.success("Purchase order closed."); }
       if (type === "approve") {
@@ -388,6 +350,13 @@ function PODetailPage() {
       setModal(null);
       router.push(listUrl);
     } catch (err: any) {
+      if (type === "submit" && isProcurementPolicyViolationError(err)) {
+        const violations = getProcurementPolicyViolations(err);
+        setPolicyViolations(violations);
+        setIsPolicyModalOpen(true);
+        setModal(null);
+        return;
+      }
       displayExpertError(err, "Action failed. Please try again.");
     }
   };
@@ -436,32 +405,6 @@ function PODetailPage() {
     );
   }
 
-  const createdById = (po as any)?.createdById || (typeof po.createdBy === "object" && po.createdBy
-    ? (po.createdBy as any).userId || (po.createdBy as any).id
-    : undefined);
-  let isOwnPO = !!user?.userId && !!createdById && user.userId === createdById;
-
-  if (!isOwnPO && user) {
-    const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
-    let creatorName = "";
-    if (typeof po.createdBy === 'object' && po.createdBy) {
-      creatorName = `${(po.createdBy as any).firstName || ''} ${(po.createdBy as any).lastName || ''}`.trim().toLowerCase();
-    }
-    if (userFullName && creatorName && userFullName === creatorName) {
-      isOwnPO = true;
-    }
-  }
-  const isSubmitterView = isOwnScope || isOwnPO;
-  const stage = (po.status || "").toLowerCase() as WFStage;
-
-  // Render drafts inline without early return
-  // if (stage === "draft") {
-  //   return <EditPurchaseOrderPage />;
-  // }
-
-  const isDelivered = stage === "partially_delivered" || stage === "delivered";
-  const submitDateStr = po.createdAt ? format(new Date(po.createdAt), "MMM dd, yyyy") : "N/A";
-
   const timelineByAction = (po.timeline || []).reduce((acc: any, event: any) => {
     acc[event.action] = event;
     return acc;
@@ -474,6 +417,30 @@ function PODetailPage() {
     const name = `${p.firstName || ""} ${p.lastName || ""}`.trim();
     return name || fallback;
   };
+
+  const createdById = (po as any)?.createdById || (typeof po.createdBy === "object" && po.createdBy
+    ? (po.createdBy as any).userId || (po.createdBy as any).id
+    : typeof po.createdBy === "string" ? po.createdBy : undefined);
+  let isOwnPO = !!user?.userId && !!createdById && user.userId === createdById;
+
+  if (!isOwnPO && user) {
+    const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
+    let creatorName = "";
+    if (typeof po.createdBy === 'object' && po.createdBy) {
+      creatorName = `${(po.createdBy as any).firstName || ''} ${(po.createdBy as any).lastName || ''}`.trim().toLowerCase();
+    }
+    if (!creatorName && timelineByAction["created"]?.performedBy) {
+      creatorName = `${timelineByAction["created"].performedBy.firstName || ''} ${timelineByAction["created"].performedBy.lastName || ''}`.trim().toLowerCase();
+    }
+    if (userFullName && creatorName && userFullName === creatorName) {
+      isOwnPO = true;
+    }
+  }
+  const isSubmitterView = isOwnScope || isOwnPO;
+  const stage = (po.status || "").toLowerCase() as WFStage;
+
+  const isDelivered = stage === "partially_delivered" || stage === "delivered";
+  const submitDateStr = po.createdAt ? format(new Date(po.createdAt), "MMM dd, yyyy") : "N/A";
 
   const isApproved = stage === "approved" || stage === "ready_to_issue" || stage === "issued" || stage === "acknowledged" || stage === "ready_for_delivery" || isDelivered || stage === "closed";
 
@@ -599,6 +566,33 @@ function PODetailPage() {
 
   return (
     <>
+      {/* Policy Violation Modal */}
+      {policyViolations && (
+        <ProcurementPolicyCheckModal
+          isOpen={isPolicyModalOpen}
+          onClose={() => setIsPolicyModalOpen(false)}
+          violations={policyViolations}
+          onEditRequest={() => setIsPolicyModalOpen(false)}
+          onProceedWithWarnings={async (justification: string) => {
+            try {
+              setIsPolicyModalOpen(false);
+              await submitMut.mutateAsync({ policyJustification: justification, spendProgramJustification: justification });
+              toast.success("Purchase order submitted with justification.");
+              setPolicyViolations(null);
+              router.push(listUrl);
+            } catch (err: unknown) {
+              if (isProcurementPolicyViolationError(err)) {
+                const violations = getProcurementPolicyViolations(err);
+                setPolicyViolations(violations);
+                setIsPolicyModalOpen(true);
+              } else {
+                toast.error(getApiErrorMessage(err, "Failed to submit PO"));
+              }
+            }
+          }}
+        />
+      )}
+
       {/* Modals */}
       <ConfirmModal
         open={modal === "submit"}
@@ -737,6 +731,7 @@ function PODetailPage() {
                 lineItems: items.map(item => ({ ...item, unitPrice: item.unitPrice ?? 0 })) as any 
              });
              toast.success("Line items added successfully");
+             setPolicyViolations(null);
              setModal(null);
           }}
           editInitial={editingLineItem ? {
@@ -749,6 +744,7 @@ function PODetailPage() {
              if (editingLineItem?.purchaseOrderLineItemId) {
                 await updateLineItemMut.mutateAsync(payload as any);
                 toast.success("Line item updated");
+                setPolicyViolations(null);
                 setModal(null);
                 setEditingLineItem(null);
              }
@@ -756,6 +752,44 @@ function PODetailPage() {
           persistKey={`po_${id}`}
         />
       )}
+
+      {/* Line Item Detail Modal */}
+      <LineItemDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => { setIsDetailModalOpen(false); setSelectedDetailItem(null); setDetailModalStartsInEditMode(false); }}
+        item={selectedDetailItem}
+        currency={po?.currency || "NGN"}
+        startInEditMode={detailModalStartsInEditMode}
+        onSave={
+          (stage === "draft" && isSubmitterView && selectedDetailItem)
+            ? async (updatedItem) => {
+                if (!updatedItem.purchaseOrderLineItemId) return;
+                try {
+                  await updateLineItemMut.mutateAsync({
+                    purchaseOrderId: id as string,
+                    lineItemId: updatedItem.purchaseOrderLineItemId as string,
+                    payload: {
+                      name: updatedItem.name,
+                      categoryId: updatedItem.categoryId!,
+                      quantity: updatedItem.quantity,
+                      unitPrice: updatedItem.unitPrice,
+                      taxAmount: updatedItem.taxAmount || 0,
+                      unitOfMeasure: updatedItem.unitOfMeasure,
+                      sku: updatedItem.sku,
+                      description: updatedItem.description,
+                    }
+                  } as any);
+                  toast.success("Line item updated");
+                  setPolicyViolations(null);
+                  setIsDetailModalOpen(false);
+                  setSelectedDetailItem(null);
+                } catch (err: any) {
+                  toast.error(err?.response?.data?.message || "Failed to update item");
+                }
+              }
+            : undefined
+        }
+      />
 
       {/* Layout */}
       <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
@@ -798,8 +832,20 @@ function PODetailPage() {
                 </button>
               )}
               {showSubmit && (
-                <button onClick={() => setModal("submit")} className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-                  Submit for Approval
+                <button 
+                  onClick={() => {
+                    if (policyViolations) {
+                      setIsPolicyModalOpen(true);
+                      return;
+                    }
+                    setModal("submit");
+                  }} 
+                  className={`h-9 px-5 rounded-lg text-white text-sm font-semibold transition-opacity ${
+                    policyViolations 
+                      ? "bg-[#d33d44] hover:bg-[#c33339] opacity-90 cursor-pointer" 
+                      : "bg-[#087f70] hover:opacity-90"
+                  }`}>
+                  {policyViolations ? "Fix Violations to Submit" : "Submit for Approval"}
                 </button>
               )}
               {showReject && (
@@ -856,10 +902,23 @@ function PODetailPage() {
             </div>
           )}
 
-          {canClosePO && stage !== "closed" && closeBlockers.length > 0 && (
+
+
+          {/* Policy Warnings */}
+          {(po as any).policyEvaluationResult?.spendProgramEvaluation?.resolution === "WARNING" && (
             <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <div><p className="font-semibold">PO closure requirements</p><p className="mt-0.5">{closeBlockers.map((blocker) => String(({ delivery_incomplete: "Complete receipt or an approved short-close for every line", fulfillment_exception_unresolved: "Resolve the vendor cannot-fulfill exception", final_billing_confirmation_required: "Confirm that no further vendor billing is expected", open_invoice: "Resolve every submitted, approved, or unpaid invoice" } as Record<string, string>)[blocker] || blocker)).join(" · ")}</p></div>
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+              <div className="flex-1">
+                <p className="font-semibold">Policy Warnings</p>
+                <p className="mt-0.5 text-amber-800">{(po as any).policyEvaluationResult.spendProgramEvaluation.message}</p>
+                {((po as any).policyEvaluationResult.spendProgramEvaluation.warnings || []).length > 0 && (
+                  <ul className="mt-2 space-y-1.5 list-disc list-outside ml-4">
+                    {((po as any).policyEvaluationResult.spendProgramEvaluation.warnings as any[]).map((w, i) => (
+                      <li key={i} className="text-amber-800 text-xs font-medium leading-relaxed">{w.message}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
 
@@ -925,7 +984,7 @@ function PODetailPage() {
                     <th className="px-6 py-3 text-left font-semibold text-[#0b100e]">Name</th>
                     <th className="px-6 py-3 text-left font-semibold text-[#0b100e]">Category</th>
                     <th className="px-6 py-3 text-center font-semibold text-[#0b100e]">Qty</th>
-                    <th className="px-6 py-3 text-left font-semibold text-[#0b100e]">Fulfillment</th>
+
                     <th className="px-6 py-3 text-right font-semibold text-[#0b100e]">Unit Price</th>
                     <th className="px-6 py-3 text-right font-semibold text-[#0b100e]">Subtotal</th>
                     {stage === "draft" && isSubmitterView && (
@@ -934,24 +993,65 @@ function PODetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {po.lineItems?.length ? po.lineItems.map((item: any) => (
-                    <tr key={item.purchaseOrderLineItemId} className="border-b border-border/40">
+                  {lineItemsToDisplay.length ? lineItemsToDisplay.map((item: any) => {
+                    const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
+                    const hasBlock = hasViolations && item.policyViolations.some((v: any) => v.type === "hard_block");
+
+                    return (
+                    <tr 
+                      key={item.purchaseOrderLineItemId} 
+                      onClick={() => {
+                        setSelectedDetailItem({
+                          ...item,
+                          categoryName: item.category?.name || undefined,
+                          purchaseRequestLineItemId: item.purchaseOrderLineItemId, // For LineItemDetailModal compatibility
+                        });
+                        setDetailModalStartsInEditMode(false);
+                        setIsDetailModalOpen(true);
+                      }}
+                      className="border-b border-border/40 cursor-pointer hover:bg-black/[0.02] transition-colors"
+                    >
                       <td className="px-6 py-4">
-                        <p className="font-semibold text-[#0b100e]">{item.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-[#0b100e]">{item.name}</p>
+                          {hasViolations && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span 
+                                  className={`inline-flex items-center justify-center w-4 h-4 rounded-full shrink-0 cursor-help ${hasBlock ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}
+                                >
+                                  {hasBlock 
+                                    ? <XCircle className="w-3 h-3" /> 
+                                    : <AlertTriangle className="w-3 h-3" />
+                                  }
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[280px] text-center whitespace-pre-wrap">
+                                {item.policyViolations!.map((v: any) => v.message).join('\n\n')}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
                         {item.description ? <p className="text-xs text-[#68726d]">{item.description as string}</p> : null}
                       </td>
                       <td className="px-6 py-4 text-[#68726d]">{(item.category as any)?.name || "—"}</td>
                       <td className="px-6 py-4 text-center">{Number(item.quantity)}</td>
-                      <td className="px-6 py-4">
-                        {item.fulfillmentState === "cannot_fulfill" ? <div className="space-y-1"><span className="inline-flex rounded bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">{Number(item.quantityRemainingToReady || 0)} cannot fulfill</span>{canClosePO && Number(item.quantityRemainingToReady || 0) > 0 && <button onClick={() => setShortCloseItem(item)} className="block text-xs font-semibold text-[#087f70] hover:underline">Short-close quantity</button>}</div> : Number(item.shortClosedQuantity || 0) > 0 ? <div className="space-y-1"><span className="inline-flex rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{Number(item.shortClosedQuantity)} short-closed</span>{item.shortCloseReason && <p className="max-w-[180px] text-xs text-[#68726d]">{item.shortCloseReason}</p>}</div> : <span className="text-xs text-[#68726d]">—</span>}
-                      </td>
+
                       <td className="px-6 py-4 text-right">{formatCurrency(item.unitPrice, po.currency)}</td>
                       <td className="px-6 py-4 text-right text-[#0b100e] font-medium">{formatCurrency(item.subtotal as string, po.currency as string)}</td>
                       {stage === "draft" && isSubmitterView && (
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={() => { setEditingLineItem(item); setModal("line_items"); }}
+                              onClick={() => { 
+                                setSelectedDetailItem({
+                                  ...item,
+                                  categoryName: item.category?.name || undefined,
+                                  purchaseRequestLineItemId: item.purchaseOrderLineItemId,
+                                });
+                                setDetailModalStartsInEditMode(true);
+                                setIsDetailModalOpen(true); 
+                              }}
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f5f7f6] transition-colors"
                               title="Edit item"
                             >
@@ -971,7 +1071,8 @@ function PODetailPage() {
                         </td>
                       )}
                     </tr>
-                  )) : (
+                    );
+                  }) : (
                     <tr>
                       <td colSpan={stage === "draft" && isSubmitterView ? 7 : 6} className="px-6 py-8 text-center text-[#68726d]">No line items attached</td>
                     </tr>
@@ -1004,7 +1105,14 @@ function PODetailPage() {
               <h3 className="text-base font-bold text-white">Workflow Progress</h3>
             </div>
             <div className="px-5 py-4">
-              <WorkflowProgress steps={workflowSteps} />
+              <WorkflowProgress steps={workflowSteps.map(s => ({
+                label: s.label,
+                person: s.person || undefined,
+                badge: s.badge,
+                badgeColor: s.badgeColor,
+                timestamp: s.timestamp || undefined,
+                status: s.done ? "done" : s.pending ? "pending" : "inactive"
+              }))} />
             </div>
           </div>
         </div>

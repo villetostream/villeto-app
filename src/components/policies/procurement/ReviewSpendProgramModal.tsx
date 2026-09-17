@@ -89,7 +89,7 @@ export function ReviewSpendProgramModal({
     }
   };
 
-  const groups: string[] = program.groups ?? [];
+  const groups: string[] = (program.groups ?? []).map((g: any) => typeof g === "string" ? g : (g?.group ?? ""));
   const categories = program.categories ?? [];
 
   return (

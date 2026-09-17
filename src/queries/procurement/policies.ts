@@ -210,12 +210,23 @@ export const useUpdateSpendProgramSettings = () => {
   });
 };
 
-export const useGetSpendProgramSettingsCategories = () => {
+export interface SpendProgramSettingsCategory {
+  categoryId: string;
+  name: string;
+  inSettings: boolean;
+  settingStatus: "included" | "not_in_settings" | "included_by_all_categories";
+  hasSpendProgram: boolean;
+}
+
+export const useGetSpendProgramSettingsCategories = (inSettings?: boolean) => {
   const axios = useAxios();
-  return useQuery<{ data: { enabled: boolean; coverageMode: string; categories: string[] } }, Error>({
-    queryKey: QUERY_KEYS.procurement.spendProgramCategories,
+  return useQuery<{ data: { enabled: boolean; coverageMode: string; categories: SpendProgramSettingsCategory[] } }, Error>({
+    queryKey: [...QUERY_KEYS.procurement.spendProgramCategories, { inSettings }],
     queryFn: async () => {
-      const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS_CATEGORIES);
+      const url = inSettings !== undefined 
+        ? `${PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS_CATEGORIES}?inSettings=${inSettings}`
+        : PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS_CATEGORIES;
+      const res = await axios.get(url);
       return res.data;
     },
     staleTime: STALE_TIMES.NORMAL,
@@ -246,23 +257,72 @@ export function buildSpendProgramPayload(draft: SpendProgramDraft, isUpdate: boo
       .filter(g => g.rules.length > 0)
       .map(g => ({
         group: g.group,
-        rules: g.rules.map(r => ({
+        rules: g.rules.map((r, idx) => ({
+          procurementSpendProgramRuleId: r.procurementSpendProgramRuleId || (r.id && !r.id.startsWith("rule-") ? r.id : undefined),
+          ruleDefinitionId: r.ruleDefinitionId,
           ruleType: r.ruleType,
           appliesToCategoryIds: r.appliesToAll ? draft.categoryIds : (r.appliesToCategoryIds || []),
+          legalEntityIds: r.legalEntityIds || [],
           conditionConfig: r.conditionConfig,
           action: r.action,
           actionConfig: r.actionConfig,
           exceptionConfig: r.exceptionConfig ? {
-            logic: r.exceptionConfig.logic || "OR",
-            departmentIds: r.exceptionConfig.departmentIds,
-            roleIds: r.exceptionConfig.roleIds,
-            jobGradeIds: r.exceptionConfig.jobGradeIds,
-            managementLevelIds: r.exceptionConfig.managementLevelIds,
-            userIds: r.exceptionConfig.userIds,
+            departmentIds: r.exceptionConfig.departmentIds || [],
+            roleIds: r.exceptionConfig.roleIds || [],
+            jobGradeIds: r.exceptionConfig.jobGradeIds || [],
+            managementLevelIds: r.exceptionConfig.managementLevelIds || [],
+            userIds: r.exceptionConfig.userIds || [],
+            exceptionRule: {
+              conditionConfig: r.exceptionConfig.conditionConfig || {},
+              action: r.exceptionConfig.action || "allow",
+              actionConfig: r.exceptionConfig.actionConfig || {},
+            }
           } : undefined,
+          sortOrder: idx,
+          isActive: r.isActive ?? true,
         })),
         ...(isUpdate ? { isActive: g.isActive } : {}),
       })),
+  };
+}
+
+export function mapSpendProgramFromBackend(data: any): SpendProgramDraft {
+  if (!data) return data;
+  return {
+    ...data,
+    groups: (data.groups || []).map((g: any) => ({
+      ...g,
+      rules: (g.rules || []).map((r: any, idx: number) => {
+        // Flatten exceptionRule into exceptionConfig for the UI
+        let exceptionConfig = r.exceptionConfig;
+        if (exceptionConfig && exceptionConfig.exceptionRule) {
+          exceptionConfig = {
+            ...exceptionConfig,
+            conditionConfig: exceptionConfig.exceptionRule.conditionConfig || {},
+            action: exceptionConfig.exceptionRule.action || "",
+            actionConfig: exceptionConfig.exceptionRule.actionConfig || {},
+          };
+          delete exceptionConfig.exceptionRule;
+        }
+
+        return {
+          ...r,
+          id: r.procurementSpendProgramRuleId || `rule-${Date.now()}-${idx}`,
+          procurementSpendProgramRuleId: r.procurementSpendProgramRuleId,
+          exceptionConfig: exceptionConfig || {
+            departmentIds: [],
+            roleIds: [],
+            jobGradeIds: [],
+            managementLevelIds: [],
+            userIds: [],
+            logic: "OR",
+            conditionConfig: {},
+            action: "",
+            actionConfig: {},
+          },
+        };
+      }),
+    })),
   };
 }
 
@@ -317,7 +377,9 @@ export const useCreateSpendProgram = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (draft: SpendProgramDraft) => {
-      const res = await axios.post(PROCUREMENT_KEYS.SPEND_PROGRAMS, buildSpendProgramPayload(draft));
+      const payload = buildSpendProgramPayload(draft);
+      delete payload.draftId;
+      const res = await axios.post(PROCUREMENT_KEYS.SPEND_PROGRAMS, payload);
       return res.data;
     },
     onSuccess: async () => {
@@ -420,6 +482,28 @@ export const useUpdateSpendProgramDraft = () => {
       p.draftId = draftId;
       const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFT(draftId), p);
       return res.data;
+    },
+  });
+};
+
+// ─── Toggle rule-definition active status ─────────────────────────────────────
+
+export interface ToggleRuleStatusPayload {
+  ruleDefinitionId: string;
+  ruleType: string;
+  isActive: boolean;
+}
+
+export const useToggleSpendProgramRuleStatus = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (rules: ToggleRuleStatusPayload[]) => {
+      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS_STATUS, { rules });
+      return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
     },
   });
 };

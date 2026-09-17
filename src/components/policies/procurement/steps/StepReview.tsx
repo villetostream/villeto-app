@@ -35,8 +35,9 @@ type SimulationResult = {
 
 export function StepReview({ draft }: StepReviewProps) {
   const [activeTab, setActiveTab] = useState<SpendProgramGroup>("pr_submission");
-  const [simAmount, setSimAmount] = useState("15,000");
-  const [simQty, setSimQty] = useState("25");
+  const [simStage, setSimStage] = useState<SpendProgramGroup>("pr_submission");
+  const [simAmount, setSimAmount] = useState("");
+  const [simQty, setSimQty] = useState("");
   const [simCategory, setSimCategory] = useState("");
   const [hasRun, setHasRun] = useState(false);
   const [isSimDirty, setIsSimDirty] = useState(true);
@@ -74,8 +75,9 @@ export function StepReview({ draft }: StepReviewProps) {
     const amount = Number(simAmount.replace(/,/g, ""));
     const qty = Number(simQty.replace(/,/g, ""));
     
-    draft.groups.forEach(group => {
-      group.rules.forEach(rule => {
+    const targetGroup = draft.groups.find(g => g.group === simStage);
+    if (targetGroup) {
+      targetGroup.rules.forEach(rule => {
         if (!rule.appliesToAll && !rule.appliesToCategoryIds.includes(simCategory)) {
           return;
         }
@@ -135,7 +137,7 @@ export function StepReview({ draft }: StepReviewProps) {
           });
         }
       });
-    });
+    }
     
     setSimResults(results);
     setHasRun(true);
@@ -293,6 +295,22 @@ export function StepReview({ draft }: StepReviewProps) {
           <p className="text-[13px] text-[#68726d] mb-6">Test your policy with sample scenarios.</p>
 
           <div className="space-y-5 mb-6">
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-semibold text-[#10231d]">Stage</label>
+              <Select value={simStage} onValueChange={(val: SpendProgramGroup) => {
+                setSimStage(val);
+                setIsSimDirty(true);
+              }}>
+                <SelectTrigger className="w-full h-10 bg-white border-black/[0.08] rounded-lg">
+                  <SelectValue placeholder="Select a stage" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SPEND_PROGRAM_GROUPS.map(g => (
+                    <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-[#10231d]">Request Amount</label>
               <Input

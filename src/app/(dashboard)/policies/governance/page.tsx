@@ -19,11 +19,12 @@ import {
   useGetSpendProgramEligibleRoles,
   useGetSpendProgramRuleDefinitions,
   useDeleteSpendProgramRuleDefinition,
-  useSeedDefaultRuleDefinitions
+  useSeedDefaultRuleDefinitions,
+  useGetSpendProgramSettingsCategories
 } from "@/queries/procurement/policies";
 import { RuleDefinitionModal } from "@/components/policies/governance/RuleDefinitionModal";
 import type { SpendProgramGroup } from "@/components/policies/procurement/types";
-import { useGetProcurementCategories } from "@/queries/procurement/purchase-requests";
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 
@@ -174,27 +175,18 @@ function SpendProgramPanel({ onStateChange, onRegisterActions }: any) {
   const [search, setSearch] = useState("");
   const { data: settingData, isLoading: settingLoading } = useGetSpendProgramSettings();
   const { data: rolesData, isLoading: rolesLoading } = useGetSpendProgramEligibleRoles();
-  const { data: categoriesData } = useGetProcurementCategories();
+  const { data: categoriesData } = useGetSpendProgramSettingsCategories();
   
   const setting = settingData?.data;
   const eligibleRoles: any[] = rolesData?.data ?? [];
 
   // Extract flat list of categories
   const allCategories = useMemo(() => {
-    if (!categoriesData?.data) return [];
-    const flatten = (cats: any[], prefix = ""): any[] => {
-      let result: any[] = [];
-      cats.forEach(c => {
-        const displayName = prefix ? `${prefix} › ${c.name}` : c.name;
-        result.push({ ...c, displayName });
-        if (c.children?.length) {
-          result = result.concat(flatten(c.children, displayName));
-        }
-      });
-      return result;
-    };
-    const flattened = flatten(categoriesData.data);
-    return flattened.filter(cat => !cat.displayName.toLowerCase().includes("laptop"));
+    if (!categoriesData?.data?.categories) return [];
+    return categoriesData.data.categories.map(cat => ({
+      ...cat,
+      displayName: cat.name
+    }));
   }, [categoriesData?.data]);
 
   // Local state

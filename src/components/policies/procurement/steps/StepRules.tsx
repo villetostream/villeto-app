@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { PlusCircle, Info, Settings2, Trash2 } from "lucide-react";
+import { PlusCircle, Info, Settings2, Trash2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SPEND_PROGRAM_GROUPS, getGroupConfig, getActionStyle, buildConditionSummary, getActionLabel } from "../constants";
 import type { SpendProgramRule, SpendProgramGroupDraft, SpendProgramGroup, SpendProgramDraft } from "../types";
 import { RuleConfigurationModal } from "./RuleConfigurationModal";
 import { useGetProcurementCategories } from "@/queries/procurement/purchase-requests";
 import { useExceptionFormatter } from "../hooks/useExceptionFormatter";
+import { useToggleSpendProgramRuleStatus } from "@/queries/procurement/policies";
 import { toast } from "sonner";
 
 export interface StepRulesProps {
@@ -40,22 +41,40 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 }
 
 export function StepRules({ draft, onChange, activeStages }: StepRulesProps) {
-  const visibleGroups = activeStages && activeStages.length > 0
-    ? SPEND_PROGRAM_GROUPS.filter(g => activeStages.includes(g.value))
-    : SPEND_PROGRAM_GROUPS;
+  const isEditMode = !!(draft.programId || draft.draftId);
+
+  const visibleGroups = SPEND_PROGRAM_GROUPS.filter(g => {
+    const isStageActive = activeStages?.includes(g.value) ?? false;
+    
+    if (isEditMode) {
+      const hasRules = (draft.groups.find(dg => dg.group === g.value)?.rules?.length ?? 0) > 0;
+      return isStageActive || hasRules;
+    }
+
+    if (activeStages && activeStages.length > 0) {
+      return isStageActive;
+    }
+    return true; // Fallback
+  });
 
   const [activeTab, setActiveTab] = useState<SpendProgramGroup>(
     () => (visibleGroups[0]?.value ?? "pr_submission")
   );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<SpendProgramRule | undefined>(undefined);
+  const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null);
 
   const { formatExceptionSummary } = useExceptionFormatter();
+  const toggleRuleStatusMutation = useToggleSpendProgramRuleStatus();
 
   const { data: categoriesData } = useGetProcurementCategories();
   const allCategories = categoriesData?.data || [];
 
   const activeGroupRules = draft.groups.find((g) => g.group === activeTab)?.rules || [];
+
+  const isCurrentStageActive = activeStages && activeStages.length > 0
+    ? activeStages.includes(activeTab)
+    : true;
 
   const handleSaveRule = (rule: SpendProgramRule) => {
     const updatedGroups = draft.groups.map((g) => {
@@ -79,10 +98,14 @@ export function StepRules({ draft, onChange, activeStages }: StepRulesProps) {
     onChange({ groups: updatedGroups });
   };
 
-  const handleToggleRule = (ruleId: string) => {
-    // Check if we're trying to turn off the last active rule
+  const handleToggleRule = async (ruleId: string) => {
     const ruleToToggle = draft.groups.flatMap(g => g.rules).find(r => r.id === ruleId);
-    if (ruleToToggle && (ruleToToggle.isActive ?? true)) {
+    if (!ruleToToggle) return;
+
+    const newIsActive = !(ruleToToggle.isActive ?? true);
+
+    // Guard: at least one rule must remain active
+    if (!newIsActive) {
       const totalActiveRules = draft.groups.flatMap(g => g.rules).filter(r => r.isActive ?? true).length;
       if (totalActiveRules <= 1) {
         toast.error("At least one rule must remain active across all stages.");
@@ -90,16 +113,38 @@ export function StepRules({ draft, onChange, activeStages }: StepRulesProps) {
       }
     }
 
+    // Optimistically update local state
     const updatedGroups = draft.groups.map((g) => {
       if (g.group !== activeTab) return g;
       return {
         ...g,
         rules: g.rules.map(r =>
-          r.id === ruleId ? { ...r, isActive: !(r.isActive ?? true) } : r
+          r.id === ruleId ? { ...r, isActive: newIsActive } : r
         ),
       };
     });
     onChange({ groups: updatedGroups });
+
+    // When editing a persisted program, also call the API
+    if (draft.programId && ruleToToggle.ruleDefinitionId && ruleToToggle.ruleType) {
+      setTogglingRuleId(ruleId);
+      try {
+        await toggleRuleStatusMutation.mutateAsync([
+          {
+            ruleDefinitionId: ruleToToggle.ruleDefinitionId,
+            ruleType: ruleToToggle.ruleType,
+            isActive: newIsActive,
+          },
+        ]);
+        toast.success(`Rule ${newIsActive ? "enabled" : "disabled"} successfully.`);
+      } catch {
+        // Roll back optimistic update on failure
+        onChange({ groups: draft.groups });
+        toast.error("Failed to update rule status. Please try again.");
+      } finally {
+        setTogglingRuleId(null);
+      }
+    }
   };
 
   const openAddRule = () => {
@@ -162,13 +207,15 @@ export function StepRules({ draft, onChange, activeStages }: StepRulesProps) {
             })()}
             <h3 className="font-medium text-sm">{getGroupConfig(activeTab)?.subtitle}</h3>
           </div>
-          <button
-            onClick={openAddRule}
-            className="h-9 px-4 rounded-lg bg-white border border-[#087f70]/30 text-[#087f70] hover:bg-[#087f70]/5 font-semibold text-xs transition-colors flex items-center gap-2"
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            Add Rule
-          </button>
+          {isCurrentStageActive && (
+            <button
+              onClick={openAddRule}
+              className="h-9 px-4 rounded-lg bg-white border border-[#087f70]/30 text-[#087f70] hover:bg-[#087f70]/5 font-semibold text-xs transition-colors flex items-center gap-2"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              Add Rule
+            </button>
+          )}
         </div>
       </div>
 
@@ -183,13 +230,15 @@ export function StepRules({ draft, onChange, activeStages }: StepRulesProps) {
               <p className="text-[13px] text-[#68726d] max-w-[260px] mb-6">
                 Add a rule to enforce controls during the {getGroupConfig(activeTab)?.shortLabel} stage.
               </p>
-              <button
-                onClick={openAddRule}
-                className="h-9 px-4 rounded-lg bg-[#087f70] text-white hover:opacity-90 font-semibold text-xs transition-opacity flex items-center gap-2 shadow-sm"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                Add First Rule
-              </button>
+              {isCurrentStageActive && (
+                <button
+                  onClick={openAddRule}
+                  className="h-9 px-4 rounded-lg bg-[#087f70] text-white hover:opacity-90 font-semibold text-xs transition-opacity flex items-center gap-2 shadow-sm"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  Add First Rule
+                </button>
+              )}
             </div>
           ) : (
             activeGroupRules.map((rule) => {
@@ -209,7 +258,14 @@ export function StepRules({ draft, onChange, activeStages }: StepRulesProps) {
                   <div className="absolute right-4 top-4 flex items-center gap-1.5">
                     {!!(draft.programId || draft.draftId) && (
                       <div className="mr-1 flex items-center">
-                        <Toggle checked={isRuleActive} onChange={() => handleToggleRule(rule.id)} />
+                        {togglingRuleId === rule.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-[#087f70]" />
+                        ) : (
+                          <Toggle
+                            checked={isRuleActive}
+                            onChange={() => handleToggleRule(rule.id)}
+                          />
+                        )}
                       </div>
                     )}
                     <button

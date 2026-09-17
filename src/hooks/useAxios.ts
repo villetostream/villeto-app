@@ -69,12 +69,13 @@ function refreshAccessToken() {
         throw new Error("No access token returned");
       }
 
-      useAuthStore.getState().setAccessToken(accessToken);
-      scheduleTokenRefresh(
+      const expiresInMs =
         response.data?.data?.accessTokenExpiresInMs ??
-          response.data?.accessTokenExpiresInMs ??
-          3_600_000,
-      );
+        response.data?.accessTokenExpiresInMs ??
+        3_600_000;
+
+      useAuthStore.getState().setAccessToken(accessToken, expiresInMs);
+      scheduleTokenRefresh(expiresInMs);
       return accessToken;
     })
     .finally(() => {

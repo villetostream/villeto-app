@@ -38,6 +38,7 @@ import {
   useApproveSpendProgram,
   useRejectSpendProgram,
   useGetSpendProgramSettings,
+  useDeleteSpendProgram,
 } from "@/queries/procurement/policies";
 import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -46,7 +47,16 @@ import { toast } from "sonner";
 import { useGetEligibleRoles } from "@/queries/policies/governance";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
-import { ReviewSpendProgramModal } from "./ReviewSpendProgramModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -91,11 +101,11 @@ export function ProcurementPolicySection({
 }) {
   const [search, setSearch] = useState("");
   const [detailPolicy, setDetailPolicy] = useState<{ id: string; isDraft?: boolean; isReviewMode?: boolean; initialData?: any } | null>(null);
-  const [reviewProgram, setReviewProgram] = useState<SpendProgramListItem | null>(null);
   const [viewTab, setViewTab] = useState<"policies" | "archived">("policies");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [groupFilter, setGroupFilter] = useState<string>("all");
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const tableProps = useDataTable({
     initialPage: 1,
@@ -111,6 +121,7 @@ export function ProcurementPolicySection({
   const deleteDraftMutation = useDeleteSpendProgramDraft();
   const approveMutation = useApproveSpendProgram();
   const rejectMutation = useRejectSpendProgram();
+  const deleteProgramMutation = useDeleteSpendProgram();
 
   const { data: spendProgramSettingsResponse } = useGetSpendProgramSettings();
   const isSpendProgramEnabled = spendProgramSettingsResponse?.data?.enabled ?? true;
@@ -118,7 +129,7 @@ export function ProcurementPolicySection({
   const programs = useMemo<SpendProgramListItem[]>(() => data?.data ?? [], [data?.data]);
 
   const approvedCount = useMemo(() => programs.filter((p) => p.status === "active").length, [programs]);
-  const pendingCount  = useMemo(() => programs.filter((p) => p.status === "pending").length, [programs]);
+  const pendingCount  = useMemo(() => programs.filter((p) => p.status === "pending" || p.status === "pending_approval").length, [programs]);
   const draftCount    = useMemo(() => programs.filter((p) => p.status === "draft").length, [programs]);
 
   const summary: PolicySummaryItem[] = [
@@ -165,57 +176,44 @@ export function ProcurementPolicySection({
   const canDeactivate = can("policy", "deactivate");
   const canApprove    = can("policy", "approve");
 
-  // ── Spend-program review: open immediately, verify eligibility in background ──
-  const handleOpenSpendReview = useCallback(async (program: SpendProgramListItem) => {
-    // Open the modal instantly with the row data
-    setReviewProgram(program);
+  const checkIfReviewable = useCallback((program: SpendProgramListItem) => {
+    const isPending = program.status === "pending" || program.status === "pending_approval";
+    if (!isPending) return false;
 
-    // Verify in background that this user is still an approver
-    try {
-      const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM(program.procurementSpendProgramId));
-      const freshData = res.data?.data;
+    const cb = program.createdBy;
+    const creatorId = typeof cb === "object" && cb !== null
+      ? ((cb as any).userId ?? (cb as any).id ?? "")
+      : "";
+    const isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
+    if (isCreator) return false;
 
-      // Check if the user is the creator
-      const cb = freshData?.createdBy;
-      const creatorId = typeof cb === "object" && cb !== null
-        ? (cb.userId ?? cb.id ?? "")
-        : "";
-      const isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
-
-      // Check approval setting
-      const currentUserRoleId = user?.companyRole?.roleId ?? (user as any)?.villetoRole?.roleId ?? "";
-      const approvalSetting = freshData?.approvalSetting;
-      let stillApprover = false;
-      if (approvalSetting?.allRolesCanApprove) {
-        stillApprover = true;
-      } else if (approvalSetting?.approverRoleIds?.length) {
-        stillApprover = approvalSetting.approverRoleIds.includes(currentUserRoleId);
-      } else {
-        // Fall back to god-mode approve permission
-        stillApprover = useAuthStore.getState().can("policy", "approve");
-      }
-
-      if (isCreator || !stillApprover) {
-        setReviewProgram(null);
-        toast.error("You are not eligible to review this spend program.");
-        return;
-      }
-
-      // Silently merge any fresher data (the modal already shows row data)
-      if (freshData) setReviewProgram({ ...program, ...freshData });
-    } catch {
-      // If verification fetch fails, leave modal open — the mutation itself
-      // will guard on the backend and surface an error if needed.
-    }
-  }, [axios, user?.userId]);
+    const currentUserRoleId = 
+      user?.companyRole?.roleId || 
+      (user as any)?.companyRole?.id || 
+      (user as any)?.villetoRole?.roleId || 
+      (user as any)?.villetoRole?.id || 
+      (user as any)?.role?.roleId || 
+      (user as any)?.role?.id || 
+      "";
+    const approvalSetting = spendProgramSettingsResponse?.data;
+    
+    if (approvalSetting?.allRolesCanApprove) return true;
+    if (approvalSetting?.approverRoleIds?.length) return approvalSetting.approverRoleIds.includes(currentUserRoleId);
+    return canApprove;
+  }, [user, spendProgramSettingsResponse?.data, canApprove]);
 
   const handleRowClick = useCallback((row: SpendProgramListItem) => {
     setDetailPolicy({
       id: row.procurementSpendProgramId,
       isDraft: row.status === "draft",
+      isReviewMode: checkIfReviewable(row),
       initialData: row,
     });
-  }, []);
+  }, [checkIfReviewable]);
+
+  const handleOpenSpendReview = useCallback((program: SpendProgramListItem) => {
+    handleRowClick(program);
+  }, [handleRowClick]);
 
   const columns = useMemo<ColumnDef<SpendProgramListItem>[]>(
     () => [
@@ -343,67 +341,60 @@ export function ProcurementPolicySection({
         header: () => <div className="text-right w-full">Action</div>,
         cell: ({ row }) => {
           const program = row.original;
-          const isPending = program.status === "pending";
-
-          // Determine if the current user is the creator (to hide Review btn)
-          const cb = program.createdBy;
-          const creatorId = typeof cb === "object" && cb !== null
-            ? ((cb as any).userId ?? (cb as any).id ?? "")
-            : "";
-          const isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
-          const showReview = isPending && canApprove && !isCreator;
+          const isPending = program.status === "pending" || program.status === "pending_approval";
+          const showReview = checkIfReviewable(program);
 
           return (
             <div className="flex items-center justify-end gap-2">
-              {/* Standalone Review button — mirrors expense policy UX */}
-              {showReview && (
+              {showReview ? (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleOpenSpendReview(program); }}
-                  className="h-8 px-3 rounded-lg bg-[#087f70] text-white text-[12px] font-semibold hover:bg-[#076b5e] transition-colors whitespace-nowrap"
+                  className="h-8 px-4 rounded-lg bg-[#087f70] text-white text-[12px] font-semibold hover:bg-[#076b5e] transition-colors whitespace-nowrap"
                 >
                   Review
                 </button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-[#f9faf9]/60 transition-colors cursor-pointer">
-                    <MoreHorizontal className="w-5 h-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
-                  <DropdownMenuItem
-                    onClick={() => setDetailPolicy({ id: program.procurementSpendProgramId, isDraft: program.status === "draft", initialData: program })}
-                    className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
-                  >
-                    <Eye className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
-                    View Details
-                  </DropdownMenuItem>
-                  {canUpdate && onEdit && !isPending && (
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-[#f9faf9]/60 transition-colors cursor-pointer">
+                      <MoreHorizontal className="w-5 h-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
                     <DropdownMenuItem
-                      onClick={() => onEdit(program)}
+                      onClick={() => setDetailPolicy({ id: program.procurementSpendProgramId, isDraft: program.status === "draft", initialData: program })}
                       className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
                     >
-                      <Pencil className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
-                      Edit
+                      <Eye className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
+                      View Details
                     </DropdownMenuItem>
-                  )}
-                  {canUpdate && program.status === "draft" && (
-                    <DropdownMenuItem
-                      onClick={() => deleteDraftMutation.mutateAsync(program.procurementSpendProgramId)}
-                      className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-[17px] h-[17px] text-red-500 shrink-0" strokeWidth={1.5} />
-                      Delete Draft
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    {canUpdate && onEdit && !isPending && program.status !== "archived" && program.status !== "inactive" && (
+                      <DropdownMenuItem
+                        onClick={() => onEdit(program)}
+                        className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
+                      >
+                        <Pencil className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
+                        Edit
+                      </DropdownMenuItem>
+                    )}
+                    {canUpdate && program.status === "draft" && (
+                      <DropdownMenuItem
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(program.procurementSpendProgramId); }}
+                        className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-[17px] h-[17px] text-red-500 shrink-0" strokeWidth={1.5} />
+                        Delete Draft
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           );
         },
       },
     ],
-    [canUpdate, canDeactivate, canApprove, handleOpenSpendReview, setDetailPolicy, onEdit, deleteDraftMutation, user?.userId]
+    [canUpdate, canDeactivate, canApprove, handleOpenSpendReview, setDetailPolicy, onEdit, deleteDraftMutation, checkIfReviewable]
   );
 
   return (
@@ -586,29 +577,64 @@ export function ProcurementPolicySection({
           if (onSubmitDraft) onSubmitDraft(p);
           setDetailPolicy(null);
         }}
-        onArchive={() => setDetailPolicy(null)}
+        onArchive={async (p: any) => {
+          try {
+            await deleteProgramMutation.mutateAsync(p.procurementSpendProgramId ?? p.procurementPolicyId);
+            toast.success("Spend program archived successfully.");
+          } catch (err) {
+            toast.error("Failed to archive spend program.");
+          }
+          setDetailPolicy(null);
+        }}
         onDeleteDraft={async (draftId) => {
           await deleteDraftMutation.mutateAsync(draftId);
           setDetailPolicy(null);
         }}
         onApprove={async (p: any) => {
           await approveMutation.mutateAsync(p.procurementSpendProgramId ?? p.procurementPolicyId);
-          toast.success("Policy approved successfully");
+          toast.success("Spend program approved successfully.");
           setDetailPolicy(null);
         }}
         onReject={async (p: any) => {
           await rejectMutation.mutateAsync(p.procurementSpendProgramId ?? p.procurementPolicyId);
-          toast.success("Policy rejected");
+          toast.success("Spend program rejected.");
           setDetailPolicy(null);
         }}
         onClose={() => setDetailPolicy(null)}
       />
 
-      {/* Dedicated review modal — same UX as expense policy review */}
-      <ReviewSpendProgramModal
-        program={reviewProgram}
-        onClose={() => setReviewProgram(null)}
-      />
+      {/* Delete Draft Confirmation */}
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
+        <AlertDialogContent className="max-w-[420px] rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the draft spend program. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmDeleteId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!confirmDeleteId) return;
+                try {
+                  await deleteDraftMutation.mutateAsync(confirmDeleteId);
+                  toast.success("Draft deleted successfully.");
+                } catch {
+                  toast.error("Failed to delete draft. Please try again.");
+                } finally {
+                  setConfirmDeleteId(null);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleteDraftMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Deleting…</>
+              ) : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
