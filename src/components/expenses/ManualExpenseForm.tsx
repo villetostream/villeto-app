@@ -42,9 +42,6 @@ import { getApiErrorMessage, isPolicyViolationError, isDuplicateReceiptError, ge
 import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 import { CompanyExpenseItemModal } from "@/components/expenses/company/CompanyExpenseItemModal";
 import { PolicyJustificationDrawer, type PolicyRequiredAction } from "@/components/expenses/PolicyJustificationDrawer";
-import {
-  uploadReceiptOnly,
-} from "@/lib/receipt-extraction";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -490,21 +487,15 @@ export function ManualExpenseForm({
     try {
       const toastId = toast.loading("Uploading receipt…");
       try {
-        // Manual entry: only upload the file — no OCR needed.
-        // The user is entering expense details themselves, so calling the OCR
-        // service here causes significant lag and blocks the UI unnecessarily.
-        const extraction = await uploadReceiptOnly(axios, file);
-        form.setValue(`expenses.${expenseIndex}.pendingReceipt`, extraction.receiptUrl, { shouldDirty: true });
-        form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, extraction.expenseReceiptExtractionId, { shouldDirty: true });
-        toast.success("Receipt attached.", { id: toastId });
-      } catch (error) {
-        logger.error("Receipt upload failed:", error);
+        // Keep manual attachments local until the report is submitted. The
+        // extraction endpoint is reserved for the explicit receipt-scan flow.
         const base64 = await fileToBase64(file);
         form.setValue(`expenses.${expenseIndex}.pendingReceipt`, base64, { shouldDirty: true });
         form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", { shouldDirty: true });
-        toast.warning("Receipt attached. Enter its details manually.", {
-          id: toastId,
-        });
+        toast.success("Receipt attached.", { id: toastId });
+      } catch (error) {
+        logger.error("Receipt attachment failed:", error);
+        toast.error("Receipt could not be attached. Please try again.", { id: toastId });
       }
     } catch {
       toast.error("Failed to upload receipt. Please try again.");
