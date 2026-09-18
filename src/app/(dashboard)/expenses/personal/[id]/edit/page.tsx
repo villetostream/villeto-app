@@ -21,12 +21,9 @@ import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import { logger } from "@/lib/logger";
 import { getApiErrorMessage, isPolicyViolationError, applyPolicyViolationErrorToExpenses, getPolicyExpenseResults } from "@/lib/types/api-error";
 import {
-  dataUrlToFile,
   extractedReceiptValues,
   getReceiptExtraction,
   type ReceiptExtraction,
-  uploadAndExtractReceipt,
-  uploadReceiptOnly,
 } from "@/lib/receipt-extraction";
 
 interface ExpenseCategory {
@@ -308,22 +305,13 @@ function EditReportPage() {
     justification?: string,
     splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
   ) => {
-    let resolvedReceipt = newReceipt;
+    const resolvedReceipt = newReceipt;
     let replacementExtractionId: string | undefined;
+
     if (newReceipt?.startsWith("data:")) {
-      try {
-        // Editing an existing expense (draft): only upload the file — no OCR needed.
-        // The user is updating details manually, so polling OCR causes lag.
-        const extraction = await uploadReceiptOnly(
-          axios,
-          dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
-        );
-        resolvedReceipt = extraction.receiptUrl;
-        replacementExtractionId = extraction.expenseReceiptExtractionId;
-      } catch (error) {
-        logger.error("Receipt upload failed during expense edit:", error);
-        toast.warning("Receipt attached, but it could not be saved to the server. Try again.");
-      }
+      // Submit manual replacements with the draft/report update. Calling the
+      // extraction endpoint here would enqueue OCR unnecessarily.
+      replacementExtractionId = undefined;
     }
     setExpenses((prev) =>
       prev.map((exp) =>
@@ -826,29 +814,14 @@ function EditReportPage() {
         receiptImage={expenses.find((e) => e.id === selectedReceiptId)?.receiptImage || ""}
           onChangeReceipt={async (newReceipt) => {
             if (!selectedReceiptId) return;
-            let resolvedReceipt = newReceipt;
-            let receiptExtractionId: string | undefined;
-            if (newReceipt.startsWith("data:")) {
-              try {
-                // Changing receipt from preview panel (draft edit): only upload — no OCR needed.
-                const extraction = await uploadReceiptOnly(
-                  axios,
-                  dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
-                );
-                resolvedReceipt = extraction.receiptUrl;
-                receiptExtractionId = extraction.expenseReceiptExtractionId;
-              } catch (error) {
-                logger.error("Receipt upload failed during receipt change:", error);
-                toast.warning("Receipt could not be uploaded. Please try again.");
-              }
-            }
             setExpenses((previous) =>
               previous.map((expense) =>
                 expense.id === selectedReceiptId
                   ? {
                       ...expense,
-                      receiptImage: resolvedReceipt,
-                      receiptExtractionId,
+                      receiptImage: newReceipt,
+                      // A manually selected replacement is not OCR-backed.
+                      receiptExtractionId: undefined,
                     }
                   : expense,
               ),

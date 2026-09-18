@@ -10,9 +10,7 @@ import { ExpenseForm, type ExpenseDetailFormData, type SplitParticipant } from "
 import { useAxios } from "@/hooks/useAxios";
 import {
   type ReceiptExtraction,
-  dataUrlToFile,
   uploadAndExtractReceipt,
-  uploadReceiptOnly,
 } from "@/lib/receipt-extraction";
 import { toast } from "sonner";
 
@@ -231,28 +229,11 @@ export function ReceiptUploadSection({
           categories={categories}
           mode={isSplitTab ? "split" : "individual"}
           onSave={async (data, receipt, splitData) => {
-            let resolvedReceipt = receipt;
+            const resolvedReceipt = receipt;
             let extractionId: string | undefined;
             if (receipt?.startsWith("data:")) {
-              setIsUploading(true);
-              try {
-                // Manual entry: only upload the file — no OCR needed.
-                // Using uploadAndExtractReceipt here would poll the OCR service
-                // unnecessarily, causing significant lag and blocking the UI.
-                const extraction = await uploadReceiptOnly(
-                  axios,
-                  dataUrlToFile(receipt, `receipt-${Date.now()}.jpg`),
-                );
-                resolvedReceipt = extraction.receiptUrl;
-                extractionId = extraction.expenseReceiptExtractionId;
-              } catch (error) {
-                logger.error("Receipt upload failed during manual entry:", error);
-                toast.warning(
-                  "The receipt could not be attached. You can add it later.",
-                );
-              } finally {
-                setIsUploading(false);
-              }
+              // Manual entry: keep attachment local until the report is submitted.
+              extractionId = undefined;
             }
             onAddExpense(
               data,

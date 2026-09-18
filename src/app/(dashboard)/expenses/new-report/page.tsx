@@ -34,11 +34,8 @@ import {
 } from "@/lib/types/api-error";
 import { invalidatePersonalExpenseQueries } from "@/lib/react-query/expenses";
 import {
-  dataUrlToFile,
   extractedReceiptValues,
   type ReceiptExtraction,
-  uploadAndExtractReceipt,
-  uploadReceiptOnly,
 } from "@/lib/receipt-extraction";
 
 interface ExpenseCategory {
@@ -341,23 +338,13 @@ function NewReportPage() {
     splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
   ) => {
     const currentExpense = expenses.find((expense) => expense.id === expenseId);
-    let resolvedReceipt = newReceipt;
+    const resolvedReceipt = newReceipt;
     let replacementExtractionId = currentExpense?.receiptExtractionId;
+
     if (newReceipt?.startsWith("data:")) {
+      // Manual receipt replacements are submitted with the report. Do not use
+      // the extraction endpoint, because every request to it queues OCR.
       replacementExtractionId = undefined;
-      try {
-        // Editing an existing expense: only upload the file — no OCR needed.
-        // The user is updating details manually, so polling OCR causes lag.
-        const extraction = await uploadReceiptOnly(
-          axios,
-          dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
-        );
-        resolvedReceipt = extraction.receiptUrl;
-        replacementExtractionId = extraction.expenseReceiptExtractionId;
-      } catch (error) {
-        logger.error("Receipt upload failed during expense edit:", error);
-        toast.warning("Receipt attached, but it could not be saved to the server. Try again.");
-      }
     }
     // Check if amount, category, or receipt changed BEFORE updating state (while old value is still in closure)
 
@@ -408,29 +395,14 @@ function NewReportPage() {
 
   const handleChangeReceipt = async (newReceipt: string) => {
     if (selectedReceiptId) {
-      let resolvedReceipt = newReceipt;
-      let receiptExtractionId: string | undefined;
-      if (newReceipt.startsWith("data:")) {
-        try {
-          // Changing receipt from preview panel: only upload the file — no OCR needed.
-          const extraction = await uploadReceiptOnly(
-            axios,
-            dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
-          );
-          resolvedReceipt = extraction.receiptUrl;
-          receiptExtractionId = extraction.expenseReceiptExtractionId;
-        } catch (error) {
-          logger.error("Receipt upload failed during receipt change:", error);
-          toast.warning("Receipt could not be uploaded. Please try again.");
-        }
-      }
       setExpenses((prev) =>
         prev.map((expense) =>
           expense.id === selectedReceiptId
             ? {
                 ...expense,
-                receiptImage: resolvedReceipt,
-                receiptExtractionId,
+                receiptImage: newReceipt,
+                // A manually selected replacement is not OCR-backed.
+                receiptExtractionId: undefined,
               }
             : expense,
         )
