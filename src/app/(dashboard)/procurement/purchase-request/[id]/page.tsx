@@ -942,7 +942,7 @@ function CreatePOView({
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
-              <StatusBadge status={(pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} />
+              <StatusBadge status={(pr.status === "converted_to_po" || pr.status === "partially_converted") ? pr.status : (pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} />
             </div>
             {pr.title && <p className="text-sm text-[#68726d] mt-1">{pr.title}</p>}
           </div>
@@ -1603,13 +1603,7 @@ function PRDetailPage() {
         status: "done"
       } : { label: "Submitted", status: "inactive" };
 
-      const reviewEvent = eventsByAction["under_review"];
-      const step2: WorkflowStep = reviewEvent ? {
-        label: "Under Review",
-        person: formatPerson(reviewEvent),
-        timestamp: formatTs(reviewEvent.timestamp),
-        status: "done"
-      } : { label: "Under Review", status: "inactive" };
+
 
       const approveEvent = eventsByAction["approved"] || eventsByAction["rejected"] || eventsByAction["declined"];
       const step3: WorkflowStep = approveEvent ? {
@@ -1646,7 +1640,7 @@ function PRDetailPage() {
         };
       }
 
-      return [step1, step2, step3, step4];
+      return [step1, step3, step4];
     }
 
     const submittedStatuses = ["submitted", "approved", "rejected", "partially_converted", "converted_to_po", "cancelled"];
@@ -1868,7 +1862,7 @@ function PRDetailPage() {
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
-                <StatusBadge status={(pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} />
+                <StatusBadge status={(pr.status === "converted_to_po" || pr.status === "partially_converted") ? pr.status : (pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} />
               </div>
               <p className="text-sm text-[#68726d] mt-1">{pr.title}</p>
               {pr.description && <p className="text-xs text-[#68726d] mt-0.5">{pr.description}</p>}
@@ -2106,6 +2100,18 @@ function PRDetailPage() {
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold capitalize">
                                   {group.status.replace(/_/g, " ")}
                                 </span>
+                              )}
+                              {!isUnassigned && policies.purchaseOrders.canView && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toast.info("View PO is not yet available.");
+                                  }}
+                                  className="font-semibold text-[#087f70] hover:underline ml-2"
+                                >
+                                  View PO
+                                </button>
                               )}
                             </div>
                           </div>
@@ -2509,14 +2515,7 @@ function PRDetailPage() {
                   badge: null,
                   timestamp: submitEvent ? formatTs(submitEvent.timestamp) : null,
                 },
-                {
-                  key: "under_review",
-                  label: "Under Review",
-                  done: !!reviewEvent,
-                  personName: reviewEvent ? formatPerson(reviewEvent) : null,
-                  badge: null,
-                  timestamp: reviewEvent ? formatTs(reviewEvent.timestamp) : null,
-                },
+
                 {
                   key: "manager",
                   label: "Manager Approval",
@@ -2682,6 +2681,7 @@ function PRDetailPage() {
                 );
                 setIsDetailModalOpen(false);
                 setSelectedDetailItem(null);
+                setPolicyViolations(null);
                 toast.success("Item updated");
               } catch (err: unknown) {
                 toast.error(getApiErrorMessage(err, "Failed to update item"));

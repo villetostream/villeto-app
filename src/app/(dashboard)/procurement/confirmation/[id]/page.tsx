@@ -11,8 +11,7 @@ import ConfirmReceiptModal from "@/components/procurement/modals/ConfirmReceiptM
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 function formatCurrency(amount: number, currency: string = "USD") {
-  const locale = currency === "NGN" ? "en-NG" : "en-US";
-  return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount);
+  return new Intl.NumberFormat("en-NG", { style: "currency", currency }).format(amount);
 }
 
 function formatDate(dateStr: string | null | undefined) {

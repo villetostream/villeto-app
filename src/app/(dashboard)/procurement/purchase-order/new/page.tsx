@@ -312,6 +312,7 @@ function NewPurchaseOrderPage() {
       const refetched = await refetchPO();
       const items = refetched.data?.data?.lineItems || [];
       if (items.length > 0) setSavedLineItems(items);
+      setPolicyViolations(null);
       toast.success(`${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to add items"));
@@ -331,6 +332,7 @@ function NewPurchaseOrderPage() {
       if (items.length > 0) setSavedLineItems(items);
       setEditingItem(null);
       setShowModal(false);
+      setPolicyViolations(null);
       toast.success("Item updated");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to update item"));
@@ -353,6 +355,7 @@ function NewPurchaseOrderPage() {
       } else {
         setSavedLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
       }
+      setPolicyViolations(null);
       toast.success("Item removed");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to remove item"));
@@ -713,6 +716,7 @@ function NewPurchaseOrderPage() {
               }
               setIsDetailModalOpen(false);
               setSelectedDetailItem(null);
+              setPolicyViolations(null);
             } catch (err: any) {
               toast.error(err?.response?.data?.message || "Failed to update item");
             } finally {

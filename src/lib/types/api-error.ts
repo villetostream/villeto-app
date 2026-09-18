@@ -445,11 +445,34 @@ export function applyProcurementPolicyErrorToLineItems<
     const matchedViolations = violations.filter(v => {
       // If the backend provided exact line item references (e.g. Spend Program Check)
       if (v.lineItems && v.lineItems.length > 0) {
-        return v.lineItems.some((li: any) => 
-          (itemId && li.lineItemId === itemId) || 
-          (item.name && li.lineItemName === item.name) ||
-          (Number(li.lineTotal) === Number(itemTotal) && li.categoryName === item.categoryName)
-        );
+        // Detect if this is a quantity-based violation
+        const ruleText = `${v.rule || ""} ${v.policyGroup || ""} ${v.message || ""}`.toLowerCase();
+        const isQuantityViolation = ruleText.includes("quantity") || ruleText.includes("qty");
+
+        let parsedLimit: number | null = null;
+        if (isQuantityViolation) {
+          const qtyLimitMatch = v.message.match(/allowed\s+quantity\s+is\s+([\d,]+)/i)
+            || v.message.match(/quantity\s+limit.*?([\d,]+)/i)
+            || v.message.match(/limit\s+is\s+([\d,]+)/i);
+          if (qtyLimitMatch) {
+            parsedLimit = parseFloat(qtyLimitMatch[1].replace(/,/g, ''));
+          }
+        }
+
+        return v.lineItems.some((li: any) => {
+          const matchesId = (itemId && li.lineItemId === itemId) || 
+                            (item.name && li.lineItemName === item.name) ||
+                            (Number(li.lineTotal) === Number(itemTotal) && li.categoryName === item.categoryName);
+          
+          if (!matchesId) return false;
+
+          // If it's a quantity violation and we parsed a limit, only flag if it exceeds
+          if (isQuantityViolation && parsedLimit !== null) {
+            return (item.quantity || li.quantity || 0) > parsedLimit;
+          }
+
+          return true; // Otherwise, flag it
+        });
       }
       
       // If rule is amount-related, match against actualAmount (Legacy fallback)

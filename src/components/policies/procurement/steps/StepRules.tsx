@@ -125,26 +125,9 @@ export function StepRules({ draft, onChange, activeStages }: StepRulesProps) {
     });
     onChange({ groups: updatedGroups });
 
-    // When editing a persisted program, also call the API
-    if (draft.programId && ruleToToggle.ruleDefinitionId && ruleToToggle.ruleType) {
-      setTogglingRuleId(ruleId);
-      try {
-        await toggleRuleStatusMutation.mutateAsync([
-          {
-            ruleDefinitionId: ruleToToggle.ruleDefinitionId,
-            ruleType: ruleToToggle.ruleType,
-            isActive: newIsActive,
-          },
-        ]);
-        toast.success(`Rule ${newIsActive ? "enabled" : "disabled"} successfully.`);
-      } catch {
-        // Roll back optimistic update on failure
-        onChange({ groups: draft.groups });
-        toast.error("Failed to update rule status. Please try again.");
-      } finally {
-        setTogglingRuleId(null);
-      }
-    }
+    // We no longer call a separate API endpoint to toggle a rule within a program.
+    // The status is updated locally and sent as part of the overall spend program payload 
+    // when the user saves or finishes the wizard.
   };
 
   const openAddRule = () => {
@@ -299,7 +282,7 @@ export function StepRules({ draft, onChange, activeStages }: StepRulesProps) {
                       {Object.keys(rule.conditionConfig).length > 0 && (
                         <div className="text-[13px] text-[#68726d] flex items-start gap-2">
                           <span className="font-medium text-[#10231d]">Condition:</span>
-                          <span>{buildConditionSummary(rule.conditionConfig)}</span>
+                          <span>{buildConditionSummary(rule.conditionConfig, rule)}</span>
                         </div>
                       )}
 
@@ -333,7 +316,7 @@ export function StepRules({ draft, onChange, activeStages }: StepRulesProps) {
                           {Object.keys(rule.exceptionConfig.conditionConfig || {}).length > 0 && (
                             <div className="flex items-start gap-2">
                               <span className="font-medium text-[#10231d]">Exception Condition:</span>
-                              <span>{buildConditionSummary(rule.exceptionConfig.conditionConfig)}</span>
+                              <span>{buildConditionSummary(rule.exceptionConfig.conditionConfig, rule)}</span>
                             </div>
                           )}
                           {rule.exceptionConfig.action && (

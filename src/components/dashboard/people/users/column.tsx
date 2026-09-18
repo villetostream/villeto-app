@@ -115,17 +115,17 @@ export const columns = (
                                 +{extraRolesCount}
                             </button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-5 rounded-[20px] border shadow-lg" align="start">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-semibold text-base text-[#101828]">Assigned roles</h3>
-                                <PopoverClose className="h-7 w-7 rounded-full border border-[#EAECF0] flex items-center justify-center hover:bg-gray-50 focus:outline-none transition-colors">
-                                    <X className="h-4 w-4 text-[#667085]" strokeWidth={2} />
+                        <PopoverContent className="w-[280px] p-4 rounded-[16px] border shadow-xl" align="start">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-[15px] text-[#0b100e]">Assigned roles</h3>
+                                <PopoverClose className="h-6 w-6 rounded-full flex items-center justify-center hover:bg-gray-100 focus:outline-none transition-colors text-[#68726d]">
+                                    <X className="h-3.5 w-3.5" strokeWidth={2.5} />
                                 </PopoverClose>
                             </div>
-                            <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                            <div className="flex flex-col gap-1 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
                                 {uniqueRoles.map((role, idx) => (
-                                    <div key={idx} className="py-3 px-4 border border-[#EAECF0] rounded-[12px] flex items-center">
-                                        <p className="font-medium text-[14px] text-[#344054]">{formatName(role)}</p>
+                                    <div key={idx} className="py-2 px-2.5 flex items-center bg-[#f4f7f5] rounded-[8px]">
+                                        <p className="font-medium text-sm text-[#344054]">{formatName(role)}</p>
                                     </div>
                                 ))}
                             </div>

@@ -184,7 +184,7 @@ export const useSeedDefaultRuleDefinitions = () => {
   });
 };
 
-export const useGetSpendProgramSettings = () => {
+export const useGetSpendProgramSettings = (options?: { enabled?: boolean }) => {
   const axios = useAxios();
   return useQuery<{ data: SpendProgramSettings }, Error>({
     queryKey: QUERY_KEYS.procurement.spendProgramSettings,
@@ -193,6 +193,8 @@ export const useGetSpendProgramSettings = () => {
       return res.data;
     },
     staleTime: STALE_TIMES.NORMAL,
+    refetchInterval: 15000, // actively check every 15s in case another user changes settings
+    enabled: options?.enabled ?? true,
   });
 };
 
@@ -281,7 +283,7 @@ export function buildSpendProgramPayload(draft: SpendProgramDraft, isUpdate: boo
           sortOrder: idx,
           isActive: r.isActive ?? true,
         })),
-        ...(isUpdate ? { isActive: g.isActive } : {}),
+        ...(isUpdate ? { isActive: g.isActive ?? true } : {}),
       })),
   };
 }

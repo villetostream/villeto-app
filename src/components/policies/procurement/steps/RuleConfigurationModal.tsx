@@ -98,17 +98,18 @@ function MultiSelectField({
                 const id = getId(opt);
                 const isChecked = selected.includes(id);
                 return (
-                  <label
+                  <div
                     key={id}
                     className="flex items-center gap-3 px-3 py-2 hover:bg-[#f9faf9] cursor-pointer"
                     onClick={() => onToggle(id)}
                   >
                     <Checkbox
                       checked={isChecked}
-                      className="shrink-0"
+                      className="shrink-0 pointer-events-none"
+                      tabIndex={-1}
                     />
                     <span className="text-[13px] text-[#10231d] truncate">{getLabel(opt)}</span>
-                  </label>
+                  </div>
                 );
               })
             )}
@@ -136,6 +137,20 @@ function MultiSelectField({
 }
 
 // ─── Main Modal ───────────────────────────────────────────────────────────────
+
+const getAmountLabel = (def: any, isSingle: boolean, currencyLabel: string, isException = false) => {
+  const textToCheck = `${def?.name || ''} ${def?.description || ''}`.toLowerCase();
+  
+  let prefix = isException ? "Exception amount" : "Amount";
+  
+  if (textToCheck.includes("below") || textToCheck.includes("less than") || textToCheck.includes("minimum") || textToCheck.includes("under") || textToCheck.includes("low-value") || textToCheck.includes("low value") || textToCheck.includes("auto approval threshold") || textToCheck.includes("auto approve")) {
+    prefix = `${prefix} below`;
+  } else if (textToCheck.includes("above") || textToCheck.includes("exceeds") || textToCheck.includes("more than") || textToCheck.includes("maximum") || textToCheck.includes("over")) {
+    prefix = `${prefix} above`;
+  }
+  
+  return isSingle ? prefix : `${prefix} (${currencyLabel})`;
+};
 
 export interface RuleConfigurationModalProps {
   isOpen: boolean;
@@ -183,6 +198,7 @@ export function RuleConfigurationModal({
 
   const [rule, setRule] = useState<SpendProgramRule>(emptySpendProgramRule(0));
   const [showExceptions, setShowExceptions] = useState(false);
+  const [hasCustomExceptionRule, setHasCustomExceptionRule] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -191,14 +207,20 @@ export function RuleConfigurationModal({
           ...existingRule,
           legalEntityIds: existingRule.legalEntityIds || []
         });
+        const hasCustomConditions = Object.keys(existingRule.exceptionConfig.conditionConfig || {}).length > 0;
+        const hasCustomAction = !!existingRule.exceptionConfig.action;
         setShowExceptions(
           existingRule.exceptionConfig.departmentIds.length > 0 ||
           existingRule.exceptionConfig.managementLevelIds.length > 0 ||
-          existingRule.exceptionConfig.jobGradeIds.length > 0
+          existingRule.exceptionConfig.jobGradeIds.length > 0 ||
+          hasCustomConditions ||
+          hasCustomAction
         );
+        setHasCustomExceptionRule(hasCustomConditions || hasCustomAction);
       } else {
         setRule(emptySpendProgramRule(draft.groups.find(g => g.group === group)?.rules.length || 0));
         setShowExceptions(false);
+        setHasCustomExceptionRule(false);
       }
     }
   }, [isOpen, existingRule, group, draft]);
@@ -219,9 +241,62 @@ export function RuleConfigurationModal({
 
   const selectedDef = ruleDefinitions.find(d => d.ruleType === rule.ruleType);
 
+  const availableCurrencies = useMemo(() => {
+    const entityIds = rule.legalEntityIds?.length > 0 
+      ? rule.legalEntityIds 
+      : legalEntities.map(e => e.legalEntityId);
+      
+    const allowedCurrencyCodes = new Set(
+      legalEntities
+        .filter(e => entityIds.includes(e.legalEntityId))
+        .map(e => e.baseCurrency)
+    );
+    
+    if (allowedCurrencyCodes.size === 0) return CURRENCY_OPTIONS;
+    return CURRENCY_OPTIONS.filter(c => allowedCurrencyCodes.has(c.value));
+  }, [rule.legalEntityIds, legalEntities]);
+
+  // Keep single currency in sync when availableCurrencies changes (e.g., when toggling single legal entities)
+  useEffect(() => {
+    if (availableCurrencies.length === 1) {
+      const singleCurrency = availableCurrencies[0].value;
+      
+      setRule(prev => {
+        let updated = { ...prev };
+        let changed = false;
+
+        if (prev.conditionConfig.currency !== singleCurrency) {
+          updated.conditionConfig = { ...prev.conditionConfig, currency: singleCurrency };
+          changed = true;
+        }
+
+        if (prev.exceptionConfig.conditionConfig.currency !== singleCurrency) {
+          updated.exceptionConfig = { 
+            ...prev.exceptionConfig, 
+            conditionConfig: { ...prev.exceptionConfig.conditionConfig, currency: singleCurrency } 
+          };
+          changed = true;
+        }
+
+        return changed ? updated : prev;
+      });
+    }
+  }, [availableCurrencies]);
+
   // All condition fields defined in the schema must have a non-empty value
   const hasAllConditionsFilled = !selectedDef?.conditionSchema ||
     Object.keys(selectedDef.conditionSchema).every(key => {
+      const schemaKeys = Object.keys(selectedDef.conditionSchema);
+      const showMultiCurrency = schemaKeys.includes("currency") && schemaKeys.includes("amount") && availableCurrencies.length > 1;
+
+      if (showMultiCurrency && (key === "currency" || key === "amount")) {
+        const amounts = rule.conditionConfig.amounts || {};
+        return availableCurrencies.every(c => {
+          const val = amounts[c.value];
+          return val !== undefined && val !== "" && val !== null;
+        });
+      }
+
       const val = rule.conditionConfig[key];
       return val !== undefined && val !== "" && val !== null;
     });
@@ -280,21 +355,6 @@ export function RuleConfigurationModal({
   };
   const toggleDepartment = (id: string) => toggleException("departmentIds", id);
 
-  const availableCurrencies = useMemo(() => {
-    const entityIds = rule.legalEntityIds?.length > 0 
-      ? rule.legalEntityIds 
-      : legalEntities.map(e => e.legalEntityId);
-      
-    const allowedCurrencyCodes = new Set(
-      legalEntities
-        .filter(e => entityIds.includes(e.legalEntityId))
-        .map(e => e.baseCurrency)
-    );
-    
-    if (allowedCurrencyCodes.size === 0) return CURRENCY_OPTIONS;
-    return CURRENCY_OPTIONS.filter(c => allowedCurrencyCodes.has(c.value));
-  }, [rule.legalEntityIds, legalEntities]);
-
   const selectedRoles = [
     ...(rule.exceptionConfig.jobGradeIds || []),
     ...(rule.exceptionConfig.managementLevelIds || [])
@@ -312,7 +372,18 @@ export function RuleConfigurationModal({
 
   const handleSave = () => {
     if (!rule.ruleType || !rule.action) return;
-    onSave(rule);
+    
+    const payload = { ...rule };
+    if (!hasCustomExceptionRule) {
+      payload.exceptionConfig = {
+        ...payload.exceptionConfig,
+        conditionConfig: {},
+        action: "",
+        actionConfig: {}
+      };
+    }
+    
+    onSave(payload);
   };
 
   return (
@@ -369,7 +440,7 @@ export function RuleConfigurationModal({
                       options={legalEntities}
                       selected={rule.legalEntityIds || []}
                       onToggle={toggleLegalEntity}
-                      getLabel={(e) => e.legalName}
+                      getLabel={(e) => e.baseCurrency ? `${e.legalName} (${e.baseCurrency})` : e.legalName}
                       getId={(e) => e.legalEntityId}
                     />
                   </div>
@@ -379,40 +450,120 @@ export function RuleConfigurationModal({
                     <div className="space-y-3 pt-4 border-t border-black/[0.06]">
                       <Label className="text-[12px] font-semibold text-[#10231d] uppercase tracking-wide">Condition (IF)</Label>
                       <div className="p-4 border border-black/[0.08] rounded-xl bg-white grid grid-cols-2 gap-4">
-                        {Object.entries(selectedDef.conditionSchema).map(([key, type]) => (
-                          <div key={key} className="space-y-1.5">
-                            <Label className="text-[12px] font-medium text-[#68726d]">{CONDITION_FIELD_LABELS[key] || key}</Label>
-                            {key === "currency" ? (
-                              <Select value={rule.conditionConfig[key] || ""} onValueChange={(val) => updateConditionConfig(key, val)}>
-                                <SelectTrigger className="w-full h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg">
-                                  <SelectValue placeholder="Select currency" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {availableCurrencies.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            ) : type === "number" ? (
-                              <Input
-                                type="text"
-                                value={formatAmount(rule.conditionConfig[key])}
-                                onChange={(e) => {
-                                  const rawValue = e.target.value.replace(/,/g, "");
-                                  if (rawValue === "" || !isNaN(Number(rawValue))) {
-                                    updateConditionConfig(key, rawValue === "" ? "" : Number(rawValue));
-                                  }
-                                }}
-                                className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg"
-                                placeholder="Enter value..."
-                              />
-                            ) : type === "array" ? (
-                              <Input value={(rule.conditionConfig[key] || []).join(", ")} onChange={(e) => updateConditionConfig(key, e.target.value.split(",").map(s => s.trim()))} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="Comma separated values..." />
-                            ) : type === "attachment" ? (
-                              <Input value={rule.conditionConfig[key] || ""} onChange={(e) => updateConditionConfig(key, e.target.value)} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="e.g. pdf, docx, image/*" />
-                            ) : (
-                              <Input value={rule.conditionConfig[key] || ""} onChange={(e) => updateConditionConfig(key, e.target.value)} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="Enter value..." />
-                            )}
-                          </div>
-                        ))}
+                        {(() => {
+                          const schemaKeys = Object.keys(selectedDef.conditionSchema);
+                          const hasCurrencyAndAmount = schemaKeys.includes("currency") && schemaKeys.includes("amount");
+
+                          return Object.entries(selectedDef.conditionSchema).map(([key, type]) => {
+                            // If currency/amount are present, we handle them together using the embedded currency symbol UI
+                            if (hasCurrencyAndAmount && (key === "currency" || key === "amount")) {
+                              if (key === "currency") {
+                                const isSingle = availableCurrencies.length === 1;
+                                
+                                return (
+                                  <div key="multi-currency-amounts" className="col-span-2 space-y-4">
+                                    {!isSingle && (
+                                      <Label className="text-[12px] font-medium text-[#68726d]">Amounts per Currency</Label>
+                                    )}
+                                    <div className={`grid ${isSingle ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2'} gap-4`}>
+                                      {availableCurrencies.map((c) => {
+                                        const amountsMap = rule.conditionConfig.amounts || {};
+                                        const val = isSingle ? rule.conditionConfig.amount : amountsMap[c.value];
+
+                                        return (
+                                          <div key={c.value} className="space-y-1.5 flex flex-col">
+                                            <Label className="text-[12px] font-medium text-[#68726d]">
+                                              {getAmountLabel(selectedDef, isSingle, c.value, false)}
+                                            </Label>
+                                            <div className="relative">
+                                              <div className="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
+                                                <span className="text-[13px] font-bold text-[#10231d] bg-[#f0f2f1] px-3 py-1 rounded-md shadow-sm border border-black/[0.06]">
+                                                  {c.symbol || c.value}
+                                                </span>
+                                              </div>
+                                              <Input
+                                                type="text"
+                                                value={formatAmount(val)}
+                                                onChange={(e) => {
+                                                  const rawValue = e.target.value.replace(/,/g, "");
+                                                  const parsed = rawValue === "" ? "" : Number(rawValue);
+                                                  if (rawValue === "" || !isNaN(Number(rawValue))) {
+                                                    setRule(prev => {
+                                                      if (isSingle) {
+                                                        return {
+                                                          ...prev,
+                                                          conditionConfig: {
+                                                            ...prev.conditionConfig,
+                                                            amount: parsed,
+                                                            currency: c.value
+                                                          }
+                                                        };
+                                                      } else {
+                                                        return {
+                                                          ...prev,
+                                                          conditionConfig: {
+                                                            ...prev.conditionConfig,
+                                                            amounts: {
+                                                              ...(prev.conditionConfig.amounts || {}),
+                                                              [c.value]: parsed
+                                                            }
+                                                          }
+                                                        };
+                                                      }
+                                                    });
+                                                  }
+                                                }}
+                                                className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg pl-[52px]"
+                                                placeholder={isSingle ? "Enter amount..." : `Enter amount for ${c.value}...`}
+                                              />
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null; // Skip 'amount' since we rendered it with 'currency'
+                            }
+
+                            // Standard rendering
+                            return (
+                              <div key={key} className="space-y-1.5">
+                                <Label className="text-[12px] font-medium text-[#68726d]">{CONDITION_FIELD_LABELS[key] || key}</Label>
+                                {key === "currency" ? (
+                                  <Select value={rule.conditionConfig[key] || ""} onValueChange={(val) => updateConditionConfig(key, val)}>
+                                    <SelectTrigger className="w-full h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg">
+                                      <SelectValue placeholder="Select currency" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {availableCurrencies.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                ) : type === "number" ? (
+                                  <Input
+                                    type="text"
+                                    value={formatAmount(rule.conditionConfig[key])}
+                                    onChange={(e) => {
+                                      const rawValue = e.target.value.replace(/,/g, "");
+                                      if (rawValue === "" || !isNaN(Number(rawValue))) {
+                                        updateConditionConfig(key, rawValue === "" ? "" : Number(rawValue));
+                                      }
+                                    }}
+                                    className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg"
+                                    placeholder="Enter value..."
+                                  />
+                                ) : type === "array" ? (
+                                  <Input value={(rule.conditionConfig[key] || []).join(", ")} onChange={(e) => updateConditionConfig(key, e.target.value.split(",").map(s => s.trim()))} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="Comma separated values..." />
+                                ) : type === "attachment" ? (
+                                  <Input value={rule.conditionConfig[key] || ""} onChange={(e) => updateConditionConfig(key, e.target.value)} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="e.g. pdf, docx, image/*" />
+                                ) : (
+                                  <Input value={rule.conditionConfig[key] || ""} onChange={(e) => updateConditionConfig(key, e.target.value)} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="Enter value..." />
+                                )}
+                              </div>
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
                   )}
@@ -497,61 +648,163 @@ export function RuleConfigurationModal({
                           getId={(o) => o.value}
                         />
 
-                        {/* Condition (Exception) */}
-                        {Object.keys(selectedDef.conditionSchema).length > 0 && (
-                          <div className="space-y-3 pt-2">
-                            <Label className="text-[12px] font-semibold text-[#10231d] uppercase tracking-wide">Exception Condition (IF)</Label>
-                            <div className="p-4 border border-black/[0.08] rounded-xl bg-white grid grid-cols-2 gap-4">
-                              {Object.entries(selectedDef.conditionSchema).map(([key, type]) => (
-                                <div key={key} className="space-y-1.5">
-                                  <Label className="text-[12px] font-medium text-[#68726d]">{CONDITION_FIELD_LABELS[key] || key}</Label>
-                                  {key === "currency" ? (
-                                    <Select value={rule.exceptionConfig.conditionConfig[key] || ""} onValueChange={(val) => updateExceptionConditionConfig(key, val)}>
-                                      <SelectTrigger className="w-full h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg">
-                                        <SelectValue placeholder="Select currency" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {availableCurrencies.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                                      </SelectContent>
-                                    </Select>
-                                  ) : type === "number" ? (
-                                    <Input
-                                      type="text"
-                                      value={formatAmount(rule.exceptionConfig.conditionConfig[key])}
-                                      onChange={(e) => {
-                                        const rawValue = e.target.value.replace(/,/g, "");
-                                        if (rawValue === "" || !isNaN(Number(rawValue))) {
-                                          updateExceptionConditionConfig(key, rawValue === "" ? "" : Number(rawValue));
+                        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-black/[0.04]">
+                          <Checkbox 
+                            id="custom-exception-toggle"
+                            checked={hasCustomExceptionRule} 
+                            onCheckedChange={(c) => setHasCustomExceptionRule(!!c)} 
+                          />
+                          <Label htmlFor="custom-exception-toggle" className="text-[13px] text-[#10231d] cursor-pointer">
+                            Specify a different condition and action for this exception
+                          </Label>
+                        </div>
+
+                        {hasCustomExceptionRule && (
+                          <div className="mt-4 space-y-4">
+                            {/* Condition (Exception) */}
+                            {Object.keys(selectedDef.conditionSchema).length > 0 && (
+                              <div className="space-y-3">
+                                <Label className="text-[12px] font-semibold text-[#10231d] uppercase tracking-wide">Exception Condition (IF)</Label>
+                                <div className="p-4 border border-black/[0.08] rounded-xl bg-white grid grid-cols-2 gap-4">
+                                  {(() => {
+                                    const schemaKeys = Object.keys(selectedDef.conditionSchema);
+                                    const hasCurrencyAndAmount = schemaKeys.includes("currency") && schemaKeys.includes("amount");
+
+                                    return Object.entries(selectedDef.conditionSchema).map(([key, type]) => {
+                                      if (hasCurrencyAndAmount && (key === "currency" || key === "amount")) {
+                                        if (key === "currency") {
+                                          const isSingle = availableCurrencies.length === 1;
+                                          
+                                          return (
+                                            <div key="multi-currency-amounts" className="col-span-2 space-y-4">
+                                              {!isSingle && (
+                                                <Label className="text-[12px] font-medium text-[#68726d]">Amounts per Currency</Label>
+                                              )}
+                                              <div className={`grid ${isSingle ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2'} gap-4`}>
+                                                {availableCurrencies.map((c) => {
+                                                  const amountsMap = rule.exceptionConfig.conditionConfig.amounts || {};
+                                                  const val = isSingle ? rule.exceptionConfig.conditionConfig.amount : amountsMap[c.value];
+
+                                                  return (
+                                                    <div key={c.value} className="space-y-1.5 flex flex-col">
+                                                      <Label className="text-[12px] font-medium text-[#68726d]">
+                                                        {getAmountLabel(selectedDef, isSingle, c.value, true)}
+                                                      </Label>
+                                                      <div className="relative">
+                                                        <div className="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
+                                                          <span className="text-[13px] font-bold text-[#10231d] bg-[#f0f2f1] px-3 py-1 rounded-md shadow-sm border border-black/[0.06]">
+                                                            {c.symbol || c.value}
+                                                          </span>
+                                                        </div>
+                                                        <Input
+                                                          type="text"
+                                                          value={formatAmount(val)}
+                                                          onChange={(e) => {
+                                                            const rawValue = e.target.value.replace(/,/g, "");
+                                                            const parsed = rawValue === "" ? "" : Number(rawValue);
+                                                            if (rawValue === "" || !isNaN(Number(rawValue))) {
+                                                              setRule(prev => {
+                                                                if (isSingle) {
+                                                                  return {
+                                                                    ...prev,
+                                                                    exceptionConfig: {
+                                                                      ...prev.exceptionConfig,
+                                                                      conditionConfig: {
+                                                                        ...prev.exceptionConfig.conditionConfig,
+                                                                        amount: parsed,
+                                                                        currency: c.value
+                                                                      }
+                                                                    }
+                                                                  };
+                                                                } else {
+                                                                  return {
+                                                                    ...prev,
+                                                                    exceptionConfig: {
+                                                                      ...prev.exceptionConfig,
+                                                                      conditionConfig: {
+                                                                        ...prev.exceptionConfig.conditionConfig,
+                                                                        amounts: {
+                                                                          ...(prev.exceptionConfig.conditionConfig.amounts || {}),
+                                                                          [c.value]: parsed
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  };
+                                                                }
+                                                              });
+                                                            }
+                                                          }}
+                                                          className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg pl-[52px]"
+                                                          placeholder={isSingle ? "Enter amount..." : `Enter amount for ${c.value}...`}
+                                                        />
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          );
                                         }
-                                      }}
-                                      className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg"
-                                      placeholder="Enter value..."
-                                    />
-                                  ) : type === "array" ? (
-                                    <Input value={(rule.exceptionConfig.conditionConfig[key] || []).join(", ")} onChange={(e) => updateExceptionConditionConfig(key, e.target.value.split(",").map(s => s.trim()))} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="Comma separated values..." />
-                                  ) : (
-                                    <Input value={rule.exceptionConfig.conditionConfig[key] || ""} onChange={(e) => updateExceptionConditionConfig(key, e.target.value)} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="Enter value..." />
-                                  )}
+                                        return null;
+                                      }
+                                      
+                                      // Standard rendering for other fields
+                                      return (
+                                        <div key={key} className="space-y-1.5">
+                                          <Label className="text-[12px] font-medium text-[#68726d]">{CONDITION_FIELD_LABELS[key] || key}</Label>
+                                          {key === "currency" ? (
+                                            <Select value={rule.exceptionConfig.conditionConfig[key] || ""} onValueChange={(val) => updateExceptionConditionConfig(key, val)}>
+                                              <SelectTrigger className="w-full h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg">
+                                                <SelectValue placeholder="Select currency" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {availableCurrencies.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                                              </SelectContent>
+                                            </Select>
+                                          ) : type === "number" ? (
+                                            <Input
+                                              type="text"
+                                              value={formatAmount(rule.exceptionConfig.conditionConfig[key])}
+                                              onChange={(e) => {
+                                                const rawValue = e.target.value.replace(/,/g, "");
+                                                if (rawValue === "" || !isNaN(Number(rawValue))) {
+                                                  updateExceptionConditionConfig(key, rawValue === "" ? "" : Number(rawValue));
+                                                }
+                                              }}
+                                              className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg"
+                                              placeholder="Enter value..."
+                                            />
+                                          ) : type === "array" ? (
+                                            <Input value={(rule.exceptionConfig.conditionConfig[key] || []).join(", ")} onChange={(e) => updateExceptionConditionConfig(key, e.target.value.split(",").map(s => s.trim()))} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="Comma separated values..." />
+                                          ) : type === "attachment" ? (
+                                            <Input value={rule.exceptionConfig.conditionConfig[key] || ""} onChange={(e) => updateExceptionConditionConfig(key, e.target.value)} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="e.g. pdf, docx, image/*" />
+                                          ) : (
+                                            <Input value={rule.exceptionConfig.conditionConfig[key] || ""} onChange={(e) => updateExceptionConditionConfig(key, e.target.value)} className="h-10 bg-[#f9faf9] border-black/[0.08] rounded-lg" placeholder="Enter value..." />
+                                          )}
+                                        </div>
+                                      );
+                                    });
+                                  })()}
                                 </div>
-                              ))}
+                              </div>
+                            )}
+
+                            {/* Action (Exception) */}
+                            <div className="space-y-3">
+                              <Label className="text-[12px] font-semibold text-[#10231d] uppercase tracking-wide">Exception Action (THEN)</Label>
+                              <Select value={rule.exceptionConfig.action} onValueChange={(val) => setRule(prev => ({ ...prev, exceptionConfig: { ...prev.exceptionConfig, action: val } }))}>
+                                <SelectTrigger className="w-full h-11 bg-white border-black/[0.08] rounded-xl">
+                                  <SelectValue placeholder="Select an action..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {selectedDef.allowedActions.map((action: string) => (
+                                    <SelectItem key={action} value={action}>{getActionLabel(action)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                         )}
-
-                        {/* Action (Exception) */}
-                        <div className="space-y-3 pt-2">
-                          <Label className="text-[12px] font-semibold text-[#10231d] uppercase tracking-wide">Exception Action (THEN)</Label>
-                          <Select value={rule.exceptionConfig.action} onValueChange={(val) => setRule(prev => ({ ...prev, exceptionConfig: { ...prev.exceptionConfig, action: val } }))}>
-                            <SelectTrigger className="w-full h-11 bg-white border-black/[0.08] rounded-xl">
-                              <SelectValue placeholder="Select an action..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Array.from(new Set(["allow", "auto_approve", ...selectedDef.allowedActions])).map((action: string) => (
-                                <SelectItem key={action} value={action}>{getActionLabel(action)}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
                       </div>
                     )}
                   </div>

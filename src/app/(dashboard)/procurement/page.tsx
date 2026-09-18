@@ -7,13 +7,26 @@ import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests"
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import { useAuthStore } from "@/stores/auth-stores";
+import { useLegalEntities } from "@/queries/legal-entities";
+import { COUNTRY_CURRENCY_CONFIG } from "@/lib/utils/currency";
 
-const money = (value: number, code = "USD") => new Intl.NumberFormat(undefined, { style: "currency", currency: code, maximumFractionDigits: 0 }).format(value);
+const money = (value: number, code = "USD") => new Intl.NumberFormat("en-NG", { style: "currency", currency: code, maximumFractionDigits: 0 }).format(value);
 
 function ProcurementOverviewPage() {
+  const user = useAuthStore((state) => state.user);
   const policies = useAuthorizationPolicies();
   const prScope = policies.purchaseRequests.listScope ?? "own";
   const poScope = policies.purchaseOrders.listScope ?? "own";
+  
+  // Entity & Currency setup
+  const canViewEntities = policies.legalEntities.canView;
+  const { data: entityResponse, isLoading: entityLoading } = useLegalEntities({ enabled: canViewEntities });
+  const entity = (entityResponse?.data || []).find((item) => item.isDefault) || entityResponse?.data?.[0];
+  const companyCountry = user?.company?.countryOfRegistration;
+  const fallbackCurrency = companyCountry ? (COUNTRY_CURRENCY_CONFIG[companyCountry]?.code || "USD") : "USD";
+  const code = entity?.baseCurrency || fallbackCurrency;
+
   const { data: prResponse, isLoading: loadingPr } = useGetPurchaseRequests(
     { scope: prScope, page: 1, limit: 100 },
     { enabled: policies.purchaseRequests.canView },
@@ -24,21 +37,39 @@ function ProcurementOverviewPage() {
   );
   const requests = prResponse?.data || [];
   const orders = poResponse?.data || [];
-  const currency = requests[0]?.currency || orders[0]?.currency || "USD";
   const approvals = requests.filter((item) => item.currentUserActionRequired || item.status === "submitted");
   const conversion = requests.filter((item) => item.status === "approved");
   const receiving = orders.filter((item) => ["issued", "acknowledged", "ready_for_delivery", "partially_delivered"].includes(item.status || ""));
-  const openOrders = orders.filter((item) => !["closed", "cancelled"].includes(item.status || ""));
-  const totalCommitment = openOrders.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
+  
+  const activeStatuses = ["approved", "issued", "acknowledged", "ready_for_delivery", "partially_delivered"];
+  const openOrders = orders.filter((item) => activeStatuses.includes(item.status || ""));
+  
+  const commitmentsByCurrency = openOrders.reduce((acc, item) => {
+    const c = item.currency || code;
+    acc[c] = (acc[c] || 0) + Number(item.totalAmount || 0);
+    return acc;
+  }, {} as Record<string, number>);
+
+  const primaryCommitment = commitmentsByCurrency[code] || 0;
+  
+  const otherCurrencies = Object.entries(commitmentsByCurrency)
+    .filter(([c, val]) => c !== code && val > 0)
+    .map(([c, val]) => money(val, c));
+  
+  const otherCurrenciesLabel = otherCurrencies.length > 0 
+    ? <span className="block mt-1 truncate">↳ + {otherCurrencies.join(' and ')} in other entities</span> 
+    : null;
+
+  const isAnyLoading = loadingPr || loadingPo || entityLoading;
 
   return (
     <div className="space-y-5 pb-8">
       <ProcurementWorkspaceHeader title="Control spend before it happens." description="Move every request from business need to approved order and confirmed delivery—with ownership, entity, and currency controls visible at every step." action={policies.purchaseRequests.canCreate ? { label: "Create request", href: "/procurement/purchase-request/new" } : undefined} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <ProcurementMetric label="Requests awaiting action" value={approvals.length} detail="Submitted into approval" icon={<CalendarClock className="size-4" />} tone="amber" isLoading={loadingPr || loadingPo} />
-        <ProcurementMetric label="Ready for conversion" value={conversion.length} detail="Approved requests without a PO" icon={<CircleCheck className="size-4" />} isLoading={loadingPr || loadingPo} />
-        <ProcurementMetric label="Open commitments" value={money(totalCommitment, currency)} detail={`${openOrders.length} active purchase orders`} icon={<ShoppingCart className="size-4" />} tone="blue" isLoading={loadingPr || loadingPo} />
-        <ProcurementMetric label="In receiving" value={receiving.length} detail="Awaiting complete delivery" icon={<Truck className="size-4" />} tone="rose" isLoading={loadingPr || loadingPo} />
+        <ProcurementMetric label="Requests awaiting action" value={approvals.length} detail="Submitted into approval" icon={<CalendarClock className="size-4" />} tone="amber" isLoading={isAnyLoading} />
+        <ProcurementMetric label="Ready for conversion" value={conversion.length} detail="Approved requests without a PO" icon={<CircleCheck className="size-4" />} isLoading={isAnyLoading} />
+        <ProcurementMetric label="Open commitments" value={money(primaryCommitment, code)} detail={<>{openOrders.length} active purchase orders{otherCurrenciesLabel}</>} icon={<ShoppingCart className="size-4" />} tone="blue" isLoading={isAnyLoading} />
+        <ProcurementMetric label="In receiving" value={receiving.length} detail="Awaiting complete delivery" icon={<Truck className="size-4" />} tone="rose" isLoading={isAnyLoading} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
@@ -65,7 +96,7 @@ function ProcurementOverviewPage() {
           <div className="divide-y divide-black/[0.055]">{loadingPr ? <Loading /> : requests.slice(0, 5).map((item) => <RecordRow key={item.purchaseRequestId} href={`/procurement/purchase-request/${item.purchaseRequestId}`} title={item.title} meta={`${item.requestNumber} · ${item.status.replaceAll("_", " ")}`} amount={money(Number(item.totalAmount || 0), item.currency)} />)}{!loadingPr && !requests.length && <Empty label="No purchase requests yet" />}</div>
         </ProcurementSection>
         <ProcurementSection title="Latest purchase orders" action={{ label: "All orders", href: "/procurement/purchase-order" }}>
-          <div className="divide-y divide-black/[0.055]">{loadingPo ? <Loading /> : orders.slice(0, 5).map((item) => <RecordRow key={item.purchaseOrderId || item.id} href={`/procurement/purchase-order/${item.purchaseOrderId || item.id}`} title={item.poNumber || "Purchase order"} meta={`${item.vendor?.displayName || item.vendor?.legalName || "Vendor pending"} · ${(item.status || "draft").replaceAll("_", " ")}`} amount={money(Number(item.totalAmount || 0), item.currency || currency)} />)}{!loadingPo && !orders.length && <Empty label="No purchase orders yet" />}</div>
+          <div className="divide-y divide-black/[0.055]">{loadingPo ? <Loading /> : orders.slice(0, 5).map((item) => <RecordRow key={item.purchaseOrderId || item.id} href={`/procurement/purchase-order/${item.purchaseOrderId || item.id}`} title={item.poNumber || "Purchase order"} meta={`${item.vendor?.displayName || item.vendor?.legalName || "Vendor pending"} · ${(item.status || "draft").replaceAll("_", " ")}`} amount={money(Number(item.totalAmount || 0), item.currency || code)} />)}{!loadingPo && !orders.length && <Empty label="No purchase orders yet" />}</div>
         </ProcurementSection>
       </div>
     </div>

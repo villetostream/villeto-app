@@ -9,6 +9,7 @@ import { useGetProcurementCategories } from "@/queries/procurement/purchase-requ
 import type { LineItemPayload } from "@/queries/procurement/purchase-requests";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
+import { UnitOfMeasureCombobox } from "@/components/procurement/UnitOfMeasureCombobox";
 
 // ─── Category Dropdown (self-contained) ──────────────────────────────────────
 
@@ -500,10 +501,10 @@ export default function LineItemBatchModal({
           <label className="text-sm font-medium text-[#0b100e]">
             Unit of Measure <span className="text-[#d33d44]">*</span>
           </label>
-          <input type="text" value={form.unitOfMeasure}
-            onChange={e => { set("unitOfMeasure", e.target.value); setErrors(p => ({ ...p, unitOfMeasure: undefined })); }}
-            placeholder="e.g. unit, kg, box"
-            className={`w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#087f70] transition-colors ${errors.unitOfMeasure ? "border-destructive" : "border-black/[0.06]"}`}
+          <UnitOfMeasureCombobox
+            value={form.unitOfMeasure}
+            onChange={(val) => { set("unitOfMeasure", val); setErrors(p => ({ ...p, unitOfMeasure: undefined })); }}
+            error={!!errors.unitOfMeasure}
           />
           {errors.unitOfMeasure && <p className="text-xs text-destructive">{errors.unitOfMeasure}</p>}
         </div>

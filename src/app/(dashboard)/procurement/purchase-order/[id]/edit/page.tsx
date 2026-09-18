@@ -552,6 +552,7 @@ function EditPurchaseOrderPage() {
       localId: crypto.randomUUID()
     }))]);
     setShowModal(false);
+    setPolicyViolations(null);
   };
 
   const handleEditItem = async (item: any) => {
@@ -563,12 +564,14 @@ function EditPurchaseOrderPage() {
     });
     setEditingItem(null);
     setShowModal(false);
+    setPolicyViolations(null);
   };
 
   const confirmDeleteItem = () => {
     if (!itemToDelete) return;
     setLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
     setItemToDelete(null);
+    setPolicyViolations(null);
     toast.success("Item removed");
   };
 

@@ -112,22 +112,33 @@ export const CONDITION_FIELD_LABELS: Record<string, string> = {
 // ─── Currency Options ───────────────────────────────────────────────────────
 
 export const CURRENCY_OPTIONS = [
-  { value: "NGN", label: "NGN — Nigerian Naira" },
-  { value: "USD", label: "USD — US Dollar" },
-  { value: "GBP", label: "GBP — British Pound" },
-  { value: "EUR", label: "EUR — Euro" },
-  { value: "KES", label: "KES — Kenyan Shilling" },
-  { value: "GHS", label: "GHS — Ghanaian Cedi" },
+  { value: "NGN", label: "NGN — Nigerian Naira", symbol: "₦" },
+  { value: "USD", label: "USD — US Dollar", symbol: "$" },
+  { value: "GBP", label: "GBP — British Pound", symbol: "£" },
+  { value: "EUR", label: "EUR — Euro", symbol: "€" },
+  { value: "KES", label: "KES — Kenyan Shilling", symbol: "KSh" },
+  { value: "GHS", label: "GHS — Ghanaian Cedi", symbol: "GH₵" },
 ];
 
 // ─── Condition Summary Builder ──────────────────────────────────────────────
 
 /** Build a human-readable condition summary for display in rule cards */
 export const buildConditionSummary = (
-  conditionConfig: Record<string, any>
+  conditionConfig: Record<string, any>,
+  def?: any
 ): string => {
   const parts: string[] = [];
   const currency = conditionConfig.currency || "";
+
+  let amountPrefix = "Amount above";
+  if (def) {
+    const textToCheck = `${def.name || def.displayName || ''} ${def.description || ''}`.toLowerCase();
+    if (textToCheck.includes("below") || textToCheck.includes("less than") || textToCheck.includes("minimum") || textToCheck.includes("under") || textToCheck.includes("low-value") || textToCheck.includes("low value") || textToCheck.includes("auto approval threshold") || textToCheck.includes("auto approve")) {
+      amountPrefix = "Amount below";
+    } else if (textToCheck.includes("above") || textToCheck.includes("exceeds") || textToCheck.includes("more than") || textToCheck.includes("maximum") || textToCheck.includes("over")) {
+      amountPrefix = "Amount above";
+    }
+  }
 
   Object.entries(conditionConfig).forEach(([key, val]) => {
     if (val === undefined || val === null || val === "" || key === "currency") return;
@@ -143,7 +154,18 @@ export const buildConditionSummary = (
     }
 
     if (key === "amount") {
-      parts.push(`Amount above ${currency} ${formattedVal}`.trim());
+      parts.push(`${amountPrefix} ${currency} ${formattedVal}`.trim());
+    } else if (key === "amounts" && typeof val === "object") {
+      const curParts = Object.entries(val).map(([cur, amt]) => {
+         let fmt = String(amt);
+         if (!isNaN(Number(fmt))) {
+            const split = fmt.split(".");
+            split[0] = split[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            fmt = split.join(".");
+         }
+         return `${cur} ${fmt}`;
+      });
+      parts.push(`${amountPrefix} (${curParts.join(", ")})`.trim());
     } else if (key === "percentage") {
       parts.push(`Above ${formattedVal}%`);
     } else if (key === "quantity") {

@@ -26,7 +26,7 @@ import withPermissions from "@/components/permissions/permission-protected-route
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
 const money = (value: string | number, currency = "USD") =>
-  new Intl.NumberFormat(undefined, {
+  new Intl.NumberFormat("en-NG", {
     style: "currency",
     currency,
     minimumFractionDigits: 0,

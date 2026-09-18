@@ -76,6 +76,12 @@ function refreshAccessToken() {
 
       useAuthStore.getState().setAccessToken(accessToken, expiresInMs);
       scheduleTokenRefresh(expiresInMs);
+
+      // Keep the villeto_auth marker cookie alive
+      if (typeof document !== "undefined") {
+        document.cookie = `villeto_auth=true; path=/; max-age=${Math.floor(expiresInMs / 1000)}`;
+      }
+
       return accessToken;
     })
     .finally(() => {

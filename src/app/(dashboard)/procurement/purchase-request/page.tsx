@@ -688,7 +688,7 @@ function PRTable({
                     <td className="px-5 py-4 text-[13px] text-[#68726d]">{getDeptName(pr)}</td>
                     <td className="px-5 py-4"><PRPriorityBadge priority={pr.priority} /></td>
                     <td className="px-5 py-4 text-[13px] text-[#68726d] whitespace-nowrap">{formatDate(pr.neededByDate)}</td>
-                    <td className="px-5 py-4"><StatusBadge status={(pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} /></td>
+                    <td className="px-5 py-4"><StatusBadge status={(pr.status === "converted_to_po" || pr.status === "partially_converted") ? pr.status : (pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} /></td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                       <PRActionMenu
                         pr={pr}

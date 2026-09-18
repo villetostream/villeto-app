@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 import { COUNTRY_CURRENCY_CONFIG } from "@/lib/utils/currency";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
-const currency = (value: number, code = "USD") => new Intl.NumberFormat(undefined, { style: "currency", currency: code, maximumFractionDigits: 0 }).format(value);
+const currency = (value: number, code = "USD") => new Intl.NumberFormat("en-NG", { style: "currency", currency: code, maximumFractionDigits: 0 }).format(value);
 const date = (value?: string) => value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)) : "No date";
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -92,9 +92,8 @@ export default function DashboardPage() {
     { enabled: policies.purchaseOrders.canView },
   );
   const orders = poResponse?.data || [];
-  const openOrders = orders.filter((item) => !["closed", "cancelled"].includes(item.status || ""));
+  const openOrders = orders.filter((item) => ["approved", "issued", "acknowledged", "ready_for_delivery", "partially_delivered"].includes(item.status || ""));
   const receivingOrders = orders.filter((item) => ["issued", "acknowledged", "ready_for_delivery", "partially_delivered"].includes(item.status || ""));
-  const committedSpend = openOrders.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
 
   // Expenses
   const expScope = policies.expenses.listScope;
@@ -119,7 +118,8 @@ export default function DashboardPage() {
     ? companyExpensesData?.reports || []
     : personalExpensesData?.reports || [];
   const pendingExpenses = expenses.filter(e => e.status === "pending");
-  const approvedExpensesSpend = expenses.filter(e => e.status === "approved").reduce((sum, e) => sum + Number(e.totalAmount || 0), 0);
+  const approvedExpenses = expenses.filter(e => e.status === "approved");
+  const approvedExpensesSpend = approvedExpenses.reduce((sum, e) => sum + Number(e.totalAmount || 0), 0);
 
   // Users (Team)
   const canViewUsers = policies.people.canManageUsers;
@@ -149,7 +149,22 @@ export default function DashboardPage() {
   const activeVendors = vendorsData?.meta?.totalCount || vendorsList.length;
 
   // Total Metric Calculations
-  const totalSpend = committedSpend + approvedExpensesSpend;
+  const spendByCurrency = [...openOrders, ...approvedExpenses].reduce((acc, item: any) => {
+    const c = item.currency || code;
+    acc[c] = (acc[c] || 0) + Number(item.totalAmount || 0);
+    return acc;
+  }, {} as Record<string, number>);
+
+  const primarySpend = spendByCurrency[code] || 0;
+  
+  const otherCurrencies = Object.entries(spendByCurrency)
+    .filter(([c, val]) => c !== code && val > 0)
+    .map(([c, val]) => currency(val, c));
+  
+  const otherCurrenciesLabel = otherCurrencies.length > 0 
+    ? <span className="block mt-2 text-[11px] text-[#89918d] truncate">↳ + {otherCurrencies.join(' and ')} in other entities</span> 
+    : undefined;
+
   const totalPendingActions = pendingPRApprovals.length + prsReadyForConversion.length + pendingExpenses.length;
   
   const expLoading = companyExpenseScope ? companyExpensesLoading : personalExpensesLoading;
@@ -191,7 +206,7 @@ export default function DashboardPage() {
 
         {/* 2. KPI Metrics Row */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard title="Total Committed Spend" value={currency(totalSpend, code)} icon={<BadgeDollarSign />} color="teal" isLoading={isAnyLoading} />
+          <MetricCard title="Total Committed Spend" value={currency(primarySpend, code)} subtitle={otherCurrenciesLabel} icon={<BadgeDollarSign />} color="teal" isLoading={isAnyLoading} />
           <MetricCard title="Pending Actions" value={totalPendingActions.toString()} icon={<CalendarClock />} color="amber" isLoading={isAnyLoading} />
           {canViewVendors && <MetricCard title="Active Vendors" value={activeVendors.toString()} icon={<Store />} color="blue" isLoading={isAnyLoading} />}
           {canViewUsers && <MetricCard title="Team Members" value={totalUsers.toString()} icon={<Users />} color="purple" isLoading={isAnyLoading} />}
@@ -424,7 +439,7 @@ export default function DashboardPage() {
 
 // --- Subcomponents ---
 
-function MetricCard({ title, value, icon, color, isLoading }: { title: string, value: string, icon: React.ReactNode, color: "teal" | "amber" | "blue" | "purple", isLoading?: boolean }) {
+function MetricCard({ title, value, subtitle, icon, color, isLoading }: { title: string, value: string, subtitle?: React.ReactNode, icon: React.ReactNode, color: "teal" | "amber" | "blue" | "purple", isLoading?: boolean }) {
   const colorStyles = {
     teal: "bg-[#e8f8f5] text-[#087f70]",
     amber: "bg-[#fff6df] text-[#a46709]",
@@ -443,7 +458,10 @@ function MetricCard({ title, value, icon, color, isLoading }: { title: string, v
       {isLoading ? (
         <div className="h-[24px] w-16 animate-pulse rounded-[6px] bg-[#f0f2f1]" />
       ) : (
-        <p className="text-[24px] font-bold leading-none tracking-tight text-[#0b100e]">{value}</p>
+        <>
+          <p className="text-[24px] font-bold leading-none tracking-tight text-[#0b100e]">{value}</p>
+          {subtitle && subtitle}
+        </>
       )}
     </div>
   );
