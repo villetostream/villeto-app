@@ -9,7 +9,7 @@ import { useInvoiceAction, useProcurementInvoices } from "@/queries/procurement/
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
-const money = (value: number, code: string) => new Intl.NumberFormat(undefined, { style: "currency", currency: code }).format(value);
+const money = (value: number, code: string) => new Intl.NumberFormat("en-NG", { style: "currency", currency: code }).format(value);
 
 function ProcurementInvoicesPage() {
   const policies = useAuthorizationPolicies();

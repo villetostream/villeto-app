@@ -85,7 +85,7 @@ export function ProcurementMetric({
 }: {
   label: string;
   value: string | number;
-  detail: string;
+  detail: React.ReactNode;
   icon: ReactNode;
   tone?: "teal" | "amber" | "blue" | "rose";
   isLoading?: boolean;
