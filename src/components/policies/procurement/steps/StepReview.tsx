@@ -232,7 +232,7 @@ export function StepReview({ draft }: StepReviewProps) {
                         <div className="text-[13px] text-gray-600 space-y-1 mb-2">
                           {Object.keys(rule.conditionConfig).length > 0 && (
                             <p>
-                              {buildConditionSummary(rule.conditionConfig)}
+                              {buildConditionSummary(rule.conditionConfig, rule)}
                             </p>
                           )}
                           <p className="flex items-center gap-1.5 font-medium text-[#10231d]">
@@ -255,7 +255,7 @@ export function StepReview({ draft }: StepReviewProps) {
                             <div className="mt-2 pt-2 border-t border-black/[0.04] flex flex-col gap-1">
                               {Object.keys(rule.exceptionConfig.conditionConfig || {}).length > 0 && (
                                 <p>
-                                  <span className="font-semibold text-gray-700">Exception Condition:</span> {buildConditionSummary(rule.exceptionConfig.conditionConfig)}
+                                  <span className="font-semibold text-gray-700">Exception Condition:</span> {buildConditionSummary(rule.exceptionConfig.conditionConfig, rule)}
                                 </p>
                               )}
                               {rule.exceptionConfig.action && (

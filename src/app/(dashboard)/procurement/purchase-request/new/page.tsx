@@ -532,7 +532,7 @@ function NewPurchaseRequestPage() {
   const handleSaveHeader = async () => {
     if (!title.trim()) { toast.error("Request title is required"); return; }
     if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
-    if (!neededByDate) { toast.error("Need by date is required"); return; }
+    if (!neededByDate) { toast.error("Needed by date is required"); return; }
     if (!departmentId) { toast.error("Department is required"); return; }
     if (legalEntities.length === 0) { toast.error("No procurement-ready legal entity is available"); return; }
     if (requiresLegalEntitySelection && !effectiveLegalEntityId) { toast.error("Select the legal entity for this request"); return; }
@@ -736,7 +736,7 @@ function NewPurchaseRequestPage() {
                 </div>
               )}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Need by Date <span className="text-[#d33d44]">*</span></label>
+                <label className="text-sm font-medium text-[#0b100e]">Needed by Date <span className="text-[#d33d44]">*</span></label>
                 <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                   <PopoverTrigger asChild>
                     <button type="button" className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] cursor-pointer ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}>
@@ -829,7 +829,7 @@ function NewPurchaseRequestPage() {
                   { label: "Title", value: title },
                   { label: "Priority", value: PRIORITIES.find(p => p.value === priority)?.label || priority },
                   { label: "Currency", value: currency },
-                  { label: "Need by Date", value: neededByDate },
+                  { label: "Needed by Date", value: neededByDate },
                   { label: "Department", value: selectedDeptName || "—" },
                 ].map(({ label, value }) => (
                   <div key={label}>
@@ -1062,6 +1062,7 @@ function NewPurchaseRequestPage() {
                 });
                 setIsDetailModalOpen(false);
                 setSelectedDetailItem(null);
+                setPolicyViolations(null);
                 toast.success("Item updated");
               }
             : undefined

@@ -3,6 +3,7 @@ import { X, AlertCircle, ShieldAlert, Package, Hash, DollarSign, Tag, FileText, 
 import type { ProcurementPolicyViolation } from "@/lib/types/api-error";
 import { useGetProcurementCategories } from "@/queries/procurement/purchase-requests";
 import { toast } from "sonner";
+import { UnitOfMeasureCombobox } from "@/components/procurement/UnitOfMeasureCombobox";
 
 export interface LineItemForDetail {
   purchaseRequestLineItemId?: string;
@@ -199,8 +200,13 @@ export function LineItemDetailModal({ isOpen, onClose, item, currency = "USD", o
                     </div>
                   </EditField>
                   <EditField icon={<Package className="w-3.5 h-3.5" />} label="Unit of Measure">
-                    <input type="text" placeholder="e.g. unit, box" value={form.unitOfMeasure || ""} onChange={e => setForm(p => ({ ...p, unitOfMeasure: e.target.value }))}
-                      className="w-full h-8 px-1 text-sm font-semibold text-[#0b100e] border-b border-black/[0.1] focus:outline-none focus:border-[#087f70] bg-transparent transition-colors" />
+                    <div className="w-full h-8 flex items-center border-b border-black/[0.1] focus-within:border-[#087f70] bg-transparent transition-colors">
+                      <UnitOfMeasureCombobox
+                        value={form.unitOfMeasure || ""}
+                        onChange={val => setForm(p => ({ ...p, unitOfMeasure: val }))}
+                        className="!border-none"
+                      />
+                    </div>
                   </EditField>
                 </>
               ) : (

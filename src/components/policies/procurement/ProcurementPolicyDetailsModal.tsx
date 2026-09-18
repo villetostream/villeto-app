@@ -40,7 +40,7 @@ const getConditionText = (rule: any): string => {
     case "final_amount_required": return "Final amount required before PO submission";
     case "contract_required":     return "Valid contract required for conversion";
     default:
-      const summary = buildConditionSummary(cc);
+      const summary = buildConditionSummary(cc, rule);
       return summary || ruleType.replace(/_/g, " ");
   }
 };
@@ -258,7 +258,7 @@ export function ProcurementPolicyDetailsModal({
                               <div className="mt-2 pt-2 border-t border-black/[0.04] flex flex-col gap-1 text-[11px]">
                                 {Object.keys(r.exceptionConfig?.conditionConfig || {}).length > 0 && (
                                   <p className="text-gray-600">
-                                    <span className="font-semibold text-gray-700">Exception Condition:</span> {buildConditionSummary(r.exceptionConfig.conditionConfig)}
+                                    <span className="font-semibold text-gray-700">Exception Condition:</span> {buildConditionSummary(r.exceptionConfig.conditionConfig, r)}
                                   </p>
                                 )}
                                 {r.exceptionConfig?.action && (

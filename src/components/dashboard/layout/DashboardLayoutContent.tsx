@@ -24,12 +24,14 @@ import VilletoSetupGuide from "@/components/tour/VilletoSetupGuide";
 import { useTourStore } from "@/stores/useTourStore";
 import { ChatPortal } from "@/components/chat";
 import { SplashScreen } from "@/components/ui/splash-screen";
+import SilentRefreshGate from "@/components/dashboard/layout/SilentRefreshGate";
 import {
   AUTHORIZATION_FOCUS_MAX_AGE_MS,
   AUTHORIZATION_INVALIDATED_EVENT,
   parseAuthorizationSnapshot,
 } from "@/features/auth/authorization";
 import { logoutAndRedirect } from "@/lib/logout";
+import { useGetSpendProgramSettings } from "@/queries/procurement/policies";
 
 function subscribe() {
   return () => {};
@@ -58,7 +60,14 @@ export default function DashboardLayoutContent({
   const accessToken = useAuthStore((s) => s.accessToken);
   const isTourActive = useTourStore((s) => s.isTourActive);
   const setupGuideReady = useTourStore((s) => s.setupGuideReady);
+
+  const canViewPolicies = useAuthStore(s => s.can)('policy', 'view');
+
+  // Eagerly fetch spend program settings so they are cached by the time the user navigates to Policies
+  useGetSpendProgramSettings({ enabled: !!user && canViewPolicies });
+
   const [profileFetched, setProfileFetched] = useState(false);
+  const [silentRefreshDone, setSilentRefreshDone] = useState(false);
 
   useEffect(() => {
     // Lock body scroll to prevent double scrollbars in dashboard
@@ -113,8 +122,11 @@ export default function DashboardLayoutContent({
 
   useEffect(() => {
     if (isLoading) return;
+    if (!silentRefreshDone) return; // Wait for SilentRefreshGate to finish first
 
-    if (!user) {
+    // Re-read user from the store — it may have been populated by SilentRefreshGate
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) {
       logoutAndRedirect();
       return;
     }
@@ -143,11 +155,9 @@ export default function DashboardLayoutContent({
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener(AUTHORIZATION_INVALIDATED_EVENT, handleAuthorizationInvalidated);
     };
-  // Intentionally only isLoading: runs once after hydration.
-  // Adding user/router here would create an infinite loop because refreshUserAndPermissions
-  // updates user, which would re-trigger this effect endlessly.
+  // Runs once after hydration AND after silent refresh completes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+  }, [isLoading, silentRefreshDone]);
 
   // Ensure the premium splash screen is visible long enough to play its animation
   // when the user first boots the app or logs in.
@@ -160,7 +170,23 @@ export default function DashboardLayoutContent({
   }, []);
 
   if (!isMounted || isLoading || !minSplashTimeMet) {
-    return <SplashScreen />;
+    return (
+      <>
+        <SilentRefreshGate onDone={() => setSilentRefreshDone(true)} />
+        <SplashScreen />
+      </>
+    );
+  }
+
+  // While a silent refresh is in-flight (hard refresh scenario with no
+  // sessionStorage), keep showing splash rather than bouncing to /login.
+  if (!silentRefreshDone && !user) {
+    return (
+      <>
+        <SilentRefreshGate onDone={() => setSilentRefreshDone(true)} />
+        <SplashScreen />
+      </>
+    );
   }
 
   if (!user) {
@@ -173,6 +199,8 @@ export default function DashboardLayoutContent({
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f4f7f5]" suppressHydrationWarning>
+      {/* Silent token refresh — mounted always so it re-runs on each hard refresh */}
+      <SilentRefreshGate onDone={() => setSilentRefreshDone(true)} />
       <SidebarProvider defaultOpen={defaultOpen}>
         <DashboardSidebar isProfileLoading={!profileFetched} />
         <div className="flex flex-col flex-1 h-full overflow-hidden">

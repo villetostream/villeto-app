@@ -12,13 +12,21 @@ export async function logoutAndRedirect() {
   
   useAuthStore.getState().logout();
   
-  // Wipe all storage
-  try { sessionStorage.clear(); } catch {}
+  try { 
+    sessionStorage.removeItem('auth-storage');
+    localStorage.removeItem('auth-storage'); // clean up any legacy data
+  } catch {}
+
   try {
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key?.startsWith("expense-status-") || key?.startsWith("villeto_") || key?.startsWith("line_item_staging:") || key?.startsWith("bill_line_item_staging:")) {
+      if (
+        key?.startsWith("expense-status-") ||
+        key?.startsWith("villeto_") ||
+        key?.startsWith("line_item_staging:") ||
+        key?.startsWith("bill_line_item_staging:")
+      ) {
         keysToRemove.push(key);
       }
     }

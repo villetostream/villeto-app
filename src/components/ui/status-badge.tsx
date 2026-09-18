@@ -34,8 +34,12 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "delivered":
     case "confirmed":
     case "done":
+    case "converted_to_po":
+    case "partially_converted_to_po":
       colorClasses = "text-[#087f70] bg-[#f0faf8] border-[#c8ece4]";
       if (normalizedStatus === "posted") defaultLabel = "Posted";
+      if (normalizedStatus === "converted_to_po") defaultLabel = "Converted to PO";
+      if (normalizedStatus === "partially_converted_to_po") defaultLabel = "Partially Converted to PO";
       break;
       
     // Deep Teal (Financial Success)

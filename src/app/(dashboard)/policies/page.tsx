@@ -931,8 +931,16 @@ function PoliciesPage() {
     });
   }, [policiesApi.data?.data, liveExpenseCategories]);
 
-  const { data: spendProgramSettingsResponse } = useGetSpendProgramSettings();
+  const { data: spendProgramSettingsResponse, isLoading: isSettingsLoading } = useGetSpendProgramSettings();
   const isSpendProgramEnabled = spendProgramSettingsResponse?.data?.enabled ?? true;
+
+  // Protect against URL bypass when Governance is off
+  useEffect(() => {
+    if (policyType === "procurement" && procurementView === "create" && !isSettingsLoading && !isSpendProgramEnabled) {
+      toast.error("Spend Programs are disabled in Governance.");
+      setProcurementView("list");
+    }
+  }, [policyType, procurementView, isSettingsLoading, isSpendProgramEnabled, setProcurementView]);
 
   // Register dynamic header CTA button
   const { setAction, clearAction } = useHeaderActionStore();
@@ -948,8 +956,8 @@ function PoliciesPage() {
           label: "New Procurement Policy",
           dataTourId: "new-procurement-policy-button",
           onClick: () => setProcurementView("create"),
-          disabled: !isSpendProgramEnabled,
-          tooltip: !isSpendProgramEnabled ? "Spend Programs are currently disabled in Governance." : undefined,
+          disabled: isSettingsLoading || !isSpendProgramEnabled,
+          tooltip: !isSpendProgramEnabled && !isSettingsLoading ? "Spend Programs are currently disabled in Governance." : undefined,
         });
       } else {
         clearAction();
@@ -974,7 +982,7 @@ function PoliciesPage() {
     }
     // Cleanup on unmount
     return () => clearAction();
-  }, [activeTab, policyType, procurementView, setAction, clearAction, canCreatePolicy, canManageCategories]);
+  }, [activeTab, policyType, procurementView, setAction, clearAction, canCreatePolicy, canManageCategories, isSettingsLoading, isSpendProgramEnabled]);
 
   /* derived */
   const activePolicies   = useMemo(() => policies.filter(p => !p.archivedOn), [policies]);
