@@ -124,7 +124,7 @@ export function StepCategories({ categoryIds, onChange }: StepCategoriesProps) {
                         const isSelected = categoryIds.includes(category.categoryId);
                         const isUnavailable = category.hasSpendProgram && !isSelected;
                         return (
-                          <label
+                          <div
                             key={category.categoryId}
                             className={`flex items-center justify-between gap-3 px-4 py-2.5 transition-colors ${isUnavailable ? "opacity-60 cursor-not-allowed bg-black/[0.02]" : "hover:bg-[#f9faf9] cursor-pointer"}`}
                             onClick={(e) => {
@@ -136,7 +136,7 @@ export function StepCategories({ categoryIds, onChange }: StepCategoriesProps) {
                               <Checkbox
                                 checked={isSelected}
                                 disabled={isUnavailable}
-                                className="rounded-[4px] data-[state=checked]:bg-[#087f70] data-[state=checked]:border-[#087f70]"
+                                className="rounded-[4px] data-[state=checked]:bg-[#087f70] data-[state=checked]:border-[#087f70] pointer-events-none"
                               />
                               <span className={`text-[14px] ${isUnavailable ? "text-[#84908a]" : "text-[#10231d]"}`}>
                                 {category.name}
@@ -147,7 +147,7 @@ export function StepCategories({ categoryIds, onChange }: StepCategoriesProps) {
                                 Already attached
                               </span>
                             )}
-                          </label>
+                          </div>
                         );
                       };
 

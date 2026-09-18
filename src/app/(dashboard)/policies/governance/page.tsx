@@ -626,20 +626,24 @@ function SpendProgramPanel({ onStateChange, onRegisterActions }: any) {
                       <p className="text-[12px] font-semibold text-[#10231d] mb-3">Select applicable categories:</p>
                       <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2">
                         {allCategories.map(cat => (
-                          <label key={cat.categoryId} className="flex items-center gap-3 p-2 hover:bg-[#f9faf9] rounded cursor-pointer group">
+                          <div 
+                            key={cat.categoryId} 
+                            className="flex items-center gap-3 p-2 hover:bg-[#f9faf9] rounded cursor-pointer group"
+                            onClick={() => {
+                              const checked = tempSelectedCategoryIds.includes(cat.categoryId);
+                              if (!checked) {
+                                setTempSelectedCategoryIds(prev => [...prev, cat.categoryId]);
+                              } else {
+                                setTempSelectedCategoryIds(prev => prev.filter(id => id !== cat.categoryId));
+                              }
+                            }}
+                          >
                             <Checkbox
                               checked={tempSelectedCategoryIds.includes(cat.categoryId)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setTempSelectedCategoryIds(prev => [...prev, cat.categoryId]);
-                                } else {
-                                  setTempSelectedCategoryIds(prev => prev.filter(id => id !== cat.categoryId));
-                                }
-                              }}
-                              className="shrink-0 w-4 h-4"
+                              className="shrink-0 w-4 h-4 pointer-events-none"
                             />
                             <span className="text-[13px] text-[#10231d] group-hover:text-[#087f70] transition-colors">{cat.displayName}</span>
-                          </label>
+                          </div>
                         ))}
                         {allCategories.length === 0 && (
                           <div className="text-[13px] text-[#84908a] italic">No categories available.</div>

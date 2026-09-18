@@ -340,6 +340,7 @@ function NewReportPage() {
     const currentExpense = expenses.find((expense) => expense.id === expenseId);
     const resolvedReceipt = newReceipt;
     let replacementExtractionId = currentExpense?.receiptExtractionId;
+
     if (newReceipt?.startsWith("data:")) {
       // Manual receipt replacements are submitted with the report. Do not use
       // the extraction endpoint, because every request to it queues OCR.

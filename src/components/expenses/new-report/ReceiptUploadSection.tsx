@@ -228,12 +228,20 @@ export function ReceiptUploadSection({
           formId={isSplitTab ? "split-expense-form" : "manual-expense-form"}
           categories={categories}
           mode={isSplitTab ? "split" : "individual"}
-          onSave={(data, receipt, splitData) => {
-            // Manual entry must not create or submit a receipt-extraction ID.
-            // Keep the selected receipt as base64 so the report endpoint uses
-            // its existing direct-upload path. OCR remains exclusive to the
-            // dedicated receipt-scanning flow above.
-            onAddExpense(data, receipt, isSplitTab, splitData);
+          onSave={async (data, receipt, splitData) => {
+            const resolvedReceipt = receipt;
+            let extractionId: string | undefined;
+            if (receipt?.startsWith("data:")) {
+              // Manual entry: keep attachment local until the report is submitted.
+              extractionId = undefined;
+            }
+            onAddExpense(
+              data,
+              resolvedReceipt,
+              isSplitTab,
+              splitData,
+              extractionId,
+            );
             setShowManualForm(false);
           }}
           onCancel={() => setShowManualForm(false)}

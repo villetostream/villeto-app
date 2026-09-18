@@ -71,6 +71,18 @@ export async function uploadReceipt(
   return unwrap<ReceiptExtraction>(response.data);
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
 export async function waitForReceiptExtraction(
   axios: AxiosInstance,
   extractionId: string,
@@ -121,6 +133,18 @@ export async function uploadAndExtractReceipt(
     options,
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 export function extractedReceiptValues(extraction: ReceiptExtraction) {
   const values = extraction.extractedValues ?? {};

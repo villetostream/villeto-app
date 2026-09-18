@@ -307,6 +307,7 @@ function EditReportPage() {
   ) => {
     const resolvedReceipt = newReceipt;
     let replacementExtractionId: string | undefined;
+
     if (newReceipt?.startsWith("data:")) {
       // Submit manual replacements with the draft/report update. Calling the
       // extraction endpoint here would enqueue OCR unnecessarily.

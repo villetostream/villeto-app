@@ -43,6 +43,9 @@ import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 import { CompanyExpenseItemModal } from "@/components/expenses/company/CompanyExpenseItemModal";
 import { PolicyJustificationDrawer, type PolicyRequiredAction } from "@/components/expenses/PolicyJustificationDrawer";
 
+
+
+
 interface ExpenseCategory {
   categoryId: string;
   name: string;
@@ -489,6 +492,13 @@ export function ManualExpenseForm({
       try {
         // Keep manual attachments local until the report is submitted. The
         // extraction endpoint is reserved for the explicit receipt-scan flow.
+
+
+
+
+
+
+
         const base64 = await fileToBase64(file);
         form.setValue(`expenses.${expenseIndex}.pendingReceipt`, base64, { shouldDirty: true });
         form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", { shouldDirty: true });
