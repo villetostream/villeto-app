@@ -80,6 +80,8 @@ export const API_KEYS = {
     DEFAULT: (id: string) => `legal-entities/${id}/default` as const,
     STATUS: (id: string) => `legal-entities/${id}/status` as const,
     CURRENCIES: "reference/currencies",
+    USER_ASSIGNMENTS: (userId: string) =>
+      `users/${userId}/legal-entity-assignments` as const,
   },
   EXPENSE: {
     CATEGORIES: "companies/categories?module=expense",

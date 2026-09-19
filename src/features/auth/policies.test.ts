@@ -78,4 +78,18 @@ describe("authorization policies", () => {
     expect(policies.vendorInvoices.canReview).toBe(true);
     expect(policies.vendorInvoices.canApprove).toBe(false);
   });
+
+  it("separates viewing employee entity assignments from changing them", () => {
+    const viewer = buildAuthorizationPolicies(snapshot([
+      "legal_entity.assignment.view",
+    ]));
+    const manager = buildAuthorizationPolicies(snapshot([
+      "legal_entity.assignment.manage",
+    ]));
+
+    expect(viewer.legalEntities.canViewAssignments).toBe(true);
+    expect(viewer.legalEntities.canManageAssignments).toBe(false);
+    expect(manager.legalEntities.canViewAssignments).toBe(true);
+    expect(manager.legalEntities.canManageAssignments).toBe(true);
+  });
 });

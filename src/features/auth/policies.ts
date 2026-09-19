@@ -40,6 +40,8 @@ export const PERMISSIONS = {
   legalEntity: {
     view: "legal_entity.view",
     manage: "legal_entity.manage",
+    assignmentView: "legal_entity.assignment.view",
+    assignmentManage: "legal_entity.assignment.manage",
   },
   vendor: {
     directoryRead: "vendor.directory.read",
@@ -189,6 +191,11 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
     legalEntities: {
       canView: hasAny(permissionSet, [PERMISSIONS.legalEntity.view, PERMISSIONS.legalEntity.manage]),
       canManage: has(permissionSet, PERMISSIONS.legalEntity.manage),
+      canViewAssignments: hasAny(permissionSet, [
+        PERMISSIONS.legalEntity.assignmentView,
+        PERMISSIONS.legalEntity.assignmentManage,
+      ]),
+      canManageAssignments: has(permissionSet, PERMISSIONS.legalEntity.assignmentManage),
     },
     vendors: {
       canUseDirectory: hasAny(permissionSet, [PERMISSIONS.vendor.directoryRead, PERMISSIONS.vendor.companyRead]),
