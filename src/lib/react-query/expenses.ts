@@ -240,21 +240,20 @@ export const useDraftExpenses = (
     queryKey: [...QUERY_KEYS.expenses.drafts, page, limit, sortBy, sortOrder],
     enabled: authReady && !!accessToken,
     queryFn: async () => {
+      // Ensure we don't send scope/status to the drafts endpoint if it expects them as path/intrinsic
       const params = new URLSearchParams();
-      params.append("scope", "own");
-      params.append("status", "draft");
       params.append("page", page.toString());
       params.append("limit", limit.toString());
       if (sortBy) params.append("sortBy", sortBy);
       if (sortOrder) params.append("sortOrder", sortOrder);
 
-      // The draft endpoint now uses the standard reports endpoint
-      const response = await axios.get<PersonalExpensesApiResponse>(
-        `reports?${params.toString()}`
+      const response = await axios.get<any>(
+        `reports/drafts?${params.toString()}`
       );
       
-      const innerData = response.data || {};
-      const reportsArray = Array.isArray(innerData.data) ? innerData.data : [];
+      const topLevelData = response.data?.data || {};
+      const reportsArray = Array.isArray(topLevelData.data) ? topLevelData.data : (Array.isArray(topLevelData) ? topLevelData : []);
+      const meta = topLevelData.meta || response.data?.meta;
       
       // Map draft fields to match PersonalExpenseReport structure
       const reports = reportsArray.map((r: any) => {
@@ -273,7 +272,7 @@ export const useDraftExpenses = (
       
       return {
         reports,
-        meta: innerData.meta,
+        meta: meta,
       } as PersonalExpensesResponse;
     },
     staleTime: STALE_TIMES.NORMAL,
