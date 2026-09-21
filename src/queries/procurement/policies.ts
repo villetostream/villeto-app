@@ -247,6 +247,52 @@ export const useGetSpendProgramEligibleRoles = () => {
   });
 };
 
+// ─── Transformation Helpers ──────────────────────────────────────────────────
+
+function transformConditionConfigToBackend(config: any) {
+  if (!config) return {};
+  const res = { ...config };
+  
+  if (res.amounts && Object.keys(res.amounts).length > 0) {
+    res.amountThresholds = Object.entries(res.amounts).map(([currency, amount]) => ({
+      currency,
+      amount: Number(amount)
+    }));
+    delete res.amounts;
+    delete res.amount;
+    delete res.currency;
+  } else if (res.amount !== undefined && res.currency) {
+    res.amountThresholds = [{ currency: res.currency, amount: Number(res.amount) }];
+    delete res.amount;
+    delete res.currency;
+  }
+  
+  return res;
+}
+
+function transformConditionConfigFromBackend(config: any) {
+  if (!config) return {};
+  const res = { ...config };
+  
+  if (res.amountThresholds && Array.isArray(res.amountThresholds)) {
+    if (res.amountThresholds.length === 1) {
+      res.amount = res.amountThresholds[0].amount;
+      res.currency = res.amountThresholds[0].currency;
+    } else if (res.amountThresholds.length > 1) {
+      res.amounts = res.amountThresholds.reduce((acc: Record<string, number>, curr: any) => {
+        acc[curr.currency] = curr.amount;
+        return acc;
+      }, {});
+      // For fallback UI consistency in single-currency view modes
+      res.amount = res.amountThresholds[0].amount;
+      res.currency = res.amountThresholds[0].currency;
+    }
+    delete res.amountThresholds;
+  }
+  
+  return res;
+}
+
 // ─── Spend Program Payload builder ───────────────────────────────────────────
 
 export function buildSpendProgramPayload(draft: SpendProgramDraft, isUpdate: boolean = false) {
@@ -265,7 +311,7 @@ export function buildSpendProgramPayload(draft: SpendProgramDraft, isUpdate: boo
           ruleType: r.ruleType,
           appliesToCategoryIds: r.appliesToAll ? draft.categoryIds : (r.appliesToCategoryIds || []),
           legalEntityIds: r.legalEntityIds || [],
-          conditionConfig: r.conditionConfig,
+          conditionConfig: transformConditionConfigToBackend(r.conditionConfig),
           action: r.action,
           actionConfig: r.actionConfig,
           exceptionConfig: r.exceptionConfig ? {
@@ -275,7 +321,7 @@ export function buildSpendProgramPayload(draft: SpendProgramDraft, isUpdate: boo
             managementLevelIds: r.exceptionConfig.managementLevelIds || [],
             userIds: r.exceptionConfig.userIds || [],
             exceptionRule: {
-              conditionConfig: r.exceptionConfig.conditionConfig || {},
+              conditionConfig: transformConditionConfigToBackend(r.exceptionConfig.conditionConfig),
               action: r.exceptionConfig.action || "allow",
               actionConfig: r.exceptionConfig.actionConfig || {},
             }
@@ -300,7 +346,7 @@ export function mapSpendProgramFromBackend(data: any): SpendProgramDraft {
         if (exceptionConfig && exceptionConfig.exceptionRule) {
           exceptionConfig = {
             ...exceptionConfig,
-            conditionConfig: exceptionConfig.exceptionRule.conditionConfig || {},
+            conditionConfig: transformConditionConfigFromBackend(exceptionConfig.exceptionRule.conditionConfig),
             action: exceptionConfig.exceptionRule.action || "",
             actionConfig: exceptionConfig.exceptionRule.actionConfig || {},
           };
@@ -311,6 +357,7 @@ export function mapSpendProgramFromBackend(data: any): SpendProgramDraft {
           ...r,
           id: r.procurementSpendProgramRuleId || `rule-${Date.now()}-${idx}`,
           procurementSpendProgramRuleId: r.procurementSpendProgramRuleId,
+          conditionConfig: transformConditionConfigFromBackend(r.conditionConfig),
           exceptionConfig: exceptionConfig || {
             departmentIds: [],
             roleIds: [],
@@ -370,6 +417,10 @@ export const useGetSpendProgramById = (
     },
     enabled: !!id,
     staleTime: STALE_TIMES.NORMAL,
+    retry: (failureCount, error: any) => {
+      if (error?.response?.status === 404) return false;
+      return failureCount < 2;
+    },
     ...options,
   });
 };
@@ -415,8 +466,9 @@ export const useDeleteSpendProgram = () => {
       const res = await axios.delete(PROCUREMENT_KEYS.SPEND_PROGRAM(id));
       return res.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_, id) => {
       await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      qc.removeQueries({ queryKey: QUERY_KEYS.procurement.spendProgram(id) });
     },
   });
 };
@@ -462,6 +514,10 @@ export const useGetSpendProgramDraftById = (
     },
     enabled: !!draftId,
     staleTime: STALE_TIMES.NORMAL,
+    retry: (failureCount, error: any) => {
+      if (error?.response?.status === 404) return false;
+      return failureCount < 2;
+    },
     ...options,
   });
 };
@@ -518,8 +574,9 @@ export const useDeleteSpendProgramDraft = () => {
       const res = await axios.delete(PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFT(draftId));
       return res.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_, draftId) => {
       await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      qc.removeQueries({ queryKey: [...QUERY_KEYS.procurement.spendProgram(draftId), "draft"] });
     },
   });
 };

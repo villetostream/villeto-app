@@ -23,6 +23,7 @@ import { useGetAllRoleCapabilitiesApi } from "@/queries/role/get-role-capabiliti
 import { useLegalEntities } from "@/queries/legal-entities";
 import toast from "react-hot-toast";
 import { getApiErrorMessage } from "@/lib/types/api-error";
+import { UserProfileModal } from "@/components/dashboard/people/modals/UserProfileModal";
 
 const SCOPE_LABELS: Record<CapabilityScopeType, string> = {
   own: "Own",
@@ -155,6 +156,8 @@ function ViewRolePage() {
     const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
     const [isAssignedUsersOpen, setAssignedUsersOpen] = useState(false);
     const [assignedUserSearch, setAssignedUserSearch] = useState("");
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
     const assignedUsersQuery = useGetAllUsersApi({
         enabled: isAssignedUsersOpen && !!roleId,
         params: {
@@ -171,8 +174,8 @@ function ViewRolePage() {
                 || user.companyRole?.roleId === roleId
                 || user.villetoRole?.roleId === roleId;
         });
-        const search = assignedUserSearch.trim().toLowerCase();
 
+        const search = assignedUserSearch.trim().toLowerCase();
         if (!search) return users;
 
         return users.filter((user) => {
@@ -454,7 +457,6 @@ function ViewRolePage() {
                             People currently assigned to <span className="font-medium text-[#344039] capitalize">{roleName}</span>.
                         </DialogDescription>
                     </DialogHeader>
-
                     <div className="px-6 py-4 border-b border-black/[0.06]">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#84908a]" />
@@ -467,7 +469,6 @@ function ViewRolePage() {
                             />
                         </div>
                     </div>
-
                     <div className="max-h-[440px] overflow-y-auto px-3 py-3">
                         {assignedUsersQuery.isLoading ? (
                             <div className="space-y-2 px-3 py-1" aria-label="Loading assigned users">
@@ -512,9 +513,13 @@ function ViewRolePage() {
                                         ? user.department
                                         : user.department?.name || user.department?.departmentName;
                                     const isActive = !user.status || ["active", "accepted"].includes(user.status.toLowerCase());
-
+                                    
                                     return (
-                                        <div key={user.userId} className="flex items-center gap-3 rounded-[10px] px-3 py-3 hover:bg-[#f4f7f5]">
+                                        <div 
+                                            key={user.userId} 
+                                            onClick={() => setSelectedUserId(user.userId)}
+                                            className="flex items-center gap-3 rounded-[10px] px-3 py-3 hover:bg-[#f4f7f5] cursor-pointer transition-colors"
+                                        >
                                             <Avatar className="h-10 w-10">
                                                 <AvatarFallback className="bg-[#e7f6f2] text-[12px] font-semibold text-[#087f70]">
                                                     {initials}
@@ -538,7 +543,6 @@ function ViewRolePage() {
                             </div>
                         )}
                     </div>
-
                     {!assignedUsersQuery.isLoading && !assignedUsersQuery.isError && (
                         <div className="border-t border-black/[0.06] px-6 py-3 text-[12px] text-[#66706b]">
                             {assignedUsers.length} {assignedUsers.length === 1 ? "user" : "users"}
@@ -547,6 +551,12 @@ function ViewRolePage() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            <UserProfileModal 
+                isOpen={!!selectedUserId}
+                onClose={() => setSelectedUserId(null)}
+                userId={selectedUserId || ""} 
+            />
         </div>
     );
 }

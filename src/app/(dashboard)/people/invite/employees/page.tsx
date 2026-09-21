@@ -109,6 +109,7 @@ function InviteEmployeesPage() {
                 employment_type: row["employment_type"] ?? "",
                 status: row["status"] ?? "",
                 effective_date: row["effective_date"] ?? "",
+                legal_entity_code: row["legal_entity_code"] ?? "",
             }));
 
             if (mapped.length === 0) {
@@ -397,6 +398,7 @@ function InviteEmployeesPage() {
                                     { key: "employment_type",        desc: "e.g., Full-Time, Part-Time",                  req: false },
                                     { key: "status",                 desc: "Active, Pending, Inactive",                   req: false },
                                     { key: "effective_date",         desc: "Start or role effective date",                req: false },
+                                    { key: "legal_entity_code",      desc: "Legal entity code",                           req: false },
                                 ].map(({ key, desc, req }) => (
                                     <div key={key} className="bg-[#f9faf9] rounded-[10px] px-4 py-3 border border-black/[0.06] flex flex-col justify-between">
                                         <div>

@@ -201,6 +201,13 @@ export const navigationItems: NavItem[] = [
           { resource: "bill_pay.payment", action: "initiate" },
         ],
       },
+      {
+        label: "Settings",
+        href: "/bill-pay/settings",
+        permissions: [
+          { resource: "bill_pay.configuration", action: "manage" }
+        ],
+      },
     ],
   },
   {

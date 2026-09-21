@@ -138,6 +138,14 @@ export const buildConditionSummary = (
     } else if (textToCheck.includes("above") || textToCheck.includes("exceeds") || textToCheck.includes("more than") || textToCheck.includes("maximum") || textToCheck.includes("over")) {
       amountPrefix = "Amount above";
     }
+    
+    if (textToCheck.includes("purchase request") || textToCheck.includes("pr ") || textToCheck.includes("max_pr")) {
+      amountPrefix = amountPrefix.replace("Amount", "PR amount");
+    } else if (textToCheck.includes("purchase order") || textToCheck.includes("po ")) {
+      amountPrefix = amountPrefix.replace("Amount", "PO amount");
+    } else if (textToCheck.includes("line item")) {
+      amountPrefix = amountPrefix.replace("Amount", "Line item amount");
+    }
   }
 
   Object.entries(conditionConfig).forEach(([key, val]) => {
@@ -154,7 +162,9 @@ export const buildConditionSummary = (
     }
 
     if (key === "amount") {
-      parts.push(`${amountPrefix} ${currency} ${formattedVal}`.trim());
+      if (conditionConfig.amounts || (conditionConfig.amountThresholds && Array.isArray(conditionConfig.amountThresholds) && conditionConfig.amountThresholds.length > 0)) return;
+      const symbol = CURRENCY_OPTIONS.find(c => c.value === currency)?.symbol || currency;
+      parts.push(`${amountPrefix} ${symbol}${formattedVal}`.trim());
     } else if (key === "amounts" && typeof val === "object") {
       const curParts = Object.entries(val).map(([cur, amt]) => {
          let fmt = String(amt);
@@ -163,7 +173,20 @@ export const buildConditionSummary = (
             split[0] = split[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
             fmt = split.join(".");
          }
-         return `${cur} ${fmt}`;
+         const symbol = CURRENCY_OPTIONS.find(c => c.value === cur)?.symbol || cur;
+         return `${symbol}${fmt}`;
+      });
+      parts.push(`${amountPrefix} (${curParts.join(", ")})`.trim());
+    } else if (key === "amountThresholds" && Array.isArray(val)) {
+      const curParts = val.map((item: any) => {
+         let fmt = String(item.amount);
+         if (!isNaN(Number(fmt))) {
+            const split = fmt.split(".");
+            split[0] = split[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            fmt = split.join(".");
+         }
+         const symbol = CURRENCY_OPTIONS.find(c => c.value === item.currency)?.symbol || item.currency;
+         return `${symbol}${fmt}`;
       });
       parts.push(`${amountPrefix} (${curParts.join(", ")})`.trim());
     } else if (key === "percentage") {

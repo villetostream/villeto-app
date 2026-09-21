@@ -17,6 +17,7 @@ import { AddEmployeeModal } from "@/components/dashboard/people/invite/AddEmploy
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { EntityAssignmentsTab } from "@/components/dashboard/people/legal-entities/EntityAssignmentsTab";
+import { asRecord, isRecord, pickString } from "@/lib/types/api-error";
 
 function People() {
     const policies = useAuthorizationPolicies();

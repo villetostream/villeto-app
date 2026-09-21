@@ -298,11 +298,10 @@ export default function DashboardPage() {
               href="/bill-pay" 
               color="indigo"
               visible={policies.billPay.canViewInvoices}
-              comingSoon={true}
               isLoading={isAnyLoading}
               stats={[
-                { label: "Status", value: "Coming soon" },
-                { label: "Payments", value: "—" }
+                { label: "Payments", value: "0" },
+                { label: "Invoices", value: "0" }
               ]}
             />
 

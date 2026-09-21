@@ -2,90 +2,118 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, EyeOff, Eye, Search, Plus, MoreHorizontal } from "lucide-react";
+import { Copy, EyeOff, Eye, Plus, MoreHorizontal, Upload } from "lucide-react";
 import { Receipt2, CalendarTick, Clock, TickCircle } from "iconsax-reactjs";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
-import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
+import { createColumnHelper } from "@tanstack/react-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import { useLegalEntities } from "@/queries/legal-entities";
+import { useGetPayments, useGetBankTransactions } from "@/queries/bill-pay";
+import { format } from "date-fns";
 
 type Payment = {
-  id: string;
-  vendor: string;
+  paymentId: string;
   amount: string;
-  dueDate: string;
-  method: string;
+  currency: string;
   status: string;
-  paymentDate: string;
+  executionDate: string;
+  vendorBeneficiary: {
+    name: string;
+  };
+  paymentRequest: {
+    paymentRequestId: string;
+  };
 };
 
-const mockPayments: Payment[] = [
-  { id: "INV-2024", vendor: "Acme Ltd", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", method: "Bank Transfer", status: "Draft", paymentDate: "10 Sept 2025" },
-  { id: "INV-2024-2", vendor: "Delta Services", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", method: "Bank Transfer", status: "Scheduled", paymentDate: "10 Sept 2025" },
-  { id: "INV-2024-3", vendor: "Nova Tech", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", method: "Card", status: "Paid", paymentDate: "10 Sept 2025" },
-  { id: "INV-2024-4", vendor: "Zenith Corp", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", method: "Bank Transfer", status: "Processing", paymentDate: "10 Sept 2025" },
-  { id: "INV-2024-5", vendor: "Delta Services", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", method: "Bank Transfer", status: "Paid", paymentDate: "10 Sept 2025" },
-  { id: "INV-2024-6", vendor: "Pinnacle Ltd", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", method: "Card", status: "Awaiting Authorization", paymentDate: "10 Sept 2025" },
-  { id: "INV-2024-7", vendor: "Delta Services", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", method: "Bank Transfer", status: "Returned", paymentDate: "10 Sept 2025" },
-  { id: "INV-2024-8", vendor: "Atlas Partners", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", method: "Bank Transfer", status: "Returned", paymentDate: "10 Sept 2025" },
-];
+type BankTransaction = {
+  bankTransactionId: string;
+  transactionDate: string;
+  description: string;
+  amount: string;
+  currency: string;
+  type: string;
+  status: string;
+};
 
-const columnHelper = createColumnHelper<Payment>();
+const paymentColumnHelper = createColumnHelper<Payment>();
+const bankTxColumnHelper = createColumnHelper<BankTransaction>();
 
 function PaymentsDashboard() {
   const router = useRouter();
   const policies = useAuthorizationPolicies();
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("payments");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
   const [showAccountDetails, setShowAccountDetails] = useState(true);
 
-  const tableprops = useDataTable({
+  const { data: legalEntitiesData } = useLegalEntities();
+  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "a3c0738f-a024-497a-9cbf-a488dba29bf4";
+
+  // Data Tables Props
+  const paymentTableProps = useDataTable({
     initialPage: 1,
-    totalItems: mockPayments.length,
+    totalItems: 0,
     manualSorting: false,
-    manualFiltering: false,
-    manualPagination: false,
+    manualFiltering: true,
+    manualPagination: true,
   });
 
-  const columns = useMemo(() => [
-    columnHelper.accessor("id", {
-      header: "BILL ID",
-      cell: (info) => <p className="text-[#68726d] font-medium">{info.getValue()}</p>,
+  const bankTableProps = useDataTable({
+    initialPage: 1,
+    totalItems: 0,
+    manualSorting: false,
+    manualFiltering: true,
+    manualPagination: true,
+  });
+
+  // Queries
+  const { data: paymentsData, isLoading: paymentsLoading } = useGetPayments(
+    legalEntityId,
+    paymentTableProps.page,
+    paymentTableProps.pageSize
+  );
+
+  const { data: bankData, isLoading: bankLoading } = useGetBankTransactions(
+    legalEntityId,
+    bankTableProps.page,
+    bankTableProps.pageSize
+  );
+
+  // Columns for Payments
+  const paymentColumns = useMemo(() => [
+    paymentColumnHelper.accessor("paymentId", {
+      header: "PAYMENT ID",
+      cell: (info) => <p className="text-[#68726d] font-medium uppercase">{info.getValue()?.split('-')[0]}</p>,
     }),
-    columnHelper.accessor("vendor", {
-      header: "VENDOR",
-      cell: (info) => <p className="font-semibold text-[#0b100e]">{info.getValue()}</p>,
+    paymentColumnHelper.accessor("vendorBeneficiary.name", {
+      header: "BENEFICIARY",
+      cell: (info) => <p className="font-semibold text-[#0b100e]">{info.getValue() || "N/A"}</p>,
     }),
-    columnHelper.accessor("amount", {
+    paymentColumnHelper.accessor("amount", {
       header: "AMOUNT",
-      cell: (info) => <p className="font-bold text-[#0b100e]">{info.getValue()}</p>,
+      cell: (info) => <p className="font-bold text-[#0b100e]">₦{parseFloat(info.getValue() || "0").toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>,
     }),
-    columnHelper.accessor("dueDate", {
-      header: "DUE DATE",
-      cell: (info) => <p className="text-[#68726d]">{info.getValue()}</p>,
+    paymentColumnHelper.accessor("executionDate", {
+      header: "EXECUTION DATE",
+      cell: (info) => <p className="text-[#68726d]">{info.getValue() ? format(new Date(info.getValue()), "dd MMM yyyy") : "N/A"}</p>,
     }),
-    columnHelper.accessor("method", {
-      header: "METHOD",
-      cell: (info) => <p className="text-[#68726d]">{info.getValue()}</p>,
-    }),
-    columnHelper.accessor("status", {
+    paymentColumnHelper.accessor("status", {
       header: "STATUS",
       cell: (info) => {
-        const status = info.getValue().toLowerCase();
-        const s = status === "awaiting authorization" ? "awaiting_authorization" : status;
-        return <StatusBadge status={s} />;
+        const status = info.getValue()?.toLowerCase() || "";
+        let variant: "pending" | "approved" | "default" | "rejected" = "default";
+        if (["externally_recorded", "reconciled"].includes(status)) variant = "approved";
+        if (status === "failed") variant = "rejected";
+        return <StatusBadge status={variant} label={status.replace(/_/g, ' ')} className="capitalize" />;
       },
     }),
-    columnHelper.accessor("paymentDate", {
-      header: "PAYMENT DATE",
-      cell: (info) => <p className="text-[#68726d]">{info.getValue()}</p>,
-    }),
-    columnHelper.display({
+    paymentColumnHelper.display({
       id: "actions",
       header: "ACTION",
       enableHiding: false,
@@ -97,26 +125,77 @@ function PaymentsDashboard() {
     }),
   ], []);
 
+  // Columns for Bank Transactions
+  const bankColumns = useMemo(() => [
+    bankTxColumnHelper.accessor("transactionDate", {
+      header: "DATE",
+      cell: (info) => <p className="text-[#68726d] font-medium">{info.getValue() ? format(new Date(info.getValue()), "dd MMM yyyy") : "N/A"}</p>,
+    }),
+    bankTxColumnHelper.accessor("description", {
+      header: "DESCRIPTION",
+      cell: (info) => <p className="font-semibold text-[#0b100e] max-w-xs truncate" title={info.getValue()}>{info.getValue()}</p>,
+    }),
+    bankTxColumnHelper.accessor("type", {
+      header: "TYPE",
+      cell: (info) => <p className="text-[#68726d] uppercase text-xs font-bold tracking-wider">{info.getValue()}</p>,
+    }),
+    bankTxColumnHelper.accessor("amount", {
+      header: "AMOUNT",
+      cell: (info) => <p className="font-bold text-[#0b100e]">₦{parseFloat(info.getValue() || "0").toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>,
+    }),
+    bankTxColumnHelper.accessor("status", {
+      header: "STATUS",
+      cell: (info) => {
+        const status = info.getValue()?.toLowerCase() || "";
+        let variant: "pending" | "approved" | "default" = "default";
+        if (status === "matched") variant = "approved";
+        if (status === "unmatched") variant = "pending";
+        return <StatusBadge status={variant} label={status} className="capitalize" />;
+      },
+    }),
+    bankTxColumnHelper.display({
+      id: "actions",
+      header: "ACTION",
+      enableHiding: false,
+      cell: () => (
+        <Button variant="ghost" size="sm" className="h-8 text-[#087f70] hover:text-[#076b5e] font-semibold border border-[#087f70]/20 hover:bg-[#087f70]/10 rounded-md">
+          Match
+        </Button>
+      ),
+    }),
+  ], []);
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard");
   };
 
-  const filteredData = useMemo(() => {
-    let data = mockPayments;
-    if (activeTab !== "all") {
-      data = data.filter(p => p.status.toLowerCase() === activeTab.replace("-", " "));
+  const displayPayments = useMemo(() => {
+    let data = (paymentsData as any)?.data || [];
+    if (paymentStatusFilter !== "all") {
+      data = data.filter((p: Payment) => p.status?.toLowerCase() === paymentStatusFilter);
     }
-    if (tableprops.globalSearch) {
-      const q = tableprops.globalSearch.toLowerCase();
-      data = data.filter(p => 
-        p.vendor.toLowerCase().includes(q) || 
-        p.id.toLowerCase().includes(q) ||
-        p.amount.toLowerCase().includes(q)
+    if (paymentTableProps.globalSearch) {
+      const q = paymentTableProps.globalSearch.toLowerCase();
+      data = data.filter((p: Payment) => 
+        p.vendorBeneficiary?.name?.toLowerCase().includes(q) || 
+        p.paymentId?.toLowerCase().includes(q)
       );
     }
     return data;
-  }, [activeTab, tableprops.globalSearch]);
+  }, [paymentsData, paymentStatusFilter, paymentTableProps.globalSearch]);
+
+  const displayBankTx = useMemo(() => {
+    let data = (bankData as any)?.data || [];
+    if (bankTableProps.globalSearch) {
+      const q = bankTableProps.globalSearch.toLowerCase();
+      data = data.filter((b: BankTransaction) => 
+        b.description?.toLowerCase().includes(q) ||
+        b.amount?.includes(q)
+      );
+    }
+    return data;
+  }, [bankData, bankTableProps.globalSearch]);
 
   return (
     <div className="flex flex-col h-full pb-2 overflow-y-auto">
@@ -221,7 +300,7 @@ function PaymentsDashboard() {
         </div>
       ) : null}
 
-      {/* Stats Cards */}
+      {/* Stats Cards (Mocked for now since no aggregation API exists) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
         <StatsCard
           title="Awaiting Authorization"
@@ -257,54 +336,106 @@ function PaymentsDashboard() {
         />
       </div>
 
-      {/* Tabs and Data Table */}
+      {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-[500px] mt-2">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
           <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
-            <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">All Payments</TabsTrigger>
-            <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Draft</TabsTrigger>
-            <TabsTrigger value="awaiting authorization" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Awaiting Authorization</TabsTrigger>
-            <TabsTrigger value="scheduled" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Scheduled</TabsTrigger>
-            <TabsTrigger value="processing" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Processing</TabsTrigger>
-            <TabsTrigger value="paid" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Completed</TabsTrigger>
+            <TabsTrigger 
+              value="payments" 
+              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center"
+            >
+              Ledger Payments
+            </TabsTrigger>
+            <TabsTrigger 
+              value="bank" 
+              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center"
+            >
+              Bank Transactions
+            </TabsTrigger>
           </TabsList>
+          
+          {activeTab === "bank" && policies.billPay.canManageReconciliation && (
+            <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-9 px-4 font-semibold text-[13px] flex items-center gap-2">
+              <Upload className="w-4 h-4" />
+              Import Statement
+            </Button>
+          )}
         </div>
         
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden mt-4">
+        {/* Payments Tab Content */}
+        <TabsContent value="payments" className="flex-1 flex flex-col min-h-0 mt-4 border-none outline-none">
+          {/* Sub-filter tabs */}
+          <div className="mb-4">
+            <Tabs value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+              <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
+                <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">All Payments</TabsTrigger>
+                <TabsTrigger value="externally_recorded" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Externally Recorded</TabsTrigger>
+                <TabsTrigger value="reconciled" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Reconciled</TabsTrigger>
+                <TabsTrigger value="failed" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Failed</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+          <div className="flex-1 overflow-hidden">
             <DataTable
-              data={filteredData}
-              manualPagination={false}
-              columns={columns as any}
+              data={displayPayments}
+              isLoading={paymentsLoading}
+              manualPagination={true}
+              columns={paymentColumns as any}
               paginationProps={{
-                ...tableprops.paginationProps,
-                total: filteredData.length,
+                ...paymentTableProps.paginationProps,
+                total: (paymentsData as any)?.meta?.totalCount || displayPayments.length,
               }}
               enableRowSelection={false}
               enableColumnVisibility={false}
-              selectedDataIds={tableprops.selectedDataIds}
-              setSelectedDataIds={tableprops.setSelectedDataIds}
-              onRowClick={(row) => router.push(`/bill-pay/payments/${(row as Payment).id}`)}
+              selectedDataIds={paymentTableProps.selectedDataIds}
+              setSelectedDataIds={paymentTableProps.setSelectedDataIds}
               tableHeader={{
                 actionButton: <></>,
                 isSearchable: true,
                 isExportable: true,
-                isFilter: true,
+                isFilter: false,
                 enableColumnVisibility: false,
-                search: tableprops.globalSearch,
-                searchQuery: tableprops.setGlobalSearch,
-                filterProps: {
-                  title: "Filter",
-                  filterData: [],
-                  onFilter: () => {
-                    tableprops.setPage(1);
-                  },
-                },
+                search: paymentTableProps.globalSearch,
+                searchQuery: paymentTableProps.setGlobalSearch,
+                filterProps: { title: "Filter", filterData: [], onFilter: () => paymentTableProps.setPage(1) },
                 bulkActions: [],
               }}
             />
           </div>
-      </Tabs>
+        </TabsContent>
 
+        {/* Bank Transactions Tab Content */}
+        <TabsContent value="bank" className="flex-1 flex flex-col min-h-0 mt-4 border-none outline-none">
+          <div className="flex-1 overflow-hidden">
+            <DataTable
+              data={displayBankTx}
+              isLoading={bankLoading}
+              manualPagination={true}
+              columns={bankColumns as any}
+              paginationProps={{
+                ...bankTableProps.paginationProps,
+                total: (bankData as any)?.meta?.totalCount || displayBankTx.length,
+              }}
+              enableRowSelection={false}
+              enableColumnVisibility={false}
+              selectedDataIds={bankTableProps.selectedDataIds}
+              setSelectedDataIds={bankTableProps.setSelectedDataIds}
+              tableHeader={{
+                actionButton: <></>,
+                isSearchable: true,
+                isExportable: false,
+                isFilter: false,
+                enableColumnVisibility: false,
+                search: bankTableProps.globalSearch,
+                searchQuery: bankTableProps.setGlobalSearch,
+                filterProps: { title: "Filter", filterData: [], onFilter: () => bankTableProps.setPage(1) },
+                bulkActions: [],
+              }}
+            />
+          </div>
+        </TabsContent>
+
+      </Tabs>
       </div>
     </div>
   );
@@ -313,5 +444,4 @@ function PaymentsDashboard() {
 export default withPermissions(PaymentsDashboard, [
   { resource: "bill_pay.payment_request", action: "view" },
   { resource: "bill_pay.payment", action: "view" },
-  { resource: "bill_pay.payment", action: "initiate" },
 ]);

@@ -65,8 +65,9 @@ export function ProcurementPolicyWizard({
     const data = programId ? activeData?.data : (initialDraftId ? draftData?.data : null);
     if (data) {
       const mapped = mapSpendProgramFromBackend(data);
+      const isEditingActive = !!programId && !initialDraftId;
       setDraft({
-        name: mapped.name || "",
+        name: isEditingActive ? (mapped.name ? `${mapped.name} (Copy)` : "") : (mapped.name || ""),
         description: mapped.description || "",
         categoryIds: mapped.categoryIds || [],
         groups: mapped.groups || activeStages.map(s => ({ group: s as any, rules: [] })),
