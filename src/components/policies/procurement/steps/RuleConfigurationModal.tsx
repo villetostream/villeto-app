@@ -287,14 +287,27 @@ export function RuleConfigurationModal({
   const hasAllConditionsFilled = !selectedDef?.conditionSchema ||
     Object.keys(selectedDef.conditionSchema).every(key => {
       const schemaKeys = Object.keys(selectedDef.conditionSchema);
-      const showMultiCurrency = schemaKeys.includes("currency") && schemaKeys.includes("amount") && availableCurrencies.length > 1;
+      const isCurrencyRule = schemaKeys.includes("amountThresholds") || (schemaKeys.includes("currency") && schemaKeys.includes("amount"));
+      const showMultiCurrency = isCurrencyRule && availableCurrencies.length > 1;
 
-      if (showMultiCurrency && (key === "currency" || key === "amount")) {
-        const amounts = rule.conditionConfig.amounts || {};
-        return availableCurrencies.every(c => {
-          const val = amounts[c.value];
-          return val !== undefined && val !== "" && val !== null;
-        });
+      if (key === "amountThresholds" || key === "amounts") {
+        if (!isCurrencyRule) return true; // Not a currency rule, shouldn't happen but skip
+        if (showMultiCurrency) {
+          const amounts = rule.conditionConfig.amounts || {};
+          return availableCurrencies.every(c => {
+            const val = amounts[c.value];
+            return val !== undefined && val !== "" && val !== null;
+          });
+        }
+        // Single currency validation when schema only has amountThresholds
+        const val = rule.conditionConfig.amount;
+        return val !== undefined && val !== "" && val !== null;
+      }
+
+      if (isCurrencyRule && (key === "currency" || key === "amount")) {
+        if (showMultiCurrency) return true; // Handled by amountThresholds logic above
+        const val = rule.conditionConfig[key];
+        return val !== undefined && val !== "" && val !== null;
       }
 
       const val = rule.conditionConfig[key];
@@ -452,12 +465,14 @@ export function RuleConfigurationModal({
                       <div className="p-4 border border-black/[0.08] rounded-xl bg-white grid grid-cols-2 gap-4">
                         {(() => {
                           const schemaKeys = Object.keys(selectedDef.conditionSchema);
-                          const hasCurrencyAndAmount = schemaKeys.includes("currency") && schemaKeys.includes("amount");
+                          const hasCurrencyAndAmount = schemaKeys.includes("amountThresholds") || (schemaKeys.includes("currency") && schemaKeys.includes("amount"));
 
                           return Object.entries(selectedDef.conditionSchema).map(([key, type]) => {
                             // If currency/amount are present, we handle them together using the embedded currency symbol UI
-                            if (hasCurrencyAndAmount && (key === "currency" || key === "amount")) {
-                              if (key === "currency") {
+                            if (hasCurrencyAndAmount && (key === "currency" || key === "amount" || key === "amountThresholds" || key === "amounts")) {
+                              const anchorKey = schemaKeys.includes("amountThresholds") ? "amountThresholds" : "currency";
+                              
+                              if (key === anchorKey) {
                                 const isSingle = availableCurrencies.length === 1;
                                 
                                 return (
@@ -668,11 +683,13 @@ export function RuleConfigurationModal({
                                 <div className="p-4 border border-black/[0.08] rounded-xl bg-white grid grid-cols-2 gap-4">
                                   {(() => {
                                     const schemaKeys = Object.keys(selectedDef.conditionSchema);
-                                    const hasCurrencyAndAmount = schemaKeys.includes("currency") && schemaKeys.includes("amount");
+                                    const hasCurrencyAndAmount = schemaKeys.includes("amountThresholds") || (schemaKeys.includes("currency") && schemaKeys.includes("amount"));
 
                                     return Object.entries(selectedDef.conditionSchema).map(([key, type]) => {
-                                      if (hasCurrencyAndAmount && (key === "currency" || key === "amount")) {
-                                        if (key === "currency") {
+                                      if (hasCurrencyAndAmount && (key === "currency" || key === "amount" || key === "amountThresholds" || key === "amounts")) {
+                                        const anchorKey = schemaKeys.includes("amountThresholds") ? "amountThresholds" : "currency";
+                                        
+                                        if (key === anchorKey) {
                                           const isSingle = availableCurrencies.length === 1;
                                           
                                           return (

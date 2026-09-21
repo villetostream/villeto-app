@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, ChevronRight, Edit2, ShieldCheck, Lock } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Edit2, ShieldCheck, Lock, Search, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useGetARoleApi } from "@/queries/role/get-a-role";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
+import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 import type { Role, SelectedRoleCapability, ImpliedRoleCapability, CapabilityScopeType } from "@/queries/role/get-all-roles";
-import { formatPermissionName, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useParams, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -18,6 +23,7 @@ import { useGetAllRoleCapabilitiesApi } from "@/queries/role/get-role-capabiliti
 import { useLegalEntities } from "@/queries/legal-entities";
 import toast from "react-hot-toast";
 import { getApiErrorMessage } from "@/lib/types/api-error";
+import { UserProfileModal } from "@/components/dashboard/people/modals/UserProfileModal";
 
 const SCOPE_LABELS: Record<CapabilityScopeType, string> = {
   own: "Own",
@@ -40,7 +46,7 @@ function CapabilityCard({
   descriptionMap,
   isImplied = false 
 }: { 
-  cap: SelectedRoleCapability | ImpliedRoleCapability | any;
+  cap: SelectedRoleCapability | ImpliedRoleCapability;
   departmentsMap: Record<string, string>;
   legalEntitiesMap: Record<string, string>;
   descriptionMap?: Record<string, string>;
@@ -48,8 +54,8 @@ function CapabilityCard({
 }) {
     const risk = "riskLevel" in cap ? (cap.riskLevel || "standard") : "standard";
     const riskStyles = RISK_CONFIG[risk as keyof typeof RISK_CONFIG] || RISK_CONFIG.standard;
-    const hasDeptScope = cap.scopeType === "department" && cap.scopeConfig?.departmentIds?.length > 0;
-    const hasEntityScope = cap.scopeConfig?.legalEntityIds?.length > 0;
+    const hasDeptScope = cap.scopeType === "department" && (cap.scopeConfig?.departmentIds?.length ?? 0) > 0;
+    const hasEntityScope = (cap.scopeConfig?.legalEntityIds?.length ?? 0) > 0;
     const description = cap.description || (descriptionMap && descriptionMap[cap.key]) || null;
 
     return (
@@ -106,7 +112,7 @@ function CapabilityCard({
 }
 
 // ── Module Section ─────────────────────────────────────────────────────────
-function ModuleSection({ moduleName, items, title, departmentsMap, legalEntitiesMap, descriptionMap, isImplied }: { moduleName: string; items: any[]; title?: string; departmentsMap: Record<string, string>; legalEntitiesMap: Record<string, string>; descriptionMap?: Record<string, string>; isImplied?: boolean; }) {
+function ModuleSection({ moduleName, items, title, departmentsMap, legalEntitiesMap, descriptionMap, isImplied }: { moduleName: string; items: Array<SelectedRoleCapability | ImpliedRoleCapability>; title?: string; departmentsMap: Record<string, string>; legalEntitiesMap: Record<string, string>; descriptionMap?: Record<string, string>; isImplied?: boolean; }) {
     const [open, setOpen] = useState(true);
     const label = moduleName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
@@ -148,6 +154,43 @@ function ViewRolePage() {
     const role = roleData?.data as Role | undefined;
 
     const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [isAssignedUsersOpen, setAssignedUsersOpen] = useState(false);
+    const [assignedUserSearch, setAssignedUserSearch] = useState("");
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
+    const assignedUsersQuery = useGetAllUsersApi({
+        enabled: isAssignedUsersOpen && !!roleId,
+        params: {
+            page: 1,
+            limit: 1000,
+            status: "all",
+        },
+    });
+
+    const assignedUsers = useMemo(() => {
+        const users = (assignedUsersQuery.data?.data ?? []).filter((user) => {
+            const assignedRoles = user.companyRoles ?? [];
+            return assignedRoles.some((assignedRole) => assignedRole.roleId === roleId)
+                || user.companyRole?.roleId === roleId
+                || user.villetoRole?.roleId === roleId;
+        });
+
+        const search = assignedUserSearch.trim().toLowerCase();
+        if (!search) return users;
+
+        return users.filter((user) => {
+            const fullName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim().toLowerCase();
+            const department = typeof user.department === "string"
+                ? user.department
+                : user.department?.name || user.department?.departmentName || "";
+
+            return fullName.includes(search)
+                || user.email?.toLowerCase().includes(search)
+                || user.jobTitle?.toLowerCase().includes(search)
+                || user.position?.toLowerCase().includes(search)
+                || String(department).toLowerCase().includes(search);
+        });
+    }, [assignedUserSearch, assignedUsersQuery.data?.data, roleId]);
 
     // Build description lookup from catalog
     const descriptionMap = useMemo(() => {
@@ -200,7 +243,7 @@ function ViewRolePage() {
             }
         }
         return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
-    }, [role?.selectedCapabilities]);
+    }, [role]);
 
     // Group implied capabilities by module
     const impliedByModule = useMemo(() => {
@@ -212,7 +255,7 @@ function ViewRolePage() {
             }
         }
         return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
-    }, [role?.impliedCapabilities]);
+    }, [role]);
 
     const hasCapabilities = selectedByModule.length > 0 || impliedByModule.length > 0;
 
@@ -296,13 +339,21 @@ function ViewRolePage() {
                         <ChevronRight className="w-5 h-5 text-[#0ea894] flex-shrink-0" />
                     </div>
 
-                    <div className="border border-black/[0.08] rounded-[12px] p-4 bg-white">
+                    <button
+                        type="button"
+                        onClick={() => setAssignedUsersOpen(true)}
+                        className="group w-full border border-black/[0.08] rounded-[12px] p-4 bg-white text-left transition-colors hover:border-[#0ea894]/35 hover:bg-[#f9fdfc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea894]/40"
+                        aria-label={`View users assigned to ${roleName}`}
+                    >
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-[13px] font-semibold text-[#0b100e]">Assigned Users</span>
-                            <span className="text-[13px] font-bold text-[#087f70]">{totalUsers}</span>
+                            <span className="flex items-center gap-1.5">
+                                <span className="text-[13px] font-bold text-[#087f70]">{totalUsers}</span>
+                                <ChevronRight className="h-4 w-4 text-[#84908a] transition-transform group-hover:translate-x-0.5 group-hover:text-[#087f70]" />
+                            </span>
                         </div>
-                        <p className="text-[12px] text-[#84908a]">Changes to this role affect every assigned user.</p>
-                    </div>
+                        <p className="text-[12px] text-[#84908a]">View everyone assigned to this role.</p>
+                    </button>
 
                     <div className="border border-black/[0.08] rounded-[12px] p-4 bg-white">
                         <div className="flex items-center justify-between mb-2">
@@ -391,6 +442,121 @@ function ViewRolePage() {
                     />
                 </main>
             </div>
+
+            <Dialog
+                open={isAssignedUsersOpen}
+                onOpenChange={(open) => {
+                    setAssignedUsersOpen(open);
+                    if (!open) setAssignedUserSearch("");
+                }}
+            >
+                <DialogContent className="sm:max-w-[620px] p-0 gap-0 overflow-hidden">
+                    <DialogHeader className="px-6 pt-6 pb-4 border-b border-black/[0.06]">
+                        <DialogTitle className="text-[18px] text-[#0b100e]">Assigned users</DialogTitle>
+                        <DialogDescription>
+                            People currently assigned to <span className="font-medium text-[#344039] capitalize">{roleName}</span>.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="px-6 py-4 border-b border-black/[0.06]">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#84908a]" />
+                            <Input
+                                value={assignedUserSearch}
+                                onChange={(event) => setAssignedUserSearch(event.target.value)}
+                                placeholder="Search by name, email, title, or department"
+                                className="h-10 pl-9 rounded-[9px] border-black/[0.1]"
+                                aria-label="Search assigned users"
+                            />
+                        </div>
+                    </div>
+                    <div className="max-h-[440px] overflow-y-auto px-3 py-3">
+                        {assignedUsersQuery.isLoading ? (
+                            <div className="space-y-2 px-3 py-1" aria-label="Loading assigned users">
+                                {[0, 1, 2].map((item) => (
+                                    <div key={item} className="flex items-center gap-3 rounded-[10px] p-3">
+                                        <Skeleton className="h-10 w-10 rounded-full" />
+                                        <div className="flex-1 space-y-2">
+                                            <Skeleton className="h-4 w-36" />
+                                            <Skeleton className="h-3 w-52" />
+                                        </div>
+                                        <Skeleton className="h-6 w-16 rounded-full" />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : assignedUsersQuery.isError ? (
+                            <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+                                <Users className="mb-3 h-8 w-8 text-[#b4bcb8]" />
+                                <p className="text-[14px] font-medium text-[#344039]">Assigned users could not be loaded</p>
+                                <p className="mt-1 text-[12px] text-[#84908a]">Close this window and try again.</p>
+                            </div>
+                        ) : assignedUsers.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+                                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#e7f6f2]">
+                                    <Users className="h-5 w-5 text-[#0ea894]" />
+                                </div>
+                                <p className="text-[14px] font-medium text-[#344039]">
+                                    {assignedUserSearch ? "No matching users" : "No users assigned"}
+                                </p>
+                                <p className="mt-1 text-[12px] text-[#84908a]">
+                                    {assignedUserSearch
+                                        ? "Try a different name, email, title, or department."
+                                        : "Users assigned to this role will appear here."}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-1">
+                                {assignedUsers.map((user) => {
+                                    const fullName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email;
+                                    const initials = `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || user.email?.[0]?.toUpperCase() || "U";
+                                    const title = user.jobTitle || user.position;
+                                    const department = typeof user.department === "string"
+                                        ? user.department
+                                        : user.department?.name || user.department?.departmentName;
+                                    const isActive = !user.status || ["active", "accepted"].includes(user.status.toLowerCase());
+                                    
+                                    return (
+                                        <div 
+                                            key={user.userId} 
+                                            onClick={() => setSelectedUserId(user.userId)}
+                                            className="flex items-center gap-3 rounded-[10px] px-3 py-3 hover:bg-[#f4f7f5] cursor-pointer transition-colors"
+                                        >
+                                            <Avatar className="h-10 w-10">
+                                                <AvatarFallback className="bg-[#e7f6f2] text-[12px] font-semibold text-[#087f70]">
+                                                    {initials}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-[13px] font-semibold text-[#0b100e]">{fullName}</p>
+                                                <p className="truncate text-[12px] text-[#66706b]">{user.email}</p>
+                                                {(title || department) && (
+                                                    <p className="mt-0.5 truncate text-[11px] text-[#84908a]">
+                                                        {[title, department].filter(Boolean).join(" · ")}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <Badge variant={isActive ? "active" : "inactive"} className="shrink-0 text-[10px] capitalize">
+                                                {user.status || "Active"}
+                                            </Badge>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                    {!assignedUsersQuery.isLoading && !assignedUsersQuery.isError && (
+                        <div className="border-t border-black/[0.06] px-6 py-3 text-[12px] text-[#66706b]">
+                            {assignedUsers.length} {assignedUsers.length === 1 ? "user" : "users"}
+                            {assignedUserSearch ? " found" : " assigned"}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            <UserProfileModal 
+                isOpen={!!selectedUserId}
+                onClose={() => setSelectedUserId(null)}
+                userId={selectedUserId || ""} 
+            />
         </div>
     );
 }

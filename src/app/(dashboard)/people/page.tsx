@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, UserCog, UserCheck } from "lucide-react";
+import { Building2, Users, UserCog, UserCheck } from "lucide-react";
 import { AllUsersTab } from "@/components/dashboard/people/users/AllUsersTab";
 import { RolesTab } from "@/components/dashboard/people/role/RoleTab";
 import { DirectoryTab } from "@/components/dashboard/people/directory/DirectoryTab";
@@ -16,11 +16,13 @@ import { InviteEmployeesWarningModal } from "@/components/dashboard/people/modal
 import { AddEmployeeModal } from "@/components/dashboard/people/invite/AddEmployeeModal";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import { EntityAssignmentsTab } from "@/components/dashboard/people/legal-entities/EntityAssignmentsTab";
 import { asRecord, isRecord, pickString } from "@/lib/types/api-error";
 
 function People() {
     const policies = useAuthorizationPolicies();
     const { canManageUsers, canViewRoles, canViewUsers: canReadDirectory, canManageRoles } = policies.people;
+    const { canViewAssignments, canManageAssignments } = policies.legalEntities;
 
     const totalInvitedUsersApi = useGetInvitedUsersApi({ enabled: canManageUsers, params: { limit: 1 } });
     const activeInvitedUsersApi = useGetInvitedUsersApi({ enabled: canManageUsers, params: { limit: 1, status: "Active" } });
@@ -47,11 +49,14 @@ function People() {
         ? "all-users"
         : canReadDirectory
             ? "directory"
-            : "roles";
+            : canViewAssignments
+                ? "entity-assignments"
+                : "roles";
             
     const activeTab =
         (requestedTab === "all-users" && canManageUsers) ||
         (requestedTab === "directory" && canReadDirectory) ||
+        (requestedTab === "entity-assignments" && canViewAssignments) ||
         (requestedTab === "roles" && canViewRoles)
             ? requestedTab
             : fallbackTab;
@@ -193,6 +198,15 @@ function People() {
                                         Directory
                                     </TabsTrigger>
                                 </PermissionGuard>
+                                <PermissionGuard anyOf={["legal_entity.assignment.view", "legal_entity.assignment.manage"]}>
+                                    <TabsTrigger
+                                        value="entity-assignments"
+                                        className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full gap-2"
+                                    >
+                                        <Building2 className="h-4 w-4" />
+                                        Entity Assignments
+                                    </TabsTrigger>
+                                </PermissionGuard>
                             </TabsList>
     
                             <div id="tab-actions" className="flex items-center gap-2" />
@@ -213,6 +227,12 @@ function People() {
                         {canReadDirectory && (
                             <TabsContent value="directory" className="mt-2 flex-1 min-h-0 flex flex-col">
                                 <DirectoryTab />
+                            </TabsContent>
+                        )}
+
+                        {canViewAssignments && (
+                            <TabsContent value="entity-assignments" className="mt-2 flex-1 min-h-0 flex flex-col">
+                                <EntityAssignmentsTab canManage={canManageAssignments} />
                             </TabsContent>
                         )}
                     </Tabs>
@@ -245,5 +265,7 @@ function People() {
     export default withPermissions(People, [
         { resource: "user.directory", action: "read" },
         { resource: "user", action: "manage" },
-        { resource: "role", action: "manage" }
+        { resource: "role", action: "manage" },
+        { resource: "legal_entity.assignment", action: "view" },
+        { resource: "legal_entity.assignment", action: "manage" },
     ]);

@@ -8,7 +8,7 @@ import { useAuthStore } from "@/stores/auth-stores";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { useState } from "react";
 import { useExceptionFormatter } from "./hooks/useExceptionFormatter";
-import { buildConditionSummary, getActionLabel, getActionStyle } from "./constants";
+import { buildConditionSummary, getActionLabel, getActionStyle, CURRENCY_OPTIONS } from "./constants";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -25,18 +25,55 @@ const GROUP_ORDER = [
   { code: "po_submission", label: "Purchase Order" },
 ];
 
-const formatCurrency = (amount: number, currency = "NGN") =>
-  new Intl.NumberFormat("en-NG", { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: 0 })
-    .format(amount).replace("NGN", "₦").trim();
+const formatAmountConfig = (cc: any) => {
+  if (cc.amounts || (cc.amountThresholds && Array.isArray(cc.amountThresholds) && cc.amountThresholds.length > 0)) {
+    let entries = [];
+    if (cc.amountThresholds && cc.amountThresholds.length > 0) {
+       entries = cc.amountThresholds.map((t: any) => [t.currency, t.amount]);
+    } else if (cc.amounts) {
+       entries = Object.entries(cc.amounts);
+    }
+    if (entries.length === 1) {
+       const [cur, amt] = entries[0];
+       const symbol = CURRENCY_OPTIONS.find((c: any) => c.value === cur)?.symbol || cur;
+       return `${symbol}${Number(amt).toLocaleString()}`;
+    }
+    if (entries.length > 1) {
+      const formatted = entries.map(([cur, amt]: any) => {
+         const symbol = CURRENCY_OPTIONS.find((c: any) => c.value === cur)?.symbol || cur;
+         return `${symbol}${Number(amt).toLocaleString()}`;
+      });
+      return `(${formatted.join(", ")})`;
+    }
+  }
+  
+  const amt = cc.amount || 0;
+  const cur = cc.currency || "NGN";
+  const symbol = CURRENCY_OPTIONS.find((c: any) => c.value === cur)?.symbol || cur;
+  return `${symbol}${Number(amt).toLocaleString()}`;
+}
 
 const getConditionText = (rule: any): string => {
-  const { ruleType, conditionConfig: cc } = rule;
+  const { ruleType, ruleName, conditionConfig: cc } = rule;
   if (!cc) return "—";
+
+  if (cc.amount !== undefined || cc.amounts || cc.amountThresholds) {
+    const typeStr = (ruleType || "").toLowerCase();
+    const nameStr = (ruleName || "").toLowerCase();
+    
+    const isBelow = typeStr.includes("automatic_approval") || nameStr.includes("auto");
+    const operator = isBelow ? "<" : ">";
+    
+    let prefix = "Amount";
+    if (typeStr.includes("line_item") || nameStr.includes("line item")) prefix = "Line item amount";
+    else if (typeStr.includes("pr_") || typeStr.endsWith("_pr") || nameStr.includes("purchase request")) prefix = "PR amount";
+    else if (typeStr.includes("po_") || typeStr.endsWith("_po") || nameStr.includes("purchase order")) prefix = "PO amount";
+    
+    return `${prefix} ${operator} ${formatAmountConfig(cc)}`;
+  }
+
   switch (ruleType) {
-    case "max_pr_amount":         return `PR amount > ${formatCurrency(cc.amount, cc.currency)}`;
-    case "max_line_item_amount":  return `Line item amount > ${formatCurrency(cc.amount, cc.currency)}`;
     case "min_quotes_required":   return `Minimum ${cc.numberOfQuotes} quote(s) required`;
-    case "automatic_approval":    return `PR amount < ${formatCurrency(cc.amount, cc.currency)}`;
     case "final_amount_required": return "Final amount required before PO submission";
     case "contract_required":     return "Valid contract required for conversion";
     default:

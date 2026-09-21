@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { FolderX } from "lucide-react";
+import { FolderX, Download, FileSpreadsheet, FileText } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Upload04Icon } from "@hugeicons/core-free-icons";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +26,16 @@ import {
     toStringFilterRecord,
     unwrapFilterKeys,
 } from "../user-table-utils";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAxios } from "@/hooks/useAxios";
+import { API_KEYS } from "@/lib/constants/apis";
+import { toast } from "sonner";
 
 // Define getRowId outside the component to ensure referential stability and prevent infinite loops in DataTable
 const getRowId = (row: AppUser) => row.userId;
@@ -63,6 +73,28 @@ export function DirectoryTab() {
     const depts = useGetAllDepartmentsApi();
     const roles = useGetAllRolesApi();
     const router = useRouter();
+    const axiosInstance = useAxios();
+
+    const handleDownloadDirectory = useCallback(async (format: "csv" | "xlsx") => {
+        try {
+            const toastId = toast.loading(`Downloading ${format.toUpperCase()} directory...`);
+            const res = await axiosInstance.get(API_KEYS.COMPANY.BULK_IMPORT_TEMPLATE(format, "current_directory"), {
+                responseType: "blob",
+            });
+            const blob = new Blob([res.data], { type: res.headers["content-type"] as string | undefined });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `employee-directory.${format}`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            toast.dismiss(toastId);
+            toast.success("Directory downloaded successfully.");
+        } catch {
+            toast.dismiss();
+            toast.error("Failed to download directory.");
+        }
+    }, [axiosInstance]);
 
     const [debouncedSearch, setDebouncedSearch] = useState("");
     useEffect(() => {
@@ -160,7 +192,41 @@ export function DirectoryTab() {
                 setSelectedDataIds={tableProps.setSelectedDataIds}
                 getRowId={getRowId}
                 tableHeader={{
-                    actionButton: <></>,
+                    actionButton: totalCount > 0 ? (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button 
+                                            variant="outline" 
+                                            className="w-[41px] h-[41px] p-0 flex items-center justify-center rounded-[12px] border-black/[0.1] hover:border-[#0ea894] hover:text-[#087f70] transition-colors focus:ring-0"
+                                        >
+                                            <Download size={18} />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Download Directory</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-[10px] border-black/[0.08] shadow-lg p-1.5 min-w-[180px]">
+                                <DropdownMenuItem
+                                    onClick={() => handleDownloadDirectory("xlsx")}
+                                    className="flex items-center gap-2.5 rounded-[8px] px-3 py-2 text-[13px] cursor-pointer hover:bg-[#f0faf8]"
+                                >
+                                    <FileSpreadsheet className="size-4 text-[#217346] shrink-0" />
+                                    <span className="font-medium text-[#0b100e]">Excel (.xlsx)</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => handleDownloadDirectory("csv")}
+                                    className="flex items-center gap-2.5 rounded-[8px] px-3 py-2 text-[13px] cursor-pointer hover:bg-[#f0faf8]"
+                                >
+                                    <FileText className="size-4 text-[#087f70] shrink-0" />
+                                    <span className="font-medium text-[#0b100e]">CSV (.csv)</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : <></>,
                     isSearchable: true,
                     isExportable: false,
                     isFilter: true,

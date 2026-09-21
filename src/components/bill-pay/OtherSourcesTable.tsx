@@ -8,97 +8,80 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
+import { useGetBillPayIntakes, BillPayIntake } from "@/queries/bill-pay";
+import { format } from "date-fns";
 
-type OtherSourceBill = {
-  invoiceId: string;
-  vendor: string;
-  source: string;
-  billPurchase: string;
-  amount: string;
-  dueDate: string;
-  status: string;
-};
-
-const mockOtherSources: OtherSourceBill[] = [
-  { invoiceId: "INV-00041", vendor: "Acme Ltd", source: "Email", billPurchase: "Cloud Services", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", status: "Paid" },
-  { invoiceId: "INV-00039", vendor: "Delta Services", source: "Manual", billPurchase: "Office Supplies", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", status: "Approved" },
-  { invoiceId: "INV-00039", vendor: "Nova Tech", source: "Email", billPurchase: "Advisory Services", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", status: "Ready for Payment" },
-  { invoiceId: "INV-00039", vendor: "Zenith Corp", source: "Manual", billPurchase: "Software Subscription", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", status: "Awaiting Approval" },
-  { invoiceId: "INV-00039", vendor: "Delta Services", source: "Email", billPurchase: "Equipment Lease", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", status: "Approved" },
-  { invoiceId: "INV-00039", vendor: "Pinnacle Ltd", source: "Manual", billPurchase: "Monthly Stationery", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", status: "Ready for Payment" },
-  { invoiceId: "INV-00039", vendor: "Delta Services", source: "Email", billPurchase: "Software Subscription", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", status: "Approved" },
-  { invoiceId: "INV-00039", vendor: "Atlas Partners", source: "Manual", billPurchase: "Equipment Lease", amount: "₦4,200,000.00", dueDate: "10 Sept 2025", status: "Paid" },
-];
-
-const columnHelper = createColumnHelper<OtherSourceBill>();
+const columnHelper = createColumnHelper<BillPayIntake>();
 
 export function OtherSourcesTable() {
   const router = useRouter();
+  
   const tableprops = useDataTable({
     initialPage: 1,
     totalItems: 0,
     manualSorting: false,
-    manualFiltering: false,
-    manualPagination: false,
+    manualFiltering: true,
+    manualPagination: true,
   });
 
-  const filteredSources = useMemo(() => {
-    let result = mockOtherSources;
-    if (tableprops.globalSearch) {
-      const searchLower = tableprops.globalSearch.toLowerCase();
-      result = result.filter(r => 
-        r.invoiceId.toLowerCase().includes(searchLower) || 
-        r.vendor.toLowerCase().includes(searchLower) ||
-        r.billPurchase.toLowerCase().includes(searchLower) ||
-        r.source.toLowerCase().includes(searchLower)
-      );
-    }
-    return result;
-  }, [tableprops.globalSearch]);
+  const { data, isLoading } = useGetBillPayIntakes({
+    page: tableprops.page,
+    limit: tableprops.pageSize,
+  });
 
   useEffect(() => {
-    tableprops.setTotalItems(filteredSources.length);
-  }, [filteredSources.length, tableprops.setTotalItems]);
+    if (data?.meta?.totalCount !== undefined) {
+      tableprops.setTotalItems(data.meta.totalCount);
+    }
+  }, [data?.meta?.totalCount]);
 
   const columns = useMemo(() => [
-    columnHelper.accessor("invoiceId", {
-      header: "INVOICE ID",
-      cell: (info) => <p className="text-gray-500">{info.getValue()}</p>,
+    columnHelper.accessor("invoiceIntakeId", {
+      header: "INTAKE ID",
+      cell: (info) => (
+        <p className="text-gray-500 max-w-[120px] truncate" title={info.getValue()}>
+          {info.getValue().split('-')[0].toUpperCase()}
+        </p>
+      ),
     }),
-    columnHelper.accessor("vendor", {
-      header: "VENDOR NAME",
-      cell: (info) => <p className="font-bold text-gray-900">{info.getValue()}</p>,
+    columnHelper.accessor("externalReference", {
+      header: "REFERENCE",
+      cell: (info) => <p className="font-bold text-gray-900">{info.getValue() || "N/A"}</p>,
     }),
     columnHelper.accessor("source", {
       header: "SOURCE",
+      cell: (info) => (
+        <p className="text-gray-500 capitalize">
+          {info.getValue().replace(/_/g, " ")}
+        </p>
+      ),
+    }),
+    columnHelper.accessor("documentCount", {
+      header: "DOCUMENTS",
       cell: (info) => <p className="text-gray-500">{info.getValue()}</p>,
     }),
-    columnHelper.accessor("billPurchase", {
-      header: "BILL / PURCHASE",
-      cell: (info) => <p className="text-gray-500">{info.getValue()}</p>,
-    }),
-    columnHelper.accessor("amount", {
-      header: "AMOUNT",
-      cell: (info) => <p className="font-bold text-gray-900">{info.getValue()}</p>,
-    }),
-    columnHelper.accessor("dueDate", {
-      header: "DUE DATE",
-      cell: (info) => <p className="text-gray-500">{info.getValue()}</p>,
+    columnHelper.accessor("receivedAt", {
+      header: "RECEIVED DATE",
+      cell: (info) => (
+        <p className="text-gray-500">
+          {info.getValue() ? format(new Date(info.getValue()), "dd MMM yyyy") : "N/A"}
+        </p>
+      ),
     }),
     columnHelper.accessor("status", {
       header: "STATUS",
       cell: (info) => {
         const status = info.getValue().toLowerCase();
-        if (status === "awaiting approval") {
-          return <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-50 font-normal">Awaiting Approval</Badge>;
-        } else if (status === "approved") {
-          return <Badge variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-50 font-normal">Approved</Badge>;
-        } else if (status === "paid") {
-          return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-50 font-normal">Paid</Badge>;
-        } else if (status === "ready for payment") {
-          return <Badge variant="outline" className="bg-[#f0f4ff] text-[#4b7cf3] border-[#d8e2fd] hover:bg-[#f0f4ff] font-normal">Ready for Payment</Badge>;
+        if (status === "validating" || status === "queued") {
+          return <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-50 font-normal capitalize">{status}</Badge>;
+        } else if (status === "processed" || status === "completed") {
+          return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-50 font-normal capitalize">{status}</Badge>;
+        } else if (status === "failed" || status === "rejected") {
+          return <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-50 font-normal capitalize">{status}</Badge>;
+        } else if (status === "received") {
+          return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-50 font-normal capitalize">{status}</Badge>;
         }
-        return <Badge variant="outline">{info.getValue()}</Badge>;
+        return <Badge variant="outline" className="capitalize">{status}</Badge>;
       },
     }),
     columnHelper.display({
@@ -113,17 +96,32 @@ export function OtherSourcesTable() {
     }),
   ], []);
 
+  // Client side filtering for search since API doesn't support search query parameter out of the box based on the spec
+  const displayData = useMemo(() => {
+    let result = data?.data || [];
+    if (tableprops.globalSearch) {
+      const s = tableprops.globalSearch.toLowerCase();
+      result = result.filter(r => 
+        r.invoiceIntakeId.toLowerCase().includes(s) ||
+        r.source.toLowerCase().includes(s) ||
+        (r.externalReference || "").toLowerCase().includes(s)
+      );
+    }
+    return result;
+  }, [data?.data, tableprops.globalSearch]);
+
   return (
     <DataTable
-      data={filteredSources}
-      manualPagination={false}
+      data={displayData}
+      isLoading={isLoading}
+      manualPagination={true}
       columns={columns as any}
       paginationProps={tableprops.paginationProps}
       enableRowSelection={false}
       enableColumnVisibility={false}
       selectedDataIds={tableprops.selectedDataIds}
       setSelectedDataIds={tableprops.setSelectedDataIds}
-      onRowClick={(row) => router.push(`/bill-pay/invoice/${(row as OtherSourceBill).invoiceId}`)}
+      onRowClick={(row) => router.push(`/bill-pay/invoice/${(row as BillPayIntake).invoiceIntakeId}`)}
       tableHeader={{
         actionButton: <></>,
         isSearchable: true,

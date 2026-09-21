@@ -161,6 +161,7 @@ export function EditInvitedUserModal({
                                             ) : (
                                                 (rolesApi.data?.data ?? [])
                                                     .slice()
+                                                    .filter((role) => role.templateKey !== "owner")
                                                     .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
                                                     .map((role) => (
                                                         <SelectItem key={role.roleId ?? role.name} value={role.name}>

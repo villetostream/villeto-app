@@ -49,6 +49,14 @@ export interface AppUser {
     employmentType?: string;
     employeeStatus?: string;
     cardIssued?: boolean;
+    legalEntityName?: string;
+    legalEntityCode?: string;
+    legalEntity?: {
+        code: string;
+        legalName: string;
+        baseCurrency: string;
+        legalEntityId: string;
+    };
 }
 
 export interface Meta {
