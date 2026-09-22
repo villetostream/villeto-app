@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { asArray, asRecord, getString, isRecord, pickString } from "@/lib/types/api-error";
 import { useQueryClient } from "@tanstack/react-query";
+import { VendorLegalEntityPanel } from "@/components/vendors/VendorLegalEntityPanel";
 
 export default withPermissions(VendorDetailsPage, [
   { resource: "vendor", action: "read_company" },
@@ -432,6 +433,8 @@ function VendorDetailsPage() {
           )}
         </div>
       </div>
+
+      <VendorLegalEntityPanel vendorId={vendorId} axiosInstance={axiosInstance} />
 
       {/* ── Request Info Modal ── */}
       {requestInfoModalOpen && (
