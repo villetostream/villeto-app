@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { isAxiosError, type AxiosInstance } from "axios";
-import { Building2, Link2, MapPin, Plus, RefreshCw, ShieldAlert } from "lucide-react";
+import { Building2, CheckCircle2, ChevronRight, CircleAlert, Clock3, Link2, MapPin, Plus, RefreshCw, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
 import {
@@ -120,18 +120,12 @@ function activeAssignment(
   });
 }
 
-function purposeState(relationship: EntityRelationship, purpose: AssignmentPurpose) {
-  const enabled = {
-    purchasing: relationship.purchasingEnabled,
-    invoicing: relationship.invoicingEnabled,
-    remit_to: relationship.paymentEnabled,
-  }[purpose];
-  const assignment = activeAssignment(relationship, purpose);
-
-  if (relationship.status !== "approved") return { label: "Approval required", tone: "muted" };
-  if (!enabled) return { label: "On hold", tone: "muted" };
-  if (!assignment) return { label: "Site required", tone: "warning" };
-  return { label: "Ready", tone: "ready" };
+function nextSetupStep(relationship: EntityRelationship) {
+  if (relationship.status === "pending") return { label: "Approve relationship", detail: "Approval is required before this entity can transact.", tone: "pending" as const };
+  if (relationship.status === "suspended") return { label: "Relationship suspended", detail: "Reactivate it to resume new activity for this entity.", tone: "blocked" as const };
+  if (!activeAssignment(relationship, "purchasing")) return { label: "Assign a purchasing site", detail: "Choose the vendor location this entity can use for purchase orders.", tone: "pending" as const };
+  if (!relationship.purchasingEnabled) return { label: "Enable purchasing", detail: "The relationship and purchasing site are ready.", tone: "pending" as const };
+  return { label: "Ready for purchase orders", detail: "This entity has an approved relationship, site, and purchasing access.", tone: "ready" as const };
 }
 
 function apiErrorMessage(error: unknown, fallback: string) {
@@ -434,27 +428,40 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
   };
 
   const inactiveSites = useMemo(() => sites.filter((site) => site.status === "inactive").length, [sites]);
+  const relationshipSummary = useMemo(() => ({
+    ready: relationships.filter((relationship) => nextSetupStep(relationship).tone === "ready").length,
+    needsAction: relationships.filter((relationship) => nextSetupStep(relationship).tone === "pending").length,
+    suspended: relationships.filter((relationship) => relationship.status === "suspended").length,
+  }), [relationships]);
+  const assignmentCountBySite = useMemo(() => {
+    const counts = new Map<string, number>();
+    relationships.flatMap((relationship) => relationship.siteAssignments).filter((assignment) => assignment.status === "active" && assignment.vendorSiteId).forEach((assignment) => {
+      counts.set(assignment.vendorSiteId as string, (counts.get(assignment.vendorSiteId as string) || 0) + 1);
+    });
+    return counts;
+  }, [relationships]);
 
   return <section className="space-y-5">
     <div className="flex flex-col gap-3 rounded-[14px] border border-[#c8eee6] bg-[#f6fcfa] p-5 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex gap-3">
         <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-[#dff5ef] text-[#087f70]"><Building2 className="h-5 w-5" /></div>
         <div>
-          <h2 className="text-[15px] font-semibold text-[#0b100e]">Legal-entity setup</h2>
-          <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-[#5e6863]">This vendor is shared by the company. Approval and operational readiness are configured separately for each legal entity.</p>
+          <h2 className="text-[15px] font-semibold text-[#0b100e]">Where can this vendor be used?</h2>
+          <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-[#5e6863]">Set up each legal entity in three steps: approve the relationship, assign a vendor site, then enable purchasing.</p>
         </div>
       </div>
       <button onClick={() => void load()} disabled={loading} className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] border border-black/[0.08] bg-white px-3 text-[12px] font-semibold text-[#39423e] hover:bg-[#f9faf9] disabled:opacity-50"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />Refresh</button>
     </div>
 
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.35fr_0.85fr]">
       <div className="rounded-[14px] border border-black/[0.08] bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">LEGAL ENTITIES</h3><p className="mt-1 text-[13px] text-[#68726d]">Relationship status and readiness by entity.</p></div>{canReadMatrix && canApproveRelationships && <button onClick={() => void openCreateRelationship()} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add entity</button>}</div>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">LEGAL-ENTITY COVERAGE</h3><p className="mt-1 text-[13px] text-[#68726d]">Each entity has its own relationship and purchasing setup.</p></div>{canReadMatrix && canApproveRelationships && <button onClick={() => void openCreateRelationship()} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add entity</button>}</div>
+        {canReadMatrix && relationships.length > 0 && <div className="mb-4 grid grid-cols-3 gap-2"><SetupMetric label="Ready" value={relationshipSummary.ready} tone="ready" /><SetupMetric label="Needs action" value={relationshipSummary.needsAction} tone="pending" /><SetupMetric label="Suspended" value={relationshipSummary.suspended} tone="blocked" /></div>}
         {!canReadMatrix ? <PermissionNotice /> : loading ? <PanelSkeleton /> : matrixError ? <LoadFailure onRetry={load} /> : relationships.length === 0 ? <EmptyMatrix canCreate={canApproveRelationships} onCreate={openCreateRelationship} /> : <div className="space-y-3">{relationships.map((relationship) => <RelationshipRow key={relationship.vendorEntityRelationshipId} relationship={relationship} canApprove={canApproveRelationships} canSuspend={canSuspendRelationships} canReactivate={canReactivateRelationships} activeSites={sites.filter((site) => site.status === "active")} submitting={submitting} onLifecycle={(action) => setLifecycleAction({ action, relationship })} onAssignSite={() => setAssignmentRelationship(relationship)} onEndAssignment={(assignment) => setEndingAssignment({ relationship, assignment })} onSetPurchasing={(enabled) => void setPurchasing(relationship, enabled)} />)}</div>}
       </div>
       <div className="rounded-[14px] border border-black/[0.08] bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">VENDOR SITES</h3><p className="mt-1 text-[13px] text-[#68726d]">Shared locations available for future entity assignment.</p></div>{canManageSites && <button onClick={() => { setEditingSite(null); setSiteDialogOpen(true); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add site</button>}</div>
-        {loading ? <PanelSkeleton /> : matrixError ? <LoadFailure onRetry={load} /> : sites.length === 0 ? <p className="rounded-[8px] border border-dashed border-black/[0.12] p-4 text-[13px] text-[#68726d]">No vendor sites have been added.</p> : <div className="space-y-2">{sites.map((site) => <SiteRow key={site.vendorSiteId} site={site} canManage={canManageSites} onEdit={() => { setEditingSite(site); setSiteDialogOpen(true); }} />)}</div>}
+        <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">SHARED VENDOR SITES</h3><p className="mt-1 text-[13px] text-[#68726d]">Locations can be assigned to more than one entity.</p></div>{canManageSites && <button onClick={() => { setEditingSite(null); setSiteDialogOpen(true); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add site</button>}</div>
+        {loading ? <PanelSkeleton /> : matrixError ? <LoadFailure onRetry={load} /> : sites.length === 0 ? <p className="rounded-[8px] border border-dashed border-black/[0.12] p-4 text-[13px] text-[#68726d]">No vendor sites have been added.</p> : <div className="space-y-2">{sites.map((site) => <SiteRow key={site.vendorSiteId} site={site} assignmentCount={assignmentCountBySite.get(site.vendorSiteId) || 0} canManage={canManageSites} onEdit={() => { setEditingSite(site); setSiteDialogOpen(true); }} />)}</div>}
         {inactiveSites > 0 && <p className="mt-3 text-[11px] text-[#84908a]">Inactive sites remain visible for historical context and cannot be assigned to new activity.</p>}
       </div>
     </div>
@@ -486,15 +493,25 @@ function RelationshipRow({ relationship, canApprove, canSuspend, canReactivate, 
 }) {
   const entityName = relationship.legalEntity?.displayName || relationship.legalEntity?.legalName || "Unknown legal entity";
   const purchasingSite = activeAssignment(relationship, "purchasing");
-  const lifecycleDate = relationship.suspendedAt || relationship.reactivatedAt || relationship.approvedAt;
-  return <div className="rounded-[10px] border border-black/[0.08] p-4">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[13px] font-semibold text-[#0b100e]">{entityName}</p><p className="mt-0.5 text-[11px] font-medium text-[#84908a]">{relationship.legalEntity?.code || "No entity code"} · Version {relationship.configurationVersion}</p></div><div className="flex items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize ${statusClass[relationship.status]}`}>{relationship.status}</span>{relationship.status === "pending" && canApprove && <ActionButton onClick={() => onLifecycle("approve")} disabled={submitting}>Approve</ActionButton>}{relationship.status === "approved" && canSuspend && <ActionButton danger onClick={() => onLifecycle("suspend")} disabled={submitting}>Suspend</ActionButton>}{relationship.status === "suspended" && canReactivate && <ActionButton onClick={() => onLifecycle("reactivate")} disabled={submitting}>Reactivate</ActionButton>}</div></div>
-    {(relationship.decisionReason || lifecycleDate) && <p className="mt-2 text-[11px] leading-relaxed text-[#68726d]">{relationship.decisionReason || "Lifecycle action recorded"}{lifecycleDate ? ` · ${new Date(lifecycleDate).toLocaleDateString()}` : ""}</p>}
-    <div className="mt-3 grid grid-cols-3 gap-2">{(["purchasing", "invoicing", "remit_to"] as AssignmentPurpose[]).map((purpose) => { const state = purposeState(relationship, purpose); const assignment = activeAssignment(relationship, purpose); return <div key={purpose} className="rounded-[7px] bg-[#f9faf9] p-2"><p className="text-[10px] font-bold uppercase tracking-wide text-[#84908a]">{purposeLabel[purpose]}</p><p className={`mt-1 text-[11px] font-semibold ${state.tone === "ready" ? "text-[#087f70]" : state.tone === "warning" ? "text-[#b27b00]" : "text-[#68726d]"}`}>{state.label}</p>{assignment?.site && <p className="mt-1 truncate text-[10px] text-[#84908a]" title={assignment.site.name}>{assignment.site.name}</p>}</div>; })}</div>
-    <div className="mt-3 border-t border-black/[0.06] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-semibold text-[#5e6863]">Site assignments</p>{canApprove && <ActionButton onClick={onAssignSite} disabled={submitting || activeSites.length === 0}><Link2 className="h-3.5 w-3.5" />Assign site</ActionButton>}</div>{relationship.siteAssignments.length === 0 ? <p className="mt-2 text-[11px] text-[#84908a]">No sites are assigned to this entity.</p> : <div className="mt-2 space-y-1.5">{relationship.siteAssignments.map((assignment) => <div key={assignment.vendorEntitySiteAssignmentId} className="flex items-center justify-between gap-2 rounded-[6px] bg-[#f9faf9] px-2.5 py-2"><p className="min-w-0 truncate text-[11px] text-[#5e6863]"><span className="font-semibold text-[#39423e]">{purposeLabel[assignment.purpose]}</span> · {assignment.site?.name || "Unknown site"} {assignment.status === "inactive" ? "(inactive)" : ""}</p>{canApprove && assignment.status === "active" && <button onClick={() => onEndAssignment(assignment)} className="shrink-0 text-[10px] font-semibold text-[#d33d44] hover:underline">End</button>}</div>)}</div>}</div>
-    {relationship.status === "approved" && canApprove && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[8px] bg-[#f0faf8] px-3 py-2.5"><div><p className="text-[11px] font-semibold text-[#0b100e]">Purchasing</p><p className="mt-0.5 text-[10px] text-[#68726d]">{relationship.purchasingEnabled ? `Enabled${purchasingSite?.site ? ` · ${purchasingSite.site.name}` : ""}` : purchasingSite ? "Ready to enable" : "Assign a purchasing site first"}</p></div><ActionButton onClick={() => onSetPurchasing(!relationship.purchasingEnabled)} disabled={submitting || (!relationship.purchasingEnabled && !purchasingSite)}>{relationship.purchasingEnabled ? "Put on hold" : "Enable"}</ActionButton></div>}
+  const nextStep = nextSetupStep(relationship);
+  const stageOneDone = relationship.status === "approved";
+  const stageTwoDone = Boolean(purchasingSite);
+  const stageThreeDone = relationship.purchasingEnabled;
+  const primaryAction = relationship.status === "pending" ? () => onLifecycle("approve") : relationship.status === "suspended" ? () => onLifecycle("reactivate") : !stageTwoDone ? onAssignSite : !stageThreeDone ? () => onSetPurchasing(true) : null;
+  const primaryLabel = relationship.status === "pending" ? "Approve" : relationship.status === "suspended" ? "Reactivate" : !stageTwoDone ? "Assign site" : !stageThreeDone ? "Enable purchasing" : null;
+
+  return <div className="overflow-hidden rounded-[12px] border border-black/[0.08] bg-white">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/[0.06] px-4 py-3.5"><div className="flex min-w-0 items-center gap-3"><div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] ${nextStep.tone === "ready" ? "bg-[#e8f7f2] text-[#087f70]" : nextStep.tone === "blocked" ? "bg-[#fdf2f2] text-[#d33d44]" : "bg-[#fff7df] text-[#b27b00]"}`}>{nextStep.tone === "ready" ? <CheckCircle2 className="h-5 w-5" /> : nextStep.tone === "blocked" ? <CircleAlert className="h-5 w-5" /> : <Clock3 className="h-5 w-5" />}</div><div className="min-w-0"><p className="truncate text-[14px] font-semibold text-[#0b100e]">{entityName}</p><p className="mt-0.5 text-[11px] font-medium text-[#84908a]">{relationship.legalEntity?.code || "No entity code"}</p></div></div><div className="flex items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize ${statusClass[relationship.status]}`}>{relationship.status}</span>{relationship.status === "approved" && canSuspend && <ActionButton danger onClick={() => onLifecycle("suspend")} disabled={submitting}>Suspend</ActionButton>}</div></div>
+    <div className="px-4 py-3.5"><div className={`flex flex-col gap-3 rounded-[9px] border p-3 sm:flex-row sm:items-center sm:justify-between ${nextStep.tone === "ready" ? "border-[#c8eee6] bg-[#f0faf8]" : nextStep.tone === "blocked" ? "border-[#fbd5d5] bg-[#fdf2f2]" : "border-[#ffe099] bg-[#fff9e6]"}`}><div><p className="text-[12px] font-semibold text-[#0b100e]">{nextStep.label}</p><p className="mt-0.5 text-[11px] leading-relaxed text-[#68726d]">{nextStep.detail}</p></div>{primaryAction && primaryLabel && ((relationship.status !== "pending" || canApprove) && (relationship.status !== "suspended" || canReactivate) && canApprove) && <button onClick={primaryAction} disabled={submitting || (!stageTwoDone && activeSites.length === 0)} className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-[7px] bg-[#087f70] px-3 text-[11px] font-semibold text-white hover:bg-[#076b5e] disabled:opacity-50">{primaryLabel}<ChevronRight className="h-3.5 w-3.5" /></button>}</div>
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3"><SetupStage number="1" title="Relationship" detail={stageOneDone ? "Approved" : relationship.status === "suspended" ? "Suspended" : "Pending approval"} done={stageOneDone} blocked={relationship.status === "suspended"} /><SetupStage number="2" title="Purchasing site" detail={purchasingSite?.site?.name || "Not assigned"} done={stageTwoDone} /><SetupStage number="3" title="Purchasing access" detail={stageThreeDone ? "Enabled" : "On hold"} done={stageThreeDone} /></div>
+      <div className="mt-4 border-t border-black/[0.06] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-semibold text-[#5e6863]">All site assignments</p>{canApprove && <ActionButton onClick={onAssignSite} disabled={submitting || activeSites.length === 0}><Link2 className="h-3.5 w-3.5" />Assign site</ActionButton>}</div>{relationship.siteAssignments.length === 0 ? <p className="mt-2 text-[11px] text-[#84908a]">No sites are assigned to this entity.</p> : <div className="mt-2 space-y-1.5">{relationship.siteAssignments.map((assignment) => <div key={assignment.vendorEntitySiteAssignmentId} className="flex items-center justify-between gap-2 rounded-[7px] bg-[#f9faf9] px-2.5 py-2"><p className="min-w-0 truncate text-[11px] text-[#5e6863]"><span className="font-semibold text-[#39423e]">{purposeLabel[assignment.purpose]}</span> · {assignment.site?.name || "Unknown site"} {assignment.status === "inactive" ? "(inactive)" : ""}</p>{canApprove && assignment.status === "active" && <button onClick={() => onEndAssignment(assignment)} className="shrink-0 text-[10px] font-semibold text-[#d33d44] hover:underline">End</button>}</div>)}</div>}</div>
+      {relationship.status === "approved" && relationship.purchasingEnabled && canApprove && <div className="mt-3 flex items-center justify-end"><button onClick={() => onSetPurchasing(false)} disabled={submitting} className="text-[11px] font-semibold text-[#68726d] hover:text-[#d33d44] hover:underline">Put purchasing on hold</button></div>}
+    </div>
   </div>;
 }
+
+function SetupMetric({ label, value, tone }: { label: string; value: number; tone: "ready" | "pending" | "blocked" }) { const classes = tone === "ready" ? "bg-[#f0faf8] text-[#087f70]" : tone === "pending" ? "bg-[#fff9e6] text-[#b27b00]" : "bg-[#fdf2f2] text-[#d33d44]"; return <div className={`rounded-[8px] px-3 py-2 ${classes}`}><p className="text-[16px] font-bold">{value}</p><p className="text-[10px] font-semibold">{label}</p></div>; }
+function SetupStage({ number, title, detail, done, blocked }: { number: string; title: string; detail: string; done: boolean; blocked?: boolean }) { return <div className={`rounded-[8px] border p-2.5 ${done ? "border-[#c8eee6] bg-[#f7fcfa]" : blocked ? "border-[#fbd5d5] bg-[#fdf2f2]" : "border-black/[0.07] bg-[#f9faf9]"}`}><div className="flex items-center gap-2"><span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${done ? "bg-[#087f70] text-white" : blocked ? "bg-[#d33d44] text-white" : "bg-[#e7ece9] text-[#68726d]"}`}>{done ? "✓" : number}</span><p className="text-[11px] font-semibold text-[#39423e]">{title}</p></div><p className="mt-1.5 truncate text-[10px] text-[#84908a]" title={detail}>{detail}</p></div>; }
 
 function ActionButton({ children, onClick, disabled, danger }: { children: ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
   return <button onClick={onClick} disabled={disabled} className={`inline-flex h-7 items-center gap-1 rounded-[6px] border px-2 text-[10px] font-semibold disabled:opacity-50 ${danger ? "border-[#fbd5d5] text-[#d33d44] hover:bg-[#fdf2f2]" : "border-[#c8eee6] text-[#087f70] hover:bg-[#f0faf8]"}`}>{children}</button>;
@@ -547,9 +564,9 @@ function EndAssignmentForm({ state, submitting, onClose, onSubmit }: { state: { 
   return <><DialogHeader><DialogTitle>End site assignment</DialogTitle><DialogDescription>This stops new use of {state.assignment.site?.name || "this site"} for {purposeLabel[state.assignment.purpose]}. It does not rewrite historical transactions.</DialogDescription></DialogHeader><label className="block text-[12px] font-semibold text-[#93292e]">Reason *</label><textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={4} placeholder="Why should this site no longer be used for this purpose?" className="w-full rounded-[8px] border border-[#fbd5d5] p-3 text-[13px] outline-none placeholder:text-[#a0aaa5] focus:border-[#d33d44]" /><DialogFooter><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-black/[0.08] px-4 text-[13px] font-semibold text-[#68726d] hover:bg-[#f9faf9]">Cancel</button><button type="button" disabled={submitting || !reason.trim()} onClick={() => void onSubmit(reason)} className="h-10 rounded-[8px] bg-[#d33d44] px-4 text-[13px] font-semibold text-white hover:bg-[#c33339] disabled:opacity-50">{submitting ? "Saving..." : "End assignment"}</button></DialogFooter></>;
 }
 
-function SiteRow({ site, canManage, onEdit }: { site: VendorSite; canManage: boolean; onEdit: () => void }) {
+function SiteRow({ site, assignmentCount, canManage, onEdit }: { site: VendorSite; assignmentCount: number; canManage: boolean; onEdit: () => void }) {
   const location = [site.addressLine1 || site.legacyAddressText, site.city, site.stateOrProvince, site.countryCode].filter(Boolean).join(", ");
-  return <div className="flex items-start gap-3 rounded-[9px] border border-black/[0.07] p-3"><div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-[#f0faf8] text-[#087f70]"><MapPin className="h-4 w-4" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><p className="truncate text-[13px] font-semibold text-[#0b100e]">{site.name}</p>{site.isPrimary && <span className="rounded bg-[#e8f7f2] px-1.5 py-0.5 text-[10px] font-semibold text-[#087f70]">Primary</span>}{site.status === "inactive" && <span className="rounded bg-[#f5f7f6] px-1.5 py-0.5 text-[10px] font-semibold text-[#68726d]">Inactive</span>}</div><p className="mt-0.5 text-[11px] font-medium text-[#84908a]">{site.code}{location ? ` · ${location}` : ""}</p></div>{canManage && site.status === "active" && <button onClick={onEdit} className="h-7 rounded-[6px] px-2 text-[11px] font-semibold text-[#087f70] hover:bg-[#f0faf8]">Edit</button>}</div>;
+  return <div className="flex items-start gap-3 rounded-[9px] border border-black/[0.07] p-3"><div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-[#f0faf8] text-[#087f70]"><MapPin className="h-4 w-4" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><p className="truncate text-[13px] font-semibold text-[#0b100e]">{site.name}</p>{site.isPrimary && <span className="rounded bg-[#e8f7f2] px-1.5 py-0.5 text-[10px] font-semibold text-[#087f70]">Primary</span>}{site.status === "inactive" && <span className="rounded bg-[#f5f7f6] px-1.5 py-0.5 text-[10px] font-semibold text-[#68726d]">Inactive</span>}</div><p className="mt-0.5 text-[11px] font-medium text-[#84908a]">{site.code}{location ? ` · ${location}` : ""}</p>{site.status === "active" && <p className="mt-1 text-[10px] text-[#84908a]">{assignmentCount === 0 ? "Not assigned to an entity yet" : `${assignmentCount} active ${assignmentCount === 1 ? "assignment" : "assignments"}`}</p>}</div>{canManage && site.status === "active" && <button onClick={onEdit} className="h-7 rounded-[6px] px-2 text-[11px] font-semibold text-[#087f70] hover:bg-[#f0faf8]">Edit</button>}</div>;
 }
 
 function PermissionNotice() { return <div className="rounded-[9px] border border-[#ffe099] bg-[#fff9e6] p-4"><div className="flex gap-2"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#b27b00]" /><div><p className="text-[13px] font-semibold text-[#6e4d00]">Additional permission required</p><p className="mt-1 text-[12px] leading-relaxed text-[#80621b]">Legal-entity configuration includes sensitive vendor information. Ask an administrator for vendor sensitive-read access to view this matrix.</p></div></div></div>; }
