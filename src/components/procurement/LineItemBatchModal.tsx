@@ -9,6 +9,7 @@ import { useGetProcurementCategories } from "@/queries/procurement/purchase-requ
 import type { LineItemPayload } from "@/queries/procurement/purchase-requests";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
+import { UnitOfMeasureCombobox } from "@/components/procurement/UnitOfMeasureCombobox";
 
 // ─── Category Dropdown (self-contained) ──────────────────────────────────────
 
@@ -428,33 +429,7 @@ export default function LineItemBatchModal({
   // Render the form section
   const renderForm = () => (
     <div className="p-5 space-y-4 flex flex-col h-full">
-      <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/40">
-        <div className="flex items-center gap-2">
-          <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${stagingEditId || isEditMode ? "bg-amber-100" : "bg-[#f0faf8]"}`}>
-            {stagingEditId || isEditMode
-              ? <AlertCircle className="w-3 h-3 text-amber-600" />
-              : <Plus className="w-3 h-3 text-[#087f70]" />}
-          </div>
-          <p className="text-xs font-semibold text-[#68726d] uppercase tracking-wide">
-            {isEditMode ? "Edit item" : stagingEditId ? "Edit staged item" : "New item details"}
-          </p>
-        </div>
 
-        {/* Primary CTA moved to top right */}
-        {isEditMode ? (
-          <button type="button" onClick={handleEditSave} disabled={editSaving}
-            className="h-8 px-4 rounded-lg bg-[#087f70] text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shadow-sm">
-            {editSaving && <Loader2 className="w-3 h-3 animate-spin" />}
-            Save Changes
-          </button>
-        ) : (
-          <button type="button" onClick={handleAddToStaging}
-            className="h-8 px-3 rounded-lg border border-[#00BFA5] bg-[#E8F8F5] text-[#00BFA5] text-xs font-semibold hover:bg-[#E8F8F5]/80 transition-colors flex items-center justify-center gap-1.5 shadow-sm">
-            <Plus className="w-3 h-3" />
-            {stagingEditId ? "Update Staged Item" : "Add to Staged Items"}
-          </button>
-        )}
-      </div>
 
       {/* Item Name */}
       <div className="space-y-1.5">
@@ -526,10 +501,10 @@ export default function LineItemBatchModal({
           <label className="text-sm font-medium text-[#0b100e]">
             Unit of Measure <span className="text-[#d33d44]">*</span>
           </label>
-          <input type="text" value={form.unitOfMeasure}
-            onChange={e => { set("unitOfMeasure", e.target.value); setErrors(p => ({ ...p, unitOfMeasure: undefined })); }}
-            placeholder="e.g. unit, kg, box"
-            className={`w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#087f70] transition-colors ${errors.unitOfMeasure ? "border-destructive" : "border-black/[0.06]"}`}
+          <UnitOfMeasureCombobox
+            value={form.unitOfMeasure}
+            onChange={(val) => { set("unitOfMeasure", val); setErrors(p => ({ ...p, unitOfMeasure: undefined })); }}
+            error={!!errors.unitOfMeasure}
           />
           {errors.unitOfMeasure && <p className="text-xs text-destructive">{errors.unitOfMeasure}</p>}
         </div>
@@ -548,13 +523,30 @@ export default function LineItemBatchModal({
 
       {/* Subtotal preview */}
       {subtotal > 0 && (
-        <div className="flex items-center justify-between px-4 py-2.5 bg-[#f9faf9] rounded-[12px] mt-auto">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-[#f9faf9] rounded-[12px] mt-2 mb-2">
           <span className="text-sm text-[#68726d]">Line Subtotal</span>
           <span className="text-sm font-semibold text-[#0b100e]">
             {sym}{subtotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
       )}
+
+      {/* Action Buttons */}
+      <div className="pt-2 mt-auto">
+        {isEditMode ? (
+          <button type="button" onClick={handleEditSave} disabled={editSaving}
+            className="w-full h-10 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shadow-sm">
+            {editSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+            Save Changes
+          </button>
+        ) : (
+          <button type="button" onClick={handleAddToStaging}
+            className="w-full h-10 rounded-lg border border-[#00BFA5] bg-[#E8F8F5] text-[#00BFA5] text-sm font-semibold hover:bg-[#E8F8F5]/80 transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+            <Plus className="w-4 h-4" />
+            {stagingEditId ? "Update Staged Item" : "Add to Staged Items"}
+          </button>
+        )}
+      </div>
     </div>
   );
 

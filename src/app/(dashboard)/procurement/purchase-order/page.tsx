@@ -3,24 +3,13 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
-import { useAuthStore } from "@/stores/auth-stores";
 import withPermissions from "@/components/permissions/permission-protected-routes";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import {
   Search, Eye, Download, Loader2, ChevronLeft, ChevronRight,
   MoreHorizontal, CheckCircle, XCircle, X, AlertCircle, Send,
 } from "lucide-react";
-import {
-  PO_STATUS_CFG,
-  getPODisplayStatus,
-} from "@/lib/constants/purchase-order-status";
-import {
-  canPOApprove,
-  canPOCreate,
-  canPOIssue,
-  canPOReadCompany,
-  canPOReadDepartment,
-  buildPODetailUrl,
-} from "@/lib/permissions/purchase-order-permissions";
+import { buildPODetailUrl } from "@/lib/permissions/purchase-order-permissions";
 import { Pagination } from "@/components/ui/custom-pagination";
 import { usePurchaseOrders, usePurchaseOrderApprovalDecision, useIssuePurchaseOrder } from "@/queries/procurement/purchase-orders";
 import { useGetVendors } from "@/queries/procurement/purchase-requests";
@@ -226,10 +215,10 @@ function POTable({
   initialInnerTab?: string;
 }) {
   const router     = useRouter();
-  const can        = useAuthStore(s => s.can);
+  const policies   = useAuthorizationPolicies();
   const isMyScope  = scope === "own";
-  const canApprove = !isMyScope && canPOApprove(can);
-  const canIssue   = !isMyScope && canPOIssue(can);
+  const canApprove = !isMyScope && policies.purchaseOrders.canApprove;
+  const canIssue   = !isMyScope && policies.purchaseOrders.canIssue;
 
   const statusTabs  = isMyScope ? MY_PO_TABS : buildAllPOTabs(canApprove);
   const defaultTab  = statusTabs[0].key;
@@ -291,9 +280,9 @@ function POTable({
   // Badge count for "Awaiting Approval" tab (only for All POs / elevated scope)
   const { data: approvalCountData } = usePurchaseOrders(
     1, 1, "pending_approval", undefined, undefined, scope,
-    { enabled: canApprove, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canApprove && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const awaitingCount = (approvalCountData as unknown as number) ?? 0;
+  const awaitingCount = scope === "company" ? 0 : ((approvalCountData as unknown as number) ?? 0);
 
   // Filter out drafts from All POs view — drafts are private to the creator and
   // only belong in the My POs tab. The backend doesn't support an exclude-status
@@ -308,19 +297,22 @@ function POTable({
   const approvalDecision = usePurchaseOrderApprovalDecision();
   const issueMut = useIssuePurchaseOrder();
 
-  // Approve = approve the decision then immediately issue the PO
   const handleApprove = useCallback(async (id: string) => {
     setApprovingId(id);
     try {
       await approvalDecision.mutateAsync({ id, payload: { decision: "approved" } });
-      await issueMut.mutateAsync(id);
-      toast.success("Purchase order approved and issued.");
+      if (canIssue) {
+        await issueMut.mutateAsync(id);
+        toast.success("Purchase order approved and issued.");
+      } else {
+        toast.success("Purchase order approved.");
+      }
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Failed to approve or issue purchase order.");
     } finally {
       setApprovingId(null);
     }
-  }, [approvalDecision, issueMut]);
+  }, [approvalDecision, canIssue, issueMut]);
 
   const handleRejectConfirm = useCallback(async (reason: string) => {
     if (!rejectTarget) return;
@@ -531,12 +523,12 @@ function PurchaseOrderPage() {
   const router                   = useRouter();
   const searchParams             = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
-  const can                      = useAuthStore(s => s.can);
-
-  const hasCompanyPOScope = canPOReadCompany(can);
-  const hasTeamPOScope    = canPOReadDepartment(can);
-  const canCreatePO       = canPOCreate(can);
-  const canApprovePO      = canPOApprove(can);
+  const policies                 = useAuthorizationPolicies();
+  const authReady         = policies.ready;
+  const hasCompanyPOScope = authReady && policies.purchaseOrders.canReadCompany;
+  const hasTeamPOScope    = authReady && policies.purchaseOrders.canReadDepartment;
+  const canCreatePO       = policies.purchaseOrders.canCreate;
+  const canApprovePO      = policies.purchaseOrders.canApprove;
 
   // Outer tabs: "All POs" (elevated) + "My POs" (own)
   const outerTabs = useMemo(() => [
@@ -551,12 +543,12 @@ function PurchaseOrderPage() {
   const innerTabFromUrl = searchParams.get("innerTab") ?? undefined;
 
   // Badge count for the outer "All POs" tab label
-  const elevatedScope = hasCompanyPOScope ? "company" : hasTeamPOScope ? "team" : "own";
+  const elevatedScope = policies.purchaseOrders.listScope ?? "own";
   const { data: outerBadgeData } = usePurchaseOrders(
-    1, 1, "pending_approval", undefined, undefined, elevatedScope as any,
-    { enabled: canApprovePO && (hasCompanyPOScope || hasTeamPOScope), select: d => d.meta?.totalCount ?? 0 }
+    1, 1, "pending_approval", undefined, undefined, elevatedScope,
+    { enabled: canApprovePO && elevatedScope !== "company" && (hasCompanyPOScope || hasTeamPOScope), select: d => d.meta?.totalCount ?? 0 }
   );
-  const outerAwaitingCount = (outerBadgeData as unknown as number) ?? 0;
+  const outerAwaitingCount = elevatedScope === "company" ? 0 : ((outerBadgeData as unknown as number) ?? 0);
 
   useEffect(() => {
     if (canCreatePO) {

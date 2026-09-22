@@ -9,7 +9,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Role } from "@/queries/role/get-all-roles";
+import { isRoleActive, Role } from "@/queries/role/get-all-roles";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import Link from "next/link";
 import { Edit2, Trash2 } from "lucide-react";
@@ -17,11 +17,12 @@ import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import { useDeleteRoleApi } from "@/queries/role/delete-role";
 import toast from "react-hot-toast";
 import { useState } from "react";
-import { useAuthStore } from "@/stores/auth-stores";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuthStore } from "@/stores/auth-stores";
+
 const columnHelper = createColumnHelper<Role>();
 
-export const columns: ColumnDef<Role, unknown>[] = [
+export const columns = [
     columnHelper.display({
         id: "idNo",
         header: "S/N",
@@ -69,9 +70,10 @@ export const columns: ColumnDef<Role, unknown>[] = [
     columnHelper.accessor("isActive", {
         header: "STATUS",
         cell: (info) => {
+            const active = isRoleActive(info.row.original);
             return (
-                <Badge variant={info.row.original.isActive ? "active" : "inactive"}>
-                    <span className="ml-1 capitalize">{info.row.original.isActive ? "active" : "inactive"}</span>
+                <Badge variant={active ? "active" : "inactive"}>
+                    <span className="ml-1 capitalize">{active ? "active" : "inactive"}</span>
                 </Badge>
             );
         },
@@ -82,7 +84,7 @@ export const columns: ColumnDef<Role, unknown>[] = [
         enableHiding: false,
         cell: (data) => <ActionCell role={data.row.original} />,
     }),
-] as any as ColumnDef<Role, unknown>[];
+] as unknown as ColumnDef<Role, unknown>[];
 
 function ActionCell({ role }: { role: Role }) {
     const roleId = role.roleId;
@@ -90,12 +92,12 @@ function ActionCell({ role }: { role: Role }) {
     const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
     
     const { user } = useAuthStore();
-    const isCurrentUserOwner = (user?.companyRole?.name || (user as any)?.villetoRole?.name)?.toLowerCase() === "owner";
-    const isTargetOwner = role.name?.toLowerCase() === "owner";
+    const isCurrentUserOwner = (user?.companyRole?.templateKey || (user as any)?.villetoRole?.templateKey) === "owner";
+    const isTargetOwner = role.templateKey === "owner";
+    const canUpdate = !(isTargetOwner && !isCurrentUserOwner);
+
     const hasAssignedUsers = Number(role.totalAssignedUsers) > 0;
-    
-    const canUpdate = !isTargetOwner || isCurrentUserOwner;
-    const canDelete = !isTargetOwner && !hasAssignedUsers;
+    const canDelete = !hasAssignedUsers;
 
     const handleDelete = async () => {
         try {
@@ -180,7 +182,7 @@ function ActionCell({ role }: { role: Role }) {
                                         </div>
                                     </TooltipTrigger>
                                     <TooltipContent side="left" className="z-[10000] max-w-xs text-center">
-                                        <p>{isTargetOwner ? "The Owner role cannot be deleted" : "Cannot delete a role that has active users assigned to it"}</p>
+                                        <p>Roles with user assignment history must be deactivated instead</p>
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>

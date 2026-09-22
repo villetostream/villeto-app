@@ -30,49 +30,10 @@ import {
 } from "iconsax-reactjs";
 import { X } from "lucide-react";
 
-// ─── Mock data (remove when API is wired) ─────────────────────
-const MOCK_TEAM: TeamMember[] = [
-  { id: "u1", name: "Sunday Israel", role: "Design manager", code: "E-001" },
-  { id: "u2", name: "Amara Okonkwo", role: "Finance lead", code: "E-002" },
-  { id: "u3", name: "Bode Adeyemi", role: "Procurement officer", code: "E-003" },
-  { id: "u4", name: "Chisom Eze", role: "Operations manager", code: "E-004" },
-  { id: "u5", name: "Damilola Alabi", role: "HR manager", code: "E-005" },
-];
+import { useGetInvitedUsersApi } from "@/queries/users/get-all-users";
+import { useGetAllVendors } from "@/queries/vendors/get-all-vendors";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const MOCK_VENDORS: Vendor[] = [
-  {
-    id: "v1",
-    name: "ABC Supplies Ltd",
-    code: "E-001",
-    unreadCount: 2,
-    threads: [
-      { id: "t1", label: "PO-1043" },
-      { id: "t2", label: "PO-1098" },
-      { id: "t3", label: "INV-2033" },
-      { id: "t4", label: "Delivery Confirmation DC-442" },
-      { id: "t5", label: "General" },
-    ],
-  },
-  {
-    id: "v2",
-    name: "TechSolutions Inc.",
-    code: "E-001",
-    threads: [
-      { id: "t6", label: "PO-2210" },
-      { id: "t7", label: "General" },
-    ],
-  },
-  {
-    id: "v3",
-    name: "Tools & Co",
-    code: "E-001",
-    threads: [
-      { id: "t8", label: "PO-3301" },
-      { id: "t9", label: "General" },
-    ],
-  },
-];
-// ─────────────────────────────────────────────────────────────
 
 type PanelView =
   | { type: "list" }
@@ -99,11 +60,33 @@ export function ChatWidget() {
 
   const [panelView, setPanelView] = useState<PanelView>({ type: "list" });
 
-  // Load mock data on mount (replace with API calls)
+  const { data: usersData, isLoading: usersLoading } = useGetInvitedUsersApi({ params: { limit: 1000, status: "Active" } });
+  const vendorsApi = useGetAllVendors();
+
   useEffect(() => {
-    if (teamMembers.length === 0) setTeamMembers(MOCK_TEAM);
-    if (vendors.length === 0) setVendors(MOCK_VENDORS);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (usersData?.data) {
+      const mappedTeam = usersData.data.map((u: any) => ({
+        id: u.userId,
+        name: `${u.firstName || ""} ${u.lastName || ""}`.trim(),
+        role: u.role?.name || "Member",
+        code: `E-${(u.userId || "0000").slice(0, 4).toUpperCase()}`
+      }));
+      setTeamMembers(mappedTeam);
+    }
+  }, [usersData, setTeamMembers]);
+
+  useEffect(() => {
+    if (vendorsApi.data?.data) {
+      const mappedVendors = vendorsApi.data.data.map((v: any) => ({
+        id: v.vendorId || v.id,
+        name: v.legalName || v.displayName || "Unknown Vendor",
+        code: v.taxId || "N/A",
+        unreadCount: 0,
+        threads: []
+      }));
+      setVendors(mappedVendors);
+    }
+  }, [vendorsApi.data, setVendors]);
 
   const handleCloseChat = () => {
     setPanelView({ type: "list" });
@@ -272,13 +255,18 @@ export function ChatWidget() {
                   {/* List */}
                   <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent pr-2">
                     {activeTab === "team" ? (
-                      <>
-                        {filteredTeam.length === 0 && (
-                          <p className="text-sm text-gray-400 text-center mt-8">
-                            No team members found
-                          </p>
-                        )}
-                        {filteredTeam.map((member) => (
+                      usersLoading ? (
+                        <div className="space-y-3 mt-2">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Skeleton key={i} className="h-14 w-full rounded-[10px]" />
+                          ))}
+                        </div>
+                      ) : filteredTeam.length === 0 ? (
+                        <p className="text-sm text-gray-400 text-center mt-8">
+                          No team members found
+                        </p>
+                      ) : (
+                        filteredTeam.map((member) => (
                           <TeamMemberRow
                             key={member.id}
                             member={member}
@@ -287,23 +275,28 @@ export function ChatWidget() {
                               (c) => c.id === `team-${member.id}`
                             )}
                           />
-                        ))}
-                      </>
+                        ))
+                      )
                     ) : (
-                      <>
-                        {filteredVendors.length === 0 && (
-                          <p className="text-sm text-gray-400 text-center mt-8">
-                            No vendors found
-                          </p>
-                        )}
-                        {filteredVendors.map((vendor) => (
+                      vendorsApi.isLoading ? (
+                        <div className="space-y-3 mt-2">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Skeleton key={i} className="h-14 w-full rounded-[10px]" />
+                          ))}
+                        </div>
+                      ) : filteredVendors.length === 0 ? (
+                        <p className="text-sm text-gray-400 text-center mt-8">
+                          No vendors found
+                        </p>
+                      ) : (
+                        filteredVendors.map((vendor) => (
                           <VendorRow
                             key={vendor.id}
                             vendor={vendor}
                             onClick={() => openVendorInbox(vendor)}
                           />
-                        ))}
-                      </>
+                        ))
+                      )
                     )}
                   </div>
                 </motion.div>

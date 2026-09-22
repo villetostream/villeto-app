@@ -1,5 +1,7 @@
 "use client";
 
+import withPermissions from "@/components/permissions/permission-protected-routes";
+
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { logger } from "@/lib/logger";
 import { ImagePlus, Upload, X, Loader2 } from "lucide-react";
@@ -53,7 +55,7 @@ function restoreFilesFromSession(): File[] {
   return [];
 }
 
-export default function UploadReceipt() {
+function UploadReceipt() {
   const axios = useAxios();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -395,3 +397,7 @@ export default function UploadReceipt() {
     </>
   );
 }
+
+export default withPermissions(UploadReceipt, [
+  { resource: "expense.report", action: "create" },
+]);

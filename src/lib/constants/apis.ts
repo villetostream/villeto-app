@@ -34,6 +34,8 @@ export const API_KEYS = {
     ROLE_DETAIL: (roleId: string) => `roles/${roleId}` as const,
     /** GET  /roles/capabilities?module={module} */
     ROLES_CAPABILITIES: (module: string) => `roles/capabilities?module=${module}` as const,
+    /** GET /roles/capabilities - full scoped capability catalog */
+    ROLES_CAPABILITY_CATALOG: "roles/capabilities",
     /** PATCH /roles/{roleId}/capabilities */
     ROLE_CAPABILITIES: (roleId: string) => `roles/${roleId}/capabilities` as const,
   },
@@ -78,6 +80,8 @@ export const API_KEYS = {
     DEFAULT: (id: string) => `legal-entities/${id}/default` as const,
     STATUS: (id: string) => `legal-entities/${id}/status` as const,
     CURRENCIES: "reference/currencies",
+    USER_ASSIGNMENTS: (userId: string) =>
+      `users/${userId}/legal-entity-assignments` as const,
   },
   EXPENSE: {
     CATEGORIES: "companies/categories?module=expense",
@@ -122,12 +126,17 @@ export const PROCUREMENT_KEYS = {
   CANCEL_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/cancel` as const,
   ISSUE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/issue` as const,
   CLOSE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/close` as const,
+  SHORT_CLOSE_PO_LINE: (purchaseOrderId: string, purchaseOrderLineItemId: string) =>
+    `procurement/purchase-orders/${purchaseOrderId}/line-items/${purchaseOrderLineItemId}/short-close` as const,
+  CONFIRM_FINAL_BILLING: (id: string) =>
+    `procurement/purchase-orders/${id}/finalize-billing` as const,
   /** PATCH — submit a standalone (non-PR) PO into the approval chain */
   SUBMIT_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/submit-for-approval` as const,
   /** PATCH — approve or reject a submitted PO */
   APPROVE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/approval-decision` as const,
-  /** POST — confirm delivery receipt for an issued/delivered PO */
-  CONFIRM_RECEIPT: (id: string) => `procurement/purchase-orders/${id}/confirm-receipt` as const,
+  /** POST — confirm physical receipt against one dispatched fulfillment */
+  CONFIRM_FULFILLMENT_RECEIPT: (purchaseOrderId: string, fulfillmentId: string) =>
+    `procurement/purchase-orders/${purchaseOrderId}/fulfillments/${fulfillmentId}/receipts` as const,
   /** POST — add line items to a draft (non-PR) PO */
   PO_LINE_ITEMS: (id: string) => `procurement/purchase-orders/${id}/line-items` as const,
   // ── Procurement Policy endpoints ─────────────────────────────────────────
@@ -138,6 +147,19 @@ export const PROCUREMENT_KEYS = {
   PROCUREMENT_POLICY_DRAFT_BY_ID: (draftId: string) => `policy/procurement/drafts/${draftId}` as const,
   // ── Approved Vendors (no pagination — returns all approved) ─────────────
   APPROVED_VENDORS: "vendors?approvalStatus=approved",
+  // ── Spend Programs V1 endpoints ────────────────────────────────────────
+  SPEND_PROGRAMS: "policy/procurement/spend-programs",
+  SPEND_PROGRAM: (id: string) => `policy/procurement/spend-programs/${id}` as const,
+  SPEND_PROGRAM_ACTION: (id: string, action: "approve" | "reject") => `policy/procurement/spend-programs/${id}/${action}` as const,
+  SPEND_PROGRAM_DRAFTS: "policy/procurement/spend-programs/drafts",
+  SPEND_PROGRAM_DRAFT: (id: string) => `policy/procurement/spend-programs/drafts/${id}` as const,
+  SPEND_PROGRAM_SETTINGS: "policy/procurement/spend-programs/settings",
+  SPEND_PROGRAM_SETTINGS_CATEGORIES: "policy/procurement/spend-programs/settings/categories",
+  SPEND_PROGRAM_RULE_DEFINITIONS: "policy/procurement/spend-programs/rule-definitions",
+  SPEND_PROGRAM_RULE_DEFINITIONS_STATUS: "policy/procurement/spend-programs/rule-definitions/status",
+  SPEND_PROGRAM_RULE_DEFINITION_DELETE: (ruleType: string) => `policy/procurement/spend-programs/rule-definitions/${ruleType}` as const,
+  SPEND_PROGRAM_RULE_DEFINITIONS_SEED: "policy/procurement/spend-programs/rule-definitions/seed-defaults",
+  SPEND_PROGRAM_ELIGIBLE_ROLES: "policy/procurement/spend-programs/eligible-approval-roles",
 } as const;
 
 export const POLICY_GOVERNANCE_KEYS = {
@@ -150,4 +172,3 @@ export const POLICY_GOVERNANCE_KEYS = {
   /** GET  /policy/approval-settings/eligible-roles?target=:target */
   ELIGIBLE_ROLES:            (target: string) => `policy/approval-settings/eligible-roles?target=${target}` as const,
 } as const;
-

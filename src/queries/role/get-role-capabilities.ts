@@ -10,11 +10,8 @@ interface Response {
     status: number;
 }
 
-export const SUPPORTED_MODULES = ["expense", "procurement", "company", "vendor", "policy", "department"] as const;
-export type SupportedModule = typeof SUPPORTED_MODULES[number];
-
 export const useGetRoleCapabilitiesApi = (
-    module: SupportedModule,
+    module: string,
     options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">
 ): UseQueryResult<Response, Error> => {
     const axiosInstance = useAxios();
@@ -34,25 +31,16 @@ export const useGetRoleCapabilitiesApi = (
  * Returns a flat array of all capability groups.
  */
 export const useGetAllRoleCapabilitiesApi = (
-    modules: SupportedModule[] = [...SUPPORTED_MODULES],
     enabled = true
 ) => {
     const axiosInstance = useAxios();
     return useQuery<CapabilityGroup[], Error>({
-        queryKey: ["role-capabilities-all", modules],
+        queryKey: ["role-capabilities-all"],
         queryFn: async () => {
-            const results: CapabilityGroup[] = [];
-            for (const mod of modules) {
-                try {
-                    const r = await axiosInstance.get<Response>(API_KEYS.ROLE.ROLES_CAPABILITIES(mod));
-                    results.push(...(r.data.data ?? []));
-                } catch (_e) {
-                    // fall back to empty array for this module if it fails
-                }
-            }
-            return results;
+            const response = await axiosInstance.get<Response>(API_KEYS.ROLE.ROLES_CAPABILITY_CATALOG);
+            return (response.data.data as CapabilityGroup[]) ?? [];
         },
         staleTime: STALE_TIMES.STATIC,
-        enabled,
+        enabled: !!enabled,
     });
 };

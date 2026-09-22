@@ -31,7 +31,12 @@ export interface AppUser {
     departmentId?: string;
     position?: string;
     jobTitle?: string;
-    manager?: any;
+    manager?: string | {
+        userId?: string;
+        name?: string | null;
+        firstName?: string | null;
+        lastName?: string | null;
+    } | null;
     villetoRole?: any;
     role?: any;
     companyRole?: any;
@@ -44,6 +49,14 @@ export interface AppUser {
     employmentType?: string;
     employeeStatus?: string;
     cardIssued?: boolean;
+    legalEntityName?: string;
+    legalEntityCode?: string;
+    legalEntity?: {
+        code: string;
+        legalName: string;
+        baseCurrency: string;
+        legalEntityId: string;
+    };
 }
 
 export interface Meta {
@@ -64,7 +77,12 @@ export interface Department {
     updatedAt: Date;
     code?: string;
     head?: any;
-    manager?: any;
+    manager?: {
+        userId?: string;
+        name?: string | null;
+        firstName?: string | null;
+        lastName?: string | null;
+    } | null;
     members?: any[];
 }
 

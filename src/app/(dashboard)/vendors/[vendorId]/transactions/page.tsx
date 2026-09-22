@@ -176,5 +176,5 @@ function VendorTransactionsPage() {
 }
 
 export default withPermissions(VendorTransactionsPage, [
-  { resource: "vendor", action: "read_company" },
+  { resource: "vendor", action: "sensitive.read" },
 ]);

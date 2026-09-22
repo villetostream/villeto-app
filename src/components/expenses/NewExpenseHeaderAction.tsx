@@ -8,6 +8,7 @@ import FlightBooking from "./reservations/FlightReservations";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useGetExpenseCategoriesWithPoliciesApi } from "@/queries/companies/get-expense-categories";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
 export default function NewExpenseHeaderAction() {
   const { setAction, clearAction } = useHeaderActionStore();
@@ -21,7 +22,9 @@ export default function NewExpenseHeaderAction() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const categoriesWithPoliciesApi = useGetExpenseCategoriesWithPoliciesApi();
+  const policies = useAuthorizationPolicies();
+  const canCreateExpense = policies.expenses.canCreate;
+  const categoriesWithPoliciesApi = useGetExpenseCategoriesWithPoliciesApi({ enabled: canCreateExpense });
   const hasPolicies = categoriesWithPoliciesApi.data?.meta?.totalCount 
     ? categoriesWithPoliciesApi.data.meta.totalCount > 0 
     : (Array.isArray(categoriesWithPoliciesApi.data?.data) && categoriesWithPoliciesApi.data.data.length > 0);
@@ -30,7 +33,7 @@ export default function NewExpenseHeaderAction() {
 
   // Check for openAddReport query param and open modal
   useEffect(() => {
-    if (searchParams.get("openAddReport") === "true") {
+    if (canCreateExpense && searchParams.get("openAddReport") === "true") {
       open();
       // Remove openAddReport param but keep current URL state
       const params = new URLSearchParams(searchParams.toString());
@@ -39,9 +42,13 @@ export default function NewExpenseHeaderAction() {
       const newUrl = `/expenses${queryString ? `?${queryString}` : ''}`;
       router.replace(newUrl, { scroll: false });
     }
-  }, [searchParams, open, router]);
+  }, [canCreateExpense, searchParams, open, router]);
 
   useEffect(() => {
+    if (!canCreateExpense) {
+      clearAction();
+      return () => clearAction();
+    }
     const isStartDisabled = isLoadingPolicies || (!hasPolicies && !canCreatePolicy);
     const tooltipText = isLoadingPolicies
       ? "Checking permissions..."
@@ -82,7 +89,7 @@ export default function NewExpenseHeaderAction() {
     }
 
     return () => clearAction();
-  }, [setAction, clearAction, toggle, toggleReservation, isLoadingPolicies, hasPolicies, canCreatePolicy, router]);
+  }, [setAction, clearAction, toggle, toggleReservation, isLoadingPolicies, hasPolicies, canCreatePolicy, canCreateExpense, router]);
 
   return (
     <>

@@ -2,19 +2,19 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Clock3, Loader2, PackageCheck, Search, Truck } from "lucide-react";
+import { CheckCircle2, Clock3, Loader2, PackageCheck, Search, Truck } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
-import { useAuthStore } from "@/stores/auth-stores";
 import withPermissions from "@/components/permissions/permission-protected-routes";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
 const receivingStatuses = ["issued", "acknowledged", "ready_for_delivery", "partially_delivered", "delivered"];
 const labels: Record<string, string> = { issued: "Issued", acknowledged: "Acknowledged", ready_for_delivery: "Ready for delivery", partially_delivered: "Partial delivery", delivered: "Delivered" };
 
 function ConfirmationPage() {
-  const can = useAuthStore((state) => state.can);
-  const scope = can("procurement.purchase_order", "read_company") ? "company" : can("procurement.purchase_order", "read_department") ? "team" : "own";
+  const policies = useAuthorizationPolicies();
+  const scope = policies.purchaseOrders.listScope ?? "own";
   const { data, isLoading, isError, refetch } = usePurchaseOrders(1, 100, undefined, undefined, undefined, scope);
   const [active, setActive] = useState("active");
   const [search, setSearch] = useState("");

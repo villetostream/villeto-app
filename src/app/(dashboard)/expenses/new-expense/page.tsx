@@ -1,4 +1,5 @@
 "use client";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 import { ExpenseForm } from '@/components/expenses/ExpenseForm'
 import { ManualExpenseForm } from '@/components/expenses/ManualExpenseForm'
 import { Suspense } from 'react'
@@ -33,4 +34,6 @@ const Page = () => {
     )
 }
 
-export default Page
+export default withPermissions(Page, [
+  { resource: "expense.report", action: "create" },
+]);

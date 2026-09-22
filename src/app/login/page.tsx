@@ -19,7 +19,7 @@ import { useLogin } from "@/queries/auth/auth-login";
 import { loginSchema } from "@/lib/schemas/schemas";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
-import { getEffectiveCompanyPermissions } from "@/features/auth/role-access";
+import { parseAuthorizationSnapshot } from "@/features/auth/authorization";
 
 type FormData = z.infer<typeof loginSchema>;
 
@@ -31,7 +31,7 @@ export default function LoginPage() {
   const isLoading = login.isPending;
   const setUser = useAuthStore().login;
   const setAccessToken = useAuthStore().setAccessToken;
-  const setCompanyPermissions = useAuthStore().setCompanyPermissions;
+
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -47,14 +47,27 @@ export default function LoginPage() {
     try {
       setError(null);
       const response = await login.mutateAsync(data);
-      setAccessToken(response.data.accessToken);
-      setUser(response.data.user as User);
-      const rootData = response.data as any;
-      const userPermissions = getEffectiveCompanyPermissions(rootData.user ?? rootData);
-      setCompanyPermissions(userPermissions);
+      const user = response.data.user as User;
+      
+      let authorization;
+      if (user.authorization) {
+        try {
+          authorization = parseAuthorizationSnapshot(user.authorization);
+        } catch (e) {
+          console.warn("Failed to parse authorization snapshot:", e);
+        }
+      }
+      
+      setUser({ ...user, authorization });
+      
       // Start proactive refresh so the token is renewed 5 min before expiry
       const expiresInMs = response.data.accessTokenExpiresInMs ?? 3600000;
+      setAccessToken(response.data.accessToken, expiresInMs);
       scheduleTokenRefresh(expiresInMs);
+      
+      // Set an auth cookie so Next.js middleware knows we are authenticated
+      document.cookie = `villeto_auth=true; path=/; max-age=${Math.floor(expiresInMs / 1000)}`;
+      
       router.push("/dashboard");
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, "Invalid email or password"));

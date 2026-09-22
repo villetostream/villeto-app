@@ -1,186 +1,226 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { Role } from '@/queries/role/get-all-roles';
-import { Department } from '@/queries/departments/get-all-departments';
-import { getCurrencyConfig } from "@/lib/utils/currency";
-import { clearTokenRefresh } from "@/lib/tokenRefreshService";
+import { createJSONStorage, persist } from 'zustand/middleware';
+import {
+    buildAuthorizationIndexes,
+    hasAllPermissions,
+    hasAnyPermission,
+    hasPermission,
+    toPermissionName,
+    uniqueCapabilityScopes,
+} from '@/features/auth/authorization';
+import type {
+    AuthorizationCapabilityGrant,
+    AuthorizationSnapshot,
+    CapabilityScopeType,
+    User,
+} from '@/features/auth/types';
+import { getCurrencyConfig } from '@/lib/utils/currency';
+import { clearTokenRefresh, scheduleTokenRefresh } from '@/lib/tokenRefreshService';
 
-import { User, CompanyPermission } from '@/features/auth/types';
-export type { User, CompanyPermission };
-
-// ─── Store Interface ──────────────────────────────────────────────────────────
+export type {
+    AuthorizationCapabilityGrant,
+    AuthorizationSnapshot,
+    CapabilityScopeType,
+    User,
+};
 
 interface AuthState {
     user: User | null;
     accessToken: string | null;
+    /** Unix timestamp (ms) when the access token expires. Null if unknown. */
+    accessTokenExpiresAt: number | null;
     isLoading: boolean;
+    
+    /** The single server-produced source of truth for client-side access UX. */
+    authorization: AuthorizationSnapshot | null;
+    authorizationFetchedAt: number | null;
 
-    /** The flat list of company-level permissions for this user. */
-    companyPermissions: CompanyPermission[];
-
-    /**
-     * O(1) lookup structures built whenever companyPermissions changes.
-     * - _permissionSet: Set of "resource.action" strings for exact matches.
-     * - _managedResources: Set of resource strings where action === "manage".
-     * Not persisted — rebuilt on rehydration.
-     */
+    /** Derived lookup structures; rebuilt after session-storage hydration. */
     _permissionSet: Set<string>;
-    _managedResources: Set<string>;
+    _capabilityGrantsByKey: Map<string, AuthorizationCapabilityGrant[]>;
 
-    // ─ Setters ─
-    setAccessToken: (token: string) => void;
+    setAccessToken: (token: string, expiresInMs?: number) => void;
     login: (data: User) => void;
     logout: () => void;
     hydrate: () => void;
+    setAuthorization: (snapshot: AuthorizationSnapshot) => void;
 
-    /**
-     * Store companyRole.permissions from the API response.
-     * Called after login AND after /users/me refresh.
-     */
-    setCompanyPermissions: (permissions: CompanyPermission[]) => void;
-
-    /**
-     * PRIMARY permission check — the only method you should call for UI gating.
-     *
-     * @param resource  e.g. "vendor", "expense.report", "procurement.purchase_request"
-     * @param action    e.g. "approve", "create", "read_company"
-     * @returns true if the user has the given permission; false in all other cases (defensive)
-     *
-     * @example
-     *   const { can } = useAuthStore();
-     *   return can('vendor', 'approve'); // true only if user has vendor.approve
-     */
+    /** Compatibility signature used by existing screens during phased migration. */
     can: (resource: string, action: string) => boolean;
+    canPermission: (permission: string) => boolean;
+    canAny: (permissions: string[]) => boolean;
+    canAll: (permissions: string[]) => boolean;
+    grantsFor: (capabilityKey: string) => AuthorizationCapabilityGrant[];
+    hasCapabilityScope: (
+        capabilityKey: string,
+        scopeType: CapabilityScopeType,
+    ) => boolean;
+    scopesFor: (capabilityKey: string) => CapabilityScopeType[];
+    isAuthorizationStale: (maxAgeMs: number) => boolean;
 
-    // ─ Utilities ─
     getCurrencySymbol: () => string;
 }
 
-// ─── Store ────────────────────────────────────────────────────────────────────
-
-function buildPermissionSets(permissions: CompanyPermission[]) {
-    const permissionSet = new Set<string>();
-    const managedResources = new Set<string>();
-    for (const p of permissions) {
-        if (p.action === "manage") {
-            managedResources.add(p.resource);
-        } else {
-            permissionSet.add(`${p.resource}.${p.action}`);
-        }
-    }
-    return { _permissionSet: permissionSet, _managedResources: managedResources };
+function buildDerivedAuthorization(snapshot: AuthorizationSnapshot | null) {
+    const { permissionSet, grantsByCapability } = buildAuthorizationIndexes(snapshot);
+    return {
+        _permissionSet: permissionSet,
+        _capabilityGrantsByKey: grantsByCapability,
+    };
 }
+
+const emptyDerivedAuthorization = () => buildDerivedAuthorization(null);
 
 export const useAuthStore = create<AuthState>()(
     persist(
         (set, get) => ({
             user: null,
-            isLoading: true,
-            companyPermissions: [],
-            _permissionSet: new Set<string>(),
-            _managedResources: new Set<string>(),
             accessToken: null,
+            accessTokenExpiresAt: null,
+            isLoading: true,
+            authorization: null,
+            authorizationFetchedAt: null,
+            ...emptyDerivedAuthorization(),
 
             getCurrencySymbol: () => {
-                const countryCode = get().user?.company?.countryOfRegistration ?? "";
+                const countryCode = get().user?.company?.countryOfRegistration ?? '';
                 return getCurrencyConfig(countryCode).symbol;
             },
 
-            setAccessToken: (data: string) => {
-                set({ accessToken: data });
+            setAccessToken: (accessToken, expiresInMs) => set({
+                accessToken,
+                ...(expiresInMs != null
+                    ? { accessTokenExpiresAt: Date.now() + expiresInMs }
+                    : {}),
+            }),
+
+            setAuthorization: (authorization) => {
+                set({
+                    authorization,
+                    authorizationFetchedAt: Date.now(),
+                    ...buildDerivedAuthorization(authorization),
+                });
             },
 
-            setCompanyPermissions: (permissions: CompanyPermission[]) => {
-                const list = Array.isArray(permissions) ? permissions : [];
-                set({ companyPermissions: list, ...buildPermissionSets(list) });
-            },
-
-            login: (data: User) => {
-                if (typeof window !== "undefined") {
-                    localStorage.setItem("villeto_lastActivityTime", Date.now().toString());
+            login: (user) => {
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem('villeto_lastActivityTime', Date.now().toString());
                 }
-                set({ user: data });
+
+                const authorization = user.authorization ?? get().authorization;
+                set({
+                    user,
+                    ...(authorization
+                        ? {
+                              authorization,
+                              authorizationFetchedAt: Date.now(),
+                              ...buildDerivedAuthorization(authorization),
+                          }
+                        : {}),
+                });
             },
 
             logout: () => {
-                clearTokenRefresh(); // cancel any pending proactive refresh
-                
-                if (typeof window !== "undefined") {
+                clearTokenRefresh();
+
+                if (typeof window !== 'undefined') {
                     try {
-                        localStorage.removeItem("villeto_lastActivityTime");
-                        for (let i = 0; i < localStorage.length; i++) {
-                            const key = localStorage.key(i);
-                            if (key && (key.startsWith("line_item_staging:") || key.startsWith("bill_line_item_staging:"))) {
+                        localStorage.removeItem('villeto_lastActivityTime');
+                        for (let index = 0; index < localStorage.length; index += 1) {
+                            const key = localStorage.key(index);
+                            if (
+                                key &&
+                                (key.startsWith('line_item_staging:') ||
+                                    key.startsWith('bill_line_item_staging:'))
+                            ) {
                                 localStorage.removeItem(key);
-                                i--; // Adjust index since we removed an item
+                                index -= 1;
                             }
                         }
-                    } catch { /* ignore */ }
+                    } catch {
+                        // Storage may be unavailable in privacy-restricted browsers.
+                    }
+                    sessionStorage.removeItem('auth-storage');
                 }
 
                 set({
                     user: null,
-                    companyPermissions: [],
-                    _permissionSet: new Set(),
-                    _managedResources: new Set(),
                     accessToken: null,
+                    accessTokenExpiresAt: null,
+                    authorization: null,
+                    authorizationFetchedAt: null,
+                    ...emptyDerivedAuthorization(),
                 });
-                sessionStorage.removeItem("auth-storage");
             },
 
-            /**
-             * ─── PRIMARY GATE ──────────────────────────────────────────────
-             * O(1) lookup via pre-built Sets. Falls back to linear scan only
-             * when Sets are empty (e.g. immediately after hydration before
-             * setCompanyPermissions is called).
-             */
-            can: (resource: string, action: string): boolean => {
-                const { _permissionSet, _managedResources, companyPermissions } = get();
-                // Fast path — O(1)
-                if (_permissionSet.size > 0 || _managedResources.size > 0) {
-                    return _managedResources.has(resource) || _permissionSet.has(`${resource}.${action}`);
-                }
-                // Fallback for the brief window before Sets are built (e.g. fresh hydration)
-                if (!companyPermissions || companyPermissions.length === 0) return false;
-                return companyPermissions.some(
-                    p => p.resource === resource && (p.action === action || p.action === "manage")
-                );
+            can: (resource, action) => get().canPermission(toPermissionName(resource, action)),
+
+            canPermission: (permission) => hasPermission(get()._permissionSet, permission),
+
+            canAny: (permissions) => hasAnyPermission(get()._permissionSet, permissions),
+
+            canAll: (permissions) => hasAllPermissions(get()._permissionSet, permissions),
+
+            grantsFor: (capabilityKey) =>
+                get()._capabilityGrantsByKey.get(capabilityKey) ?? [],
+
+            hasCapabilityScope: (capabilityKey, scopeType) =>
+                get()
+                    .grantsFor(capabilityKey)
+                    .some((grant) => grant.scopeType === scopeType),
+
+            scopesFor: (capabilityKey) =>
+                uniqueCapabilityScopes(get().grantsFor(capabilityKey)),
+
+            isAuthorizationStale: (maxAgeMs) => {
+                const fetchedAt = get().authorizationFetchedAt;
+                return fetchedAt === null || Date.now() - fetchedAt >= maxAgeMs;
             },
 
             hydrate: () => {
-                // Rebuild Sets from persisted companyPermissions after rehydration
-                const { companyPermissions } = get();
-                set({ isLoading: false, ...buildPermissionSets(companyPermissions ?? []) });
+                const authorization = get().authorization;
+                const expiresAt = get().accessTokenExpiresAt;
+                const token = get().accessToken;
+
+                // Reschedule the proactive refresh timer using remaining token lifetime
+                if (token && expiresAt) {
+                    const remainingMs = expiresAt - Date.now();
+                    if (remainingMs > 0) {
+                        scheduleTokenRefresh(remainingMs);
+                    }
+                    // If the token has already expired, the reactive interceptor
+                    // in useAxios will handle the 401 on the next request.
+                }
+
+                set({
+                    isLoading: false,
+                    ...buildDerivedAuthorization(authorization),
+                });
             },
         }),
         {
             name: 'auth-storage',
             storage: createJSONStorage(() => sessionStorage),
-            // Only persist serialisable fields — Sets are not JSON-serialisable
             partialize: (state) => ({
                 user: state.user,
-                companyPermissions: state.companyPermissions,
+                accessToken: state.accessToken,
+                accessTokenExpiresAt: state.accessTokenExpiresAt,
+                authorization: state.authorization,
+                authorizationFetchedAt: state.authorizationFetchedAt,
             }),
-            onRehydrateStorage: () => (state) => {
-                if (state) {
-                    state.hydrate();
-                }
-            },
-        }
-    )
+            onRehydrateStorage: () => (state) => state?.hydrate(),
+        },
+    ),
 );
 
-// ─── Selector Hooks ───────────────────────────────────────────────────────────
+export const useCan = (resource: string, action: string): boolean =>
+    useAuthStore((state) => state.can(resource, action));
 
-/**
- * Primary permission hook.
- * @example const canApprove = useCan('vendor', 'approve');
- */
-export const useCan = (resource: string, action: string): boolean => {
-    return useAuthStore(state => state.can(resource, action));
-};
+export const useCanPermission = (permission: string): boolean =>
+    useAuthStore((state) => state.canPermission(permission));
 
-/** Returns the user's display role (for labels/badges only — not for logic). */
-export const useUserRole = () => {
-    return useAuthStore(state => state.user?.villetoRole);
-};
+export const useCapabilityScopes = (capabilityKey: string): CapabilityScopeType[] =>
+    useAuthStore((state) => state.scopesFor(capabilityKey));
+
+/** Display role only; role names must never be used for authorization. */
+export const useUserRole = () => useAuthStore((state) => state.user?.companyRole || state.user?.villetoRole);

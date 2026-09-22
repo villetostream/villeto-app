@@ -125,20 +125,37 @@ export default function ReviewConfirmation() {
         </div>
         <div className="grid gap-0 divide-y divide-black/[0.05] px-5">
           <div className="flex items-center justify-between py-3">
+            <p className="text-[12px] text-[#84908a]">Business Logo</p>
+            {businessSnapshot.logo ? (
+              <Avatar className="h-8 w-8 rounded-[8px]">
+                <AvatarImage src={businessSnapshot.logo} className="object-cover" />
+                <AvatarFallback className="rounded-[8px] bg-[#e7f6f2] text-[10px] font-bold text-[#087f70]">
+                  {businessSnapshot.businessName?.charAt(0)?.toUpperCase() || "B"}
+                </AvatarFallback>
+              </Avatar>
+            ) : (
+              <p className="text-[13px] font-medium text-[#84908a]">Not provided</p>
+            )}
+          </div>
+          <div className="flex items-center justify-between py-3">
             <p className="text-[12px] text-[#84908a]">Business Name</p>
-            <p className="text-[13px] font-medium text-[#0b100e]">{businessSnapshot.businessName}</p>
+            <p className="text-[13px] font-medium text-[#0b100e]">{businessSnapshot.businessName || "Not provided"}</p>
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <p className="text-[12px] text-[#84908a]">Legal Entity</p>
+            <p className="text-[13px] font-medium text-[#0b100e]">{businessSnapshot.legalName || businessSnapshot.businessName || "Not provided"}</p>
           </div>
           <div className="flex items-center justify-between py-3">
             <p className="text-[12px] text-[#84908a]">Country</p>
-            <p className="text-[13px] font-medium text-[#0b100e]">{businessSnapshot.countryOfRegistration}</p>
+            <p className="text-[13px] font-medium text-[#0b100e]">{businessSnapshot.countryOfRegistration || "Not provided"}</p>
           </div>
           <div className="flex items-center justify-between py-3">
             <p className="text-[12px] text-[#84908a]">Contact</p>
-            <p className="text-[13px] font-medium text-[#0b100e]">{businessSnapshot.contactNumber}</p>
+            <p className="text-[13px] font-medium text-[#0b100e]">{businessSnapshot.contactNumber || "Not provided"}</p>
           </div>
           <div className="flex items-center justify-between py-3">
             <p className="text-[12px] text-[#84908a]">Website</p>
-            <p className="text-[13px] font-medium text-[#0ea894]">{businessSnapshot.website}</p>
+            <p className="text-[13px] font-medium text-[#0ea894]">{businessSnapshot.website || "Not provided"}</p>
           </div>
         </div>
       </div>
@@ -153,7 +170,13 @@ export default function ReviewConfirmation() {
         </div>
         <div className="px-5 py-4">
           <p className="mb-3 text-[12px] text-[#84908a]">
-            {allProfiles.filter((p) => p.ownershipPercentage !== undefined).length} Beneficial Owners · {allProfiles.filter((p) => p.ownershipPercentage === undefined).length} Controlling Officers
+            {(() => {
+              const beneficialCount = allProfiles.filter((p) => p.ownershipPercentage !== undefined).length;
+              const officerCount = allProfiles.filter((p) => p.ownershipPercentage === undefined).length;
+              return officerCount > 0 
+                ? `${beneficialCount} Beneficial Owners · ${officerCount} Controlling Officers`
+                : `${beneficialCount} Beneficial Owners`;
+            })()}
           </p>
           <div className="space-y-2">
             {(showAllProfiles ? allProfiles : allProfiles.slice(0, 2)).map((profile) => (

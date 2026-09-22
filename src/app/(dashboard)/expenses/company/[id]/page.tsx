@@ -1,5 +1,7 @@
 "use client";
 
+import withPermissions from "@/components/permissions/permission-protected-routes";
+
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -27,6 +29,7 @@ import { ExpenseDetailSkeleton } from "@/components/expenses/ExpenseDetailSkelet
 import { useState } from "react";
 import { AlertCircle, Check } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { logger } from "@/lib/logger";
 import { CONote } from "@/components/expenses/personal/CONote";
 import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideBanner";
@@ -169,14 +172,14 @@ interface User {
   avatar?: string;
 }
 
-export default function CompanyExpenseDetailPage() {
+function CompanyExpenseDetailPage() {
   const params  = useParams();
   const searchParams = useSearchParams();
   const scope   = (searchParams.get("scope") || "company") as "own" | "team" | "company";
   const router  = useRouter();
   const reportId = params.id as string;
   const currencySymbol = useAuthStore((state) => state.getCurrencySymbol());
-  const { can } = useAuthStore();
+  const policies = useAuthorizationPolicies();
 
   const [overrideUnlocked, setOverrideUnlocked] = useState(false);
 
@@ -300,11 +303,7 @@ export default function CompanyExpenseDetailPage() {
   const isTeamScope = scope === "team";
   const isCompanyScope = scope === "company";
 
-  const hasApprovePermission =
-    can("expense.report", "approve_department") ||
-    can("expense.report", "approve_company") ||
-    can("expense.report", "approve") ||
-    can("expense.report", "manage");
+  const hasApprovePermission = policies.expenses.canApprove;
 
   const isPendingOrSubmitted = isPendingExpenseStatus(rawReportStatus);
   const isCurrentUserReport = expenseDetail.reporterId === user?.userId;
@@ -549,3 +548,8 @@ export default function CompanyExpenseDetailPage() {
     </>
   );
 }
+
+export default withPermissions(CompanyExpenseDetailPage, [
+  { resource: "expense.report", action: "read_department" },
+  { resource: "expense.report", action: "read_company" },
+]);

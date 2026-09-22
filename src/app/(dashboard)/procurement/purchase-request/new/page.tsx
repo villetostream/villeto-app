@@ -8,12 +8,14 @@ import {
 } from "lucide-react";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
+import { LineItemDetailModal } from "@/components/procurement/LineItemDetailModal";
 import type { LineItemPayload as _LIP } from "@/queries/procurement/purchase-requests";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import {
   useCreatePurchaseRequest,
   useAddLineItem,
@@ -395,7 +397,7 @@ function LineItemModal({
 
         <div className="px-6 py-4 border-t border-black/[0.06] bg-white z-10 shrink-0 rounded-b-2xl">
           <button type="button" onClick={handleSave} disabled={loading || !(form.name || "").trim() || !form.categoryId || form.quantity <= 0}
-            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-95 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {initial ? "Save Changes" : "Add Item"}
           </button>
@@ -442,10 +444,7 @@ function NewPurchaseRequestPage() {
   // need to raise a request on behalf of another department) see the
   // department dropdown. All other requesters get their own department
   // auto-filled (read-only) from their login/profile record.
-  const can = useAuthStore(s => s.can);
-  const canChangeDept =
-    can("procurement.purchase_request", "convert_to_po") ||
-    can("procurement.purchase_order", "create");
+  const canChangeDept = useAuthorizationPolicies().people.canManageDepartments;
 
   // Step state
   const [step, setStep] = useState<1 | 2>(1);
@@ -453,6 +452,10 @@ function NewPurchaseRequestPage() {
   const [savedLineItems, setSavedLineItems] = useState<PurchaseRequestLineItem[]>([]);
   const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+
+  const [selectedDetailItem, setSelectedDetailItem] = useState<any | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [detailModalStartsInEditMode, setDetailModalStartsInEditMode] = useState(false);
 
   // Header form
   const [title, setTitle] = useState("");
@@ -529,7 +532,7 @@ function NewPurchaseRequestPage() {
   const handleSaveHeader = async () => {
     if (!title.trim()) { toast.error("Request title is required"); return; }
     if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
-    if (!neededByDate) { toast.error("Need by date is required"); return; }
+    if (!neededByDate) { toast.error("Needed by date is required"); return; }
     if (!departmentId) { toast.error("Department is required"); return; }
     if (legalEntities.length === 0) { toast.error("No procurement-ready legal entity is available"); return; }
     if (requiresLegalEntitySelection && !effectiveLegalEntityId) { toast.error("Select the legal entity for this request"); return; }
@@ -733,7 +736,7 @@ function NewPurchaseRequestPage() {
                 </div>
               )}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Need by Date <span className="text-[#d33d44]">*</span></label>
+                <label className="text-sm font-medium text-[#0b100e]">Needed by Date <span className="text-[#d33d44]">*</span></label>
                 <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                   <PopoverTrigger asChild>
                     <button type="button" className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] cursor-pointer ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}>
@@ -811,7 +814,7 @@ function NewPurchaseRequestPage() {
           </div>
 
           {/* Scrollable content */}
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pb-4 pr-2">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-5 pb-4 pr-2">
 
             {/* Read-only request summary */}
             <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
@@ -826,7 +829,7 @@ function NewPurchaseRequestPage() {
                   { label: "Title", value: title },
                   { label: "Priority", value: PRIORITIES.find(p => p.value === priority)?.label || priority },
                   { label: "Currency", value: currency },
-                  { label: "Need by Date", value: neededByDate },
+                  { label: "Needed by Date", value: neededByDate },
                   { label: "Department", value: selectedDeptName || "—" },
                 ].map(({ label, value }) => (
                   <div key={label}>
@@ -875,62 +878,78 @@ function NewPurchaseRequestPage() {
                         const catName = getCategoryName(item.categoryId);
                         const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
                         const hasBlock = hasViolations && item.policyViolations!.some(v => v.type === "hard_block");
+                        const violationCount = hasViolations ? item.policyViolations!.length : 0;
                         const itemKey = item.purchaseRequestLineItemId || (item as any).id || i;
                         return (
-                          <React.Fragment key={itemKey}>
-                            <tr className={`border-b ${hasViolations ? "border-transparent" : "border-border/40 last:border-0"} hover:bg-[#f9faf9] transition-colors`}>
-                              <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
-                                <div className="flex items-center gap-2">
-                                  {hasViolations && (
-                                    <span className={`w-2 h-2 rounded-full shrink-0 ${hasBlock ? "bg-red-500" : "bg-amber-400"}`} />
-                                  )}
-                                  {item.name}
+                          <tr
+                            key={itemKey}
+                            className={`border-b border-border/40 last:border-0 transition-colors cursor-pointer ${
+                              hasViolations
+                                ? "hover:bg-red-50/40"
+                                : "hover:bg-[#f9faf9]"
+                            }`}
+                            onClick={() => {
+                              setSelectedDetailItem({
+                                ...item,
+                                categoryName: catName || undefined,
+                                index: i, // keep index in case we want to edit it later
+                              });
+                              setDetailModalStartsInEditMode(false);
+                              setIsDetailModalOpen(true);
+                            }}
+                          >
+                            <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
+                              <div className="flex items-center gap-2">
+                                {hasViolations && (
+                                  <AlertCircle className={`w-4 h-4 shrink-0 ${hasBlock ? "text-red-500" : "text-amber-500"}`} />
+                                )}
+                                <span>{item.name}</span>
+                                {violationCount > 0 && (
+                                  <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
+                                    hasBlock ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
+                                  }`}>
+                                    {violationCount}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
+                            <td className="px-5 py-3.5">
+                              {catName
+                                ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{catName}</span>
+                                : <span className="text-[#68726d]">—</span>
+                              }
+                            </td>
+                            <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
+                            <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                            <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                <div className="relative group">
+                                  <button type="button" onClick={() => {
+                                    setSelectedDetailItem({
+                                      ...item,
+                                      categoryName: catName || undefined,
+                                      index: i,
+                                    });
+                                    setDetailModalStartsInEditMode(true);
+                                    setIsDetailModalOpen(true);
+                                  }}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
                                 </div>
-                              </td>
-                              <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
-                              <td className="px-5 py-3.5">
-                                {catName
-                                  ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{catName}</span>
-                                  : <span className="text-[#68726d]">—</span>
-                                }
-                              </td>
-                              <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
-                              <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                              <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                              <td className="px-5 py-3.5">
-                                <div className="flex items-center gap-1">
-                                  <div className="relative group">
-                                    <button type="button" onClick={() => openEditModal(item, i)}
-                                      className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
-                                  </div>
-                                  <div className="relative group">
-                                    <button type="button" onClick={() => setItemToDelete({ item, index: i })}
-                                      className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors">
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
-                                  </div>
+                                <div className="relative group">
+                                  <button type="button" onClick={() => setItemToDelete({ item, index: i })}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
                                 </div>
-                              </td>
-                            </tr>
-                            {hasViolations && (
-                              <tr key={`${itemKey}-violations`} className="border-b border-border/40 last:border-0">
-                                <td colSpan={7} className="px-5 pb-3 pt-0">
-                                  <div className="flex flex-col gap-1.5">
-                                    {item.policyViolations!.map((v, idx) => (
-                                      <div key={idx} className={`flex items-start gap-2 px-3 py-2 rounded-lg text-xs font-medium ${v.type === "hard_block" ? "bg-red-50 text-red-700 border border-red-100" : "bg-amber-50 text-amber-700 border border-amber-100"}`}>
-                                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                                        <span>{v.message}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
+                              </div>
+                            </td>
+                          </tr>
                         );
                       })}
                     </tbody>
@@ -1021,6 +1040,35 @@ function NewPurchaseRequestPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Line Item Detail Modal */}
+      <LineItemDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => { setIsDetailModalOpen(false); setSelectedDetailItem(null); setDetailModalStartsInEditMode(false); }}
+        item={selectedDetailItem}
+        currency={currency}
+        startInEditMode={detailModalStartsInEditMode}
+        onSave={
+          selectedDetailItem
+            ? async (updatedItem) => {
+                setSavedLineItems(prev => {
+                  const copy = [...prev];
+                  const i = selectedDetailItem.index;
+                  copy[i] = {
+                    ...copy[i],
+                    ...updatedItem,
+                    subtotal: (updatedItem.quantity * updatedItem.unitPrice) + (updatedItem.taxAmount || 0),
+                  };
+                  return copy;
+                });
+                setIsDetailModalOpen(false);
+                setSelectedDetailItem(null);
+                setPolicyViolations(null);
+                toast.success("Item updated");
+              }
+            : undefined
+        }
+      />
+
       {/* Policy Violation Modal */}
       {policyViolations && (
         <ProcurementPolicyCheckModal
@@ -1028,10 +1076,13 @@ function NewPurchaseRequestPage() {
           onClose={() => setIsPolicyModalOpen(false)}
           violations={policyViolations}
           onEditRequest={() => setIsPolicyModalOpen(false)}
-          onProceedWithWarnings={async (justifications) => {
+          onProceedWithWarnings={async (justification) => {
             if (!purchaseRequestId) return;
             try {
-              await submitPR.mutateAsync({ policyJustifications: justifications });
+              await submitPR.mutateAsync({ 
+                policyJustification: justification,
+                spendProgramJustification: justification
+              });
               toast.success("Purchase request submitted for review!");
               setPolicyViolations(null);
               setIsPolicyModalOpen(false);

@@ -110,6 +110,13 @@ export const directoryColumns = [
         header: "EMP. TYPE",
         cell: (info) => <p className="text-sm">{formatName(info.getValue() as string)}</p>,
     }),
+    columnHelper.accessor("legalEntity", {
+        header: "LEGAL ENTITY",
+        cell: (info) => {
+            const entity = info.getValue() as any;
+            return <p className="text-sm font-medium">{entity?.legalName || "—"}</p>;
+        },
+    }),
 
     columnHelper.accessor("employeeStatus", {
         header: "HR STATUS",

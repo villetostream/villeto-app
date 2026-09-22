@@ -1,233 +1,215 @@
 "use client";
 
-import axios, { AxiosInstance } from "axios";
+import axios, {
+  AxiosError,
+  type AxiosInstance,
+  type InternalAxiosRequestConfig,
+} from "axios";
+import { invalidateAuthorization } from "@/features/auth/authorization";
+import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
+import {
+  CONNECTION_POOL_MESSAGE,
+  isConnectionPoolError,
+} from "@/shared/lib/errors/api-errors";
+import { useAuthStore } from "@/stores/auth-stores";
+import { toast } from "sonner";
 
 declare module "axios" {
   export interface AxiosRequestConfig {
     _skipErrorToast?: boolean;
     _retry?: boolean;
-    _retry403?: boolean;
   }
 }
-import { useMemo } from "react";
-import { useAuthStore } from "@/stores/auth-stores";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
-import { getEffectiveCompanyPermissions } from "@/features/auth/role-access";
+type ApiErrorPayload = {
+  message?: unknown;
+  error?: unknown;
+  status?: number;
+  statusCode?: number;
+  data?: { statusCode?: number };
+};
+
+type RefreshResponse = {
+  data?: {
+    accessToken?: string;
+    accessTokenExpiresInMs?: number;
+    data?: {
+      accessToken?: string;
+      accessTokenExpiresInMs?: number;
+    };
+  };
+};
 
 const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const apiClient = axios.create({
+  baseURL: BASEURL,
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
 
-let isRefreshing = false;
-let failedQueue: { resolve: (token: string) => void; reject: (error: any) => void }[] = [];
+let refreshPromise: Promise<string> | null = null;
 
-let isRefreshingPermissions = false;
-let permissionQueue: { resolve: () => void; reject: (error: any) => void }[] = [];
+function redirectToLogin() {
+  if (
+    typeof window !== "undefined" &&
+    !window.location.pathname.startsWith("/login")
+  ) {
+    window.location.assign("/login");
+  }
+}
 
-const processPermissionQueue = (error: any) => {
-    permissionQueue.forEach(prom => {
-        if (error) {
-            prom.reject(error);
-        } else {
-            prom.resolve();
-        }
+function refreshAccessToken() {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = axios
+    .post<RefreshResponse["data"]>(`${BASEURL}auth/refresh`, {}, { withCredentials: true })
+    .then((response) => {
+      const accessToken =
+        response.data?.data?.accessToken ?? response.data?.accessToken;
+      if (!accessToken) {
+        throw new Error("No access token returned");
+      }
+
+      const expiresInMs =
+        response.data?.data?.accessTokenExpiresInMs ??
+        response.data?.accessTokenExpiresInMs ??
+        3_600_000;
+
+      useAuthStore.getState().setAccessToken(accessToken, expiresInMs);
+      scheduleTokenRefresh(expiresInMs);
+
+      // Keep the villeto_auth marker cookie alive
+      if (typeof document !== "undefined") {
+        document.cookie = `villeto_auth=true; path=/; max-age=${Math.floor(expiresInMs / 1000)}`;
+      }
+
+      return accessToken;
+    })
+    .finally(() => {
+      refreshPromise = null;
     });
-    permissionQueue = [];
-};
 
-const processQueue = (error: any, token: string | null = null) => {
-    failedQueue.forEach(prom => {
-        if (error) {
-            prom.reject(error);
-        } else {
-            prom.resolve(token as string);
-        }
-    });
-    failedQueue = [];
-};
+  return refreshPromise;
+}
 
-export function useAxios(): AxiosInstance {
-  const accessToken = useAuthStore((state) => state.accessToken);
-  const router = useRouter();
+function readEmbeddedStatus(data: unknown) {
+  if (!data || typeof data !== "object") return undefined;
+  const payload = data as ApiErrorPayload;
+  return payload.status ?? payload.statusCode ?? payload.data?.statusCode;
+}
 
-  return useMemo(() => {
-    const instance = axios.create({
-      baseURL: BASEURL,
-      withCredentials: true,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Pragma: "no-cache",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-    });
+function readEmbeddedMessage(data: unknown) {
+  if (!data || typeof data !== "object") return "Unauthorized";
+  const payload = data as ApiErrorPayload;
+  const message = payload.message ?? payload.error;
+  return typeof message === "string" ? message : "Unauthorized";
+}
 
-    instance.interceptors.response.use(
-      (response) => {
-        // If the backend returned a 2xx HTTP status but the JSON payload indicates a 401 error
-        const data = response.data;
-        if (data && (data.status === 401 || data.statusCode === 401 || data.data?.statusCode === 401)) {
-           const error: any = new Error(data.message || "Unauthorized");
-           error.response = response;
-           error.config = response.config;
-           error.response.status = 401;
-           return Promise.reject(error);
-        }
-        return response;
-      },
-      async (error) => {
-        const originalRequest = error.config;
+function formatErrorMessage(error: AxiosError<ApiErrorPayload>) {
+  if (isConnectionPoolError(error)) return CONNECTION_POOL_MESSAGE;
+  const rawMessage =
+    error.response?.data?.message ??
+    error.response?.data?.error ??
+    error.message;
 
-        const isOnboardingPath =
-          typeof window !== "undefined" &&
-          window.location.pathname.includes("onboarding");
+  if (Array.isArray(rawMessage)) {
+    return rawMessage
+      .map((message) => {
+        const text = typeof message === "string" ? message : String(message);
+        const parts = text.split(": ");
+        const rawError = parts.length > 1 ? parts[1] : parts[0];
+        const sentence = rawError.charAt(0).toUpperCase() + rawError.slice(1);
+        return sentence.replace(/_/g, " ");
+      })
+      .join(" • ");
+  }
 
-        const isAuthRequest = originalRequest.url?.includes("auth");
+  return typeof rawMessage === "string" ? rawMessage : String(rawMessage);
+}
 
-        if (error.response?.status === 401 && !isAuthRequest && !isOnboardingPath) {
-          if (!originalRequest._retry) {
-            if (isRefreshing) {
-              return new Promise(function(resolve, reject) {
-                  failedQueue.push({ resolve, reject });
-              }).then(token => {
-                  originalRequest.headers.Authorization = `Bearer ${token}`;
-                  return instance(originalRequest);
-              }).catch(err => {
-                  return Promise.reject(err);
-              });
-            }
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const accessToken = useAuthStore.getState().accessToken;
+  if (accessToken) {
+    config.headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+  return config;
+});
 
-            originalRequest._retry = true;
-            isRefreshing = true;
+apiClient.interceptors.response.use(
+  (response) => {
+    if (readEmbeddedStatus(response.data) === 401) {
+      response.status = 401;
+      return Promise.reject(
+        new AxiosError(
+          readEmbeddedMessage(response.data),
+          AxiosError.ERR_BAD_RESPONSE,
+          response.config,
+          response.request,
+          response,
+        ),
+      );
+    }
+    return response;
+  },
+  async (error: unknown) => {
+    if (!axios.isAxiosError<ApiErrorPayload>(error)) {
+      return Promise.reject(error);
+    }
 
-            try {
-              const refreshResponse = await axios.post(
-                `${BASEURL}auth/refresh`,
-                {},
-                { withCredentials: true }
-              );
-              // Store the new token if the backend returns one in the body
-              const newToken =
-                refreshResponse.data?.data?.accessToken ||
-                refreshResponse.data?.accessToken ||
-                null;
-              if (newToken) {
-                useAuthStore.getState().setAccessToken(newToken);
-                originalRequest.headers = {
-                  ...originalRequest.headers,
-                  Authorization: `Bearer ${newToken}`,
-                };
-                // Restart proactive refresh with the new token's lifetime
-                const newExpiresInMs =
-                  refreshResponse.data?.data?.accessTokenExpiresInMs ??
-                  refreshResponse.data?.accessTokenExpiresInMs ??
-                  3600000;
-                scheduleTokenRefresh(newExpiresInMs);
+    const originalRequest = error.config;
+    if (!originalRequest) return Promise.reject(error);
 
-                processQueue(null, newToken);
-              } else {
-                processQueue(new Error("No token returned"), null);
-              }
-              return instance(originalRequest);
-            } catch (refreshError) {
-              processQueue(refreshError, null);
-              useAuthStore.getState().logout();
-              if (
-                typeof window !== "undefined" &&
-                !window.location.pathname.startsWith("/login")
-              ) {
-                window.location.href = "/login";
-              }
-              return Promise.reject(refreshError);
-            } finally {
-              isRefreshing = false;
-            }
-          } else {
-            // We already retried and still got 401, or something else is wrong.
-            useAuthStore.getState().logout();
-            if (
-              typeof window !== "undefined" &&
-              !window.location.pathname.startsWith("/login")
-            ) {
-              window.location.href = "/login";
-            }
-            return Promise.reject(error);
-          }
-        }
+    const isOnboardingPath =
+      typeof window !== "undefined" &&
+      window.location.pathname.includes("onboarding");
+    const isAuthRequest = originalRequest.url?.includes("auth") ?? false;
 
-        if (error.response?.status === 403 && !originalRequest._retry403) {
-            if (isRefreshingPermissions) {
-                return new Promise<void>(function(resolve, reject) {
-                    permissionQueue.push({ resolve, reject });
-                }).then(() => {
-                    return instance(originalRequest);
-                }).catch(err => {
-                    return Promise.reject(err);
-                });
-            }
-
-            originalRequest._retry403 = true;
-            isRefreshingPermissions = true;
-
-            try {
-                const me = await instance.get("/users/me");
-                const responseData = me?.data?.data || me?.data;
-                const { _company, companyId, ...userData } = responseData || {};
-
-                if (userData) {
-                    const store = useAuthStore.getState();
-                    store.login({
-                        ...store.user,
-                        ...userData,
-                        companyId: companyId || userData.companyId || store.user?.companyId,
-                    } as any);
-                }
-
-                useAuthStore.getState().setCompanyPermissions(
-                    getEffectiveCompanyPermissions(responseData),
-                );
-
-                processPermissionQueue(null);
-                return instance(originalRequest);
-            } catch (refreshErr) {
-                processPermissionQueue(refreshErr);
-                return Promise.reject(error);
-            } finally {
-                isRefreshingPermissions = false;
-            }
-        }
-
-        if (
-          error.response?.status !== 401 &&
-          error.response?.status !== 403 &&
-          !originalRequest._skipErrorToast &&
-          !originalRequest.url.includes("account-confirmation") &&
-          !originalRequest.url.includes("onboardings/pre-fetch")
-        ) {
-          let errorMessage =
-            error.response?.data?.message ||
-            error.response?.data?.error ||
-            error.message;
-
-          if (Array.isArray(errorMessage)) {
-             errorMessage = errorMessage.map((msg: any) => {
-                if (typeof msg !== 'string') return String(msg);
-                const parts = msg.split(': ');
-                let rawError = parts.length > 1 ? parts[1] : parts[0];
-                rawError = rawError.charAt(0).toUpperCase() + rawError.slice(1);
-                return rawError.replace(/_/g, ' ');
-            }).join(" • ");
-          }
-
-          if (errorMessage && errorMessage !== "Network Error") {
-            toast.error(String(errorMessage));
-          }
-        }
-
+    if (
+      error.response?.status === 401 &&
+      !isAuthRequest &&
+      !isOnboardingPath
+    ) {
+      if (originalRequest._retry) {
+        useAuthStore.getState().logout();
+        redirectToLogin();
         return Promise.reject(error);
       }
-    );
 
-    return instance;
-  }, [accessToken, router]);
+      originalRequest._retry = true;
+      try {
+        const accessToken = await refreshAccessToken();
+        originalRequest.headers.set("Authorization", `Bearer ${accessToken}`);
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        useAuthStore.getState().logout();
+        redirectToLogin();
+        return Promise.reject(refreshError);
+      }
+    }
+
+    if (error.response?.status === 403) {
+      // Refresh authorization for subsequent UI decisions, but never replay
+      // a denied request because mutations may not be safe to retry.
+      invalidateAuthorization();
+    }
+
+    const requestUrl = originalRequest.url ?? "";
+    const shouldShowToast =
+      error.response?.status !== 401 &&
+      error.response?.status !== 403 &&
+      !originalRequest._skipErrorToast &&
+      !requestUrl.includes("account-confirmation") &&
+      !requestUrl.includes("onboardings/pre-fetch");
+
+    if (shouldShowToast) {
+      const message = formatErrorMessage(error);
+      if (message && message !== "Network Error") toast.error(message);
+    }
+
+    return Promise.reject(error);
+  },
+);
+
+/** Returns the singleton API client; interceptors are installed exactly once. */
+export function useAxios(): AxiosInstance {
+  return apiClient;
 }

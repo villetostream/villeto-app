@@ -4,16 +4,15 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const WIZARD_STEPS = [
-  "Policy Group",
-  "Configure",
-  "Scope",
+  "Details",
+  "Categories",
   "Rules",
   "Review",
 ] as const;
 
 export function Stepper({ currentStep }: { currentStep: number }) {
   return (
-    <div className="flex items-center justify-start gap-1 sm:gap-3 flex-wrap">
+    <div className="flex items-center justify-center gap-1 sm:gap-3 flex-wrap">
       {WIZARD_STEPS.map((label, i) => {
         const stepNum = i + 1;
         const isDone = stepNum < currentStep;

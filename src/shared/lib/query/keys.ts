@@ -59,6 +59,12 @@ export const QUERY_KEYS = {
         categories:        ['procurement', 'categories'] as const,
         policies:          ['procurement', 'policies'] as const,
         policy:            (id: string) => ['procurement', 'policies', id] as const,
+        spendPrograms:     ['procurement', 'spend-programs'] as const,
+        spendProgram:      (id: string) => ['procurement', 'spend-programs', id] as const,
+        spendProgramRuleDefs: (group?: string) => ['procurement', 'spend-programs', 'rule-definitions', group] as const,
+        spendProgramSettings: ['procurement', 'spend-programs', 'settings'] as const,
+        spendProgramCategories: ['procurement', 'spend-programs', 'settings', 'categories'] as const,
+        spendProgramEligibleRoles: ['procurement', 'spend-programs', 'eligible-roles'] as const,
         invoices:          ['procurement', 'invoices'] as const,
     },
 

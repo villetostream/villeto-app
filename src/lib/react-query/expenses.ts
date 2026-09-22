@@ -187,8 +187,10 @@ export interface CompanyExpensesResponse {
 export const usePersonalExpenses = (
   page: number = 1,
   limit: number = 10,
+  status?: string | null,
   sortBy?: string,
-  sortOrder?: "asc" | "desc"
+  sortOrder?: "asc" | "desc",
+  enabled: boolean = true,
 ) => {
   const axios = useAxios();
   const authReady = useAuthStore((state) => !state.isLoading);
@@ -200,11 +202,12 @@ export const usePersonalExpenses = (
   // Returning `error`/`refetch` here lets the caller show a real
   // error state with a retry action instead of a misleading empty one.
   return useQuery({
-    queryKey: [...QUERY_KEYS.expenses.reports("own"), page, limit, sortBy, sortOrder],
-    enabled: authReady && !!accessToken,
+    queryKey: [...QUERY_KEYS.expenses.reports("own"), page, limit, status, sortBy, sortOrder],
+    enabled: enabled && authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("scope", "own");
+      if (status) params.append("status", status);
       params.append("page", page.toString());
       params.append("limit", limit.toString());
       if (sortBy) params.append("sortBy", sortBy);
@@ -237,38 +240,39 @@ export const useDraftExpenses = (
     queryKey: [...QUERY_KEYS.expenses.drafts, page, limit, sortBy, sortOrder],
     enabled: authReady && !!accessToken,
     queryFn: async () => {
+      // Ensure we don't send scope/status to the drafts endpoint if it expects them as path/intrinsic
       const params = new URLSearchParams();
       params.append("page", page.toString());
       params.append("limit", limit.toString());
       if (sortBy) params.append("sortBy", sortBy);
       if (sortOrder) params.append("sortOrder", sortOrder);
 
-      // The draft endpoint wraps the data inside an extra 'data' object
       const response = await axios.get<any>(
         `reports/drafts?${params.toString()}`
       );
       
-      const innerData = response.data?.data || {};
-      const reportsArray = Array.isArray(innerData.data) ? innerData.data : [];
+      const topLevelData = response.data?.data || {};
+      const reportsArray = Array.isArray(topLevelData.data) ? topLevelData.data : (Array.isArray(topLevelData) ? topLevelData : []);
+      const meta = topLevelData.meta || response.data?.meta;
       
       // Map draft fields to match PersonalExpenseReport structure
       const reports = reportsArray.map((r: any) => {
-        const totalAmount = Array.isArray(r.expensesPayload)
+        const totalAmount = r.totalAmount ?? (Array.isArray(r.expensesPayload)
           ? r.expensesPayload.reduce((sum: number, exp: any) => sum + (Number(exp.amount) || 0), 0)
-          : 0;
+          : 0);
 
         return {
           ...r,
           status: "draft" as const,
-          reportId: r.draftId, // Map draftId to reportId so the Edit link works
+          reportId: r.reportId || r.draftId, // Map draftId to reportId so the Edit link works
           totalAmount: totalAmount,
-          costCenter: "Uncategorized", // Drafts don't have a cost center yet
+          costCenter: r.costCenter || "Uncategorized", 
         };
       });
       
       return {
         reports,
-        meta: innerData.meta,
+        meta: meta,
       } as PersonalExpensesResponse;
     },
     staleTime: STALE_TIMES.NORMAL,

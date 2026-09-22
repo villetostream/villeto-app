@@ -12,6 +12,7 @@ import {
   Sheet, SheetContent, SheetTitle,
 } from "@/components/ui/sheet";
 import { asRecord, getBoolean, isRecord, asArray, pickOptionalString, pickString } from "@/lib/types/api-error";
+import { logger } from "@/lib/logger";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -207,7 +208,7 @@ export default function InboxPage() {
         catch { return n; }
       })).then(setNotifications);
     } catch (err) {
-      console.error("[Inbox] fetchAll error:", err);
+      logger.error("[Inbox] fetchAll error:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -243,7 +244,7 @@ export default function InboxPage() {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
-          console.log("[SSE Raw Text Received (Inbox)]:", chunk);
+          logger.log("[SSE Raw Text Received (Inbox)]:", chunk);
           buffer += chunk;
           
           const blocks = buffer.split("\n\n");
@@ -257,7 +258,7 @@ export default function InboxPage() {
             if (!eventData || eventData === ":") continue;
             try {
               const parsed = JSON.parse(eventData);
-              console.log("[SSE Raw Payload (Inbox Page)]:", parsed);
+              logger.log("[SSE Raw Payload (Inbox Page)]:", parsed);
               const incoming = normalise(asRecord(parsed));
               const msg = incoming.message ?? "";
               const resolvedMessage = msg.match(UUID_RE)
@@ -273,7 +274,7 @@ export default function InboxPage() {
           }
         }
       } catch (err: unknown) {
-        if (!(isRecord(err) && err.name === "AbortError")) console.error("[Inbox] SSE error:", err);
+        if (!(isRecord(err) && err.name === "AbortError")) logger.error("[Inbox] SSE error:", err);
       }
     })();
     return () => controller.abort();

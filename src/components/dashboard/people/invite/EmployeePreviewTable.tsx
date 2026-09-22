@@ -49,6 +49,7 @@ export interface EmployeeData {
     employment_type: string;
     status: string;
     effective_date: string;
+    legal_entity_code: string;
     // Legacy compat
     manager_id?: string;
     role_name?: string;
@@ -77,6 +78,7 @@ const COLUMNS: ColumnDef[] = [
     { key: "employment_type",       label: "Employment Type",     required: false, minW: "150px" },
     { key: "status",                label: "Status",              required: false, minW: "100px" },
     { key: "effective_date",        label: "Effective Date",      required: false, minW: "130px" },
+    { key: "legal_entity_code",     label: "Legal Entity",        required: false, minW: "140px" },
 ];
 
 interface EmployeePreviewTableProps {

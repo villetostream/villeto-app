@@ -3,106 +3,109 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import { Stepper } from "./Stepper";
-import { StepPolicyGroup } from "./steps/StepPolicyGroup";
-import { StepConfigure } from "./steps/StepConfigure";
-import { StepScope } from "./steps/StepScope";
+import { StepDetails } from "./steps/StepConfigure";
+import { StepCategories } from "./steps/StepCategories";
 import { StepRules } from "./steps/StepRules";
 import { StepReview } from "./steps/StepReview";
-import { emptyDraft } from "./types";
-import type { PolicyDraft } from "./types";
-import { useCreateProcurementPolicy, useUpdateProcurementPolicy, useCreateProcurementPolicyDraft, useUpdateProcurementPolicyDraft, useGetProcurementPolicyById, useGetProcurementPolicyDraftById } from "@/queries/procurement/policies";
-import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
+import { emptySpendProgramDraft } from "./types";
+import type { SpendProgramDraft } from "./types";
+import { SPEND_PROGRAM_GROUPS } from "./constants";
+import { 
+  useCreateSpendProgram, 
+  useUpdateSpendProgram, 
+  useCreateSpendProgramDraft, 
+  useUpdateSpendProgramDraft, 
+  useGetSpendProgramById, 
+  useGetSpendProgramDraftById,
+  useGetSpendProgramSettings,
+  mapSpendProgramFromBackend
+} from "@/queries/procurement/policies";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 
 export function ProcurementPolicyWizard({
-  policyId,
+  programId,
   initialDraftId,
   initialStep = 1,
   onCancel,
   onComplete,
 }: {
-  policyId?: string | null;
+  programId?: string | null;
   initialDraftId?: string | null;
   initialStep?: number;
   onCancel: () => void;
   onComplete: () => void;
 }) {
   const [step, setStep] = useState(initialStep);
-  const [draft, setDraft] = useState<PolicyDraft>(emptyDraft());
+  const [draft, setDraft] = useState<SpendProgramDraft>(emptySpendProgramDraft());
   const { setBackHandler, clearBackHandler } = useHeaderBackStore();
   const stepRef = useRef(step);
-  const createPolicy = useCreateProcurementPolicy();
-  const updatePolicy = useUpdateProcurementPolicy(policyId || "");
-  const createDraft = useCreateProcurementPolicyDraft();
-  const updateDraft = useUpdateProcurementPolicyDraft();
+  
+  const createProgram = useCreateSpendProgram();
+  const updateProgram = useUpdateSpendProgram(programId || "");
+  const createDraft = useCreateSpendProgramDraft();
+  const updateDraft = useUpdateSpendProgramDraft();
 
-  const { data: activeData, isLoading: isActiveLoading } = useGetProcurementPolicyById(policyId || "", {
-    enabled: !!policyId,
+  const { data: activeData, isLoading: isActiveLoading } = useGetSpendProgramById(programId || "", {
+    enabled: !!programId,
   });
-  const { data: draftData, isLoading: isDraftLoading } = useGetProcurementPolicyDraftById(initialDraftId || "", {
+  const { data: draftData, isLoading: isDraftLoading } = useGetSpendProgramDraftById(initialDraftId || "", {
     enabled: !!initialDraftId,
   });
+  const { data: settingsData, isLoading: isSettingsLoading } = useGetSpendProgramSettings();
 
-  const isLoading = isActiveLoading || isDraftLoading;
+  // Derive which stages are active from governance settings (default all if not yet loaded)
+  const activeStages: string[] = settingsData?.data?.enabledGroups ?? settingsData?.data?.activeStages ?? ["pr_submission", "pr_to_po", "po_submission"];
+
+  const isLoading = isActiveLoading || isDraftLoading || isSettingsLoading;
 
   useEffect(() => {
-    const data = policyId ? activeData?.data : (initialDraftId ? draftData?.data : null);
+    const data = programId ? activeData?.data : (initialDraftId ? draftData?.data : null);
     if (data) {
+      const mapped = mapSpendProgramFromBackend(data);
+      const isEditingActive = !!programId && !initialDraftId;
       setDraft({
-        policyGroup: data.policyGroup as any || null,
-        name: data.name || "",
-        description: data.description || "",
-        scopeType: (data.scopeType as "company" | "specific") || "company",
-        categoryIds: data.categories?.map((c) => c.id || c.categoryId) || [],
-        departmentIds: (data.departments || data.applicableDepartments)?.map((d) => d.id || d.departmentId) || [],
-        roleIds: data.applicableRoles?.map((r) => r.id || r.roleId) || [],
-        jobGradeIds: data.jobGrades?.map((jg) => jg.id || jg.jobGradeId) || [],
-        managementLevelIds: data.managementLevels?.map((ml) => ml.id || ml.managementLevelId) || [],
-        vendorIds: data.vendors?.map((v) => v.id || v.vendorId) || [],
-        exceptions: { department: [], role: [], location: [], user: [], jobGrade: [], managementLevel: [] },
-        rules: (data.rules || []).map((r, i): any => ({
-          id: `rule-${Date.now()}-${i}`,
-          criteriaLabel: r.criteria || "",
-          condition: r.condition || "",
-          enforcementAction: r.enforcementAction || "",
-          amount: r.amount,
-          currency: r.currency,
-          timeUnit: r.timeUnit as any,
-          minimumQuotes: r.minimumQuotes,
-          maxCount: r.maxCount,
-          allowedVendorIds: r.allowedVendorIds,
-          allowedRoleIds: r.allowedRoleIds,
-          allowedPositions: r.allowedPositions,
-          requiredAttachmentTypes: r.requiredAttachmentTypes,
-        })),
-        requiresApproval: !!data.requiresApproval,
-        approvalMode: (data.approvalMode as "none" | "sequential" | "parallel") || "none",
-        approverIds: data.approvers?.map((a) => a.id || a.userId) || [],
-        effectiveAt: data.effectiveAt || "",
-        expiresAt: data.expiresAt || "",
-        priority: data.priority ?? 100,
+        name: isEditingActive ? (mapped.name ? `${mapped.name} (Copy)` : "") : (mapped.name || ""),
+        description: mapped.description || "",
+        categoryIds: mapped.categoryIds || [],
+        groups: mapped.groups || activeStages.map(s => ({ group: s as any, rules: [] })),
         draftId: initialDraftId || undefined,
-        procurementPolicyId: policyId || undefined,
+        programId: programId || undefined,
+      });
+    } else if (!programId && !initialDraftId) {
+      // Fresh create — always reset to a completely empty draft
+      setDraft({
+        name: "",
+        description: "",
+        categoryIds: [],
+        draftId: undefined,
+        programId: undefined,
+        groups: activeStages.length > 0
+          ? activeStages.map(s => ({ group: s as any, rules: [] }))
+          : SPEND_PROGRAM_GROUPS.map(g => ({ group: g.value, rules: [] })),
       });
     }
-  }, [activeData?.data, draftData?.data, policyId, initialDraftId]);
+  }, [activeData?.data, draftData?.data, programId, initialDraftId, activeStages.join(',')]);
+  // NOTE: activeStages.join(',') used instead of full array/settingsData to avoid
+  // triggering re-render on every settings refetch while still reacting to stage changes
 
   useEffect(() => { stepRef.current = step; }, [step]);
 
   useEffect(() => {
     setBackHandler(() => {
-      if (stepRef.current <= 1) { onCancel(); return; }
+      // Smart back: if step > 1 go back a step, otherwise leave the wizard
+      if (stepRef.current <= 1) { 
+        onCancel(); 
+        return; 
+      }
       setStep((s) => Math.max(1, s - 1));
     });
     return () => clearBackHandler();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [onCancel, setBackHandler, clearBackHandler]);
 
-  const patch = (p: Partial<PolicyDraft>) => setDraft((d) => ({ ...d, ...p }));
+  const patch = (p: Partial<SpendProgramDraft>) => setDraft((d) => ({ ...d, ...p }));
 
   const goBack = () => {
     if (step <= 1) { onCancel(); return; }
@@ -111,24 +114,17 @@ export function ProcurementPolicyWizard({
 
   const canContinue = (): boolean => {
     switch (step) {
-      case 1: return draft.policyGroup !== null;
-      case 2: return draft.name.trim().length >= 3;
-      case 3: return true; // scope is always valid
-      case 4:
-        return (
-          draft.rules.length > 0 &&
-          draft.rules.every((r) => r.condition !== "" && r.enforcementAction !== "")
-        );
-      case 5: return true;
+      case 1: return draft.name.trim().length >= 3;
+      case 2: return true; // Can continue with 0 categories (will prompt warning maybe later)
+      case 3: return true; // Rules are optional
+      case 4: return true;
       default: return true;
     }
   };
 
   const validationMessage = (): string => {
     switch (step) {
-      case 1: return "Please select a policy group to continue.";
-      case 2: return draft.name.trim().length === 0 ? "Please enter a policy name before continuing." : "Policy name must be at least 3 characters long.";
-      case 4: return draft.rules.length === 0 ? "You must add at least one rule to continue." : "Each rule must have a condition and enforcement action selected.";
+      case 1: return draft.name.trim().length === 0 ? "Please enter a program name." : "Name must be at least 3 characters.";
       default: return "";
     }
   };
@@ -142,18 +138,18 @@ export function ProcurementPolicyWizard({
     if (step >= TOTAL_STEPS) {
       // Submit to backend
       try {
-        if (policyId) {
-          await updatePolicy.mutateAsync(draft);
-          toast.success("Procurement policy updated successfully.");
+        if (programId) {
+          await updateProgram.mutateAsync(draft);
+          toast.success("Spend program updated successfully.");
         } else {
-          await createPolicy.mutateAsync(draft);
-          toast.success("Procurement policy created successfully.");
+          await createProgram.mutateAsync(draft);
+          toast.success("Spend program created successfully.");
         }
         onComplete();
       } catch (err: unknown) {
         const message =
           (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          "Failed to save policy. Please try again.";
+          "Failed to save spend program. Please try again.";
         toast.error(message);
       }
       return;
@@ -177,7 +173,7 @@ export function ProcurementPolicyWizard({
         }
       }
       toast.success("Draft saved successfully.");
-      onComplete(); // Assuming we return to the main policies page after saving
+      onComplete();
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -198,62 +194,44 @@ export function ProcurementPolicyWizard({
     <div className="flex-1 flex flex-col min-h-0 relative">
       {/* Stepper */}
       <div className="shrink-0 z-40 bg-white">
-        <div className="max-w-5xl w-full mx-auto px-6 pt-8 pb-4">
+        <div className="max-w-[1100px] w-full mx-auto px-6 pt-8 pb-4">
           <Stepper currentStep={step} />
         </div>
       </div>
 
       {/* Step content */}
-      <div className="flex-1 overflow-y-auto px-6 py-8">
-        <div className="max-w-5xl w-full mx-auto pb-4">
+      <div className="flex-1 overflow-y-auto px-6 pb-8">
+        <div className="max-w-[1100px] w-full mx-auto pb-4">
           {step === 1 && (
-            <StepPolicyGroup
-              value={draft.policyGroup}
-              onChange={(policyGroup) => patch({ policyGroup })}
+            <StepDetails
+              name={draft.name}
+              description={draft.description}
+              onChange={patch}
             />
           )}
           {step === 2 && (
-            <StepConfigure
-              name={draft.name}
-              description={draft.description}
-              effectiveAt={draft.effectiveAt}
-              expiresAt={draft.expiresAt}
-              priority={draft.priority}
-              requiresApproval={draft.requiresApproval}
-              approvalMode={draft.approvalMode}
+            <StepCategories
+              categoryIds={draft.categoryIds}
               onChange={patch}
             />
           )}
           {step === 3 && (
-            <StepScope
-              scopeType={draft.scopeType}
-              categoryIds={draft.categoryIds}
-              departmentIds={draft.departmentIds}
-              roleIds={draft.roleIds}
-              jobGradeIds={draft.jobGradeIds}
-              managementLevelIds={draft.managementLevelIds}
-              vendorIds={draft.vendorIds}
-              exceptions={draft.exceptions}
-              onChange={patch}
-            />
-          )}
-          {step === 4 && (
             <StepRules
-              rules={draft.rules}
-              policyGroup={draft.policyGroup}
-              onChange={(rules) => patch({ rules })}
+              draft={draft}
+              onChange={patch}
+              activeStages={activeStages}
             />
           )}
-          {step === 5 && <StepReview draft={draft} />}
+          {step === 4 && <StepReview draft={draft} />}
         </div>
       </div>
 
       {/* Footer navigation */}
       <div className="shrink-0 z-10 w-full bg-white">
-        <div className="max-w-5xl w-full mx-auto px-6 py-5 border-t border-black/[0.06] flex items-center justify-between">
+        <div className="max-w-[1100px] w-full mx-auto px-6 py-5 border-t border-black/[0.06] flex items-center justify-between">
           <button
             onClick={goBack}
-            disabled={createPolicy.isPending}
+            disabled={createProgram.isPending}
             className="h-11 px-7 rounded-[14px] border border-black/[0.06] bg-white text-[#0b100e] hover:bg-[#f9faf9] font-semibold text-sm transition-colors disabled:opacity-50"
           >
             Back
@@ -262,7 +240,7 @@ export function ProcurementPolicyWizard({
           <div className="flex items-center gap-3">
             <button
               onClick={saveDraft}
-              disabled={createPolicy.isPending || createDraft.isPending || updateDraft.isPending}
+              disabled={createProgram.isPending || createDraft.isPending || updateDraft.isPending}
               className="h-11 px-7 rounded-[14px] border border-black/[0.06] bg-white text-[#0b100e] hover:bg-[#f9faf9] font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {(createDraft.isPending || updateDraft.isPending) ? (
@@ -278,16 +256,16 @@ export function ProcurementPolicyWizard({
             </button>
             <button
               onClick={goNext}
-              disabled={!canContinue() || createPolicy.isPending || updatePolicy.isPending || createDraft.isPending || updateDraft.isPending}
+              disabled={!canContinue() || createProgram.isPending || updateProgram.isPending || createDraft.isPending || updateDraft.isPending}
               className="h-11 px-7 min-w-[140px] rounded-[14px] bg-[#087f70] text-white hover:opacity-90 font-semibold text-sm transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
             >
-              {(createPolicy.isPending || updatePolicy.isPending) ? (
+              {(createProgram.isPending || updateProgram.isPending) ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Saving…
                 </>
               ) : step === TOTAL_STEPS ? (
-                "Create Policy"
+                "Create Program"
               ) : (
                 "Continue"
               )}

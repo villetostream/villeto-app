@@ -3,7 +3,7 @@ import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
-import type { PolicyDraft } from "@/components/policies/procurement/types";
+import type { SpendProgramDraft, SpendProgramGroup, RuleDefinition } from "@/components/policies/procurement/types";
 
 // ─── Response shapes ──────────────────────────────────────────────────────────
 
@@ -100,210 +100,483 @@ async function fetchAllProcurementPoliciesLoop(axios: any, url: string, page: nu
   };
 }
 
-/** Fetch paginated list of procurement policies */
-export const useGetProcurementPolicies = (
-  page = 1,
-  limit = 20,
-  options?: Omit<UseQueryOptions<PoliciesListResponse, Error>, "queryKey" | "queryFn">
-) => {
+
+
+// ─── Spend Programs V1 Hooks ─────────────────────────────────────────────────
+
+export interface SpendProgramSettings {
+  enabled: boolean;
+  coverageMode: "none" | "all_categories" | "specific_categories";
+  categoryIds?: string[];
+  categories?: string[]; // Fallback
+  approvalRequired: boolean;
+  allRolesCanApprove?: boolean;
+  approverRoleIds?: string[];
+  enabledGroups?: string[];
+  activeStages?: string[]; // Fallback
+}
+
+export const useGetSpendProgramRuleDefinitions = (group?: SpendProgramGroup) => {
   const axios = useAxios();
-  return useQuery<PoliciesListResponse, Error>({
-    queryKey: [...QUERY_KEYS.procurement.policies, { page, limit }],
+  return useQuery<{ data: RuleDefinition[] }, Error>({
+    queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(group),
     queryFn: async () => {
-      return fetchAllProcurementPoliciesLoop(axios, PROCUREMENT_KEYS.PROCUREMENT_POLICIES, page, limit);
+      const url = group 
+        ? `${PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS}?group=${group}&includeInactive=false`
+        : `${PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS}?includeInactive=false`;
+      const res = await axios.get(url);
+      return res.data;
+    },
+    staleTime: STALE_TIMES.SLOW,
+  });
+};
+
+export interface UpdateRuleDefinitionPayload {
+  ruleType: string;
+  name: string;
+  description: string;
+  groups: string[];
+  allowedActions: string[];
+  conditionSchema: Record<string, any>;
+  actionSchema: Record<string, any>;
+  isActive: boolean;
+}
+
+export const useUpdateSpendProgramRuleDefinition = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: UpdateRuleDefinitionPayload) => {
+      const res = await axios.put(PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS, payload);
+      return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(), refetchType: "all" });
+    },
+  });
+};
+
+export const useDeleteSpendProgramRuleDefinition = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ruleType: string) => {
+      const res = await axios.delete(PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITION_DELETE(ruleType));
+      return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(), refetchType: "all" });
+    },
+  });
+};
+
+export const useSeedDefaultRuleDefinitions = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await axios.post(PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS_SEED);
+      return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(), refetchType: "all" });
+    },
+  });
+};
+
+export const useGetSpendProgramSettings = (options?: { enabled?: boolean }) => {
+  const axios = useAxios();
+  return useQuery<{ data: SpendProgramSettings }, Error>({
+    queryKey: QUERY_KEYS.procurement.spendProgramSettings,
+    queryFn: async () => {
+      const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS);
+      return res.data;
     },
     staleTime: STALE_TIMES.NORMAL,
-    retry: 1, // Don't retry 3 times if the endpoint doesn't exist yet, to avoid long loading states
+    refetchInterval: 15000, // actively check every 15s in case another user changes settings
+    enabled: options?.enabled ?? true,
+  });
+};
+
+export const useUpdateSpendProgramSettings = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings: Partial<SpendProgramSettings>) => {
+      const res = await axios.put(PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS, settings);
+      return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramSettings, refetchType: "all" });
+    },
+  });
+};
+
+export interface SpendProgramSettingsCategory {
+  categoryId: string;
+  name: string;
+  inSettings: boolean;
+  settingStatus: "included" | "not_in_settings" | "included_by_all_categories";
+  hasSpendProgram: boolean;
+}
+
+export const useGetSpendProgramSettingsCategories = (inSettings?: boolean) => {
+  const axios = useAxios();
+  return useQuery<{ data: { enabled: boolean; coverageMode: string; categories: SpendProgramSettingsCategory[] } }, Error>({
+    queryKey: [...QUERY_KEYS.procurement.spendProgramCategories, { inSettings }],
+    queryFn: async () => {
+      const url = inSettings !== undefined 
+        ? `${PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS_CATEGORIES}?inSettings=${inSettings}`
+        : PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS_CATEGORIES;
+      const res = await axios.get(url);
+      return res.data;
+    },
+    staleTime: STALE_TIMES.NORMAL,
+  });
+};
+
+export const useGetSpendProgramEligibleRoles = () => {
+  const axios = useAxios();
+  return useQuery<{ data: any[] }, Error>({
+    queryKey: QUERY_KEYS.procurement.spendProgramEligibleRoles,
+    queryFn: async () => {
+      const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM_ELIGIBLE_ROLES);
+      return res.data;
+    },
+    staleTime: STALE_TIMES.SLOW,
+  });
+};
+
+// ─── Transformation Helpers ──────────────────────────────────────────────────
+
+function transformConditionConfigToBackend(config: any) {
+  if (!config) return {};
+  const res = { ...config };
+  
+  if (res.amounts && Object.keys(res.amounts).length > 0) {
+    res.amountThresholds = Object.entries(res.amounts).map(([currency, amount]) => ({
+      currency,
+      amount: Number(amount)
+    }));
+    delete res.amounts;
+    delete res.amount;
+    delete res.currency;
+  } else if (res.amount !== undefined && res.currency) {
+    res.amountThresholds = [{ currency: res.currency, amount: Number(res.amount) }];
+    delete res.amount;
+    delete res.currency;
+  }
+  
+  return res;
+}
+
+function transformConditionConfigFromBackend(config: any) {
+  if (!config) return {};
+  const res = { ...config };
+  
+  if (res.amountThresholds && Array.isArray(res.amountThresholds)) {
+    if (res.amountThresholds.length === 1) {
+      res.amount = res.amountThresholds[0].amount;
+      res.currency = res.amountThresholds[0].currency;
+    } else if (res.amountThresholds.length > 1) {
+      res.amounts = res.amountThresholds.reduce((acc: Record<string, number>, curr: any) => {
+        acc[curr.currency] = curr.amount;
+        return acc;
+      }, {});
+      // For fallback UI consistency in single-currency view modes
+      res.amount = res.amountThresholds[0].amount;
+      res.currency = res.amountThresholds[0].currency;
+    }
+    delete res.amountThresholds;
+  }
+  
+  return res;
+}
+
+// ─── Spend Program Payload builder ───────────────────────────────────────────
+
+export function buildSpendProgramPayload(draft: SpendProgramDraft, isUpdate: boolean = false) {
+  return {
+    draftId: draft.draftId,
+    name: draft.name.trim(),
+    description: draft.description.trim() || undefined,
+    categoryIds: draft.categoryIds,
+    groups: draft.groups
+      .filter(g => g.rules.length > 0)
+      .map(g => ({
+        group: g.group,
+        rules: g.rules.map((r, idx) => ({
+          procurementSpendProgramRuleId: r.procurementSpendProgramRuleId || (r.id && !r.id.startsWith("rule-") ? r.id : undefined),
+          ruleDefinitionId: r.ruleDefinitionId,
+          ruleType: r.ruleType,
+          appliesToCategoryIds: r.appliesToAll ? draft.categoryIds : (r.appliesToCategoryIds || []),
+          legalEntityIds: r.legalEntityIds || [],
+          conditionConfig: transformConditionConfigToBackend(r.conditionConfig),
+          action: r.action,
+          actionConfig: r.actionConfig,
+          exceptionConfig: r.exceptionConfig ? {
+            departmentIds: r.exceptionConfig.departmentIds || [],
+            roleIds: r.exceptionConfig.roleIds || [],
+            jobGradeIds: r.exceptionConfig.jobGradeIds || [],
+            managementLevelIds: r.exceptionConfig.managementLevelIds || [],
+            userIds: r.exceptionConfig.userIds || [],
+            exceptionRule: {
+              conditionConfig: transformConditionConfigToBackend(r.exceptionConfig.conditionConfig),
+              action: r.exceptionConfig.action || "allow",
+              actionConfig: r.exceptionConfig.actionConfig || {},
+            }
+          } : undefined,
+          sortOrder: idx,
+          isActive: r.isActive ?? true,
+        })),
+        ...(isUpdate ? { isActive: g.isActive ?? true } : {}),
+      })),
+  };
+}
+
+export function mapSpendProgramFromBackend(data: any): SpendProgramDraft {
+  if (!data) return data;
+  return {
+    ...data,
+    groups: (data.groups || []).map((g: any) => ({
+      ...g,
+      rules: (g.rules || []).map((r: any, idx: number) => {
+        // Flatten exceptionRule into exceptionConfig for the UI
+        let exceptionConfig = r.exceptionConfig;
+        if (exceptionConfig && exceptionConfig.exceptionRule) {
+          exceptionConfig = {
+            ...exceptionConfig,
+            conditionConfig: transformConditionConfigFromBackend(exceptionConfig.exceptionRule.conditionConfig),
+            action: exceptionConfig.exceptionRule.action || "",
+            actionConfig: exceptionConfig.exceptionRule.actionConfig || {},
+          };
+          delete exceptionConfig.exceptionRule;
+        }
+
+        return {
+          ...r,
+          id: r.procurementSpendProgramRuleId || `rule-${Date.now()}-${idx}`,
+          procurementSpendProgramRuleId: r.procurementSpendProgramRuleId,
+          conditionConfig: transformConditionConfigFromBackend(r.conditionConfig),
+          exceptionConfig: exceptionConfig || {
+            departmentIds: [],
+            roleIds: [],
+            jobGradeIds: [],
+            managementLevelIds: [],
+            userIds: [],
+            logic: "OR",
+            conditionConfig: {},
+            action: "",
+            actionConfig: {},
+          },
+        };
+      }),
+    })),
+  };
+}
+
+// ─── Spend Programs CRUD Hooks ───────────────────────────────────────────────
+
+export const useGetSpendPrograms = (
+  page = 1,
+  limit = 20,
+  group?: string,
+  status?: string,
+  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">
+) => {
+  const axios = useAxios();
+  return useQuery<any, Error>({
+    queryKey: [...QUERY_KEYS.procurement.spendPrograms, { page, limit, group, status }],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+      if (group) params.append("group", group);
+      if (status) params.append("status", status);
+      
+      const res = await axios.get(`${PROCUREMENT_KEYS.SPEND_PROGRAMS}?${params.toString()}`);
+      return res.data;
+    },
+    staleTime: STALE_TIMES.NORMAL,
+    retry: 1,
     ...options,
   });
 };
 
-/** Fetch a single procurement policy by ID */
-export const useGetProcurementPolicyById = (
+export const useGetSpendProgramById = (
   id: string,
-  options?: Omit<UseQueryOptions<PolicyDetailResponse, Error>, "queryKey" | "queryFn">
+  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">
 ) => {
   const axios = useAxios();
-  return useQuery<PolicyDetailResponse, Error>({
-    queryKey: QUERY_KEYS.procurement.policy(id),
+  return useQuery<any, Error>({
+    queryKey: QUERY_KEYS.procurement.spendProgram(id),
     queryFn: async () => {
-      const res = await axios.get(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id));
+      const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM(id));
       return res.data;
     },
     enabled: !!id,
     staleTime: STALE_TIMES.NORMAL,
+    retry: (failureCount, error: any) => {
+      if (error?.response?.status === 404) return false;
+      return failureCount < 2;
+    },
     ...options,
   });
 };
 
-/** Create a new procurement policy */
-export const useCreateProcurementPolicy = () => {
+export const useCreateSpendProgram = () => {
   const axios = useAxios();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (draft: PolicyDraft) => {
-      const res = await axios.post(PROCUREMENT_KEYS.PROCUREMENT_POLICIES, buildPayload(draft));
+    mutationFn: async (draft: SpendProgramDraft) => {
+      const payload = buildSpendProgramPayload(draft);
+      delete payload.draftId;
+      const res = await axios.post(PROCUREMENT_KEYS.SPEND_PROGRAMS, payload);
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
     },
   });
 };
 
-/** Update an existing procurement policy */
-export const useUpdateProcurementPolicy = (id: string) => {
+export const useUpdateSpendProgram = (id: string) => {
   const axios = useAxios();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (draft: PolicyDraft) => {
-      const payload = buildPayload(draft);
-      delete payload.draftId; // Ensure draftId is not sent when updating an active policy
-      delete payload.procurementPolicyId; // procurementPolicyId is in the URL, should not be in body
-      const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id), payload);
+    mutationFn: async (draft: SpendProgramDraft) => {
+      const payload = buildSpendProgramPayload(draft, true);
+      delete payload.draftId;
+      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM(id), payload);
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policy(id), refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgram(id), refetchType: "all" });
     },
   });
 };
 
-// ─── Draft hooks ─────────────────────────────────────────────────────────────
-
-export const useGetProcurementPolicyDraftById = (
-  draftId: string,
-  options?: Omit<UseQueryOptions<PolicyDetailResponse, Error>, "queryKey" | "queryFn">
-) => {
-  const axios = useAxios();
-  return useQuery<PolicyDetailResponse, Error>({
-    queryKey: [...QUERY_KEYS.procurement.policy(draftId), "draft"],
-    queryFn: async () => {
-      const res = await axios.get(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId));
-      return res.data;
-    },
-    enabled: !!draftId,
-    staleTime: STALE_TIMES.NORMAL,
-    ...options,
-  });
-};
-
-export const useCreateProcurementPolicyDraft = () => {
-  const axios = useAxios();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (draft: PolicyDraft) => {
-      const res = await axios.post(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFTS, buildPayload(draft));
-      return res.data;
-    },
-    onSuccess: () => {
-      // invalidate drafts query if exists
-    },
-  });
-};
-
-export const useUpdateProcurementPolicyDraft = () => {
-  const axios = useAxios();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ draftId, payload }: { draftId: string; payload: PolicyDraft }) => {
-      const p = buildPayload(payload);
-      p.draftId = draftId; // Ensure draftId is sent
-      const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId), p);
-      return res.data;
-    },
-    onSuccess: () => {
-      // invalidate drafts query if exists
-    },
-  });
-};
-
-export const useDeleteProcurementPolicyDraft = () => {
-  const axios = useAxios();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (draftId: string) => {
-      const res = await axios.delete(PROCUREMENT_KEYS.PROCUREMENT_POLICY_DRAFT_BY_ID(draftId));
-      return res.data;
-    },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
-    },
-  });
-};
-
-/** Delete a procurement policy */
-export const useDeleteProcurementPolicy = () => {
+export const useDeleteSpendProgram = () => {
   const axios = useAxios();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await axios.delete(PROCUREMENT_KEYS.PROCUREMENT_POLICY(id));
+      const res = await axios.delete(PROCUREMENT_KEYS.SPEND_PROGRAM(id));
       return res.data;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
+    onSuccess: async (_, id) => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      qc.removeQueries({ queryKey: QUERY_KEYS.procurement.spendProgram(id) });
     },
   });
 };
 
-/** Approve or reject a procurement policy */
-export const useProcurementPolicyAction = () => {
+export const useApproveSpendProgram = () => {
   const axios = useAxios();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" }) => {
-      const res = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY_ACTION(id, action));
+    mutationFn: async (id: string) => {
+      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_ACTION(id, "approve"));
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
     },
   });
 };
 
-// ─── Payload builder ─────────────────────────────────────────────────────────
-
-function buildPayload(draft: PolicyDraft) {
-  return {
-    draftId: draft.draftId,
-    procurementPolicyId: draft.procurementPolicyId,
-    name: draft.name.trim(),
-    description: draft.description.trim() || undefined,
-    policyGroup: draft.policyGroup,
-    scopeType: draft.scopeType,
-    scopeConfig: {},
-    rules: draft.rules.map((r) => {
-      const rule: Record<string, unknown> = {
-        criteria: r.criteriaLabel,
-        condition: r.condition,
-        enforcementAction: r.enforcementAction,
-      };
-      if (r.amount !== undefined) rule.amount = r.amount;
-      if (r.currency) rule.currency = r.currency;
-      if (r.minimumQuotes !== undefined) rule.minimumQuotes = r.minimumQuotes;
-      if (r.maxCount !== undefined) rule.maxCount = r.maxCount;
-      if (r.timeUnit) rule.timeUnit = r.timeUnit;
-      if (r.allowedVendorIds?.length) rule.allowedVendorIds = r.allowedVendorIds;
-      if (r.allowedRoleIds?.length) rule.allowedRoleIds = r.allowedRoleIds;
-      if (r.requiredAttachmentTypes?.length) rule.requiredAttachmentTypes = r.requiredAttachmentTypes;
-      return rule;
-    }),
-    overridePermissions: {},
-    exceptionConfig: {
-      userIds: draft.exceptions.user ?? [],
-      departmentIds: draft.exceptions.department ?? [],
-      jobGradeIds: draft.exceptions.jobGrade ?? [],
-      managementLevelIds: draft.exceptions.managementLevel ?? [],
+export const useRejectSpendProgram = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_ACTION(id, "reject"));
+      return res.data;
     },
-    effectiveAt: draft.effectiveAt || undefined,
-    expiresAt: draft.expiresAt || undefined,
-    priority: draft.priority ?? 100,
-    categoryIds: draft.categoryIds,
-    departmentIds: draft.departmentIds,
-    jobGradeIds: draft.jobGradeIds,
-    managementLevelIds: draft.managementLevelIds,
-    vendorIds: draft.vendorIds,
-  };
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+    },
+  });
+};
+
+export const useGetSpendProgramDraftById = (
+  draftId: string,
+  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">
+) => {
+  const axios = useAxios();
+  return useQuery<any, Error>({
+    queryKey: [...QUERY_KEYS.procurement.spendProgram(draftId), "draft"],
+    queryFn: async () => {
+      const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM(draftId));
+      return res.data;
+    },
+    enabled: !!draftId,
+    staleTime: STALE_TIMES.NORMAL,
+    retry: (failureCount, error: any) => {
+      if (error?.response?.status === 404) return false;
+      return failureCount < 2;
+    },
+    ...options,
+  });
+};
+
+export const useCreateSpendProgramDraft = () => {
+  const axios = useAxios();
+  return useMutation({
+    mutationFn: async (draft: SpendProgramDraft) => {
+      const res = await axios.post(PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFTS, buildSpendProgramPayload(draft));
+      return res.data;
+    },
+  });
+};
+
+export const useUpdateSpendProgramDraft = () => {
+  const axios = useAxios();
+  return useMutation({
+    mutationFn: async ({ draftId, payload }: { draftId: string; payload: SpendProgramDraft }) => {
+      const p = buildSpendProgramPayload(payload, true);
+      p.draftId = draftId;
+      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFT(draftId), p);
+      return res.data;
+    },
+  });
+};
+
+// ─── Toggle rule-definition active status ─────────────────────────────────────
+
+export interface ToggleRuleStatusPayload {
+  ruleDefinitionId: string;
+  ruleType: string;
+  isActive: boolean;
 }
+
+export const useToggleSpendProgramRuleStatus = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (rules: ToggleRuleStatusPayload[]) => {
+      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS_STATUS, { rules });
+      return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+    },
+  });
+};
+
+export const useDeleteSpendProgramDraft = () => {
+  const axios = useAxios();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (draftId: string) => {
+      const res = await axios.delete(PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFT(draftId));
+      return res.data;
+    },
+    onSuccess: async (_, draftId) => {
+      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      qc.removeQueries({ queryKey: [...QUERY_KEYS.procurement.spendProgram(draftId), "draft"] });
+    },
+  });
+};

@@ -6,15 +6,19 @@ import { ManagerOverrideBanner } from "@/components/procurement/ManagerOverrideB
 import {
   Pencil, X, ChevronDown, AlertCircle, Loader2,
   Plus, Trash2, Calendar as CalendarIcon,
-  Scissors, Check, Search,
+  Scissors, Check, Search, XCircle, AlertTriangle,
 } from "lucide-react";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
+import { LineItemDetailModal } from "@/components/procurement/LineItemDetailModal";
+import { WorkflowProgress, type WorkflowStep, type StepStatus } from "@/components/procurement/WorkflowProgress";
 import { format } from "date-fns";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import {
@@ -159,70 +163,6 @@ function SimpleSelect({
   );
 }
 
-// ─── Workflow Progress Sidebar ─────────────────────────────────────────────────
-
-type StepStatus = "done" | "pending" | "inactive";
-interface WorkflowStep {
-  label: string;
-  person?: string;
-  timestamp?: string;
-  badge?: string;
-  badgeColor?: string;
-  status: StepStatus;
-}
-
-function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
-  return (
-    <div className="space-y-0 pt-1 pl-1">
-      {steps.map((step, idx) => {
-        const isLast = idx === steps.length - 1;
-        return (
-          <div key={idx} className={`flex items-start gap-3 ${step.status === "inactive" ? "opacity-45" : ""}`}>
-            {/* Icon + connector */}
-            <div className="flex flex-col items-center shrink-0 pt-0.5">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                step.status === "done"
-                  ? "bg-[#f0faf8]"
-                  : "bg-[#f5f7f6] border border-black/[0.06]"
-              }`}>
-                {step.status === "done"
-                  ? <svg className="w-3 h-3 text-[#087f70]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                  : <div className={`w-1.5 h-1.5 rounded-full ${step.status === "pending" ? "bg-amber-400" : "bg-muted-foreground/40"}`} />
-                }
-              </div>
-              {!isLast && (
-                <div className="w-px bg-border/60 flex-1 min-h-[16px] mt-0.5" />
-              )}
-            </div>
-
-            {/* Content */}
-            <div className={`pb-4 min-w-0 ${isLast ? "pb-0" : ""}`}>
-              <p className={`text-xs font-medium ${step.status === "done" ? "text-[#68726d]" : "text-[#84908a]"}`}>{step.label}</p>
-              {step.person && (
-                <p className={`text-sm font-semibold flex items-center gap-1.5 flex-wrap mt-0.5 ${step.status === "done" || step.status === "pending" ? "text-[#0b100e]" : "text-[#84908a]"}`}>
-                  {step.person}
-                  {step.badge && (
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badgeColor}`}>
-                      {step.badge}
-                    </span>
-                  )}
-                </p>
-              )}
-              {!step.person && step.badge && (
-                <span className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${step.badgeColor}`}>
-                  {step.badge}
-                </span>
-              )}
-              {step.timestamp && (
-                <p className="text-xs text-[#68726d] mt-0.5">{step.timestamp}</p>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ─── Withdraw Modal (with justification) ─────────────────────────────────────
 
@@ -607,8 +547,7 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
   loading: boolean;
   departments: { label: string; value: string }[];
 }) {
-  const can = useAuthStore(s => s.can);
-  const canChangeDept = can("procurement.purchase_request", "manage") || can("department", "manage");
+  const canChangeDept = useAuthorizationPolicies().people.canManageDepartments;
 
   const [title, setTitle] = useState(pr.title);
   const [description, setDescription] = useState(pr.description || "");
@@ -696,19 +635,7 @@ function VendorSelect({ value, onChange, vendors }: {
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch("");
-      }
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
 
   // Focus the search input whenever the dropdown opens
   useEffect(() => {
@@ -726,49 +653,49 @@ function VendorSelect({ value, onChange, vendors }: {
   });
 
   return (
-    <div className="relative" ref={ref}>
-      <button type="button" onClick={() => {
-        setOpen(v => {
-          if (v) clearSearch();
-          return !v;
-        });
-      }}
-        className="w-full h-9 px-3 rounded-lg border border-black/[0.06] bg-white text-sm flex items-center justify-between hover:border-[#087f70]/60 focus:outline-none transition-colors">
-        <span className={selected ? "text-[#0b100e]" : "text-[#68726d] text-xs"}>
-          {selected ? (selected.displayName || selected.legalName || "Unknown Vendor") : "Select vendor"}
-        </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="absolute left-0 right-0 z-50 bg-white border border-black/[0.06] rounded-[12px] shadow-lg mt-1 overflow-hidden" style={{ minWidth: "200px" }}>
-          {/* Search input */}
-          <div className="px-2 pt-2 pb-1 border-b border-border/40">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#68726d] pointer-events-none" />
-              <input
-                ref={searchRef}
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search vendor..."
-                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-border/60 bg-[#f9faf9] focus:outline-none focus:border-[#087f70]/60 focus:bg-white transition-colors"
-              />
-            </div>
-          </div>
-          {/* Vendor list */}
-          <div className="max-h-44 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="text-sm text-[#68726d] px-4 py-3 text-center">No vendors found</p>
-            ) : filtered.map(v => (
-              <button key={v.vendorId} type="button" onClick={() => { onChange(v.vendorId); setOpen(false); setSearch(""); }}
-                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors ${value === v.vendorId ? "text-[#087f70] font-medium bg-[#f0faf8]" : "text-[#0b100e]"}`}>
-                {v.displayName || v.legalName || "Unknown Vendor"}
-              </button>
-            ))}
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) clearSearch(); }}>
+      <PopoverTrigger asChild>
+        <button type="button"
+          className="w-full h-9 px-3 rounded-lg border border-black/[0.06] bg-white text-sm flex items-center justify-between hover:border-[#087f70]/60 focus:outline-none transition-colors">
+          <span className={selected ? "text-[#0b100e]" : "text-[#68726d] text-xs"}>
+            {selected ? (selected.displayName || selected.legalName || "Unknown Vendor") : "Select vendor"}
+          </span>
+          <ChevronDown className={`w-3.5 h-3.5 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="p-0 z-50 bg-white border border-black/[0.06] rounded-[12px] shadow-lg overflow-hidden"
+        style={{ width: "var(--radix-popover-trigger-width)", minWidth: "200px" }}
+        align="start"
+        sideOffset={4}
+      >
+        {/* Search input */}
+        <div className="px-2 pt-2 pb-1 border-b border-border/40">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#68726d] pointer-events-none" />
+            <input
+              ref={searchRef}
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search vendor..."
+              className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-border/60 bg-[#f9faf9] focus:outline-none focus:border-[#087f70]/60 focus:bg-white transition-colors"
+            />
           </div>
         </div>
-      )}
-    </div>
+        {/* Vendor list */}
+        <div className="max-h-44 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-[#68726d] px-4 py-3 text-center">No vendors found</p>
+          ) : filtered.map(v => (
+            <button key={v.vendorId} type="button" onClick={() => { onChange(v.vendorId); setOpen(false); setSearch(""); }}
+              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors flex flex-col ${value === v.vendorId ? "bg-[#f0faf8]" : ""}`}>
+              <span className={`truncate ${value === v.vendorId ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>{v.displayName || v.legalName || "Unknown Vendor"}</span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -811,6 +738,8 @@ function CreatePOView({
   convertLoading,
   departmentName,
   workflowSteps,
+  policyViolations,
+  onClearPolicyViolations,
 }: {
   pr: PurchaseRequest;
   vendors: Vendor[];
@@ -819,11 +748,18 @@ function CreatePOView({
   convertLoading: boolean;
   departmentName?: string | null;
   workflowSteps: WorkflowStep[];
+  policyViolations?: ProcurementPolicyViolation[] | null;
+  onClearPolicyViolations?: () => void;
 }) {
-  const lineItems = useMemo<PurchaseRequestLineItemType[]>(() => {
+  const rawLineItems = useMemo<PurchaseRequestLineItemType[]>(() => {
     const allItems = pr.lineItems || [];
     return allItems.filter(item => item.conversionStatus !== "converted");
   }, [pr]);
+  
+  const lineItems = useMemo(() => 
+    applyProcurementPolicyErrorToLineItems(rawLineItems, policyViolations || null),
+  [rawLineItems, policyViolations]);
+  
   const currency = pr.currency || "USD";
   const user = useAuthStore(s => s.user);
   const totalAmount = pr.totalAmount || 0;
@@ -835,18 +771,24 @@ function CreatePOView({
     return init;
   });
 
-  const assignVendor = (lineItemId: string, vendorId: string) =>
+  const assignVendor = (lineItemId: string, vendorId: string) => {
     setVendorMap(prev => ({ ...prev, [lineItemId]: vendorId }));
+    onClearPolicyViolations?.();
+  };
 
-  const removeFromGroup = (lineItemId: string) =>
+  const removeFromGroup = (lineItemId: string) => {
     setVendorMap(prev => ({ ...prev, [lineItemId]: "" }));
+    onClearPolicyViolations?.();
+  };
 
-  const ungroupAllForVendor = (vendorId: string) =>
+  const ungroupAllForVendor = (vendorId: string) => {
     setVendorMap(prev => {
       const next = { ...prev };
       Object.keys(next).forEach(id => { if (next[id] === vendorId) next[id] = ""; });
       return next;
     });
+    onClearPolicyViolations?.();
+  };
 
   const [priceOverrides, setPriceOverrides] = useState<Record<string, string>>({});
 
@@ -916,7 +858,26 @@ function CreatePOView({
   }) => (
     <tr key={item.purchaseRequestLineItemId} className={`border-b border-border/30 last:border-0 transition-colors hover:bg-[#f9faf9] ${inGroup && accent ? accent.rowAccent : ""}`}>
       <td className="px-4 py-3">
-        <p className="font-semibold text-[#0b100e] text-sm leading-tight">{item.name}</p>
+        <p className="font-semibold text-[#0b100e] text-sm leading-tight flex items-center gap-1.5">
+          {item.name}
+          {item.policyViolations && item.policyViolations.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span 
+                  className={`inline-flex items-center justify-center w-4 h-4 rounded-full shrink-0 cursor-help ${item.policyViolations.some(v => v.type === 'hard_block') ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}
+                >
+                  {item.policyViolations.some(v => v.type === 'hard_block') 
+                    ? <XCircle className="w-3 h-3" /> 
+                    : <AlertTriangle className="w-3 h-3" />
+                  }
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[280px] text-center whitespace-pre-wrap">
+                {item.policyViolations.map(v => v.message).join('\n\n')}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </p>
         {item.description && (
           <p className="text-xs text-[#68726d] mt-0.5 truncate max-w-[180px]">{item.description}</p>
         )}
@@ -926,11 +887,23 @@ function CreatePOView({
         <div className="relative w-28">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#68726d] text-xs">{{ USD: "$", NGN: "₦", EUR: "€", GBP: "£", CAD: "$", AUD: "$" }[currency] || currency}</span>
           <input
-            type="number"
-            min={0}
+            type="text"
             className="w-full h-8 pl-6 pr-2 rounded-md border border-black/[0.06] text-xs focus:outline-none focus:border-[#087f70] transition-colors bg-white"
-            value={priceOverrides[item.purchaseRequestLineItemId] ?? item.unitPrice ?? ""}
-            onChange={e => setPriceOverrides(prev => ({ ...prev, [item.purchaseRequestLineItemId]: e.target.value }))}
+            value={(() => {
+              const val = priceOverrides[item.purchaseRequestLineItemId] ?? item.unitPrice ?? "";
+              if (val === "") return "";
+              const str = String(val);
+              const parts = str.split('.');
+              parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+              return parts.join('.');
+            })()}
+            onChange={e => {
+              const rawValue = e.target.value.replace(/,/g, '');
+              if (/^[0-9]*\.?[0-9]*$/.test(rawValue)) {
+                setPriceOverrides(prev => ({ ...prev, [item.purchaseRequestLineItemId]: rawValue }));
+                onClearPolicyViolations?.();
+              }
+            }}
             placeholder="0.00"
           />
         </div>
@@ -969,7 +942,7 @@ function CreatePOView({
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
-              <StatusBadge status={(pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} />
+              <StatusBadge status={(pr.status === "converted_to_po" || pr.status === "partially_converted") ? pr.status : (pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} />
             </div>
             {pr.title && <p className="text-sm text-[#68726d] mt-1">{pr.title}</p>}
           </div>
@@ -983,10 +956,10 @@ function CreatePOView({
             <button
               onClick={handleCreate}
               disabled={!readyToCreate || convertLoading}
-              className="h-9 px-5 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2"
+              className={`h-9 px-5 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2 ${policyViolations ? "bg-[#d33d44]" : "bg-[#087f70]"}`}
             >
               {convertLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              Convert to {poCount} Purchase Order{poCount !== 1 ? "s" : ""}
+              {policyViolations ? "Fix Violations to Submit" : `Convert to ${poCount} Purchase Order${poCount !== 1 ? "s" : ""}`}
             </button>
           </div>
         </div>
@@ -1288,7 +1261,7 @@ function PRDetailPage() {
   const id           = params.id as string;
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const can          = useAuthStore(s => s.can);
+  const policies     = useAuthorizationPolicies();
   const user         = useAuthStore(s => s.user);
   const axiosInstance = useAxios();
 
@@ -1296,8 +1269,8 @@ function PRDetailPage() {
   // A user could manually type ?scope=company to try to elevate their view.
   // We re-validate the requested scope against the same permission gates used
   // on the list page before honouring it.
-  const hasTeamScopePermission    = can("procurement.purchase_request", "read_department");
-  const hasCompanyScopePermission = can("procurement.purchase_request", "read_company");
+  const hasTeamScopePermission    = policies.purchaseRequests.listScope === "team" || policies.purchaseRequests.listScope === "company";
+  const hasCompanyScopePermission = policies.purchaseRequests.listScope === "company";
   const rawScope  = searchParams.get("scope") || searchParams.get("outerTab") || "own";
   const scope = (
     rawScope === "company" && hasCompanyScopePermission ? "company" :
@@ -1307,9 +1280,9 @@ function PRDetailPage() {
   // Company-scope override unlock state (session-only, resets on navigation)
   const [overrideUnlocked, setOverrideUnlocked] = useState(false);
 
-  const { data, isLoading, isFetching, isError, refetch } = useGetPurchaseRequestById(id);
+  const { data, isPending, isFetching, isError, refetch } = useGetPurchaseRequestById(id);
   // Block render on both first-load AND background refetch so stale cached status never flashes
-  const isPageLoading = isLoading || isFetching;
+  const isPageLoading = isPending || isFetching;
   const updatePR = useUpdatePurchaseRequest(id);
   const addLineItem = useAddLineItem(id);
   const deleteLineItem = useDeleteLineItem(id);
@@ -1319,19 +1292,23 @@ function PRDetailPage() {
   const rejectPR = useRejectPurchaseRequest(id);
   const convertToPO = useConvertToPO(id);
   const deletePR = useDeletePurchaseRequest(id);
-  const canChangeDept = can("procurement.purchase_request", "manage") || can("department", "manage");
+  const canChangeDept = policies.people.canManageDepartments;
   const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
-  const canCreatePOAccess = can("procurement.purchase_request", "convert_to_po") || can("procurement.purchase_order", "create");
+  const canCreatePOAccess = policies.purchaseRequests.canConvertToPurchaseOrder;
   const { data: vendorData } = useGetVendors({ enabled: canCreatePOAccess });
   const { data: catData } = useGetProcurementCategories();
 
   const [editingLineItem, setEditingLineItem] = useState<PurchaseRequestLineItem | null>(null);
-  const updateLineItemHook = useUpdateLineItem(id, editingLineItem?.purchaseRequestLineItemId || "");
+  const [selectedDetailItem, setSelectedDetailItem] = useState<PurchaseRequestLineItem | null>(null);
+  const updateLineItemHook = useUpdateLineItem(id, selectedDetailItem?.purchaseRequestLineItemId || "");
   const [modal, setModal] = useState<"submit" | "withdraw" | "reject" | "approve" | "edit_header" | "delete_item" | "delete_pr" | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelSaving, setPanelSaving] = useState(false);
   const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [pendingConvertPayload, setPendingConvertPayload] = useState<{ draftPurchaseOrders: any[] } | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [detailModalStartsInEditMode, setDetailModalStartsInEditMode] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isConvertingPartially, setIsConvertingPartially] = useState(false);
   const pr: PurchaseRequestDetail | undefined = data?.data;
@@ -1376,22 +1353,33 @@ function PRDetailPage() {
   // approve permission could still open their own request via the team/company
   // tab; this flag ensures self-approval is blocked everywhere, matching the
   // backend's rejection of self-approval.
-  const isOwnRequest = !!user?.userId && !!pr?.requesterId && user.userId === pr.requesterId;
+  const prCreatorId = pr?.requesterId || (pr as any)?.createdById || (typeof pr?.creator === "object" ? (pr?.creator as any)?.userId || (pr?.creator as any)?.id : undefined);
+  let isOwnRequest = !!user?.userId && !!prCreatorId && user.userId === prCreatorId;
+  
+  if (!isOwnRequest && user) {
+    const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
+    let creatorName = pr?.requesterName?.trim().toLowerCase() || "";
+    if (!creatorName && typeof pr?.creator === 'object') {
+      creatorName = `${(pr.creator as any)?.firstName || ''} ${(pr.creator as any)?.lastName || ''}`.trim().toLowerCase();
+    }
+    if (userFullName && creatorName && userFullName === creatorName) {
+      isOwnRequest = true;
+    }
+  }
 
   // Edit/manage own draft — only meaningful on own scope
-  const canEdit   = isOwnRequest && isDraft && can("procurement.purchase_request", "update_own_draft");
-  const canSubmit = isOwnRequest && isDraft && (pr?.lineItems?.length || 0) > 0 && can("procurement.purchase_request", "submit");
+  const canEdit   = isOwnRequest && isDraft && policies.purchaseRequests.canUpdateOwnDraft;
+  const canDelete = isOwnRequest && isDraft && policies.purchaseRequests.canDeleteOwnDraft;
+  const canSubmit = isOwnRequest && isDraft && (pr?.lineItems?.length || 0) > 0 && policies.purchaseRequests.canSubmit;
 
   // Approve/Reject base permission
-  const hasApprovePermission = can("procurement.purchase_request", "approve") ||
-    can("procurement.purchase_request", "approve_department") ||
-    can("procurement.purchase_request", "approve_company");
+  const hasApprovePermission = policies.purchaseRequests.canApprove;
 
   // Withdraw: owner can withdraw their own submitted or approved request. 
   // (Drafts cannot be withdrawn, and company scope overrides cannot withdraw).
-  const hasWithdrawPermission = can("procurement.purchase_request", "withdraw");
+  const hasWithdrawPermission = policies.purchaseRequests.canCancelOwn;
   const canWithdraw = (isSubmitted || isApproved) && (
-    (isOwnScope && isOwnRequest && (hasWithdrawPermission || can("procurement.purchase_request", "submit")))
+    isOwnScope && isOwnRequest && hasWithdrawPermission
   );
 
   // On own scope — never show approve/reject
@@ -1402,10 +1390,7 @@ function PRDetailPage() {
   const _canReject  = canApprove;
 
   // Create PO: available on team/company scope regardless of override state
-  const canCreatePO = !isOwnScope && isApproved && (
-    can("procurement.purchase_request", "convert_to_po") ||
-    can("procurement.purchase_order", "create")
-  );
+  const canCreatePO = !isOwnScope && isApproved && policies.purchaseRequests.canConvertToPurchaseOrder;
 
   // Whether to show the lock/unlock override banner.
   // Never show it on the requester's own request — there is nothing to override.
@@ -1576,7 +1561,13 @@ function PRDetailPage() {
       await convertToPO.mutateAsync({ draftPurchaseOrders });
       toast.success("Purchase orders created successfully!");
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to create purchase orders"));
+      if (isProcurementPolicyViolationError(err)) {
+        setPolicyViolations(getProcurementPolicyViolations(err));
+        setPendingConvertPayload({ draftPurchaseOrders });
+        setIsPolicyModalOpen(true);
+      } else {
+        toast.error(getApiErrorMessage(err, "Failed to create purchase orders"));
+      }
     }
   };
 
@@ -1612,13 +1603,7 @@ function PRDetailPage() {
         status: "done"
       } : { label: "Submitted", status: "inactive" };
 
-      const reviewEvent = eventsByAction["under_review"];
-      const step2: WorkflowStep = reviewEvent ? {
-        label: "Under Review",
-        person: formatPerson(reviewEvent),
-        timestamp: formatTs(reviewEvent.timestamp),
-        status: "done"
-      } : { label: "Under Review", status: "inactive" };
+
 
       const approveEvent = eventsByAction["approved"] || eventsByAction["rejected"] || eventsByAction["declined"];
       const step3: WorkflowStep = approveEvent ? {
@@ -1655,7 +1640,7 @@ function PRDetailPage() {
         };
       }
 
-      return [step1, step2, step3, step4];
+      return [step1, step3, step4];
     }
 
     const submittedStatuses = ["submitted", "approved", "rejected", "partially_converted", "converted_to_po", "cancelled"];
@@ -1729,6 +1714,41 @@ function PRDetailPage() {
             loading={rejectPR.isPending}
           />
         )}
+        {policyViolations && (
+          <ProcurementPolicyCheckModal
+            isOpen={isPolicyModalOpen}
+            onClose={() => setIsPolicyModalOpen(false)}
+            violations={policyViolations}
+            onEditRequest={() => setIsPolicyModalOpen(false)}
+            onProceedWithWarnings={async (justification) => {
+              try {
+                if (pendingConvertPayload) {
+                  await convertToPO.mutateAsync({ 
+                    draftPurchaseOrders: pendingConvertPayload.draftPurchaseOrders, 
+                    policyJustification: justification,
+                    spendProgramJustification: justification
+                  });
+                  toast.success("Purchase orders created successfully!");
+                  setPendingConvertPayload(null);
+                } else {
+                  await submitPR.mutateAsync({ 
+                    policyJustification: justification,
+                    spendProgramJustification: justification
+                  });
+                  toast.success("Purchase request submitted for review!");
+                }
+                setPolicyViolations(null);
+                setIsPolicyModalOpen(false);
+              } catch (err: unknown) {
+                if (isProcurementPolicyViolationError(err)) {
+                  setPolicyViolations(getProcurementPolicyViolations(err));
+                } else {
+                  toast.error(getApiErrorMessage(err, "Failed to submit with justifications"));
+                }
+              }
+            }}
+          />
+        )}
         <CreatePOView
           pr={pr}
           vendors={vendors}
@@ -1737,6 +1757,8 @@ function PRDetailPage() {
           convertLoading={convertToPO.isPending}
           departmentName={deptNameFallback}
           workflowSteps={workflowSteps}
+          policyViolations={policyViolations}
+          onClearPolicyViolations={() => setPolicyViolations(null)}
         />
       </>
     );
@@ -1840,14 +1862,14 @@ function PRDetailPage() {
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
-                <StatusBadge status={(pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} />
+                <StatusBadge status={(pr.status === "converted_to_po" || pr.status === "partially_converted") ? pr.status : (pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} />
               </div>
               <p className="text-sm text-[#68726d] mt-1">{pr.title}</p>
               {pr.description && <p className="text-xs text-[#68726d] mt-0.5">{pr.description}</p>}
             </div>
 
             {/* Action buttons — permission gated */}
-            {(canEdit || canSubmit || canApprove || canWithdraw || canCreatePO) && (
+            {(canEdit || canDelete || canSubmit || canApprove || canWithdraw || canCreatePO) && (
               <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
                 {canEdit && (
                   <>
@@ -1855,11 +1877,13 @@ function PRDetailPage() {
                       className="h-9 px-4 rounded-lg border border-black/[0.06] text-[#0b100e] text-sm font-medium hover:bg-[#f9faf9] transition-colors flex items-center gap-2">
                       <Pencil className="w-3.5 h-3.5" /> Edit Request
                     </button>
-                    <button onClick={() => setModal("delete_pr")}
-                      className="h-9 px-4 rounded-lg border border-[#d33d44]/20 text-[#d33d44] text-sm font-medium hover:bg-[#fff5f5] hover:border-red-300 transition-colors flex items-center gap-2">
-                      <Trash2 className="w-3.5 h-3.5" /> Delete Draft
-                    </button>
                   </>
+                )}
+                {canDelete && (
+                  <button onClick={() => setModal("delete_pr")}
+                    className="h-9 px-4 rounded-lg border border-[#d33d44]/20 text-[#d33d44] text-sm font-medium hover:bg-[#fff5f5] hover:border-red-300 transition-colors flex items-center gap-2">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete Draft
+                  </button>
                 )}
                 {canSubmit && (
                   <button onClick={() => {
@@ -1924,6 +1948,24 @@ function PRDetailPage() {
             <p>
               You can&apos;t approve or reject your own purchase request. This request is awaiting review from another approver.
             </p>
+          </div>
+        )}
+
+        {/* Policy Warnings */}
+        {(pr as any).policyEvaluationResult?.spendProgramEvaluation?.resolution === "WARNING" && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+            <div className="flex-1">
+              <p className="font-semibold">Policy Warnings</p>
+              <p className="mt-0.5 text-amber-800">{(pr as any).policyEvaluationResult.spendProgramEvaluation.message}</p>
+              {((pr as any).policyEvaluationResult.spendProgramEvaluation.warnings || []).length > 0 && (
+                <ul className="mt-2 space-y-1.5 list-disc list-outside ml-4">
+                  {((pr as any).policyEvaluationResult.spendProgramEvaluation.warnings as any[]).map((w, i) => (
+                    <li key={i} className="text-amber-800 text-xs font-medium leading-relaxed">{w.message}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
 
@@ -2058,6 +2100,18 @@ function PRDetailPage() {
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold capitalize">
                                   {group.status.replace(/_/g, " ")}
                                 </span>
+                              )}
+                              {!isUnassigned && policies.purchaseOrders.canView && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toast.info("View PO is not yet available.");
+                                  }}
+                                  className="font-semibold text-[#087f70] hover:underline ml-2"
+                                >
+                                  View PO
+                                </button>
                               )}
                             </div>
                           </div>
@@ -2204,7 +2258,7 @@ function PRDetailPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                       <table className="w-full text-sm">
                         <thead className="sticky top-0 z-10 bg-white">
                           <tr className="border-b border-border/60 bg-[#f9faf9] shadow-sm">
@@ -2217,65 +2271,77 @@ function PRDetailPage() {
                           {lineItems.map(item => {
                             const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
                             const hasBlock = hasViolations && item.policyViolations!.some(v => v.type === "hard_block");
-                            const colCount = canEdit ? 7 : 6;
+                            const violationCount = hasViolations ? item.policyViolations!.length : 0;
                             return (
-                              <React.Fragment key={item.purchaseRequestLineItemId}>
-                                <tr className={`border-b ${hasViolations ? "border-transparent" : "border-border/40 last:border-0"} hover:bg-[#f9faf9] transition-colors`}>
-                                  <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
-                                    <div className="flex items-center gap-2">
-                                      {hasViolations && (
-                                        <span className={`w-2 h-2 rounded-full shrink-0 ${hasBlock ? "bg-red-500" : "bg-amber-400"}`} />
-                                      )}
-                                      {item.name}
+                              <tr
+                                key={item.purchaseRequestLineItemId}
+                                className={`border-b border-border/40 last:border-0 transition-colors cursor-pointer ${
+                                  hasViolations
+                                    ? "hover:bg-red-50/40"
+                                    : "hover:bg-[#f9faf9]"
+                                }`}
+                                onClick={() => {
+                                  setSelectedDetailItem({
+                                    ...item,
+                                    categoryName: getCategoryName(item.categoryId) || undefined,
+                                  } as any);
+                                  setIsDetailModalOpen(true);
+                                }}
+                              >
+                                <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
+                                  <div className="flex items-center gap-2">
+                                    {hasViolations && (
+                                      <AlertCircle className={`w-4 h-4 shrink-0 ${hasBlock ? "text-red-500" : "text-amber-500"}`} />
+                                    )}
+                                    <span>{item.name}</span>
+                                    {violationCount > 0 && (
+                                      <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
+                                        hasBlock ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
+                                      }`}>
+                                        {violationCount}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
+                                <td className="px-5 py-3.5">
+                                  {item.categoryId
+                                    ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
+                                    : <span className="text-[#68726d]">—</span>
+                                  }
+                                </td>
+                                <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
+                                <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                                <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                                {canEdit && (
+                                  <td className="px-5 py-3.5">
+                                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                      <div className="relative group">
+                                        <button onClick={() => { 
+                                            setSelectedDetailItem({
+                                              ...item,
+                                              categoryName: getCategoryName(item.categoryId) || undefined,
+                                            });
+                                            setDetailModalStartsInEditMode(true);
+                                            setIsDetailModalOpen(true); 
+                                          }}
+                                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
+                                      </div>
+                                      <div className="relative group">
+                                        <button onClick={() => { setItemToDelete({ id: item.purchaseRequestLineItemId, name: item.name }); setModal("delete_item"); }}
+                                          disabled={deleteLineItem.isPending}
+                                          className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors disabled:opacity-40">
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
+                                      </div>
                                     </div>
                                   </td>
-                                  <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
-                                  <td className="px-5 py-3.5">
-                                    {item.categoryId
-                                      ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{getCategoryName(item.categoryId)}</span>
-                                      : <span className="text-[#68726d]">—</span>
-                                    }
-                                  </td>
-                                  <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
-                                  <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                                  <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                                  {canEdit && (
-                                    <td className="px-5 py-3.5">
-                                      <div className="flex items-center gap-1">
-                                        <div className="relative group">
-                                          <button onClick={() => { setEditingLineItem(item); setPanelOpen(true); }}
-                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
-                                            <Pencil className="w-3.5 h-3.5" />
-                                          </button>
-                                          <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
-                                        </div>
-                                        <div className="relative group">
-                                          <button onClick={() => { setItemToDelete({ id: item.purchaseRequestLineItemId, name: item.name }); setModal("delete_item"); }}
-                                            disabled={deleteLineItem.isPending}
-                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors disabled:opacity-40">
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                          <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
-                                        </div>
-                                      </div>
-                                    </td>
-                                  )}
-                                </tr>
-                                {hasViolations && (
-                                  <tr className="border-b border-border/40 last:border-0">
-                                    <td colSpan={colCount} className="px-5 pb-3 pt-0">
-                                      <div className="flex flex-col gap-1.5">
-                                        {item.policyViolations!.map((v, idx) => (
-                                          <div key={idx} className={`flex items-start gap-2 px-3 py-2 rounded-lg text-xs font-medium ${v.type === "hard_block" ? "bg-red-50 text-red-700 border border-red-100" : "bg-amber-50 text-amber-700 border border-amber-100"}`}>
-                                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                                            <span>{v.message}</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </td>
-                                  </tr>
                                 )}
-                              </React.Fragment>
+                              </tr>
                             );
                           })}
                         </tbody>
@@ -2449,14 +2515,7 @@ function PRDetailPage() {
                   badge: null,
                   timestamp: submitEvent ? formatTs(submitEvent.timestamp) : null,
                 },
-                {
-                  key: "under_review",
-                  label: "Under Review",
-                  done: !!reviewEvent,
-                  personName: reviewEvent ? formatPerson(reviewEvent) : null,
-                  badge: null,
-                  timestamp: reviewEvent ? formatTs(reviewEvent.timestamp) : null,
-                },
+
                 {
                   key: "manager",
                   label: "Manager Approval",
@@ -2596,6 +2655,42 @@ function PRDetailPage() {
       </div>
     </div>
 
+    {/* Line Item Detail Modal */}
+    <LineItemDetailModal
+      isOpen={isDetailModalOpen}
+      onClose={() => { setIsDetailModalOpen(false); setSelectedDetailItem(null); setDetailModalStartsInEditMode(false); }}
+      item={selectedDetailItem as any}
+      currency={currency}
+      startInEditMode={detailModalStartsInEditMode}
+      onSave={
+        canEdit && selectedDetailItem
+          ? async (updatedItem) => {
+              if (!id) return;
+              try {
+                await updateLineItemHook.mutateAsync(
+                  cleanLineItemPayload({
+                    name: updatedItem.name,
+                    categoryId: updatedItem.categoryId!,
+                    quantity: updatedItem.quantity,
+                    unitPrice: updatedItem.unitPrice,
+                    taxAmount: updatedItem.taxAmount || 0,
+                    unitOfMeasure: updatedItem.unitOfMeasure,
+                    sku: updatedItem.sku,
+                    description: updatedItem.description,
+                  })
+                );
+                setIsDetailModalOpen(false);
+                setSelectedDetailItem(null);
+                setPolicyViolations(null);
+                toast.success("Item updated");
+              } catch (err: unknown) {
+                toast.error(getApiErrorMessage(err, "Failed to update item"));
+              }
+            }
+          : undefined
+      }
+    />
+
     {/* Policy Violation Modal */}
     {policyViolations && (
       <ProcurementPolicyCheckModal
@@ -2603,11 +2698,25 @@ function PRDetailPage() {
         onClose={() => setIsPolicyModalOpen(false)}
         violations={policyViolations}
         onEditRequest={() => setIsPolicyModalOpen(false)}
-        onProceedWithWarnings={async (justifications) => {
+        onProceedWithWarnings={async (justification) => {
           try {
-            await submitPR.mutateAsync({ policyJustifications: justifications });
-            toast.success("Purchase request submitted for review!");
+            if (pendingConvertPayload) {
+              await convertToPO.mutateAsync({ 
+                draftPurchaseOrders: pendingConvertPayload.draftPurchaseOrders, 
+                policyJustification: justification,
+                spendProgramJustification: justification
+              });
+              toast.success("Purchase orders created successfully!");
+              setPendingConvertPayload(null);
+            } else {
+              await submitPR.mutateAsync({ 
+                policyJustification: justification,
+                spendProgramJustification: justification
+              });
+              toast.success("Purchase request submitted for review!");
+            }
             setPolicyViolations(null);
+            setIsPolicyModalOpen(false);
           } catch (err: unknown) {
             if (isProcurementPolicyViolationError(err)) {
               setPolicyViolations(getProcurementPolicyViolations(err));

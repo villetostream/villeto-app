@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { type ReactElement, useEffect, useState } from "react";
 import { useTourStore } from "@/stores/useTourStore";
 import { useQuery } from "@tanstack/react-query";
@@ -41,13 +41,10 @@ import { logger } from "@/lib/logger";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
-import {
-  canPOApprove,
-  canPOReadCompany,
-  canPOReadDepartment,
-} from "@/lib/permissions/purchase-order-permissions";
 import { useCompanyExpenses } from "@/lib/react-query/expenses";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { logoutAndRedirect } from "@/lib/logout";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
 function CollapsedNavTooltip({
   label,
@@ -77,6 +74,7 @@ function CollapsedNavTooltip({
 export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoading?: boolean }) {
   const location = usePathname();
   const searchParams = useSearchParams();
+  const policies = useAuthorizationPolicies();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
       const p = window.location.pathname;
@@ -92,7 +90,6 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   const can = useAuthStore((state) => state.can);
   const user = useAuthStore((state) => state.user);
   const isAuthLoading = useAuthStore((state) => state.isLoading) || isProfileLoading;
-  const router = useRouter();
   const axios = useAxios();
   const { state, setOpen, isMobile } = useSidebar();
   const isTourActive = useTourStore((s) => s.isTourActive);
@@ -186,49 +183,45 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
     return permissions.some(p => can(p.resource, p.action));
   };
 
-  const canViewCompanyExpenses =
-    can("expense.report", "read_company") || can("expense.report", "read_department");
+  const canViewCompanyExpenses = policies.expenses.listScope === "company" || policies.expenses.listScope === "team";
 
   // ── Badge Counts ──
-  const canApprovePR = can("procurement.purchase_request", "approve");
-  const canConvertPR = can("procurement.purchase_request", "convert_to_po");
-  const prScope = can("procurement.purchase_request", "read_company") ? "company" : can("procurement.purchase_request", "read_department") ? "team" : "own";
+  const canApprovePR = policies.purchaseRequests.canApprove;
+  const canConvertPR = policies.purchaseRequests.canConvertToPurchaseOrder;
+  const isPRManager  = policies.purchaseRequests.canReadDepartment;
 
   const { data: prApprovalData } = useGetPurchaseRequests(
-    { scope: prScope, status: "submitted", requiresMyApproval: true },
-    { enabled: canApprovePR, select: (d) => d.meta?.totalCount ?? 0 }
+    { scope: "team", status: "submitted", requiresMyApproval: true },
+    { enabled: canApprovePR && isPRManager, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const prAwaitingCount = (prApprovalData as unknown as number) ?? 0;
+  const prAwaitingCount = isPRManager ? ((prApprovalData as unknown as number) ?? 0) : 0;
 
   const { data: prConversionData } = useGetPurchaseRequests(
-    { scope: prScope, status: "approved", requiresMyConversion: true },
-    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 }
+    { scope: "team", status: "approved", requiresMyConversion: true },
+    { enabled: canConvertPR && isPRManager, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const prReadyForPOCount = (prConversionData as unknown as number) ?? 0;
+  const prReadyForPOCount = isPRManager ? ((prConversionData as unknown as number) ?? 0) : 0;
 
   const { data: prPartialConversionData } = useGetPurchaseRequests(
-    { scope: prScope, status: "partially_converted", requiresMyConversion: true },
-    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 }
+    { scope: "team", status: "partially_converted", requiresMyConversion: true },
+    { enabled: canConvertPR && isPRManager, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const prPartialPOCount = (prPartialConversionData as unknown as number) ?? 0;
+  const prPartialPOCount = isPRManager ? ((prPartialConversionData as unknown as number) ?? 0) : 0;
   const totalPRActionCount = prAwaitingCount + prReadyForPOCount + prPartialPOCount;
 
-  const canApprovePO = canPOApprove(can);
-  const hasPOCompanyScope = canPOReadCompany(can);
-  const hasPOTeamScope    = canPOReadDepartment(can);
-  const poScope = hasPOCompanyScope ? "company" : hasPOTeamScope ? "team" : "own";
+  const canApprovePO = policies.purchaseOrders.canApprove;
+  const isPOManager  = policies.purchaseOrders.canReadDepartment;
 
   const { data: poApprovalData } = usePurchaseOrders(
-    1, 1, "pending_approval", undefined, undefined, poScope,
-    { enabled: canApprovePO && (hasPOCompanyScope || hasPOTeamScope), select: (d) => d.meta?.totalCount ?? 0 }
+    1, 1, "pending_approval", undefined, undefined, "team",
+    { enabled: canApprovePO && isPOManager, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const totalPOActionCount = (poApprovalData as unknown as number) ?? 0;
+  const totalPOActionCount = isPOManager ? ((poApprovalData as unknown as number) ?? 0) : 0;
 
-  const canApproveExpense = can("expense.report", "approve");
-  const expScope = can("expense.report", "read_company") ? "company" : can("expense.report", "read_department") ? "team" : null;
-  const { data: expensesData } = useCompanyExpenses(1, 100, expScope || "company", undefined, undefined, !!expScope && canApproveExpense);
-  const totalExpenseActionCount = canApproveExpense && expensesData?.reports
-    ? expensesData.reports.filter(e => e.status === "pending").length
+  const isExpenseManager = policies.expenses.canReadDepartment;
+  const { data: expensesData } = useCompanyExpenses(1, 100, "team", undefined, undefined, isExpenseManager);
+  const totalExpenseActionCount = isExpenseManager && expensesData?.reports
+    ? expensesData.reports.filter(e => e.status === "submitted").length
     : 0;
 
   const filterItems = (items: NavItem[]): NavItem[] => {
@@ -589,8 +582,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
             <AlertDialogAction
               className="rounded-[8px] bg-red-500 hover:bg-red-600 text-white text-[13px]"
               onClick={() => {
-                logout();
-                window.location.href = "/login";
+                logoutAndRedirect();
               }}
             >
               Log Out

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
-  CheckCircle2, Loader2, Pencil, Search, ArrowLeft,
+  CheckCircle2, Loader2, Pencil, Search, ArrowLeft, AlertCircle,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
@@ -30,6 +30,14 @@ import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { isPRPriority } from "@/lib/types/purchase-request-helpers";
 import { buildPODetailUrl, buildPOListUrl } from "@/lib/permissions/purchase-order-permissions";
+import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
+import { 
+  isProcurementPolicyViolationError, 
+  getProcurementPolicyViolations, 
+  applyProcurementPolicyErrorToLineItems, 
+  type ProcurementPolicyViolation 
+} from "@/lib/types/api-error";
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -263,7 +271,10 @@ function CategoryDropdown({ value, onChange }: { value: string; onChange: (id: s
 
 // ─── Add / Edit Line Item Modal ───────────────────────────────────────────────
 
-interface LocalItem extends POLineItemPayload { localId: string; }
+interface LocalItem extends POLineItemPayload { 
+  localId: string; 
+  policyViolations?: { type: string; message: string; ruleType?: string }[] | null;
+}
 
 function LineItemModal({
   onClose, onSave, initial, departments, currency,
@@ -448,8 +459,8 @@ function EditPurchaseOrderPage() {
   const detailUrl = buildPODetailUrl(id, outerTab, innerTab);
   const listUrl = buildPOListUrl(outerTab, innerTab);
 
-  const { data: poData, isLoading, isFetching } = usePurchaseOrder(id);
-  const isPageLoading = isLoading || isFetching;
+  const { data: poData, isPending, isFetching } = usePurchaseOrder(id);
+  const isPageLoading = isPending || isFetching;
   const po = poData?.data;
 
   // Header form — seeded from the PO once loaded
@@ -506,6 +517,9 @@ function EditPurchaseOrderPage() {
   const submitPO = useSubmitPurchaseOrderForApproval(id);
   const cancelPO = useCancelPurchaseOrder();
 
+  const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+
   const { data: deptData } = useGetAllDepartmentsApi();
   const { data: catData } = useGetProcurementCategories();
   const { data: vendorData } = useGetVendors();
@@ -538,6 +552,7 @@ function EditPurchaseOrderPage() {
       localId: crypto.randomUUID()
     }))]);
     setShowModal(false);
+    setPolicyViolations(null);
   };
 
   const handleEditItem = async (item: any) => {
@@ -549,12 +564,14 @@ function EditPurchaseOrderPage() {
     });
     setEditingItem(null);
     setShowModal(false);
+    setPolicyViolations(null);
   };
 
   const confirmDeleteItem = () => {
     if (!itemToDelete) return;
     setLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
     setItemToDelete(null);
+    setPolicyViolations(null);
     toast.success("Item removed");
   };
 
@@ -580,6 +597,10 @@ function EditPurchaseOrderPage() {
     if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
     if (!deliveryDate) { toast.error("Delivery date is required"); return; }
     if (lineItems.length === 0) { toast.error("Add at least one line item"); return; }
+    if (policyViolations) {
+      setIsPolicyModalOpen(true);
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -594,11 +615,18 @@ function EditPurchaseOrderPage() {
         });
       }
       // 3. Submit for approval
-      await submitPO.mutateAsync();
+      await submitPO.mutateAsync({});
       toast.success("Purchase Order submitted for approval!");
       router.push(detailUrl);
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Failed to submit PO"));
+    } catch (err: unknown) {
+      if (isProcurementPolicyViolationError(err)) {
+        const violations = getProcurementPolicyViolations(err);
+        setPolicyViolations(violations);
+        setIsPolicyModalOpen(true);
+        setLineItems(prev => applyProcurementPolicyErrorToLineItems(prev, violations));
+      } else {
+        toast.error(getApiErrorMessage(err, "Failed to submit PO"));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -637,6 +665,7 @@ function EditPurchaseOrderPage() {
   return (
     <>
       <div className="w-full space-y-5">
+
         {/* Header */}
         <div className="sticky -top-3 sm:-top-5 lg:-top-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 z-40 bg-[#f4f7f5] flex items-center justify-between">
           <div>
@@ -654,9 +683,11 @@ function EditPurchaseOrderPage() {
               Save Draft
             </button>
             <button type="button" onClick={handleSubmit} disabled={submitting || lineItems.length === 0}
-              className="h-10 px-6 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
+              className={`h-10 px-6 rounded-[12px] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 ${
+                policyViolations ? "bg-[#d33d44] hover:bg-[#c33339]" : "bg-[#087f70]"
+              }`}>
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Submit for Approval
+              {policyViolations ? "Fix Violations to Submit" : "Submit for Approval"}
             </button>
           </div>
         </div>
@@ -750,10 +781,21 @@ function EditPurchaseOrderPage() {
                   {lineItems.map((item, i) => {
                     const catName = getCategoryName(item.categoryId);
                     const sub = item.quantity * item.unitPrice;
+                    const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
+                    const hasBlock = hasViolations && item.policyViolations!.some(v => v.type === "hard_block");
+                    const itemKey = item.localId || i;
                     return (
-                      <tr key={item.localId} className="border-b border-border/40 last:border-0 hover:bg-[#f9faf9] transition-colors">
-                        <td className="px-5 py-3.5 font-semibold text-[#0b100e]">{item.name}</td>
-                        <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
+                      <React.Fragment key={itemKey}>
+                        <tr className={`border-b ${hasViolations ? "border-transparent" : "border-border/40 last:border-0"} hover:bg-[#f9faf9] transition-colors`}>
+                          <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
+                            <div className="flex items-center gap-2">
+                              {hasViolations && (
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${hasBlock ? "bg-red-500" : "bg-amber-400"}`} />
+                              )}
+                              {item.name}
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
                         <td className="px-5 py-3.5">
                           {catName
                             ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{catName}</span>
@@ -776,8 +818,23 @@ function EditPurchaseOrderPage() {
                           </div>
                         </td>
                       </tr>
-                    );
-                  })}
+                      {hasViolations && (
+                        <tr key={`${itemKey}-violations`} className="border-b border-border/40 last:border-0">
+                          <td colSpan={7} className="px-5 pb-3 pt-0">
+                            <div className="flex flex-col gap-1.5">
+                              {item.policyViolations!.map((v, idx) => (
+                                <div key={idx} className={`flex items-start gap-2 px-3 py-2 rounded-lg text-xs font-medium ${v.type === "hard_block" ? "bg-red-50 text-red-700 border border-red-100" : "bg-amber-50 text-amber-700 border border-amber-100"}`}>
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                                  <span>{v.message}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
                 </tbody>
               </table>
 
@@ -847,6 +904,38 @@ function EditPurchaseOrderPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Policy Violation Modal */}
+      {policyViolations && (
+        <ProcurementPolicyCheckModal
+          isOpen={isPolicyModalOpen}
+          onClose={() => setIsPolicyModalOpen(false)}
+          violations={policyViolations}
+          onEditRequest={() => setIsPolicyModalOpen(false)}
+          onProceedWithWarnings={async (justification) => {
+            if (!id) return;
+            try {
+              await submitPO.mutateAsync({ 
+                id, 
+                policyJustification: justification,
+                spendProgramJustification: justification
+              } as any);
+              toast.success("Purchase order submitted for approval!");
+              setPolicyViolations(null);
+              setIsPolicyModalOpen(false);
+              router.push("/procurement/purchase-order");
+            } catch (err: unknown) {
+              if (isProcurementPolicyViolationError(err)) {
+                const violations = getProcurementPolicyViolations(err);
+                setPolicyViolations(violations);
+                setLineItems(prev => applyProcurementPolicyErrorToLineItems(prev, violations));
+              } else {
+                toast.error(getApiErrorMessage(err, "Failed to submit with justifications"));
+              }
+            }
+          }}
+        />
+      )}
 
       {/* Cancel PO Modal — collects reason before calling the cancel endpoint */}
       <CancelPOModal

@@ -135,6 +135,7 @@ export const useCreatePurchaseOrder = () => {
       return response.data;
     },
     onSuccess: () => {
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
@@ -160,6 +161,7 @@ export const useUpdatePurchaseOrder = (id: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
@@ -219,12 +221,15 @@ export const useSubmitPurchaseOrderForApproval = (id: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async () => {
-      const response = await axios.patch(PROCUREMENT_KEYS.SUBMIT_PURCHASE_ORDER(id));
+    mutationFn: async (payload?: { policyJustification?: string; spendProgramJustification?: string }) => {
+      const response = await axios.patch(PROCUREMENT_KEYS.SUBMIT_PURCHASE_ORDER(id), payload || {}, {
+        _skipErrorToast: true,
+      } as any);
       return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
@@ -258,6 +263,7 @@ export const usePurchaseOrderApprovalDecision = () => {
     },
     onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
@@ -276,6 +282,7 @@ export const useIssuePurchaseOrder = () => {
     },
     onSuccess: (_data, id: string) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
@@ -294,6 +301,7 @@ export const useCancelPurchaseOrder = () => {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(variables.id) });
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
@@ -312,6 +320,7 @@ export const useDeletePurchaseOrder = () => {
       return Promise.resolve({ success: true, id });
     },
     onSuccess: () => {
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
@@ -330,6 +339,47 @@ export const useClosePurchaseOrder = () => {
     },
     onSuccess: (_data, id: string) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
+    },
+  });
+};
+
+export const useShortClosePOLine = (purchaseOrderId: string) => {
+  const axios = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ lineItemId, quantity, reason }: { lineItemId: string; quantity: number; reason: string }) => {
+      const response = await axios.post(
+        PROCUREMENT_KEYS.SHORT_CLOSE_PO_LINE(purchaseOrderId, lineItemId),
+        { quantity, reason },
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId) });
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
+    },
+  });
+};
+
+export const useConfirmPOFinalBilling = (purchaseOrderId: string) => {
+  const axios = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ reason }: { reason: string }) => {
+      const response = await axios.post(
+        PROCUREMENT_KEYS.CONFIRM_FINAL_BILLING(purchaseOrderId),
+        { reason },
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId) });
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
@@ -338,13 +388,14 @@ export const useClosePurchaseOrder = () => {
 // ── Confirm Receipt ─────────────────────────────────────────────────────────
 
 export interface ReceiptLineItem {
-  purchaseOrderLineItemId: string;
+  fulfillmentLineItemId: string;
   name?: string;
   quantityReceived: number;
   notes?: string;
 }
 
 export interface ConfirmReceiptPayload {
+  receiptReference: string;
   receivedAt: string;
   notes?: string;
   lineItems: ReceiptLineItem[];
@@ -355,12 +406,16 @@ export const useConfirmPOReceipt = (id: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: ConfirmReceiptPayload) => {
-      const response = await axios.post(PROCUREMENT_KEYS.CONFIRM_RECEIPT(id), payload);
+    mutationFn: async ({ fulfillmentId, payload }: { fulfillmentId: string; payload: ConfirmReceiptPayload }) => {
+      const response = await axios.post(
+        PROCUREMENT_KEYS.CONFIRM_FULFILLMENT_RECEIPT(id, fulfillmentId),
+        payload,
+      );
       return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrder(id) });
+      queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });

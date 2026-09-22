@@ -20,6 +20,8 @@ export interface ManualEmployee {
     employment_type?: string;
     status?: string;
     effective_date?: string;
+    legal_entity_code?: string;
+    legal_entity_name?: string;
 }
 
 export interface ManualValidateResponse {

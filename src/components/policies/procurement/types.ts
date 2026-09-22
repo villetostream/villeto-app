@@ -1,177 +1,175 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Procurement Policy — UI types aligned to the real backend API.
-   All backend condition and enforcement action strings come from the Villeto
-   Procurement Policy Rules documentation.
+   Spend Program — UI types aligned to the Villeto Spend Programs V1 API.
+   Replaces the old Procurement Policy types.
 ───────────────────────────────────────────────────────────────────────────── */
 
-// ─── Policy Group ─────────────────────────────────────────────────────────────
+// ─── Spend Program Group (procurement stage) ─────────────────────────────────
 
-export type ProcurementPolicyGroup =
-  | "pr_submission"
-  | "pr_to_po"
-  | "po_submission";
+export type SpendProgramGroup = "pr_submission" | "pr_to_po" | "po_submission";
 
-// ─── Scope ────────────────────────────────────────────────────────────────────
+// ─── Rule Definition (from /rule-definitions endpoint) ───────────────────────
 
-export type ScopeType = "company" | "specific";
-
-// ─── Backend Conditions ───────────────────────────────────────────────────────
-
-export type BackendCondition =
-  // Amount
-  | "amount_greater_than"
-  | "amount_less_than"
-  // Line item
-  | "unit_price_greater_than"
-  | "line_total_greater_than"
-  // Requester role
-  | "requester_role_not_allowed"
-  | "requester_role_requires_manager_approval"
-  // Budget / accounting
-  | "accounting_unresolved"
-  // Vendor
-  | "vendor_not_in_allowed_list"
-  // Contract
-  | "active_contract_missing"
-  | "contract_not_active"
-  // Quotation
-  | "quotations_required"
-  // Attachments
-  | "required_attachments_missing"
-  // Business justification
-  | "business_justification_required"
-  // PR volume
-  | "pr_count_exceeds_limit"
-  | "pr_creation_paused";
-
-// ─── Enforcement Actions ──────────────────────────────────────────────────────
-
-export type EnforcementAction =
-  | "allow"
-  | "warn"
-  | "require_justification"
-  | "require_attachments"
-  | "require_manager_approval"
-  | "prevent_submission"
-  | "require_procurement_review"
-  | "require_quotations"
-  | "prevent_po_creation"
-  | "require_contract"
-  | "restrict_vendor_selection"
-  | "prevent_direct_po"
-  | "require_approval"
-  | "require_active_contract"
-  | "auto_approve_purchase_request";
-
-// ─── Time unit for PR volume rules ────────────────────────────────────────────
-
-export type TimeUnit = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
-
-// ─── Policy Rule ──────────────────────────────────────────────────────────────
-
-export interface PolicyRule {
-  /** Internal UI id */
-  id: string;
-  /** Human-readable label auto-generated, sent as `criteria` string to the API */
-  criteriaLabel: string;
-  condition: BackendCondition | "";
-  enforcementAction: EnforcementAction | "";
-  // Optional per-condition fields
-  amount?: number;
-  currency?: string;
-  minimumQuotes?: number;
-  maxCount?: number;
-  timeUnit?: TimeUnit;
-  allowedVendorIds?: string[];
-  allowedRoleIds?: string[];
-  requiredAttachmentTypes?: string[];
-}
-
-// ─── Exceptions (UI only) ─────────────────────────────────────────────────────
-
-export type ExceptionCategory = "user" | "department" | "role" | "jobGrade" | "managementLevel" | "location";
-export type ExceptionSelection = Record<ExceptionCategory, string[]>;
-
-// ─── Priorities ───────────────────────────────────────────────────────────────
-
-export const PRIORITY_OPTIONS = [
-  { label: "Critical", value: 1 },
-  { label: "High", value: 10 },
-  { label: "Medium", value: 50 },
-  { label: "Low", value: 100 },
-];
-
-// ─── Policy Draft (wizard state) ─────────────────────────────────────────────
-
-export interface PolicyDraft {
-  policyGroup: ProcurementPolicyGroup | null;
+export interface RuleDefinition {
+  procurementSpendProgramRuleDefinitionId: string;
+  ruleType: string;
   name: string;
   description: string;
-  scopeType: ScopeType;
-  categoryIds: string[];
+  groups: SpendProgramGroup[];
+  allowedActions: string[];
+  conditionSchema: Record<string, string>;
+  actionSchema: Record<string, string>;
+  isSystem: boolean;
+  isActive: boolean;
+}
+
+// ─── Spend Program Rule (wizard draft state) ─────────────────────────────────
+
+export interface SpendProgramRule {
+  /** UI-only ID for React keys */
+  id: string;
+  /** DB UUID (present when editing existing rules) */
+  procurementSpendProgramRuleId?: string;
+  /** Stable key from rule-definitions endpoint */
+  ruleType: string;
+  /** Rule definition UUID (optional, for reference) */
+  ruleDefinitionId?: string;
+  /** Human-readable name from the rule definition */
+  displayName: string;
+  /** Description from the rule definition */
+  description?: string;
+  /** Which of the selected categories this rule applies to (empty = all) */
+  appliesToCategoryIds: string[];
+  /** Whether this rule applies to all selected categories */
+  appliesToAll: boolean;
+  /** Which legal entities this rule applies to (empty = all) */
+  legalEntityIds: string[];
+  /** Condition configuration based on conditionSchema */
+  conditionConfig: Record<string, any>;
+  /** Selected action from allowedActions */
+  action: string;
+  /** Action configuration based on actionSchema */
+  actionConfig: Record<string, any>;
+  /** Per-rule exception configuration */
+  exceptionConfig: RuleExceptionConfig;
+  /** Whether the rule is active or disabled */
+  isActive: boolean;
+}
+
+export interface RuleExceptionConfig {
   departmentIds: string[];
   roleIds: string[];
   jobGradeIds: string[];
   managementLevelIds: string[];
-  vendorIds: string[];
-  exceptions: ExceptionSelection;
-  rules: PolicyRule[];
-  requiresApproval: boolean;
-  approvalMode: "none" | "sequential" | "parallel";
-  approverIds: string[];
-  effectiveAt: string;
-  expiresAt: string;
-  priority: number;
-  draftId?: string;
-  procurementPolicyId?: string;
+  userIds: string[];
+  /** Logic for combining exception rules (default: "OR") */
+  logic?: string;
+  /** Condition configuration for the exception */
+  conditionConfig: Record<string, any>;
+  /** Selected action for the exception */
+  action: string;
+  /** Action configuration for the exception */
+  actionConfig: Record<string, any>;
 }
 
-export const emptyRule = (index: number): PolicyRule => ({
-  id: `rule-${Date.now()}-${index}`,
-  criteriaLabel: "",
-  condition: "",
-  enforcementAction: "",
-});
+// ─── Spend Program Group Draft (per-stage rules) ─────────────────────────────
 
-export const emptyDraft = (): PolicyDraft => ({
-  policyGroup: null,
-  name: "",
-  description: "",
-  scopeType: "company",
-  categoryIds: [],
+export interface SpendProgramGroupDraft {
+  group: string;
+  rules: SpendProgramRule[];
+  /** Present in API responses; used when submitting updates */
+  isActive?: boolean;
+}
+
+// ─── Spend Program Draft (full wizard state) ─────────────────────────────────
+
+export interface SpendProgramDraft {
+  name: string;
+  description: string;
+  categoryIds: string[];
+  groups: SpendProgramGroupDraft[];
+  draftId?: string;
+  programId?: string;
+}
+
+// ─── Factories ───────────────────────────────────────────────────────────────
+
+export const emptyRuleExceptionConfig = (): RuleExceptionConfig => ({
   departmentIds: [],
   roleIds: [],
   jobGradeIds: [],
   managementLevelIds: [],
-  vendorIds: [],
-  exceptions: { department: [], role: [], location: [], user: [], jobGrade: [], managementLevel: [] },
-  rules: [],
-  requiresApproval: false,
-  approvalMode: "none",
-  approverIds: [],
-  effectiveAt: "",
-  expiresAt: "",
-  priority: 100,
-  draftId: undefined,
+  userIds: [],
+  logic: "OR",
+  conditionConfig: {},
+  action: "",
+  actionConfig: {},
 });
 
-// ─── Display / list record (from API) ────────────────────────────────────────
+export const emptySpendProgramRule = (index: number): SpendProgramRule => ({
+  id: `rule-${Date.now()}-${index}`,
+  ruleType: "",
+  ruleDefinitionId: undefined,
+  displayName: "",
+  description: undefined,
+  appliesToCategoryIds: [],
+  appliesToAll: true,
+  legalEntityIds: [],
+  conditionConfig: {},
+  action: "",
+  actionConfig: {},
+  exceptionConfig: emptyRuleExceptionConfig(),
+  isActive: true,
+});
 
-export type ProcurementPolicyStatus = "draft" | "pending" | "approved" | "active" | "inactive";
+export const emptySpendProgramDraft = (): SpendProgramDraft => ({
+  name: "",
+  description: "",
+  categoryIds: [],
+  groups: [
+    { group: "pr_submission", rules: [] },
+    { group: "pr_to_po", rules: [] },
+    { group: "po_submission", rules: [] },
+  ],
+  draftId: undefined,
+  programId: undefined,
+});
+
+// ─── Display / list record (from Spend Programs API) ─────────────────────────
+
+export type SpendProgramStatus = "draft" | "pending" | "pending_approval" | "active" | "inactive" | "archived";
 
 /** Lightweight record used in the policy list table */
-export interface ProcurementPolicyListItem {
-  procurementPolicyId: string;
+export interface SpendProgramListItem {
+  procurementSpendProgramId: string;
   name: string;
   description?: string;
-  policyGroup: ProcurementPolicyGroup;
-  scopeType: ScopeType;
-  status: ProcurementPolicyStatus;
-  priority: number;
-  requiresApproval: boolean;
-  approvalMode: string;
-  effectiveAt?: string;
-  expiresAt?: string;
+  status: SpendProgramStatus;
+  versionNumber: number;
+  isCurrent: boolean;
+  effectiveAt?: string | null;
+  expiresAt?: string | null;
+  groupCount: number;
+  categoryCount: number;
+  ruleCount: number;
+  /** Group names as returned by the list endpoint, e.g. ["pr_submission"] */
+  groups: string[];
+  categories: { name: string; categoryId: string }[];
+  createdBy?: any;
+  approvedBy?: any;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── Category (from /companies/categories endpoint) ──────────────────────────
+
+export interface ProcurementCategory {
+  categoryId: string;
+  name: string;
+  description?: string | null;
+  module: string;
+  isActive: boolean;
+  sortOrder: number;
+  parentCategoryId?: string | null;
+  isPolicyAttached: boolean;
+  children: ProcurementCategory[];
 }

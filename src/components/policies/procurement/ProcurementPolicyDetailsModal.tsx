@@ -1,26 +1,88 @@
 "use client";
 
-import { X, Loader2, Trash2, AlertCircle } from "lucide-react";
-import { POLICY_GROUPS, getActionDef, getConditionDef } from "./constants";
-import { cn } from "@/lib/utils";
-import { useGetProcurementPolicyById, useGetProcurementPolicyDraftById, ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { X, Loader2, AlertCircle, Trash2 } from "lucide-react";
+import { useGetSpendProgramById, mapSpendProgramFromBackend } from "@/queries/procurement/policies";
+import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuthStore } from "@/stores/auth-stores";
 import { getApiErrorMessage } from "@/lib/types/api-error";
-import { useState, useMemo } from "react";
-import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
+import { useState } from "react";
+import { useExceptionFormatter } from "./hooks/useExceptionFormatter";
+import { buildConditionSummary, getActionLabel, getActionStyle, CURRENCY_OPTIONS } from "./constants";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(iso?: string | null) {
   if (!iso) return "—";
   try {
-    return new Date(iso).toISOString().split("T")[0];
-  } catch {
-    return "—";
-  }
+    return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  } catch { return "—"; }
 }
 
-const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
+const GROUP_ORDER = [
+  { code: "pr_submission", label: "Purchase Request" },
+  { code: "pr_to_po",      label: "PR to PO" },
+  { code: "po_submission", label: "Purchase Order" },
+];
+
+const formatAmountConfig = (cc: any) => {
+  if (cc.amounts || (cc.amountThresholds && Array.isArray(cc.amountThresholds) && cc.amountThresholds.length > 0)) {
+    let entries = [];
+    if (cc.amountThresholds && cc.amountThresholds.length > 0) {
+       entries = cc.amountThresholds.map((t: any) => [t.currency, t.amount]);
+    } else if (cc.amounts) {
+       entries = Object.entries(cc.amounts);
+    }
+    if (entries.length === 1) {
+       const [cur, amt] = entries[0];
+       const symbol = CURRENCY_OPTIONS.find((c: any) => c.value === cur)?.symbol || cur;
+       return `${symbol}${Number(amt).toLocaleString()}`;
+    }
+    if (entries.length > 1) {
+      const formatted = entries.map(([cur, amt]: any) => {
+         const symbol = CURRENCY_OPTIONS.find((c: any) => c.value === cur)?.symbol || cur;
+         return `${symbol}${Number(amt).toLocaleString()}`;
+      });
+      return `(${formatted.join(", ")})`;
+    }
+  }
+  
+  const amt = cc.amount || 0;
+  const cur = cc.currency || "NGN";
+  const symbol = CURRENCY_OPTIONS.find((c: any) => c.value === cur)?.symbol || cur;
+  return `${symbol}${Number(amt).toLocaleString()}`;
+}
+
+const getConditionText = (rule: any): string => {
+  const { ruleType, ruleName, conditionConfig: cc } = rule;
+  if (!cc) return "—";
+
+  if (cc.amount !== undefined || cc.amounts || cc.amountThresholds) {
+    const typeStr = (ruleType || "").toLowerCase();
+    const nameStr = (ruleName || "").toLowerCase();
+    
+    const isBelow = typeStr.includes("automatic_approval") || nameStr.includes("auto");
+    const operator = isBelow ? "<" : ">";
+    
+    let prefix = "Amount";
+    if (typeStr.includes("line_item") || nameStr.includes("line item")) prefix = "Line item amount";
+    else if (typeStr.includes("pr_") || typeStr.endsWith("_pr") || nameStr.includes("purchase request")) prefix = "PR amount";
+    else if (typeStr.includes("po_") || typeStr.endsWith("_po") || nameStr.includes("purchase order")) prefix = "PO amount";
+    
+    return `${prefix} ${operator} ${formatAmountConfig(cc)}`;
+  }
+
+  switch (ruleType) {
+    case "min_quotes_required":   return `Minimum ${cc.numberOfQuotes} quote(s) required`;
+    case "final_amount_required": return "Final amount required before PO submission";
+    case "contract_required":     return "Valid contract required for conversion";
+    default:
+      const summary = buildConditionSummary(cc, rule);
+      return summary || ruleType.replace(/_/g, " ");
+  }
+};
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function ProcurementPolicyDetailsModal({
   policyId,
@@ -33,246 +95,230 @@ export function ProcurementPolicyDetailsModal({
   onDeleteDraft,
   onApprove,
   onReject,
+  initialData,
 }: {
   policyId: string | null;
   isDraft?: boolean;
   isReviewMode?: boolean;
   onClose: () => void;
-  onEdit?: (p: ProcurementPolicyApiRecord) => void;
-  onArchive?: (p: ProcurementPolicyApiRecord) => void;
-  onSubmitDraft?: (p: ProcurementPolicyApiRecord) => void;
+  onEdit?: (p: any) => void;
+  onArchive?: (p: any) => void;
+  onSubmitDraft?: (p: any) => void;
   onDeleteDraft?: (draftId: string) => void;
-  onApprove?: (p: ProcurementPolicyApiRecord) => void;
-  onReject?: (p: ProcurementPolicyApiRecord) => void;
+  onApprove?: (p: any) => void;
+  onReject?: (p: any) => void;
+  /** Row data already in memory — used as placeholder so the modal renders instantly. */
+  initialData?: any;
 }) {
   const canDeactivate = useAuthStore((s) => s.can)("policy", "deactivate");
   const canUpdate     = useAuthStore((s) => s.can)("policy", "update");
 
+  const [activeTab, setActiveTab] = useState<string>("");
+  const [pendingAction, setPendingAction] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isPendingAction, setIsPendingAction] = useState(false);
 
-  const { data: activeData, isLoading: isActiveLoading } = useGetProcurementPolicyById(isDraft ? "" : (policyId ?? ""), {
-    enabled: !!policyId && !isDraft,
+  const { data: programData, isLoading } = useGetSpendProgramById(policyId ?? "", {
+    enabled: !!policyId,
+    // If the row data was already in memory, seed the cache with it so we
+    // render immediately rather than showing a spinner on every click.
+    placeholderData: initialData ? { data: initialData, message: "", status: 200 } : undefined,
   });
+  // Use the fetched data preferentially; fall back to initialData while loading.
+  const policy = programData?.data ? mapSpendProgramFromBackend(programData.data) : initialData;
 
-  const { data: draftData, isLoading: isDraftLoading } = useGetProcurementPolicyDraftById(isDraft ? (policyId ?? "") : "", {
-    enabled: !!policyId && !!isDraft,
-  });
-
-  const isLoading = isDraft ? isDraftLoading : isActiveLoading;
-  const data = isDraft ? draftData : activeData;
-  const policy = data?.data;
-
-  // Fetch all roles to resolve IDs to names (useGetAllRolesApi fetches all pages automatically)
-  const { data: rolesData, isLoading: isRolesLoading } = useGetAllRolesApi({ limit: 100 }, { enabled: !!policy });
-  const allRoles = useMemo(() => rolesData?.data ?? [], [rolesData]);
-
-  // Helper: resolve a role ID to its display name
-  // Checks policy.applicableRoles first (already returned by the policy-by-id endpoint),
-  // then falls back to the full roles list.
-  const resolveRoleName = (id: string) => {
-    const policyRoles: any[] = (policy as any)?.applicableRoles ?? [];
-    const fromPolicy = policyRoles.find(
-      (r: any) => (r.roleId ?? r.id ?? r.role_id) === id
-    );
-    if (fromPolicy) return fromPolicy.name ?? fromPolicy.roleName ?? fromPolicy.role_name ?? id;
-
-    const fromAll = allRoles.find(r => r.roleId === id);
-    return fromAll?.name ?? id;
-  };
+  const { formatExceptionSummary } = useExceptionFormatter();
+  const currentUserId = useAuthStore.getState().user?.userId;
 
   if (!policyId) return null;
 
   const handleApprove = async () => {
     if (!onApprove || !policy) return;
+    setPendingAction("approve");
     setError(null);
-    setIsPendingAction(true);
     try {
-      await onApprove(policy);
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to approve policy"));
-    } finally {
-      setIsPendingAction(false);
+      await onApprove(policy.procurementSpendProgramId ?? policy.procurementPolicyId);
+      onClose();
+    } catch (err: unknown) {
+      setError((err as any)?.response?.data?.message || "Failed to approve policy");
+      setPendingAction(null);
     }
   };
 
   const handleReject = async () => {
     if (!onReject || !policy) return;
+    setPendingAction("reject");
     setError(null);
-    setIsPendingAction(true);
     try {
-      await onReject(policy);
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to reject policy"));
-    } finally {
-      setIsPendingAction(false);
+      await onReject(policy.procurementSpendProgramId ?? policy.procurementPolicyId);
+      onClose();
+    } catch (err: unknown) {
+      setError((err as any)?.response?.data?.message || "Failed to reject policy");
+      setPendingAction(null);
     }
   };
 
+  const availableGroups: any[] = policy?.groups || [];
+  const visibleTabs = GROUP_ORDER.filter(t => availableGroups.some(g => g.group === t.code));
+  const currentTab = activeTab || visibleTabs[0]?.code || "pr_submission";
+  const activeGroupData = availableGroups.find(g => g.group === currentTab);
+  const rulesToDisplay: any[] = activeGroupData?.rules || [];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
       <div
-        className="bg-[#fafaf9] rounded-[24px] shadow-2xl w-full max-w-[540px] flex flex-col relative"
-        style={{ maxHeight: "92vh" }}
+        className="bg-white rounded-[20px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.25)] w-full max-w-[580px] flex flex-col border border-black/[0.06]"
+        style={{ maxHeight: "88vh" }}
+        onClick={(e) => e.stopPropagation()}
       >
+        {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 w-9 h-9 rounded-full bg-black/5 hover:bg-black/10 flex items-center justify-center transition-colors shrink-0 z-10"
+          className="absolute right-4 top-4 w-8 h-8 rounded-full bg-black/[0.05] hover:bg-black/[0.1] flex items-center justify-center transition-colors z-10"
         >
-          <X className="w-5 h-5 text-gray-500" />
+          <X className="w-4 h-4 text-gray-600" />
         </button>
 
-        {isLoading || !policy || isRolesLoading ? (
-          <div className="flex items-center justify-center py-32">
-            <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
+        {/* While the full detail is loading, show a subtle inline skeleton
+            rather than hiding everything — basic info is already visible
+            from initialData / placeholderData. */}
+        {isLoading && !policy ? (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="w-7 h-7 animate-spin text-[#087f70]" />
           </div>
         ) : (
           <>
-            {/* ── Header ── */}
-            <div className="px-6 pt-6 shrink-0">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0 pr-10">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <h2 className="text-xl font-bold text-gray-900 leading-tight">
-                      {capitalizeName(policy.name)}
-                    </h2>
-                    <div className="flex items-center gap-1.5">
-                      <StatusBadge status={policy.status} />
-                      {isDraft && canUpdate && onDeleteDraft && (
-                        <button
-                          onClick={() => onDeleteDraft(policy.procurementPolicyId)}
-                          className="ml-1 p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
-                          title="Delete Draft"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-xs font-medium text-gray-500 mt-1.5">v{(policy as any).version ?? 1}</p>
-                </div>
+            {/* ── Header (fixed, never scrolls) ── */}
+            <div className="px-6 pt-6 pb-4 shrink-0">
+              <div className="flex items-center gap-2.5 flex-wrap pr-10">
+                <h2 className="text-[20px] font-bold text-gray-900 leading-tight">{policy.name}</h2>
+                <StatusBadge status={policy.status} />
+                {isDraft && canUpdate && onDeleteDraft && (
+                  <button
+                    onClick={() => onDeleteDraft(policy.procurementSpendProgramId ?? policy.procurementPolicyId)}
+                    className="p-1 rounded-md hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+                    title="Delete Draft"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-              <div className="h-px bg-black/[0.06] w-full mt-5 mb-5" />
+              <p className="text-[12px] font-medium text-gray-400 mt-1">v{policy.versionNumber ?? 1}</p>
+              <div className="h-px bg-black/[0.06] w-full mt-4" />
             </div>
 
             {/* ── Scrollable body ── */}
             <div
-              className="flex-1 overflow-y-auto px-6 pb-4 space-y-4"
-              style={{ scrollbarWidth: "none" }}
+              className="flex-1 overflow-y-auto px-6 pb-4 space-y-3 min-h-0"
+              style={{ scrollbarWidth: "thin", scrollbarColor: "#d1d5db transparent" }}
             >
-              <style>{`div::-webkit-scrollbar{display:none}`}</style>
-
-              <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">
-                SUBMISSION POLICY DETAILS
-              </h3>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em]">SPEND PROGRAM DETAILS</p>
 
               {/* NAME & DESCRIPTION */}
-              <div className="rounded-[16px] border border-black/[0.06] bg-white p-5 shadow-sm">
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">
-                  Name & Description
-                </p>
-                <p className="text-[15px] font-semibold text-gray-900">{policy.name}</p>
+              <div className="rounded-[12px] border border-black/[0.06] bg-[#fafaf9] p-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">NAME & DESCRIPTION</p>
+                <p className="text-[14px] font-semibold text-gray-900">{policy.name}</p>
                 {policy.description && (
-                  <p className="text-[13px] text-gray-600 mt-1.5 leading-relaxed">
-                    {policy.description}
-                  </p>
+                  <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">{policy.description}</p>
                 )}
               </div>
 
               {/* APPLIES TO */}
-              <div className="rounded-[16px] border border-black/[0.06] bg-white p-5 shadow-sm">
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">
-                  Applies To
-                </p>
-                <div className="rounded-[8px] border border-black/[0.04] p-3">
-                  <p className="text-[13px] text-gray-700 font-medium">
-                    {policy.scopeType === "company"
-                      ? "All Employees in the organization"
-                      : "Specific Scope"}
-                  </p>
+              <div className="rounded-[12px] border border-black/[0.06] bg-[#fafaf9] p-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">PROCUREMENT CATEGORIES</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {policy.categories?.length > 0 ? (
+                    policy.categories.map((c: any) => (
+                      <span key={c.categoryId} className="bg-[#e8f5f3] text-[#087f70] px-3 py-1 rounded-full text-[12px] font-semibold border border-[#a6e6df]/40">
+                        {c.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[12px] text-gray-400 italic">No categories selected</span>
+                  )}
                 </div>
               </div>
 
               {/* ENFORCEMENT RULES */}
-              <div className="rounded-[16px] border border-black/[0.06] bg-white p-5 shadow-sm">
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3">
-                  Enforcement Rules
-                </p>
-                <div className="space-y-3">
-                  {!policy.rules || policy.rules.length === 0 ? (
-                    <p className="text-[13px] text-gray-500 italic py-2">
-                      No enforcement rules configured.
-                    </p>
+              <div className="rounded-[12px] border border-black/[0.06] bg-[#fafaf9] p-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">ENFORCEMENT RULES</p>
+
+                {/* Stage tabs */}
+                {visibleTabs.length > 0 && (
+                  <div className="flex items-center gap-0.5 bg-black/[0.04] p-0.5 rounded-[10px] mb-3 w-fit">
+                    {visibleTabs.map(t => (
+                      <button
+                        key={t.code}
+                        onClick={() => setActiveTab(t.code)}
+                        className={`px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all whitespace-nowrap ${
+                          activeTab === t.code
+                            ? "bg-white text-gray-900 shadow-sm"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Rule cards */}
+                <div className="space-y-2">
+                  {rulesToDisplay.length === 0 ? (
+                    <p className="text-[12px] text-gray-400 italic py-1">No rules configured for this stage.</p>
                   ) : (
-                    policy.rules.map((r, i) => {
-                      const cond = getConditionDef(r.condition as any);
-                      const action = getActionDef(r.enforcementAction as any);
-
-                      // Resolve role IDs to human-readable names
-                      const resolvedRoleNames: string[] = r.allowedRoleIds && r.allowedRoleIds.length > 0
-                        ? r.allowedRoleIds.map(resolveRoleName)
-                        : [];
-
-                      const isRoleCondition =
-                        r.condition === "requester_role_not_allowed" ||
-                        r.condition === "requester_role_requires_manager_approval";
-
-                      // Build human-readable rule title
-                      const ruleTitle = (() => {
-                        if (r.criteria && !r.criteria.includes("allowed role")) return r.criteria;
-                        if (isRoleCondition && resolvedRoleNames.length > 0) {
-                          const roleList = resolvedRoleNames.join(", ");
-                          return r.condition === "requester_role_not_allowed"
-                            ? `Apply when requester's role is not one of the permitted roles: ${roleList}`
-                            : `Apply when requester's role is one of: ${roleList}`;
+                    rulesToDisplay.map((r: any, i: number) => {
+                      let appliesToText = "All selected categories";
+                      if (r.appliesToCategories?.length > 0) {
+                        const policyCatIds = [...(policy.categoryIds || [])].sort().join(",");
+                        const ruleCatIds = [...(r.appliesToCategoryIds || [])].sort().join(",");
+                        if (ruleCatIds && policyCatIds !== ruleCatIds) {
+                          appliesToText = r.appliesToCategories.map((c: any) => c.name).join(", ");
                         }
-                        return cond?.label ?? r.condition;
-                      })();
+                      }
+                      const exceptionSummary = formatExceptionSummary(r.exceptionConfig);
 
                       return (
-                        <div key={i} className="rounded-[12px] border border-black/[0.04] p-4 bg-[#fafaf9]/50">
-                          <div className="text-[13px] font-semibold text-gray-900 mb-2">
-                            {ruleTitle}
+                        <div key={i} className="rounded-[10px] border border-black/[0.06] bg-white p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                          <p className="text-[13px] font-bold text-gray-900 mb-1.5">{r.ruleName}</p>
+                          <div className="space-y-0.5 mb-2.5">
+                            <p className="text-[12px] text-gray-500">{getConditionText(r)}</p>
+                            <p className="text-[12px] font-semibold text-gray-800">{r.actionLabel || r.action}</p>
                           </div>
-                          <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
-                            <span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded font-semibold uppercase">IF</span>
-                            {isRoleCondition && resolvedRoleNames.length > 0 ? (
-                              <span className="text-gray-800">
-                                {r.condition === "requester_role_not_allowed"
-                                  ? "Requester's role is not in the permitted list"
-                                  : "Requester's role matches one of the selected roles"}
-                              </span>
-                            ) : (
-                              <span className="text-gray-800">{cond?.label ?? r.condition}</span>
-                            )}
-                            {r.amount !== undefined && (
-                              <>
-                                <span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded font-semibold uppercase">IS GREATER THAN</span>
-                                <span className="text-gray-900 font-bold">{r.currency ?? ""} {r.amount.toLocaleString()}</span>
-                              </>
-                            )}
-                            {r.minimumQuotes !== undefined && (
-                              <>
-                                <span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded font-semibold uppercase">MIN QUOTES</span>
-                                <span className="text-gray-900 font-bold">{r.minimumQuotes}</span>
-                              </>
-                            )}
-                            {resolvedRoleNames.length > 0 && (
-                              <div className="w-full mt-2 flex flex-col gap-1">
-                                <span className="text-[11px] text-gray-500 font-medium">
-                                  {r.condition === "requester_role_not_allowed" ? "Permitted roles (only these may submit without triggering this rule):" : "Matching roles:"}
-                                </span>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {resolvedRoleNames.map((name, ri) => (
-                                    <span key={ri} className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 text-[11px] font-semibold border border-teal-100">
-                                      {name}
+                          <div className="border-t border-black/[0.04] pt-2 space-y-1">
+                            <p className="text-[11px] text-gray-400">
+                              Applies to: <span className="font-semibold text-gray-600">{appliesToText}</span>
+                            </p>
+                            {(exceptionSummary || r.exceptionConfig?.action || Object.keys(r.exceptionConfig?.conditionConfig || {}).length > 0) && (
+                              <div className="mt-2 pt-2 border-t border-black/[0.04] flex flex-col gap-1 text-[11px]">
+                                {Object.keys(r.exceptionConfig?.conditionConfig || {}).length > 0 && (
+                                  <p className="text-gray-600">
+                                    <span className="font-semibold text-gray-700">Exception Condition:</span> {buildConditionSummary(r.exceptionConfig.conditionConfig, r)}
+                                  </p>
+                                )}
+                                {r.exceptionConfig?.action && (
+                                  <p className="flex items-center gap-1.5 text-gray-600">
+                                    <span className="font-semibold text-gray-700">Exception Action:</span>
+                                    <span
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                      style={{
+                                        color: getActionStyle(r.exceptionConfig.action).color,
+                                        backgroundColor: getActionStyle(r.exceptionConfig.action).bgColor
+                                      }}
+                                    >
+                                      {getActionLabel(r.exceptionConfig.action)}
                                     </span>
-                                  ))}
-                                </div>
+                                  </p>
+                                )}
+                                {exceptionSummary && (
+                                  <p className="text-[#c07a10]">
+                                    <span className="font-semibold">Exceptions:</span> {exceptionSummary}
+                                  </p>
+                                )}
                               </div>
                             )}
-                            <span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded font-semibold uppercase">THEN</span>
-                            <span className="text-gray-900">{action?.label ?? r.enforcementAction}</span>
                           </div>
                         </div>
                       );
@@ -282,113 +328,78 @@ export function ProcurementPolicyDetailsModal({
               </div>
             </div>
 
-            {/* ── Created & Approved Info ── */}
-            <div className="px-6 pt-4 pb-2 shrink-0">
-              <div className="flex justify-between gap-4 text-[12px]">
+            {/* ── Created & Approved Info (fixed) ── */}
+            <div className="px-6 pt-3 pb-2 shrink-0 border-t border-black/[0.05]">
+              <div className="flex justify-between gap-4 text-[11px]">
                 <div>
-                  <p className="text-gray-500 mb-1">Created by</p>
-                  {policy.createdBy ? (
-                    <>
-                      <p className="text-gray-900 font-medium">
-                        {policy.createdBy.firstName} {policy.createdBy.lastName}
-                        {policy.createdBy.jobTitle ? ` (${policy.createdBy.jobTitle})` : ""}
-                      </p>
-                      <p className="text-gray-500 mt-0.5">{formatDate(policy.createdAt)}</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-gray-900 font-medium">—</p>
-                      <p className="text-gray-500 mt-0.5">{formatDate(policy.createdAt)}</p>
-                    </>
-                  )}
+                  <p className="text-gray-400 mb-0.5 font-medium">Created by</p>
+                  <p className="text-gray-900 font-semibold">
+                    {policy.createdBy
+                      ? `${policy.createdBy.firstName} ${policy.createdBy.lastName}${policy.createdBy.userId === currentUserId ? " (You)" : ""}`
+                      : "—"}
+                  </p>
+                  <p className="text-gray-400">{formatDate(policy.createdAt)}</p>
                 </div>
-                {/* Approver — try approvers[] array first, then approvedBy object */}
-                {(() => {
-                  const approverList: any[] = (policy.approvers && policy.approvers.length > 0)
-                    ? policy.approvers
-                    : (policy as any).approvedBy
-                      ? [(policy as any).approvedBy]
-                      : [];
-                  if (approverList.length === 0) return null;
-                  return (
-                    <div className="text-right">
-                      <p className="text-gray-500 mb-1">Approved by</p>
-                      {approverList.map((a: any, i: number) => (
-                        <div key={i} className="mb-2 last:mb-0">
-                          <p className="text-gray-900 font-medium">
-                            {a.firstName ?? a.first_name ?? ""} {a.lastName ?? a.last_name ?? ""}
-                            {(a.jobTitle || a.job_title) ? ` (${a.jobTitle ?? a.job_title})` : ""}
-                          </p>
-                          <p className="text-gray-500 mt-0.5">{formatDate(a.approvedAt ?? a.approved_at ?? policy.updatedAt)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
+                {policy.approvedBy && (
+                  <div className="text-right">
+                    <p className="text-gray-400 mb-0.5 font-medium">Approved by</p>
+                    <p className="text-gray-900 font-semibold">
+                      {policy.approvedBy.firstName} {policy.approvedBy.lastName}
+                    </p>
+                    <p className="text-gray-400">{formatDate(policy.approvedAt || policy.updatedAt)}</p>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* ── Error Message ── */}
+            {/* ── Error ── */}
             {error && (
-              <div className="px-6 pb-2">
-                <div className="p-4 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-700 leading-snug">{error}</p>
+              <div className="px-6 pb-2 shrink-0">
+                <div className="p-3 rounded-xl bg-red-50 border border-red-100 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                  <p className="text-[12px] text-red-700 leading-snug">{error}</p>
                 </div>
               </div>
             )}
 
             {/* ── Footer buttons ── */}
-            <div className="px-6 pb-6 pt-1 shrink-0 flex gap-3">
+            <div className="px-6 pb-5 pt-3 shrink-0 flex justify-end gap-2.5">
               {isReviewMode ? (
                 <>
                   {onReject && (
-                    <button
-                      onClick={handleReject}
-                      disabled={isPendingAction}
-                      className="flex-1 h-11 rounded-full border border-red-500 text-red-500 text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center"
-                    >
-                      {isPendingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
+                    <button onClick={handleReject} disabled={pendingAction !== null} className="h-10 px-7 rounded-full border border-red-400 text-red-500 text-[13px] font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]">
+                      {pendingAction === "reject" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
                     </button>
                   )}
                   {onApprove && (
-                    <button
-                      onClick={handleApprove}
-                      disabled={isPendingAction}
-                      className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center"
-                    >
-                      {isPendingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
+                    <button onClick={handleApprove} disabled={pendingAction !== null} className="h-10 px-7 rounded-full bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]">
+                      {pendingAction === "approve" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
+                    </button>
+                  )}
+                </>
+              ) : isDraft ? (
+                <>
+                  {canUpdate && onEdit && (
+                    <button onClick={() => { onEdit(policy); onClose(); }} className="h-10 px-7 rounded-[9px] border border-[#c07a10] text-[#c07a10] text-[13px] font-semibold hover:bg-[#fffbf0] transition-colors">
+                      Edit
+                    </button>
+                  )}
+                  {canUpdate && onSubmitDraft && (
+                    <button onClick={() => { onSubmitDraft(policy); onClose(); }} className="h-10 px-7 rounded-[9px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors">
+                      Submit
                     </button>
                   )}
                 </>
               ) : (
                 <>
-                  {!isDraft && canDeactivate && onArchive && policy.status !== "pending" && policy.status !== "pending_approval" && (
-                    <button
-                      onClick={() => { onArchive(policy); onClose(); }}
-                      className="flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
-                    >
+                  {canDeactivate && onArchive && policy.status !== "pending" && policy.status !== "pending_approval" && policy.status !== "archived" && policy.status !== "inactive" && (
+                    <button onClick={() => { onArchive(policy); onClose(); }} className="h-10 px-7 rounded-[9px] border border-[#c07a10] text-[#c07a10] text-[13px] font-semibold hover:bg-[#fffbf0] transition-colors">
                       Move to Archive
                     </button>
                   )}
-                  {canUpdate && onEdit && policy.status !== "pending" && policy.status !== "pending_approval" && (
-                    <button
-                      onClick={() => { onEdit(policy); onClose(); }}
-                      className={
-                        isDraft
-                          ? "flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
-                          : "flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-                      }
-                    >
+                  {canUpdate && onEdit && policy.status !== "pending" && policy.status !== "pending_approval" && policy.status !== "archived" && policy.status !== "inactive" && (
+                    <button onClick={() => { onEdit(policy); onClose(); }} className="h-10 px-7 rounded-[9px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors">
                       Edit
-                    </button>
-                  )}
-                  {isDraft && canUpdate && onSubmitDraft && (
-                    <button
-                      onClick={() => { onSubmitDraft(policy); onClose(); }}
-                      className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-                    >
-                      Submit
                     </button>
                   )}
                 </>

@@ -3,12 +3,13 @@
 import { useEffect } from "react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useRouter } from "next/navigation";
+import { logoutAndRedirect } from "@/lib/logout";
 
 const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 const LAST_ACTIVITY_KEY = "villeto_lastActivityTime";
 
 export default function IdleSessionManager() {
-  const { logout, user } = useAuthStore();
+  const { user } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -34,8 +35,7 @@ export default function IdleSessionManager() {
       if (currentTime - lastActivity > IDLE_TIMEOUT_MS) {
         // User has been idle for more than the timeout duration
         localStorage.removeItem(LAST_ACTIVITY_KEY);
-        logout();
-        window.location.href = "/login";
+        logoutAndRedirect();
       }
     };
 
@@ -79,7 +79,7 @@ export default function IdleSessionManager() {
       window.removeEventListener("visibilitychange", handleVisibilityChange);
       clearInterval(intervalId);
     };
-  }, [logout, router, user]);
+  }, [router, user]);
 
   return null;
 }

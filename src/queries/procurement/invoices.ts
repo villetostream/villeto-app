@@ -37,6 +37,9 @@ export function useInvoiceAction() {
   return useMutation({
     mutationFn: async ({ invoiceId, action, reason }: { invoiceId: string; action: "under-review" | "approve" | "reject"; reason?: string }) =>
       (await axios.patch(`procurement/invoices/${invoiceId}/${action}`, action === "reject" ? { reason: reason || "Rejected during invoice review" } : {})).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: ["procurement-invoices"] }),
+    onSuccess: () => {
+      client.removeQueries({ queryKey: ["procurement-invoices"], type: "inactive" });
+      return client.invalidateQueries({ queryKey: ["procurement-invoices"] });
+    },
   });
 }

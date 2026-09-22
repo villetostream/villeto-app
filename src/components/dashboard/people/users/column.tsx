@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { AppUser } from "@/queries/departments/get-all-departments";
 import { logger } from "@/lib/logger";
-import { isRecord } from "@/lib/types/api-error";
 
 import {
     DropdownMenu,
@@ -13,20 +12,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Close as PopoverClose } from "@radix-ui/react-popover";
-import { Eye, Lock, MoreHorizontal, UserCheck, Mail, X } from "lucide-react";
+import { Eye, Lock, MoreHorizontal, Mail, X } from "lucide-react";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import { useAuthStore } from "@/stores/auth-stores";
 
-
-function getDepartmentName(dept: unknown): string {
-  if (!dept) return "—";
-  if (typeof dept === "string") return dept || "—";
-  if (isRecord(dept)) {
-    const name = dept.departmentName ?? dept.name;
-    if (typeof name === "string" && name) return name;
-  }
-  return "—";
-}
 
 function formatName(value: string | null | undefined): string {
   if (!value) return "—";
@@ -126,17 +115,17 @@ export const columns = (
                                 +{extraRolesCount}
                             </button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-5 rounded-[20px] border shadow-lg" align="start">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-semibold text-base text-[#101828]">Assigned roles</h3>
-                                <PopoverClose className="h-7 w-7 rounded-full border border-[#EAECF0] flex items-center justify-center hover:bg-gray-50 focus:outline-none transition-colors">
-                                    <X className="h-4 w-4 text-[#667085]" strokeWidth={2} />
+                        <PopoverContent className="w-[280px] p-4 rounded-[16px] border shadow-xl" align="start">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-[15px] text-[#0b100e]">Assigned roles</h3>
+                                <PopoverClose className="h-6 w-6 rounded-full flex items-center justify-center hover:bg-gray-100 focus:outline-none transition-colors text-[#68726d]">
+                                    <X className="h-3.5 w-3.5" strokeWidth={2.5} />
                                 </PopoverClose>
                             </div>
-                            <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                            <div className="flex flex-col gap-1 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
                                 {uniqueRoles.map((role, idx) => (
-                                    <div key={idx} className="py-3 px-4 border border-[#EAECF0] rounded-[12px] flex items-center">
-                                        <p className="font-medium text-[14px] text-[#344054]">{formatName(role)}</p>
+                                    <div key={idx} className="py-2 px-2.5 flex items-center bg-[#f4f7f5] rounded-[8px]">
+                                        <p className="font-medium text-sm text-[#344054]">{formatName(role)}</p>
                                     </div>
                                 ))}
                             </div>
@@ -179,7 +168,6 @@ export const columns = (
         cell: (info) => {
             const status = info.getValue() as string;
             // Status is a string: "Active" or "Inactive"
-            const isActive = status?.toLowerCase() === "active";
             const statusText = status?.toLowerCase() || "inactive";
             return <StatusBadge status={statusText} />;
         },
@@ -201,7 +189,7 @@ export const columns = (
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl border-none shadow-lg">
-                            <PermissionGuard resource="user" action="read">
+                            <PermissionGuard anyOf={["user.manage", "user.directory.read"]}>
                                 <DropdownMenuItem 
                                     className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#F0FDF4] text-[#475467]"
                                     onClick={() => onViewProfile(data.row.original.userId)}
@@ -214,14 +202,17 @@ export const columns = (
                             <div className="h-[1px] bg-[#F2F4F7] my-1 mx-2" />
                             
                             {isActive && (() => {
-                                const roleName = String(data.row.original.villetoRole?.name || data.row.original.position || "").toUpperCase();
-                                const isOwner = roleName.includes("OWNER");
+                                const assignedRoles = Array.isArray(data.row.original.companyRoles)
+                                    ? data.row.original.companyRoles
+                                    : [];
+                                const isOwner = assignedRoles.some((role) => role?.templateKey === "owner")
+                                    || data.row.original.companyRole?.templateKey === "owner";
                                 const currentUserId = useAuthStore.getState().user?.userId;
                                 const isSelf = data.row.original.userId === currentUserId;
                                 const canDeactivate = !isOwner && !isSelf;
 
                                 return canDeactivate ? (
-                                    <PermissionGuard resource="user" action="manage">
+                                    <PermissionGuard anyOf={["user.manage"]}>
                                         <DropdownMenuItem 
                                             className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#FEF2F2] text-[#B42318]"
                                             onClick={() => {
@@ -237,7 +228,7 @@ export const columns = (
                             })()}
 
                             {!isActive && onResendInvitation && (
-                                <PermissionGuard resource="user" action="manage">
+                                <PermissionGuard anyOf={["user.manage"]}>
                                     <DropdownMenuItem 
                                         className="flex items-center gap-3 py-3 px-4 rounded-lg cursor-pointer hover:bg-[#F0FDF4] text-[#087f70]"
                                         onClick={() => onResendInvitation(data.row.original)}

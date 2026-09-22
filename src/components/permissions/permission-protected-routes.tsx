@@ -17,21 +17,22 @@ const withPermissions = <P extends object>(
     const router = useRouter();
     const pathName = usePathname();
     const can = useAuthStore(state => state.can);
-    const companyPermissions = useAuthStore(state => state.companyPermissions);
+    const isAuthorizationLoading = useAuthStore(state => state.isLoading);
+    const authorizationRevision = useAuthStore(
+      state => state.authorization?.revision,
+    );
 
-    const hasAccess = (): boolean => {
-      if (!requiredPermissions || requiredPermissions.length === 0) return true;
-      return requiredPermissions.some(p => can(p.resource, p.action));
-    };
+    const hasAccess = !requiredPermissions || requiredPermissions.length === 0
+      ? true
+      : requiredPermissions.some(p => can(p.resource, p.action));
 
     useEffect(() => {
-      if (!hasAccess()) {
+      if (!isAuthorizationLoading && !hasAccess) {
         router.push("/dashboard");
       }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pathName, companyPermissions]);
+    }, [pathName, authorizationRevision, hasAccess, isAuthorizationLoading, router]);
 
-    if (!hasAccess()) {
+    if (isAuthorizationLoading || !hasAccess) {
       return null;
     }
 

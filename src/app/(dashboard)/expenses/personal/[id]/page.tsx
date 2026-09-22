@@ -1,5 +1,7 @@
 "use client";
 
+import withPermissions from "@/components/permissions/permission-protected-routes";
+
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -40,7 +42,7 @@ const formatDate = (dateString: string): string => {
 
 
 
-export default function PersonalExpenseDetailPage() {
+function PersonalExpenseDetailPage() {
   const params = useParams();
   const router = useRouter();
   const reportId = params.id as string;
@@ -361,3 +363,7 @@ export default function PersonalExpenseDetailPage() {
     </>
   );
 }
+
+export default withPermissions(PersonalExpenseDetailPage, [
+  { resource: "expense.report", action: "read_own" },
+]);

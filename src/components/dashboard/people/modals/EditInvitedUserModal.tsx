@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
     Select,
     SelectContent,
@@ -68,6 +69,8 @@ export function EditInvitedUserModal({
     const selectedRole = useWatch({ control, name: "role", defaultValue: "" });
     const ownershipValue = useWatch({ control, name: "ownershipPercentage", defaultValue: 0 });
     const isOwnerRole = selectedRole.toLowerCase().includes("owner");
+
+    const [complianceChecked, setComplianceChecked] = useState(true);
 
     const [syncedUserId, setSyncedUserId] = useState<string | null>(null);
     if (user && isOpen && user.id !== syncedUserId) {
@@ -158,6 +161,7 @@ export function EditInvitedUserModal({
                                             ) : (
                                                 (rolesApi.data?.data ?? [])
                                                     .slice()
+                                                    .filter((role) => role.templateKey !== "owner")
                                                     .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
                                                     .map((role) => (
                                                         <SelectItem key={role.roleId ?? role.name} value={role.name}>
@@ -219,9 +223,9 @@ export function EditInvitedUserModal({
                                     <Label className={fieldLabel}>
                                         Ownership %<span className="text-red-500 ml-0.5">*</span>
                                     </Label>
-                                    <span className={`text-[13px] font-semibold ${(ownershipValue ?? 0) >= MAX_OWNERSHIP ? "text-red-500" : "text-[#087f70]"}`}>
+                                    <span className={`text-[13px] font-semibold ${(ownershipValue ?? 0) > (complianceChecked ? 25 : 100) ? "text-red-500" : "text-[#087f70]"}`}>
                                         {ownershipValue ?? 0}%
-                                        {(ownershipValue ?? 0) >= MAX_OWNERSHIP && " (Max)"}
+                                        {(ownershipValue ?? 0) >= (complianceChecked ? 25 : 100) && " (Max)"}
                                     </span>
                                 </div>
 
@@ -233,30 +237,43 @@ export function EditInvitedUserModal({
                                             value={[field.value || 0]}
                                             onValueChange={(val) => field.onChange(val[0])}
                                             min={0}
-                                            max={MAX_OWNERSHIP}
+                                            max={complianceChecked ? 25 : 100}
                                             step={1}
                                             className="w-full"
                                         />
                                     )}
                                 />
 
-                                {(ownershipValue ?? 0) >= MAX_OWNERSHIP && (
+                                {(ownershipValue ?? 0) >= (complianceChecked ? 25 : 100) && complianceChecked && (
                                     <p className="text-red-500 text-[12px] flex items-center gap-1.5">
                                         <AlertCircle className="h-3.5 w-3.5" />
                                         Ownership cannot exceed 25% to stay compliant with financial regulations
                                     </p>
                                 )}
 
-                                {/* Compliance note */}
-                                <div className="flex items-start gap-3 p-3 bg-[#e7f6f2] rounded-[10px] border border-[#0ea894]/20">
-                                    <div className="w-4 h-4 rounded-[4px] bg-[#0ea894] flex items-center justify-center shrink-0 mt-0.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 text-white">
-                                            <polyline points="20 6 9 17 4 12" />
-                                        </svg>
-                                    </div>
-                                    <div className="space-y-0.5">
-                                        <p className="text-[13px] font-semibold text-[#0b100e]">No single owner holds 25% or more</p>
-                                        <p className="text-[12px] text-[#66706b]">Required to stay compliant with financial regulations</p>
+                                {/* Compliance Checkbox */}
+                                <div
+                                    className={`flex cursor-pointer items-start gap-3 rounded-[10px] border p-3.5 transition-colors ${
+                                        complianceChecked ? "border-[#c3ece7] bg-[#f0faf8]" : "border-amber-200 bg-amber-50"
+                                    }`}
+                                    onClick={() => setComplianceChecked(!complianceChecked)}
+                                >
+                                    <Checkbox
+                                        id="edit-compliance"
+                                        checked={complianceChecked}
+                                        onCheckedChange={(checked) => setComplianceChecked(checked === true)}
+                                        className="mt-0.5"
+                                        onClick={e => e.stopPropagation()}
+                                    />
+                                    <div>
+                                        <label htmlFor="edit-compliance" className="cursor-pointer text-[13px] font-semibold text-[#0b100e]">
+                                            No single owner holds 25% or more
+                                        </label>
+                                        <p className="mt-0.5 text-[12px] text-[#68726d]">
+                                            {complianceChecked
+                                                ? "Checked — ownership is capped at 25% for compliance"
+                                                : "Unchecked — ownership can go up to 100%"}
+                                        </p>
                                     </div>
                                 </div>
                             </div>

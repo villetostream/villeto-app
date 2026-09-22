@@ -23,9 +23,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLegalEntities } from "@/queries/legal-entities";
 import { useAccountingData, useProvisionAccounting } from "@/queries/accounting";
 import withPermissions from "@/components/permissions/permission-protected-routes";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
 const money = (value: string | number, currency = "USD") =>
-  new Intl.NumberFormat(undefined, {
+  new Intl.NumberFormat("en-NG", {
     style: "currency",
     currency,
     minimumFractionDigits: 0,
@@ -37,12 +38,8 @@ const formatDate = (value?: string) =>
     ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value))
     : "Not set";
 
-interface PageProps {
-  params: Promise<{}>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}
-
-function AccountingPage(props: PageProps) {
+function AccountingPage() {
+  const policies = useAuthorizationPolicies();
   const entitiesQuery = useLegalEntities();
   const entities = entitiesQuery.data?.data || [];
   const [selectedId, setSelectedId] = useState("");
@@ -123,10 +120,12 @@ function AccountingPage(props: PageProps) {
             <RefreshCcw className="size-4" />
             <span className="sr-only">Refresh accounting data</span>
           </Button>
-          <Button onClick={provisionChart} disabled={!legalEntityId || provision.isPending} className="h-10 rounded-[10px] px-4 text-[11px] font-semibold shadow-none">
-            {provision.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Settings2 className="mr-2 size-4" />}
-            {accounts.length ? "Refresh configuration" : "Configure subledger"}
-          </Button>
+          {policies.accounting.canManageConfiguration && (
+            <Button onClick={provisionChart} disabled={!legalEntityId || provision.isPending} className="h-10 rounded-[10px] px-4 text-[11px] font-semibold shadow-none">
+              {provision.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Settings2 className="mr-2 size-4" />}
+              {accounts.length ? "Refresh configuration" : "Configure subledger"}
+            </Button>
+          )}
         </div>
       </section>
 

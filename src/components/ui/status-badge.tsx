@@ -34,8 +34,12 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "delivered":
     case "confirmed":
     case "done":
+    case "converted_to_po":
+    case "partially_converted_to_po":
       colorClasses = "text-[#087f70] bg-[#f0faf8] border-[#c8ece4]";
       if (normalizedStatus === "posted") defaultLabel = "Posted";
+      if (normalizedStatus === "converted_to_po") defaultLabel = "Converted to PO";
+      if (normalizedStatus === "partially_converted_to_po") defaultLabel = "Partially Converted to PO";
       break;
       
     // Deep Teal (Financial Success)
@@ -60,7 +64,9 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     // Slate/Blue-gray (Work in progress)
     case "draft":
     case "provisional":
+    case "not_submitted":
       colorClasses = "text-[#4a5568] bg-[#f7fafc] border-[#e2e8f0]";
+      if (normalizedStatus === "not_submitted") defaultLabel = "Draft";
       break;
       
     // Blue (Informational / Onboarding / Processing)

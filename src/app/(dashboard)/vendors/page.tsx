@@ -11,7 +11,7 @@ import { asRecord, getApiErrorMessage, getString, pickString } from "@/lib/types
 import { useAxios } from "@/hooks/useAxios";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
-import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { useGetAllVendors } from "@/queries/vendors/get-all-vendors";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
@@ -626,16 +626,14 @@ function VendorTable({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default withPermissions(VendorPage, [
-  { resource: "vendor", action: "read_company" },
-  { resource: "vendor", action: "manage" },
+  { resource: "vendor", action: "sensitive.read" },
 ]);
 
 function VendorPage() {
   const router      = useRouter();
   const searchParams = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
-  const can = useAuthStore(s => s.can);
-  const canInviteVendor = can("vendor", "invite");
+  const canInviteVendor = useAuthorizationPolicies().vendors.canInvite;
 
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
   const [page, setPage] = useState(1);

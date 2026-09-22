@@ -329,7 +329,7 @@ export default function Leadership() {
                 lastName: owner.lastName,
                 email: owner.email,
                 ownershipPercentage: owner.ownershipPercentage ?? 0,
-                ...(owner.phone && owner.phone !== "00000000000" ? { phone: owner.phone } : {}),
+                phone: owner.phone && owner.phone !== "00000000000" ? owner.phone : "00000000000",
             })),
         };
 
@@ -362,7 +362,20 @@ export default function Leadership() {
         } catch (error) {
             const err = error as { response?: { data?: { message?: string | string[] } } };
             const msg = err?.response?.data?.message;
-            const displayMsg = Array.isArray(msg) ? msg.join('\n') : (msg || (error instanceof Error ? error.message : "Failed to update company details"));
+            let displayMsg = "Failed to update company details";
+            
+            if (Array.isArray(msg)) {
+                displayMsg = msg.map(m => {
+                    const cleanMsg = m.replace(/^[\w.]+: /, '');
+                    return cleanMsg.charAt(0).toUpperCase() + cleanMsg.slice(1);
+                }).join('\n');
+            } else if (typeof msg === 'string') {
+                const cleanMsg = msg.replace(/^[\w.]+: /, '');
+                displayMsg = cleanMsg.charAt(0).toUpperCase() + cleanMsg.slice(1);
+            } else if (error instanceof Error) {
+                displayMsg = error.message;
+            }
+            
             toast.error(displayMsg);
         }
     };

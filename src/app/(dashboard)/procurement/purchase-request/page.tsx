@@ -13,6 +13,7 @@ import type { PurchaseRequest } from "@/queries/procurement/purchase-requests";
 
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -135,16 +136,16 @@ function RejectModal({
 function PRActionMenu({
   pr,
   canApprove,
-  canConvert,
   onApprove,
   onReject,
+  onConvert,
   onView,
 }: {
   pr: PurchaseRequest;
   canApprove: boolean;
-  canConvert: boolean;
   onApprove: () => void;
   onReject: () => void;
+  onConvert?: () => void;
   onView: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -162,8 +163,9 @@ function PRActionMenu({
 
   const showApprove = canApprove && pr.currentUserActionRequired && pr.status === "submitted";
   const showReject  = canApprove && pr.currentUserActionRequired && pr.status === "submitted";
+  const showConvert = !!onConvert && pr.status === "approved";
 
-  if (!showApprove && !showReject) {
+  if (!showApprove && !showReject && !showConvert) {
     // Read-only eye button
     return (
       <button
@@ -211,6 +213,18 @@ function PRActionMenu({
               >
                 <XCircle className="w-3.5 h-3.5 text-[#d33d44]" />
                 Reject
+              </button>
+            </>
+          )}
+          {showConvert && onConvert && (
+            <>
+              <div className="border-t border-black/[0.06] my-1" />
+              <button
+                onClick={e => { e.stopPropagation(); setOpen(false); onConvert(); }}
+                className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#087f70] hover:bg-[#f0faf8] transition-colors font-semibold"
+              >
+                <CheckCircle className="w-3.5 h-3.5 text-[#087f70]" />
+                Convert to PO
               </button>
             </>
           )}
@@ -312,9 +326,9 @@ function PRTable({
   const router         = useRouter();
   const showRequester  = scope !== "own";
 
-  const can         = useAuthStore(s => s.can);
-  const canApprove  = scope !== "own" && can("procurement.purchase_request", "approve");
-  const canConvert  = scope !== "own" && can("procurement.purchase_request", "convert_to_po");
+  const policies    = useAuthorizationPolicies();
+  const canApprove  = scope !== "own" && policies.purchaseRequests.canApprove;
+  const canConvert  = scope !== "own" && policies.purchaseRequests.canConvertToPurchaseOrder;
 
   const statusTabs  = scope === "own"
     ? OWN_STATUS_TABS
@@ -377,7 +391,7 @@ function PRTable({
   const requiresMyConversion = isActionTab && activeTabCfg?.actionType === "convert";
 
   const user        = useAuthStore(s => s.user);
-  const canChangeDept = can("department", "manage") || can("procurement.purchase_request", "manage");
+  const canChangeDept = policies.people.canManageDepartments;
   const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
   const departments = deptData?.data || [];
 
@@ -396,21 +410,21 @@ function PRTable({
 
   const { data: approvalCountData } = useGetPurchaseRequests(
     { scope, status: "submitted", requiresMyApproval: true },
-    { enabled: canApprove, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canApprove && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const awaitingCount = (approvalCountData as unknown as number) ?? 0;
+  const awaitingCount = scope === "company" ? 0 : ((approvalCountData as unknown as number) ?? 0);
 
   const { data: conversionCountData } = useGetPurchaseRequests(
     { scope, status: "approved", requiresMyConversion: true },
-    { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canConvert && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const readyForPOCount = (conversionCountData as unknown as number) ?? 0;
+  const readyForPOCount = scope === "company" ? 0 : ((conversionCountData as unknown as number) ?? 0);
 
   const { data: partialConversionCountData } = useGetPurchaseRequests(
     { scope, status: "partially_converted", requiresMyConversion: true },
-    { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canConvert && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const partialPOCount = (partialConversionCountData as unknown as number) ?? 0;
+  const partialPOCount = scope === "company" ? 0 : ((partialConversionCountData as unknown as number) ?? 0);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -674,15 +688,15 @@ function PRTable({
                     <td className="px-5 py-4 text-[13px] text-[#68726d]">{getDeptName(pr)}</td>
                     <td className="px-5 py-4"><PRPriorityBadge priority={pr.priority} /></td>
                     <td className="px-5 py-4 text-[13px] text-[#68726d] whitespace-nowrap">{formatDate(pr.neededByDate)}</td>
-                    <td className="px-5 py-4"><StatusBadge status={(pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} /></td>
+                    <td className="px-5 py-4"><StatusBadge status={(pr.status === "converted_to_po" || pr.status === "partially_converted") ? pr.status : (pr.approvalStatus && pr.status !== "rejected" && pr.status !== "cancelled") ? pr.approvalStatus : pr.status} /></td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                       <PRActionMenu
                         pr={pr}
                         canApprove={canApprove}
-                        canConvert={canConvert}
                         onView={() => router.push(`/procurement/purchase-request/${pr.purchaseRequestId}?outerTab=${scope}&innerTab=${activeTab}`)}
                         onApprove={() => handleApproveRow(pr.purchaseRequestId)}
                         onReject={() => setRejectTarget(pr.purchaseRequestId)}
+                        onConvert={() => router.push(`/procurement/purchase-order/new?prId=${pr.purchaseRequestId}`)}
                       />
                     </td>
                   </tr>
@@ -720,10 +734,10 @@ function PurchaseRequestPage() {
   const router                   = useRouter();
   const searchParams             = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
-  const can                      = useAuthStore(s => s.can);
-
-  const hasTeamScope    = can("procurement.purchase_request", "read_department");
-  const hasCompanyScope = can("procurement.purchase_request", "read_company");
+  const policies                 = useAuthorizationPolicies();
+  const authReady        = policies.ready;
+  const hasTeamScope     = authReady && policies.purchaseRequests.canReadDepartment;
+  const hasCompanyScope  = authReady && policies.purchaseRequests.canReadCompany;
 
   // Build outer tab list based on permissions
   const tabs = [
@@ -742,9 +756,13 @@ function PurchaseRequestPage() {
   const innerTabFromUrl = searchParams.get("innerTab") ?? undefined;
 
   useEffect(() => {
-    setAction({ label: "Create Request", onClick: () => router.push("/procurement/purchase-request/new") });
+    if (policies.purchaseRequests.canCreate) {
+      setAction({ label: "Create Request", onClick: () => router.push("/procurement/purchase-request/new") });
+    } else {
+      clearAction();
+    }
     return () => clearAction();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [clearAction, policies.purchaseRequests.canCreate, router, setAction]);
 
   // Single outer tab — no outer switcher
   if (tabs.length === 1) {

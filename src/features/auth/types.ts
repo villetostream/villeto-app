@@ -9,6 +9,35 @@
 
 import type { Role } from '@/features/people/types';
 
+// ─── Authorization Snapshot ───────────────────────────────────────────────────
+
+export type CapabilityScopeType =
+    | 'own'
+    | 'reporting_chain'
+    | 'department'
+    | 'company';
+
+export interface AuthorizationScopeConfig {
+    departmentIds?: string[];
+    legalEntityIds?: string[];
+}
+
+export interface AuthorizationCapabilityGrant {
+    key: string;
+    module: string;
+    scopeType: CapabilityScopeType;
+    scopeConfig: AuthorizationScopeConfig | null;
+    isImplied: boolean;
+    sourceRoleIds: string[];
+}
+
+export interface AuthorizationSnapshot {
+    schemaVersion: 1;
+    revision: string;
+    permissions: string[];
+    capabilityGrants: AuthorizationCapabilityGrant[];
+}
+
 // ─── Permission Types ─────────────────────────────────────────────────────────
 
 /**
@@ -168,4 +197,5 @@ export interface User {
 
 
     capabilityGroups?: CapabilityGroup[];
+    authorization?: AuthorizationSnapshot;
 }

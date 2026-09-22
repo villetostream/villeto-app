@@ -1,5 +1,7 @@
 "use client";
 
+import withPermissions from "@/components/permissions/permission-protected-routes";
+
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -19,11 +21,9 @@ import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import { logger } from "@/lib/logger";
 import { getApiErrorMessage, isPolicyViolationError, applyPolicyViolationErrorToExpenses, getPolicyExpenseResults } from "@/lib/types/api-error";
 import {
-  dataUrlToFile,
   extractedReceiptValues,
   getReceiptExtraction,
   type ReceiptExtraction,
-  uploadAndExtractReceipt,
 } from "@/lib/receipt-extraction";
 
 interface ExpenseCategory {
@@ -91,7 +91,7 @@ function deriveFreshViolations(expenses: ExpenseItem[]): PolicyCheckResult[] {
   return results;
 }
 
-export default function EditReportPage() {
+function EditReportPage() {
   const params = useParams();
   const reportId = params.id as string;
   const router = useRouter();
@@ -305,20 +305,13 @@ export default function EditReportPage() {
     justification?: string,
     splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
   ) => {
-    let resolvedReceipt = newReceipt;
+    const resolvedReceipt = newReceipt;
     let replacementExtractionId: string | undefined;
+
     if (newReceipt?.startsWith("data:")) {
-      try {
-        const extraction = await uploadAndExtractReceipt(
-          axios,
-          dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
-        );
-        resolvedReceipt = extraction.receiptUrl;
-        replacementExtractionId = extraction.expenseReceiptExtractionId;
-      } catch (error) {
-        logger.error("Replacement receipt extraction failed:", error);
-        toast.warning("Receipt attached, but its details could not be read automatically.");
-      }
+      // Submit manual replacements with the draft/report update. Calling the
+      // extraction endpoint here would enqueue OCR unnecessarily.
+      replacementExtractionId = undefined;
     }
     setExpenses((prev) =>
       prev.map((exp) =>
@@ -821,28 +814,14 @@ export default function EditReportPage() {
         receiptImage={expenses.find((e) => e.id === selectedReceiptId)?.receiptImage || ""}
           onChangeReceipt={async (newReceipt) => {
             if (!selectedReceiptId) return;
-            let resolvedReceipt = newReceipt;
-            let receiptExtractionId: string | undefined;
-            if (newReceipt.startsWith("data:")) {
-              try {
-                const extraction = await uploadAndExtractReceipt(
-                  axios,
-                  dataUrlToFile(newReceipt, `receipt-${Date.now()}.jpg`),
-                );
-                resolvedReceipt = extraction.receiptUrl;
-                receiptExtractionId = extraction.expenseReceiptExtractionId;
-              } catch (error) {
-                logger.error("Receipt replacement extraction failed:", error);
-                toast.warning("Receipt updated, but its details could not be read automatically.");
-              }
-            }
             setExpenses((previous) =>
               previous.map((expense) =>
                 expense.id === selectedReceiptId
                   ? {
                       ...expense,
-                      receiptImage: resolvedReceipt,
-                      receiptExtractionId,
+                      receiptImage: newReceipt,
+                      // A manually selected replacement is not OCR-backed.
+                      receiptExtractionId: undefined,
                     }
                   : expense,
               ),
@@ -880,3 +859,7 @@ export default function EditReportPage() {
     </div>
   );
 }
+
+export default withPermissions(EditReportPage, [
+  { resource: "expense.report", action: "update_own_draft" },
+]);

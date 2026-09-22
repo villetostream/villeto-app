@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 
@@ -48,6 +48,24 @@ export interface Currency {
   code: string;
   name: string;
   minorUnits: number;
+}
+
+export interface EmployeeLegalEntityAssignment {
+  employeeLegalEntityAssignmentId: string;
+  legalEntity: LegalEntity | null;
+  assignmentType: "primary" | "secondary";
+  source: string;
+  status: "active" | "scheduled" | "ended" | "cancelled";
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  reason: string | null;
+}
+
+export interface EmployeeAssignmentInput {
+  userId: string;
+  legalEntityId: string;
+  effectiveFrom: string;
+  reason?: string;
 }
 
 const key = ["legal-entities"] as const;
@@ -108,5 +126,40 @@ export function useSetLegalEntityStatus() {
     mutationFn: async ({ id, status }: { id: string; status: LegalEntityStatus }) =>
       (await axios.patch(API_KEYS.LEGAL_ENTITY.STATUS(id), { status })).data,
     onSuccess: () => client.invalidateQueries({ queryKey: key }),
+  });
+}
+
+export function useEmployeeLegalEntityAssignments(
+  userIds: string[],
+  options?: { enabled?: boolean },
+) {
+  const axios = useAxios();
+  return useQueries({
+    queries: userIds.map((userId) => ({
+      queryKey: ["employee-legal-entity-assignments", userId],
+      queryFn: async () =>
+        (await axios.get(API_KEYS.LEGAL_ENTITY.USER_ASSIGNMENTS(userId))).data as {
+          data: EmployeeLegalEntityAssignment[];
+        },
+      enabled: options?.enabled !== false,
+    })),
+  });
+}
+
+export function useAssignEmployeeLegalEntity() {
+  const axios = useAxios();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, ...input }: EmployeeAssignmentInput) =>
+      (
+        await axios.post(API_KEYS.LEGAL_ENTITY.USER_ASSIGNMENTS(userId), {
+          ...input,
+          assignmentType: "primary",
+        })
+      ).data,
+    onSuccess: (_data, variables) =>
+      client.invalidateQueries({
+        queryKey: ["employee-legal-entity-assignments", variables.userId],
+      }),
   });
 }

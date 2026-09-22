@@ -26,16 +26,16 @@ export function canPOCreate(can: CanFn): boolean {
 }
 
 export function canPOUpdateDraft(can: CanFn): boolean {
-  return can(RESOURCE, "update_draft") || can(RESOURCE, "create");
+  return can(RESOURCE, "update_draft");
 }
 
 export function canPOSubmit(can: CanFn): boolean {
-  return can(RESOURCE, "submit") || can(RESOURCE, "create");
+  return can(RESOURCE, "submit_for_approval");
 }
 
 /** Approval decision — backend action is `approval_decision`. */
 export function canPOApprove(can: CanFn): boolean {
-  return can(RESOURCE, "approval_decision") || can(RESOURCE, "approve");
+  return can(RESOURCE, "approval_decision");
 }
 
 export function canPOIssue(can: CanFn): boolean {
@@ -43,19 +43,19 @@ export function canPOIssue(can: CanFn): boolean {
 }
 
 export function canPOCancel(can: CanFn): boolean {
-  return can(RESOURCE, "cancel") || can(RESOURCE, "manage");
+  return can(RESOURCE, "cancel");
 }
 
 export function canPOClose(can: CanFn): boolean {
-  return can(RESOURCE, "close") || can(RESOURCE, "manage");
+  return can(RESOURCE, "close");
 }
 
 export function canPOReceive(can: CanFn): boolean {
-  return can(RESOURCE, "receive") || can(RESOURCE, "manage");
+  return can(RESOURCE, "receive");
 }
 
 export function canPOAssignVendor(can: CanFn): boolean {
-  return can(RESOURCE, "assign_vendor") || can(RESOURCE, "update_draft") || can(RESOURCE, "create");
+  return can(RESOURCE, "assign_vendor");
 }
 
 /** Map outer tab key to API list scope. */

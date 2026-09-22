@@ -1,5 +1,7 @@
 "use client";
 
+import withPermissions from "@/components/permissions/permission-protected-routes";
+
 import { useParams, useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +17,7 @@ import { Check } from "lucide-react";
 import { getStatusIcon } from "@/lib/helper";
 import type { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { unsortedReimbursements } from "@/lib/mock-data";
 import { useState } from "react";
 import { useAxios } from "@/hooks/useAxios";
@@ -57,7 +60,7 @@ interface Step {
   pending?: boolean;
 }
 
-function buildSteps(status: ReportStatus, report: typeof unsortedReimbursements[0]): Step[] {
+function buildSteps(status: ReportStatus, report: any): Step[] {
   const createdDone  = true;
   const managerDone  = ["approved", "paid", "rejected", "declined"].includes(status);
   const paymentDone  = status === "paid";
@@ -174,15 +177,15 @@ function FeedbackModal({
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
-export default function ReimbursementDetailPage() {
+function ReimbursementDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { can } = useAuthStore();
+  const policies = useAuthorizationPolicies();
   const currencySymbol = useAuthStore((state) => state.getCurrencySymbol());
   const axiosInstance = useAxios();
 
   const reportId = Number(params.id);
-  const report = unsortedReimbursements.find((r) => r.id === reportId);
+  const report = undefined as any;
 
   // Local status override — swapped in when API isn't ready yet
   const [localStatus, setLocalStatus] = useState<ReportStatus | null>(null);
@@ -215,7 +218,7 @@ export default function ReimbursementDetailPage() {
 
   // Permission gate: only finance/payment approvers see action buttons
   // Only show on "approved" status (manager already approved, now awaiting payment approval)
-  const canApprovePayment = can("expense.report", "approve_payment") || can("expense.report", "approve_company");
+  const canApprovePayment = policies.billPay.canAuthorizePayment;
   const showActions = canApprovePayment && currentStatus === "approved";
 
   // ── Handlers (stubbed — swap for real API calls when endpoint is ready) ──
@@ -387,3 +390,9 @@ export default function ReimbursementDetailPage() {
     </>
   );
 }
+
+export default withPermissions(ReimbursementDetailPage, [
+  { resource: "expense.report", action: "read_own" },
+  { resource: "expense.report", action: "read_department" },
+  { resource: "expense.report", action: "read_company" },
+]);

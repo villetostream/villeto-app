@@ -1,5 +1,7 @@
 "use client";
 
+import withPermissions from "@/components/permissions/permission-protected-routes";
+
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { useAxios } from "@/hooks/useAxios";
@@ -53,7 +55,7 @@ const formatDate = (dateString: string): string => {
   }
 };
 
-export default function DeleteExpenseReportPage() {
+function DeleteExpenseReportPage() {
   const params = useParams();
   const router = useRouter();
   const reportId = params.id as string;
@@ -465,3 +467,7 @@ export default function DeleteExpenseReportPage() {
     </>
   );
 }
+
+export default withPermissions(DeleteExpenseReportPage, [
+  { resource: "expense.report", action: "delete_own_draft" },
+]);

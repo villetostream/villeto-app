@@ -426,6 +426,8 @@ export function getDuplicateReceipts(error: unknown): DuplicateReceiptItem[] {
 export function applyProcurementPolicyErrorToLineItems<
   T extends {
     purchaseRequestLineItemId?: string;
+    id?: string;
+    name?: string;
     categoryName?: string;
     subtotal?: number;
     lineTotal?: number;
@@ -438,13 +440,46 @@ export function applyProcurementPolicyErrorToLineItems<
 
   return lineItems.map((item) => {
     const itemTotal = item.lineTotal ?? item.subtotal ?? ((item.quantity || 0) * (item.unitPrice || 0));
+    const itemId = item.purchaseRequestLineItemId || item.id;
 
     const matchedViolations = violations.filter(v => {
-      // If rule is amount-related, match against actualAmount
+      // If the backend provided exact line item references (e.g. Spend Program Check)
+      if (v.lineItems && v.lineItems.length > 0) {
+        // Detect if this is a quantity-based violation
+        const ruleText = `${v.rule || ""} ${v.policyGroup || ""} ${v.message || ""}`.toLowerCase();
+        const isQuantityViolation = ruleText.includes("quantity") || ruleText.includes("qty");
+
+        let parsedLimit: number | null = null;
+        if (isQuantityViolation) {
+          const qtyLimitMatch = v.message.match(/allowed\s+quantity\s+is\s+([\d,]+)/i)
+            || v.message.match(/quantity\s+limit.*?([\d,]+)/i)
+            || v.message.match(/limit\s+is\s+([\d,]+)/i);
+          if (qtyLimitMatch) {
+            parsedLimit = parseFloat(qtyLimitMatch[1].replace(/,/g, ''));
+          }
+        }
+
+        return v.lineItems.some((li: any) => {
+          const matchesId = (itemId && li.lineItemId === itemId) || 
+                            (item.name && li.lineItemName === item.name) ||
+                            (Number(li.lineTotal) === Number(itemTotal) && li.categoryName === item.categoryName);
+          
+          if (!matchesId) return false;
+
+          // If it's a quantity violation and we parsed a limit, only flag if it exceeds
+          if (isQuantityViolation && parsedLimit !== null) {
+            return (item.quantity || li.quantity || 0) > parsedLimit;
+          }
+
+          return true; // Otherwise, flag it
+        });
+      }
+      
+      // If rule is amount-related, match against actualAmount (Legacy fallback)
       if (v.details?.actualAmount && (v.rule.includes("total") || v.rule.includes("amount"))) {
         return Number(v.details.actualAmount) === Number(itemTotal);
       }
-      // If rule is category-related, match against categoryName
+      // If rule is category-related, match against categoryName (Legacy fallback)
       if (v.rule.includes("category") && v.details?.categoryName) {
         return v.details.categoryName === item.categoryName;
       }
@@ -640,6 +675,7 @@ export interface ProcurementPolicyViolation {
   resolution: string;
   message: string;
   details?: Record<string, any>;
+  lineItems?: any[];
 }
 
 export function isProcurementPolicyViolationError(error: unknown): boolean {
@@ -648,11 +684,11 @@ export function isProcurementPolicyViolationError(error: unknown): boolean {
   const errorMsg = getString(nested.error) || getString(data.error);
   const message = (getString(nested.message) || getString(data.message)).toLowerCase();
   
-  if (errorMsg === "ProcurementPolicyViolation" || errorMsg === "PolicyViolation") {
+  if (errorMsg === "ProcurementPolicyViolation" || errorMsg === "PolicyViolation" || errorMsg === "SpendProgramCheckFailed") {
     return true;
   }
   
-  if (message.includes("procurement action blocked") || message.includes("policy limit")) {
+  if (message.includes("procurement action blocked") || message.includes("policy limit") || message.includes("approved spend controls")) {
     return true;
   }
   
@@ -664,21 +700,44 @@ export function getProcurementPolicyViolations(error: unknown): ProcurementPolic
   const data = getApiErrorResponseData(error);
   const nested = asRecord(data.data);
   
-  const target = Array.isArray(nested.violations) || Array.isArray(nested.requiredActions) ? nested : data;
+  const target = Array.isArray(nested.violations) || Array.isArray(nested.requiredActions) || Array.isArray(nested.issues) ? nested : data;
 
   const allItems = [
     ...asArray(target.violations),
     ...asArray(target.requiredActions),
+    ...asArray(target.issues),
   ];
 
-  return allItems.filter(isRecord).map(v => ({
-    policyId: getString(v.policyId),
-    policyName: getString(v.policyName),
-    policyGroup: getString(v.policyGroup),
-    rule: getString(v.rule),
-    enforcementAction: getString(v.enforcementAction),
-    resolution: getString(v.resolution),
-    message: getString(v.message),
-    details: asRecord(v.details),
-  }));
+  return allItems.filter(isRecord).map(v => {
+    // Handle Spend Program format where policy details are nested under spendProgram
+    const sp = v.spendProgram ? asRecord(v.spendProgram) : null;
+    const msgStr = getString(v.message) || "";
+    
+    let parsedDetails = v.details ? asRecord(v.details) : undefined;
+    
+    // If backend doesn't provide details object, attempt to parse amounts from standard spend control messages
+    if (!parsedDetails && msgStr) {
+      const matches = [...msgStr.matchAll(/([A-Z]{3})\s*([\d,]+(?:\.\d+)?)/g)];
+      if (matches.length >= 2) {
+        parsedDetails = {
+          currency: matches[0][1],
+          actualAmount: parseFloat(matches[0][2].replace(/,/g, '')),
+          thresholdCurrency: matches[1][1],
+          threshold: parseFloat(matches[1][2].replace(/,/g, '')),
+        };
+      }
+    }
+    
+    return {
+      policyId: getString(v.policyId) || (sp ? getString(sp.spendProgramId) : ""),
+      policyName: getString(v.policyName) || (sp ? getString(sp.name) : ""),
+      policyGroup: getString(v.policyGroup) || getString(v.issueType) || "",
+      rule: getString(v.rule) || getString(v.issueType) || "",
+      enforcementAction: getString(v.enforcementAction) || getString(v.action) || "",
+      resolution: getString(v.resolution) || getString(v.actionStatus) || "",
+      message: msgStr,
+      details: parsedDetails,
+      lineItems: v.lineItems ? asArray(v.lineItems) : undefined,
+    };
+  });
 }

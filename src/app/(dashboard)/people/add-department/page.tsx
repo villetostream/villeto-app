@@ -10,4 +10,4 @@ const Page = () => {
     )
 }
 
-export default withPermissions(Page, [])
+export default withPermissions(Page, [{ resource: "user", action: "manage" }])

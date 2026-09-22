@@ -34,6 +34,7 @@ import { useNotificationCount } from "@/hooks/useNotificationCount";
 import { useAuthStore } from "@/stores/auth-stores";
 import NewExpenseHeaderAction from "@/components/expenses/NewExpenseHeaderAction";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
@@ -436,6 +437,7 @@ export function UserSection() {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const unreadCount = useNotificationCount();
   const user = useAuthStore((state) => state.user);
+  const policies = useAuthorizationPolicies();
 
   const { fromDate, toDate, setFromDate, setToDate, resetDates } = useDateFilterStore();
   const { action: headerAction, clearAction } = useHeaderActionStore();
@@ -454,11 +456,11 @@ export function UserSection() {
     clearBackHandler();
   }, [pathname, resetDates, clearAction, clearBackHandler]);
 
-  const can = useAuthStore((state) => state.can);
-  const authReady = useAuthStore((state) => !state.isLoading);
-  const hasTeamScope    = authReady && can("expense.report", "read_department");
-  const hasCompanyScope = authReady && can("expense.report", "read_company");
-  const isPersonalOnly  = authReady && !hasTeamScope && !hasCompanyScope;
+  const hasTeamScope = policies.ready && (
+    policies.expenses.listScope === "team" || policies.expenses.listScope === "company"
+  );
+  const hasCompanyScope = policies.ready && policies.expenses.listScope === "company";
+  const isPersonalOnly = policies.ready && policies.expenses.listScope === "own";
 
   const currentSectionLabel = useMemo(() => {
     const tab = searchParams.get("tab");
@@ -493,7 +495,6 @@ export function UserSection() {
     isPODetailPage,
     isConfirmationDetailPage,
     isVendorDetailPage,
-    isBillPayAddPage,
     isBackButtonPage,
   } = useMemo(() => {
     const expDetailMatch      = /^\/expenses\/\d+$/.test(pathname);
@@ -559,7 +560,6 @@ export function UserSection() {
       isPODetailPage:              poDetailMatch,
       isConfirmationDetailPage:    confirmDetailMatch,
       isVendorDetailPage:          vendorDetailMatch,
-      isBillPayAddPage:            billPayAddMatch,
       isBackButtonPage:            backButtonPage,
     };
   }, [pathname]);

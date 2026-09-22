@@ -42,10 +42,9 @@ import { getApiErrorMessage, isPolicyViolationError, isDuplicateReceiptError, ge
 import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 import { CompanyExpenseItemModal } from "@/components/expenses/company/CompanyExpenseItemModal";
 import { PolicyJustificationDrawer, type PolicyRequiredAction } from "@/components/expenses/PolicyJustificationDrawer";
-import {
-  extractedReceiptValues,
-  uploadAndExtractReceipt,
-} from "@/lib/receipt-extraction";
+
+
+
 
 interface ExpenseCategory {
   categoryId: string;
@@ -489,43 +488,24 @@ export function ManualExpenseForm({
     }
 
     try {
-      const toastId = toast.loading("Reading receipt…");
+      const toastId = toast.loading("Uploading receipt…");
       try {
-        const extraction = await uploadAndExtractReceipt(axios, file);
-        const extracted = extractedReceiptValues(extraction);
-        form.setValue(`expenses.${expenseIndex}.pendingReceipt`, extraction.receiptUrl, { shouldDirty: true });
-        form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, extraction.expenseReceiptExtractionId, { shouldDirty: true });
-        if (extracted.merchantName) {
-          form.setValue(`expenses.${expenseIndex}.vendor`, extracted.merchantName, {
-            shouldDirty: true,
-          });
-          if (!form.getValues(`expenses.${expenseIndex}.title`)) {
-            form.setValue(`expenses.${expenseIndex}.title`, extracted.merchantName, {
-              shouldDirty: true,
-            });
-          }
-        }
-        if (extracted.amount > 0) {
-          form.setValue(`expenses.${expenseIndex}.amount`, extracted.amount, {
-            shouldDirty: true,
-          });
-        }
-        form.setValue(
-          `expenses.${expenseIndex}.transactionDate`,
-          extracted.transactionDate,
-          { shouldDirty: true },
-        );
-        toast.success("Receipt details added. Review them before saving.", {
-          id: toastId,
-        });
-      } catch (error) {
-        logger.error("Receipt extraction failed:", error);
+        // Keep manual attachments local until the report is submitted. The
+        // extraction endpoint is reserved for the explicit receipt-scan flow.
+
+
+
+
+
+
+
         const base64 = await fileToBase64(file);
         form.setValue(`expenses.${expenseIndex}.pendingReceipt`, base64, { shouldDirty: true });
         form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", { shouldDirty: true });
-        toast.warning("Receipt attached. Enter its details manually.", {
-          id: toastId,
-        });
+        toast.success("Receipt attached.", { id: toastId });
+      } catch (error) {
+        logger.error("Receipt attachment failed:", error);
+        toast.error("Receipt could not be attached. Please try again.", { id: toastId });
       }
     } catch {
       toast.error("Failed to upload receipt. Please try again.");

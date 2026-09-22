@@ -1,52 +1,48 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Switch } from "@/components/ui/switch";
-import { Search, Shield, Loader2, Save, AlertCircle } from "lucide-react";
+import { Search, Loader2, Save, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   useGetApprovalSettingByTarget,
   useGetEligibleRoles,
   useUpdateApprovalSettings,
-  type PolicyTarget,
   type ApproverRole,
 } from "@/queries/policies/governance";
+import { 
+  useGetSpendProgramSettings, 
+  useUpdateSpendProgramSettings,
+  useGetSpendProgramEligibleRoles,
+  useGetSpendProgramRuleDefinitions,
+  useDeleteSpendProgramRuleDefinition,
+  useSeedDefaultRuleDefinitions,
+  useGetSpendProgramSettingsCategories
+} from "@/queries/procurement/policies";
+import { RuleDefinitionModal } from "@/components/policies/governance/RuleDefinitionModal";
+import type { SpendProgramGroup } from "@/components/policies/procurement/types";
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 
-// ─── Per-target panel ─────────────────────────────────────────────────────────
+// ─── Expense Policy Panel ───────────────────────────────────────────────────
 
-type TargetPanelProps = {
-  target: PolicyTarget;
-  onStateChange: (state: { isDirty: boolean; isPending: boolean; validationError: string | null }) => void;
-  onRegisterActions: (actions: { save: () => void; discard: () => void }) => void;
-};
-
-function TargetPanel({ target, onStateChange, onRegisterActions }: TargetPanelProps) {
-  const isExpense = target === "expense_policy";
-  const title = isExpense ? "Expense Policies" : "Procurement Policies";
-  const desc  = `Automatically activate newly created ${isExpense ? "expense" : "procurement"} policies without requiring admin approval.`;
-
+function ExpensePanel({ onStateChange, onRegisterActions }: any) {
   const [search, setSearch] = useState("");
+  const { data: settingData, isLoading: settingLoading } = useGetApprovalSettingByTarget("expense_policy");
+  const { data: rolesData, isLoading: rolesLoading }     = useGetEligibleRoles("expense_policy");
 
-  // ── Queries ──────────────────────────────────────────────────────────────
-  const { data: settingData, isLoading: settingLoading } = useGetApprovalSettingByTarget(target);
-  const { data: rolesData, isLoading: rolesLoading }     = useGetEligibleRoles(target);
-
-  const setting       = settingData?.data;
+  const setting = settingData?.data;
   const eligibleRoles: ApproverRole[] = rolesData?.data ?? [];
 
-  // ── Draft / pending local state ───────────────────────────────────────────
-  // autoApprove = true  ↔  approvalRequired = false (auto, no roles needed)
-  // autoApprove = false ↔  approvalRequired = true  (manual, roles required)
-  const [autoApprove,    setAutoApprove]    = useState<boolean>(true);
+  const [autoApprove, setAutoApprove] = useState<boolean>(true);
   const [allRolesCanApprove, setAllRolesCanApprove] = useState<boolean>(false);
   const [approverRoleIds, setApproverRoleIds] = useState<string[]>([]);
   const [isDirty, setIsDirty] = useState(false);
 
-
-  // Sync from server on first load (and on tab switch via key)
   useEffect(() => {
     if (setting) {
       setAutoApprove(!setting.approvalRequired);
@@ -56,304 +52,745 @@ function TargetPanel({ target, onStateChange, onRegisterActions }: TargetPanelPr
     }
   }, [setting]);
 
-  const updateMutation = useUpdateApprovalSettings(target);
-  const isPending = updateMutation.isPending;
+  const updateMutation = useUpdateApprovalSettings("expense_policy");
   
-  // Derived validation
   const validationError = (!autoApprove && !allRolesCanApprove && approverRoleIds.length === 0)
     ? "Toggle at least one approver role, enable 'All eligible roles', or turn on Auto-Approve."
     : null;
 
-  // Notify parent of state changes
   useEffect(() => { 
-    onStateChange({ isDirty, isPending, validationError }); 
-  }, [isDirty, isPending, validationError, onStateChange]);
+    onStateChange({ isDirty, isPending: updateMutation.isPending, validationError }); 
+  }, [isDirty, updateMutation.isPending, validationError, onStateChange]);
 
-
-  // ── Local handlers (just update draft state + mark dirty) ────────────────
-  const handleAutoApproveToggle = useCallback((checked: boolean) => {
-    setAutoApprove(checked);
-    setIsDirty(true);
-  }, []);
-
-  const handleAllRolesToggle = useCallback((checked: boolean) => {
-    setAllRolesCanApprove(checked);
-    setIsDirty(true);
-  }, []);
-
-  const handleRoleToggle = useCallback((roleId: string, nowEnabled: boolean) => {
-    setApproverRoleIds((prev) =>
-      nowEnabled ? [...prev, roleId] : prev.filter((id) => id !== roleId)
-    );
-    setIsDirty(true);
-  }, []);
-
-  // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
-
+    if (validationError) { toast.error(validationError); return; }
     try {
       await updateMutation.mutateAsync({
         approvalRequired: !autoApprove,
-        allRolesCanApprove: autoApprove ? false : allRolesCanApprove,
-        approverRoleIds: autoApprove || allRolesCanApprove ? [] : approverRoleIds,
+        allRolesCanApprove: !autoApprove ? allRolesCanApprove : false,
+        approverRoleIds: (!autoApprove && !allRolesCanApprove) ? approverRoleIds : [],
       });
       setIsDirty(false);
-      toast.success("Approval settings saved");
+      toast.success("Expense policy settings updated successfully.");
     } catch {
-      toast.error("Failed to save approval settings. Please try again.");
+      toast.error("Failed to update expense policy settings.");
     }
-  }, [autoApprove, allRolesCanApprove, approverRoleIds, updateMutation]);
+  }, [validationError, updateMutation, autoApprove, allRolesCanApprove, approverRoleIds]);
 
-  // ── Discard ───────────────────────────────────────────────────────────────
-  const handleDiscard = useCallback(() => {
+  useEffect(() => {
+    onRegisterActions({
+      save: handleSave,
+      discard: () => {
+        if (setting) {
+          setAutoApprove(!setting.approvalRequired);
+          setAllRolesCanApprove(setting.allRolesCanApprove ?? false);
+          setApproverRoleIds(setting.approverRoleIds ?? []);
+        }
+        setIsDirty(false);
+      }
+    });
+  }, [handleSave, onRegisterActions, setting]);
+
+  if (settingLoading || rolesLoading) {
+    return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#087f70]" /></div>;
+  }
+
+  const filteredRoles = eligibleRoles.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="flex flex-col gap-6 w-full">
+      <div className="bg-white border border-black/[0.08] rounded-xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
+        <div className="p-6">
+          <div className="flex justify-between items-start gap-12">
+            <div className="space-y-1">
+              <h2 className="text-[17px] font-semibold text-[#10231d]">Auto-Approve Expense Policies</h2>
+              <p className="text-[13px] text-[#68726d] max-w-[480px] leading-relaxed">
+                Automatically activate newly created expense policies without requiring admin approval.
+              </p>
+            </div>
+            <Switch checked={autoApprove} onCheckedChange={(c) => { setAutoApprove(c); setIsDirty(true); }} className="scale-110" />
+          </div>
+
+          {!autoApprove && (
+            <div className="mt-8 pt-8 border-t border-black/[0.06]">
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h3 className="text-[15px] font-semibold text-[#10231d]">Approver Roles</h3>
+                  <p className="text-[13px] text-[#68726d] mt-1">Select which roles can approve drafted expense policies.</p>
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="flex flex-col text-right">
+                    <span className="text-[13px] font-semibold text-[#10231d] group-hover:text-[#087f70] transition-colors">All eligible roles</span>
+                    <span className="text-[11px] text-[#84908a]">Any admin can approve</span>
+                  </div>
+                  <Switch checked={allRolesCanApprove} onCheckedChange={(c) => { setAllRolesCanApprove(c); setIsDirty(true); }} />
+                </label>
+              </div>
+
+              {!allRolesCanApprove && (
+                <div className="border border-black/[0.06] rounded-[10px] overflow-hidden bg-white">
+                  <div className="p-3 border-b border-black/[0.06] bg-[#f9faf9]">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#84908a]" />
+                      <input
+                        type="text"
+                        placeholder="Search roles..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full h-9 pl-9 pr-4 text-[13px] bg-white border border-black/[0.08] rounded-md focus:outline-none focus:border-[#087f70] focus:ring-1 focus:ring-[#087f70] transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-[320px] overflow-y-auto">
+                    {filteredRoles.map((role) => (
+                      <label key={role.roleId} className="flex items-center justify-between p-4 hover:bg-[#f9faf9] border-b border-black/[0.03] last:border-0 cursor-pointer transition-colors group">
+                        <div className="flex flex-col gap-0.5 max-w-[80%]">
+                          <span className="text-[14px] font-medium text-[#10231d] group-hover:text-[#087f70] transition-colors">{role.name}</span>
+                          {role.description && <span className="text-[12px] text-[#68726d] line-clamp-1">{role.description}</span>}
+                          <span className="text-[11px] font-semibold text-[#84908a] mt-0.5">{role.userCount} users</span>
+                        </div>
+                        <Switch
+                          checked={approverRoleIds.includes(role.roleId)}
+                          onCheckedChange={(c) => {
+                            setApproverRoleIds((prev) => c ? [...prev, role.roleId] : prev.filter(id => id !== role.roleId));
+                            setIsDirty(true);
+                          }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Spend Program Panel ────────────────────────────────────────────────────
+
+function SpendProgramPanel({ onStateChange, onRegisterActions }: any) {
+  const [search, setSearch] = useState("");
+  const { data: settingData, isLoading: settingLoading } = useGetSpendProgramSettings();
+  const { data: rolesData, isLoading: rolesLoading } = useGetSpendProgramEligibleRoles();
+  const { data: categoriesData } = useGetSpendProgramSettingsCategories();
+  
+  const setting = settingData?.data;
+  const eligibleRoles: any[] = rolesData?.data ?? [];
+
+  // Extract flat list of categories
+  const allCategories = useMemo(() => {
+    if (!categoriesData?.data?.categories) return [];
+    return categoriesData.data.categories.map(cat => ({
+      ...cat,
+      displayName: cat.name
+    }));
+  }, [categoriesData?.data]);
+
+  // Local state
+  const [coverageMode, setCoverageMode] = useState<"none" | "all_categories" | "specific_categories">("none");
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [activeStages, setActiveStages] = useState<string[]>(["pr_submission", "pr_to_po", "po_submission"]);
+  const [autoApprove, setAutoApprove] = useState<boolean>(true);
+  const [allRolesCanApprove, setAllRolesCanApprove] = useState<boolean>(false);
+  const [approverRoleIds, setApproverRoleIds] = useState<string[]>([]);
+  const [isDirty, setIsDirty] = useState(false);
+  
+  const [isRequirementModalOpen, setIsRequirementModalOpen] = useState(false);
+  const [tempCoverageMode, setTempCoverageMode] = useState<"none" | "all_categories" | "specific_categories">("none");
+  const [tempSelectedCategoryIds, setTempSelectedCategoryIds] = useState<string[]>([]);
+
+  const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<any>(null);
+  const [ruleToDeactivate, setRuleToDeactivate] = useState<any>(null);
+
+  const [isLoadRulesConfirmOpen, setIsLoadRulesConfirmOpen] = useState(false);
+  const [loadRulesSuccessMessage, setLoadRulesSuccessMessage] = useState("");
+
+  const updateMutation = useUpdateSpendProgramSettings();
+  const { data: ruleDefsResponse, isLoading: isLoadingRuleDefs } = useGetSpendProgramRuleDefinitions();
+  const ruleDefinitions = useMemo(() => ruleDefsResponse?.data || [], [ruleDefsResponse?.data]);
+  const deleteRuleMutation = useDeleteSpendProgramRuleDefinition();
+  const seedDefaultsMutation = useSeedDefaultRuleDefinitions();
+
+  const handleLoadRules = async () => {
+    try {
+      const res: any = await seedDefaultsMutation.mutateAsync();
+      setIsLoadRulesConfirmOpen(false);
+      setLoadRulesSuccessMessage(res.data?.message || res?.message || "Standard rules successfully loaded.");
+    } catch {
+      toast.error("Failed to load standard rules.");
+      setIsLoadRulesConfirmOpen(false);
+    }
+  };
+
+  useEffect(() => {
     if (setting) {
+      setCoverageMode(setting.coverageMode);
+      setSelectedCategoryIds(setting.categoryIds ?? setting.categories ?? []);
+      setActiveStages(setting.enabledGroups ?? setting.activeStages ?? ["pr_submission", "pr_to_po", "po_submission"]);
       setAutoApprove(!setting.approvalRequired);
       setAllRolesCanApprove(setting.allRolesCanApprove ?? false);
       setApproverRoleIds(setting.approverRoleIds ?? []);
+      setIsDirty(false);
     }
-    setIsDirty(false);
   }, [setting]);
 
-  // Register save/discard callbacks with parent
+  const validationError = (!autoApprove && !allRolesCanApprove && approverRoleIds.length === 0)
+    ? "Toggle at least one approver role, enable 'All eligible roles', or turn on Auto-Approve."
+    : null;
+
+  useEffect(() => { 
+    onStateChange({ isDirty, isPending: updateMutation.isPending, validationError }); 
+  }, [isDirty, updateMutation.isPending, validationError, onStateChange]);
+
+  const handleSave = useCallback(async () => {
+    if (validationError) { toast.error(validationError); return; }
+    try {
+      await updateMutation.mutateAsync({ 
+        coverageMode,
+        categoryIds: coverageMode === "specific_categories" ? selectedCategoryIds : [],
+        enabledGroups: activeStages,
+        approvalRequired: !autoApprove,
+        approverRoleIds: (!autoApprove && !allRolesCanApprove) ? approverRoleIds : [],
+        enabled: coverageMode !== "none",
+      });
+      setIsDirty(false);
+      toast.success("Spend program settings updated successfully.");
+    } catch {
+      toast.error("Failed to update spend program settings.");
+    }
+  }, [coverageMode, selectedCategoryIds, activeStages, autoApprove, allRolesCanApprove, approverRoleIds, updateMutation, validationError]);
+
   useEffect(() => {
-    onRegisterActions({ save: handleSave, discard: handleDiscard });
-  }, [handleSave, handleDiscard, onRegisterActions]);
+    onRegisterActions({
+      save: handleSave,
+      discard: () => {
+        if (setting) {
+          setCoverageMode(setting.coverageMode);
+          setSelectedCategoryIds(setting.categoryIds ?? setting.categories ?? []);
+          setActiveStages(setting.enabledGroups ?? setting.activeStages ?? ["pr_submission", "pr_to_po", "po_submission"]);
+          setAutoApprove(!setting.approvalRequired);
+          setAllRolesCanApprove(setting.allRolesCanApprove ?? false);
+          setApproverRoleIds(setting.approverRoleIds ?? []);
+        }
+        setIsDirty(false);
+      }
+    });
+  }, [handleSave, onRegisterActions, setting]);
 
-  // ── Loading / error ───────────────────────────────────────────────────────
-  if (settingLoading) {
-    return (
-      <div className="flex flex-col gap-4 pb-24">
-        {/* Skeleton for Auto-approve toggle card */}
-        <div className="bg-white rounded-[12px] border border-black/[0.08] p-5 shadow-sm flex items-center justify-between gap-6">
-          <div className="flex flex-col gap-1.5 w-full max-w-sm">
-            <div className="h-5 w-32 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-            <div className="h-4 w-64 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-          </div>
-          <div className="h-6 w-11 animate-pulse rounded-full bg-[#f0f2f1]" />
-        </div>
-
-        {/* Skeleton for Approver roles card */}
-        <div className="bg-white rounded-[12px] border border-black/[0.08] p-6 shadow-sm flex flex-col gap-6">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#f0f2f1] animate-pulse shrink-0" />
-              <div className="pt-0.5 flex flex-col gap-1.5 w-full max-w-xs">
-                <div className="h-5 w-48 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-                <div className="h-4 w-64 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
-              </div>
-            </div>
-            <div className="w-64 h-9 animate-pulse rounded-[8px] bg-[#f0f2f1]" />
-          </div>
-
-          <div className="flex items-center justify-between gap-4 px-4 py-3 bg-[#f0f2f1] animate-pulse rounded-[10px] mb-2 h-[66px]" />
-
-          <div className="border border-black/[0.08] rounded-[12px] overflow-hidden">
-            <div className="grid grid-cols-[1fr_120px_160px] gap-4 bg-black/[0.02] px-4 py-3 border-b border-black/[0.05]">
-              <div className="h-4 w-12 bg-[#f0f2f1] rounded-[4px]" />
-              <div className="h-4 w-16 bg-[#f0f2f1] rounded-[4px] justify-self-center" />
-              <div className="h-4 w-12 bg-[#f0f2f1] rounded-[4px] justify-self-end mr-2" />
-            </div>
-            <div className="flex flex-col">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="grid grid-cols-[1fr_120px_160px] gap-4 px-2 py-4 border-b border-black/[0.05] last:border-0 items-center">
-                  <div className="h-4 w-32 bg-[#f0f2f1] rounded-[4px] animate-pulse" />
-                  <div className="h-4 w-8 bg-[#f0f2f1] rounded-[4px] animate-pulse justify-self-center" />
-                  <div className="flex items-center justify-end gap-4">
-                    <div className="h-6 w-24 bg-[#f0f2f1] rounded-full animate-pulse" />
-                    <div className="h-6 w-11 bg-[#f0f2f1] rounded-full animate-pulse" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  if (settingLoading || rolesLoading) {
+    return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#087f70]" /></div>;
   }
 
-  if (!setting && !settingLoading) {
-    return (
-      <div className="flex items-center gap-3 bg-white rounded-[12px] border border-black/[0.08] p-5 shadow-sm text-[13px] text-[#68726d]">
-        <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
-        Could not load approval settings. Please try again.
-      </div>
-    );
-  }
+  const getCoverageModeText = (mode: string) => {
+    if (mode === "all_categories") return { title: "All categories", subtitle: "Every procurement category must have an active Spend Program before it can be used." };
+    if (mode === "specific_categories") return { title: "Specific category", subtitle: "Spend Programs apply to categories where they are created; other categories can be used without one." };
+    return { title: "No Spend Program", subtitle: "Spend Programs are not required. Procurement continues using the standard workflow." };
+  };
 
-  const filteredRoles = eligibleRoles.filter((r) =>
-    r.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredRoles = eligibleRoles.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()));
+  const currentCoverageText = getCoverageModeText(coverageMode);
 
   return (
-    <div className="flex flex-col gap-4 pb-24">
-      {/* ── Auto-approve toggle card ── */}
-      <div className="bg-white rounded-[12px] border border-black/[0.08] p-5 shadow-sm flex items-center justify-between gap-6">
-        <div>
-          <h3 className="text-[14px] font-semibold text-[#10231d]">{title}</h3>
-          <p className="text-[12px] text-[#84908a] mt-0.5">{desc}</p>
+    <div className="flex flex-col gap-6 w-full max-w-[800px]">
+      
+      {/* Requirement Section */}
+      <div className="bg-white border border-black/[0.08] rounded-[10px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
+        <div className="p-6">
+          <h3 className="text-[13px] font-bold text-[#84908a] uppercase tracking-wider mb-4">Spend Program Requirement</h3>
+          
+          <div className="border border-black/[0.08] rounded-lg p-5 flex items-center justify-between bg-white">
+            <div className="pr-8">
+              <h4 className="text-[15px] font-semibold text-[#10231d] mb-1">{currentCoverageText.title}</h4>
+              <p className="text-[13px] text-[#68726d] leading-relaxed">{currentCoverageText.subtitle}</p>
+              {coverageMode === "specific_categories" && selectedCategoryIds.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedCategoryIds.map(id => {
+                    const cat = allCategories.find(c => c.categoryId === id);
+                    return cat ? (
+                      <span key={id} className="text-[11px] font-medium bg-[#f0fbf9] text-[#087f70] px-2 py-1 rounded">
+                        {cat.displayName}
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                setTempCoverageMode(coverageMode);
+                setTempSelectedCategoryIds(selectedCategoryIds);
+                setIsRequirementModalOpen(true);
+              }}
+              className="shrink-0 h-9 px-4 border border-[#a6e6df] text-[#087f70] hover:bg-[#a6e6df]/20 font-medium text-[13px] rounded-lg transition-colors"
+            >
+              Edit Requirement
+            </button>
+          </div>
         </div>
-        <Switch
-          checked={autoApprove}
-          onCheckedChange={handleAutoApproveToggle}
-          disabled={updateMutation.isPending}
-        />
       </div>
 
-      {/* ── Approver roles card (shown only when manual approval is chosen) ── */}
-      {!autoApprove && (
-        <div className="bg-white rounded-[12px] border border-black/[0.08] p-6 shadow-sm flex flex-col gap-6">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#f0faf8] flex items-center justify-center shrink-0">
-                <Shield className="w-5 h-5 text-[#087f70]" />
-              </div>
-              <div className="pt-0.5">
-                <h3 className="text-[16px] font-semibold text-[#10231d] mb-0.5">
-                  Who can approve policies?
-                </h3>
-                <p className="text-[13px] text-[#68726d]">
-                  {approverRoleIds.length > 0 ? (
-                    <>
-                      <span className="font-semibold text-[#10231d]">{approverRoleIds.length}</span>{" "}
-                      {approverRoleIds.length === 1 ? "role has" : "roles have"} the Approve Policy permission.
-                    </>
-                  ) : (
-                    <span className="text-amber-600">
-                      No approver roles selected — select at least one below.
-                    </span>
-                  )}
-                </p>
-              </div>
+      {/* Active Stages Section */}
+      {coverageMode !== "none" && (
+        <>
+          <div className="bg-white border border-black/[0.08] rounded-[10px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
+            <div className="px-6 pt-5 pb-2">
+              <h3 className="text-[13px] font-bold text-[#84908a] uppercase tracking-wider mb-0.5">Active Stages</h3>
+              <p className="text-[12px] text-[#68726d] mb-4">Choose which procurement steps check spend program rules.</p>
             </div>
-
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#84908a]" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search"
-                className="w-full h-9 pl-9 pr-3 rounded-[8px] border border-black/[0.08] text-[13px] outline-none focus:border-[#087f70] transition-colors"
-              />
-            </div>
-          </div>
-
-          {/* Master Toggle for All Roles */}
-          <div className="flex items-center justify-between gap-4 px-4 py-3 bg-[#f0faf8] rounded-[10px] border border-[#087f70]/20 mb-2">
-            <div>
-              <div className="text-[13px] font-semibold text-[#10231d]">Allow all eligible roles to approve</div>
-              <div className="text-[12px] text-[#52605b] mt-0.5">If enabled, any user with an eligible role can approve this policy.</div>
-            </div>
-            <Switch
-              checked={allRolesCanApprove}
-              onCheckedChange={handleAllRolesToggle}
-              disabled={updateMutation.isPending}
-            />
-          </div>
-
-          {/* Role table */}
-          <div className="border border-black/[0.08] rounded-[12px] overflow-hidden">
-            <div className="grid grid-cols-[1fr_120px_160px] gap-4 bg-black/[0.02] px-4 py-3 border-b border-black/[0.05]">
-              <div className="text-[12px] font-semibold text-[#84908a]">Role</div>
-              <div className="text-[12px] font-semibold text-[#84908a] text-center">User(s)</div>
-              <div className="text-[12px] font-semibold text-[#84908a] text-right pr-2">Action</div>
-            </div>
-
-            {rolesLoading ? (
-              <div className="flex items-center justify-center py-10">
-                <Loader2 className="w-4 h-4 animate-spin text-[#68726d]" />
-              </div>
-            ) : filteredRoles.length === 0 ? (
-              <div className="text-center text-[13px] text-[#84908a] py-8">
-                {search ? "No roles match your search." : "No eligible roles found."}
-              </div>
-            ) : (
-              <div className="flex flex-col max-h-[240px] overflow-y-auto pr-1">
-                {filteredRoles.map((role) => {
-                  const isEnabled = allRolesCanApprove || approverRoleIds.includes(role.roleId);
-                  return (
-                    <div
-                      key={role.roleId}
-                      className="grid grid-cols-[1fr_120px_160px] gap-4 px-2 py-4 border-b border-black/[0.05] last:border-0 items-center"
-                    >
-                      <div className="text-[13px] font-semibold text-[#10231d]">{role.name}</div>
-                      <div className="text-[13px] font-medium text-[#52605b] text-center">
-                        {role.userCount ?? "—"}
+            <div className="divide-y divide-black/[0.04]">
+              {[
+                { id: "pr_submission", label: "Purchase Requests", desc: "Rules checked when an employee submits a PR." },
+                { id: "pr_to_po",     label: "PR → PO Conversion", desc: "Rules checked when a PR is converted to a PO." },
+                { id: "po_submission",label: "Purchase Orders", desc: "Rules checked when a PO is submitted directly." },
+              ].map(stage => {
+                const isActive = activeStages.includes(stage.id);
+                return (
+                  <div
+                    key={stage.id}
+                    className="flex items-center justify-between px-6 py-3 hover:bg-[#f9faf9] transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (isActive && activeStages.length === 1) {
+                        toast.error("At least one active stage must be enabled. To disable Spend Programs entirely, change the Requirement to 'No Spend Program' instead.");
+                        return;
+                      }
+                      setActiveStages(prev =>
+                        isActive ? prev.filter(s => s !== stage.id) : [...prev, stage.id]
+                      );
+                      setIsDirty(true);
+                    }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={cn(
+                        "w-2 h-2 rounded-full shrink-0",
+                        isActive ? "bg-[#08b6a3]" : "bg-[#d0d5d3]"
+                      )} />
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold text-[#10231d]">{stage.label}</p>
+                        <p className="text-[11px] text-[#84908a]">{stage.desc}</p>
                       </div>
-                      <div className="flex items-center justify-end gap-4">
-                        <div
-                          className={cn(
-                            "px-3 py-1 rounded-full text-[11px] font-semibold transition-colors duration-200",
-                            isEnabled
-                              ? "bg-[#eaf5f3] text-[#087f70]"
-                              : "bg-black/[0.06] text-[#84908a]"
-                          )}
-                        >
-                          Approve Policy
-                        </div>
-                        {role.userCount === 0 ? (
+                    </div>
+                    <Switch
+                      checked={isActive}
+                      onCheckedChange={(c) => {
+                        if (!c && activeStages.length === 1) {
+                          toast.error("At least one active stage must be enabled. To disable Spend Programs entirely, change the Requirement to 'No Spend Program' instead.");
+                          return;
+                        }
+                        setActiveStages(prev => c ? [...prev, stage.id] : prev.filter(s => s !== stage.id));
+                        setIsDirty(true);
+                      }}
+                      onClick={e => e.stopPropagation()}
+                      className="shrink-0 ml-4"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="h-3" />
+          </div>
+
+
+          {/* Auto-Approval Section */}
+          <div className="bg-white border border-black/[0.08] rounded-[10px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
+            <div className="p-6">
+              <div className="flex justify-between items-start gap-12">
+                <div className="space-y-1">
+              <h2 className="text-[15px] font-semibold text-[#10231d]">Procurement Spend Program Auto-Approval</h2>
+              <p className="text-[13px] text-[#68726d] max-w-[480px] leading-relaxed">
+                Automatically approve newly created Spend Programs without requiring admin approval.
+              </p>
+            </div>
+            <Switch checked={autoApprove} onCheckedChange={(c) => { setAutoApprove(c); setIsDirty(true); }} className="scale-110" />
+          </div>
+
+          {!autoApprove && (
+            <div className="mt-8 pt-8 border-t border-black/[0.06]">
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h3 className="text-[15px] font-semibold text-[#10231d] flex items-center gap-2">
+                    <span className="w-6 h-6 rounded bg-[#ecfdf5] border border-[#10b981]/30 flex items-center justify-center shrink-0 text-[#10b981]">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </span>
+                    Who can approve Spend Programs?
+                  </h3>
+                  <p className="text-[13px] text-[#68726d] mt-2">
+                    <span className="font-semibold text-[#10231d]">{approverRoleIds.length} users</span> currently have the Approve Spend Program permission.
+                  </p>
+                </div>
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#84908a]" />
+                  <input
+                    type="text"
+                    placeholder="Search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full h-9 pl-9 pr-4 text-[13px] bg-white border border-black/[0.08] rounded-md focus:outline-none focus:border-[#087f70] focus:ring-1 focus:ring-[#087f70] transition-all"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between px-4 py-3 bg-[#f9faf9] border-t border-b border-black/[0.04] text-[12px] font-semibold text-[#68726d] uppercase">
+                <div className="flex-1">Role</div>
+                <div className="w-24 text-center">User(s)</div>
+                <div className="w-40 flex items-center justify-end gap-3">
+                  Action
+                </div>
+              </div>
+
+              {!allRolesCanApprove && (
+                <div className="max-h-[320px] overflow-y-auto">
+                  {filteredRoles.map((role) => {
+                    const isDisabled = role.userCount === 0;
+                    return (
+                    <div key={role.roleId} className="flex items-center justify-between p-4 border-b border-black/[0.03] last:border-0 hover:bg-[#f9faf9]/50 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-semibold text-[13px] text-[#10231d]">{role.name}</div>
+                        {role.description && <div className="text-[12px] text-[#68726d] mt-0.5 pr-4 line-clamp-1">{role.description}</div>}
+                      </div>
+                      <div className="w-24 text-center text-[13px] text-[#68726d]">{role.userCount}</div>
+                      <div className="w-40 flex items-center justify-end gap-3">
+                        {approverRoleIds.includes(role.roleId) && (
+                           <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#ecfdf5] text-[#087f70]">Approve Policy</span>
+                        )}
+                        {isDisabled ? (
                           <TooltipProvider delayDuration={100}>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <span className="inline-block cursor-not-allowed">
-                                  <Switch
-                                    checked={isEnabled}
-                                    onCheckedChange={(checked) => handleRoleToggle(role.roleId, checked)}
-                                    disabled={true}
-                                    className="pointer-events-none"
-                                  />
-                                </span>
+                                <div>
+                                  <Switch disabled checked={approverRoleIds.includes(role.roleId)} />
+                                </div>
                               </TooltipTrigger>
-                              <TooltipContent side="top" className="bg-[#1C2B36] text-white border-0 text-[12px] font-medium px-3 py-2 shadow-xl rounded-[8px]">
-                                <p>There must be at least one user assigned to the role.</p>
+                              <TooltipContent className="bg-slate-800 text-white border-0 text-[12px] px-3 py-1.5 rounded-md shadow-lg" sideOffset={8}>
+                                Cannot assign approval to a role with 0 users.
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         ) : (
                           <Switch
-                            checked={isEnabled}
-                            onCheckedChange={(checked) => handleRoleToggle(role.roleId, checked)}
-                            disabled={allRolesCanApprove || updateMutation.isPending}
+                            checked={approverRoleIds.includes(role.roleId)}
+                            onCheckedChange={(c) => {
+                              setApproverRoleIds((prev) => c ? [...prev, role.roleId] : prev.filter(id => id !== role.roleId));
+                              setIsDirty(true);
+                            }}
                           />
                         )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  )})}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Rule Definitions Section (Hidden from UI as per requirements) */}
+      <div className="hidden bg-white border border-black/[0.08] rounded-xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
+        <div className="p-6">
+          <div className="flex justify-between items-start gap-4 mb-6">
+            <div>
+              <h2 className="text-[17px] font-semibold text-[#10231d] flex items-center gap-2">
+                Procurement Rule Definitions
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-black/[0.08] bg-[#f9faf9] text-[#84908a] uppercase tracking-wider ml-1">Saved Instantly</span>
+              </h2>
+              <p className="text-[13px] text-[#68726d] mt-1">
+                Manage the rules that can be configured inside Procurement Spend Programs.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsLoadRulesConfirmOpen(true)}
+                disabled={seedDefaultsMutation.isPending}
+                className="h-9 px-4 rounded-[8px] border border-black/[0.1] bg-white text-[13px] font-semibold text-[#52605b] hover:bg-[#f4f7f5] transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {seedDefaultsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Load Standard Rules
+              </button>
+              <button
+                onClick={() => { setEditingRule(null); setIsRuleModalOpen(true); }}
+                className="h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors"
+              >
+                Create Rule
+              </button>
+            </div>
+          </div>
+
+          {isLoadingRuleDefs ? (
+            <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[#68726d]" /></div>
+          ) : ruleDefinitions.length === 0 ? (
+            <div className="py-10 text-center border-t border-black/[0.06]">
+              <p className="text-[13px] text-[#68726d]">No rule definitions found.</p>
+            </div>
+          ) : (
+            <div className="border-t border-black/[0.06] divide-y divide-black/[0.08]">
+              {[
+                { id: "pr_submission", label: "PR Submission" },
+                { id: "pr_to_po", label: "PR to PO Conversion" },
+                { id: "po_submission", label: "PO Submission" },
+              ].map(stage => {
+                const stageRules = ruleDefinitions.filter(r => r.groups?.includes(stage.id as SpendProgramGroup));
+                if (stageRules.length === 0) return null;
+
+                return (
+                  <div key={stage.id} className="py-6 first:pt-4 last:pb-2">
+                    <h3 className="text-[13px] font-bold text-[#10231d] uppercase tracking-wider mb-4 px-3 py-1 bg-[#f4f7f5] inline-block rounded-md">
+                      {stage.label}
+                    </h3>
+                    <div className="divide-y divide-black/[0.04]">
+                      {stageRules.map((rule) => (
+                        <div key={rule.ruleType} className="py-3 flex justify-between items-center group">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-[#10231d] text-[14px]">{rule.name}</span>
+                              {!rule.isActive && (
+                                <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-600 text-[10px] font-bold uppercase tracking-wider">Inactive</span>
+                              )}
+                            </div>
+                            <p className="text-[13px] text-[#68726d] mt-0.5 max-w-lg">{rule.description || "No description."}</p>
+                          </div>
+                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => { setEditingRule(rule); setIsRuleModalOpen(true); }}
+                              className="h-8 px-3 rounded text-[12px] font-semibold text-[#087f70] bg-[#e8f8f5] hover:bg-[#d1f1eb] transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => setRuleToDeactivate(rule)}
+                              className="h-8 px-3 rounded text-[12px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50"
+                            >
+                              Deactivate
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <RuleDefinitionModal
+        isOpen={isRuleModalOpen}
+        onClose={() => { setIsRuleModalOpen(false); setEditingRule(null); }}
+        initialData={editingRule}
+      />
+        </>
       )}
+
+      {/* Requirement Edit Modal */}
+      <Dialog open={isRequirementModalOpen} onOpenChange={setIsRequirementModalOpen}>
+        <DialogContent className="max-w-[560px] p-0 overflow-hidden bg-[#f4f7f5] border-0 rounded-2xl shadow-xl flex flex-col max-h-[85vh]">
+          <div className="px-6 pt-6 pb-2 shrink-0">
+            <DialogTitle className="text-lg font-bold text-[#10231d]">Spend Program Requirement</DialogTitle>
+          </div>
+
+          <div className="p-6 space-y-3 overflow-y-auto flex-1">
+            {[
+              { id: "none", title: "No Spend Program", desc: "Spend Programs are not required. Procurement continues using the standard workflow." },
+              { id: "specific_categories", title: "Specific category", desc: "Only certain procurement categories are covered. The categories you select below will be available to choose from when creating a new Spend Program." },
+              { id: "all_categories", title: "All categories", desc: "Every procurement category must have an active Spend Program before it can be used." }
+            ].map(option => {
+              const isActive = tempCoverageMode === option.id;
+              return (
+                <div key={option.id}>
+                  <div 
+                    onClick={() => setTempCoverageMode(option.id as any)}
+                    className={cn(
+                      "flex items-start gap-4 p-5 rounded-xl border bg-white cursor-pointer transition-all",
+                      isActive ? "border-[#08b6a3] bg-[#f0fbf9]" : "border-black/[0.06] hover:border-black/[0.15]"
+                    )}
+                  >
+                    <div className={cn(
+                      "mt-0.5 shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
+                      isActive ? "border-[#08b6a3]" : "border-black/[0.2]"
+                    )}>
+                      {isActive && <div className="w-2.5 h-2.5 rounded-full bg-[#08b6a3]" />}
+                    </div>
+                    <div>
+                      <h4 className="text-[14px] font-bold text-[#10231d] mb-1">{option.title}</h4>
+                      <p className="text-[13px] text-[#68726d] leading-relaxed">{option.desc}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Category Selection for specific_categories */}
+                  {isActive && option.id === "specific_categories" && (
+                    <div className="mt-2 ml-9 p-4 bg-white border border-black/[0.06] rounded-xl shadow-sm">
+                      <p className="text-[12px] font-semibold text-[#10231d] mb-3">Select applicable categories:</p>
+                      <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2">
+                        {allCategories.map(cat => (
+                          <div 
+                            key={cat.categoryId} 
+                            className="flex items-center gap-3 p-2 hover:bg-[#f9faf9] rounded cursor-pointer group"
+                            onClick={() => {
+                              const checked = tempSelectedCategoryIds.includes(cat.categoryId);
+                              if (!checked) {
+                                setTempSelectedCategoryIds(prev => [...prev, cat.categoryId]);
+                              } else {
+                                setTempSelectedCategoryIds(prev => prev.filter(id => id !== cat.categoryId));
+                              }
+                            }}
+                          >
+                            <Checkbox
+                              checked={tempSelectedCategoryIds.includes(cat.categoryId)}
+                              className="shrink-0 w-4 h-4 pointer-events-none"
+                            />
+                            <span className="text-[13px] text-[#10231d] group-hover:text-[#087f70] transition-colors">{cat.displayName}</span>
+                          </div>
+                        ))}
+                        {allCategories.length === 0 && (
+                          <div className="text-[13px] text-[#84908a] italic">No categories available.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="p-6 pt-2 flex items-center justify-center gap-4">
+            <button
+              onClick={() => setIsRequirementModalOpen(false)}
+              className="h-10 px-8 rounded-lg border border-black/[0.2] bg-white font-semibold text-[13px] hover:bg-[#f9faf9] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                setCoverageMode(tempCoverageMode);
+                setSelectedCategoryIds(tempSelectedCategoryIds);
+                setIsRequirementModalOpen(false);
+                setIsDirty(true);
+              }}
+              className="h-10 px-8 rounded-lg bg-[#08b6a3] text-white font-semibold text-[13px] hover:bg-[#08a291] transition-colors shadow-sm"
+            >
+              Confirm
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Load Standard Rules Confirm Modal */}
+      <Dialog open={isLoadRulesConfirmOpen} onOpenChange={setIsLoadRulesConfirmOpen}>
+        <DialogContent className="max-w-[480px] p-0 overflow-hidden bg-white border-0 rounded-2xl shadow-xl">
+          <div className="p-6">
+            <DialogTitle className="text-[17px] font-bold text-[#10231d] mb-2">Load Standard Rules</DialogTitle>
+            <p className="text-[13px] text-[#68726d] leading-relaxed">
+              This will automatically generate a set of standard procurement rules (such as approval thresholds, list matching, etc.) for you to use. This action is irreversible, but you can always edit or deactivate the rules later. Are you sure you want to proceed?
+            </p>
+          </div>
+          <div className="p-4 bg-[#f9faf9] border-t border-black/[0.06] flex justify-end gap-3">
+            <button
+              onClick={() => setIsLoadRulesConfirmOpen(false)}
+              className="h-9 px-6 rounded-[8px] border border-black/[0.1] bg-white text-[13px] font-semibold text-[#52605b] hover:bg-[#f4f7f5] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleLoadRules}
+              disabled={seedDefaultsMutation.isPending}
+              className="h-9 px-6 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors flex items-center gap-2"
+            >
+              {seedDefaultsMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              Confirm
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Load Standard Rules Success Modal */}
+      <Dialog open={!!loadRulesSuccessMessage} onOpenChange={(open) => !open && setLoadRulesSuccessMessage("")}>
+        <DialogContent className="max-w-[420px] p-0 overflow-hidden bg-white border-0 rounded-2xl shadow-xl text-center">
+          <div className="p-8 pb-6 flex flex-col items-center">
+            <div className="w-12 h-12 rounded-full bg-[#ecfdf5] border border-[#10b981]/30 flex items-center justify-center text-[#10b981] mb-4">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <DialogTitle className="text-[17px] font-bold text-[#10231d] mb-2">Success!</DialogTitle>
+            <p className="text-[14px] text-[#68726d] font-medium">{loadRulesSuccessMessage}</p>
+          </div>
+          <div className="p-4 bg-[#f9faf9] border-t border-black/[0.06] flex justify-center">
+            <button
+              onClick={() => setLoadRulesSuccessMessage("")}
+              className="h-9 px-8 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors"
+            >
+              Got it
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Deactivate Rule Confirm Modal */}
+      <Dialog open={!!ruleToDeactivate} onOpenChange={(open) => !open && setRuleToDeactivate(null)}>
+        <DialogContent className="max-w-[480px] p-0 overflow-hidden bg-white border-0 rounded-2xl shadow-xl">
+          <div className="p-6">
+            <DialogTitle className="text-[17px] font-bold text-[#10231d] mb-2">Deactivate Rule</DialogTitle>
+            <p className="text-[13px] text-[#68726d] leading-relaxed">
+              Are you sure you want to deactivate the rule <span className="font-semibold text-[#10231d]">"{ruleToDeactivate?.name}"</span>? This will remove it from use in any future Spend Programs.
+            </p>
+          </div>
+          <div className="p-4 bg-[#f9faf9] border-t border-black/[0.06] flex justify-end gap-3">
+            <button
+              onClick={() => setRuleToDeactivate(null)}
+              className="h-9 px-6 rounded-[8px] border border-black/[0.1] bg-white text-[13px] font-semibold text-[#52605b] hover:bg-[#f4f7f5] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                if (ruleToDeactivate) {
+                  try {
+                    await deleteRuleMutation.mutateAsync(ruleToDeactivate.ruleType);
+                    setRuleToDeactivate(null);
+                    toast.success("Rule deactivated successfully.");
+                  } catch (e) {
+                    toast.error("Failed to deactivate rule.");
+                  }
+                }
+              }}
+              disabled={deleteRuleMutation.isPending}
+              className="h-9 px-6 rounded-[8px] bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition-colors flex items-center gap-2"
+            >
+              {deleteRuleMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              Deactivate
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Main Page ─────────────────────────────────────────────────────────────
 
 function PolicyGovernancePage() {
-  const [activeTab, setActiveTab] = useState<PolicyTarget>("expense_policy");
-  const [panelState, setPanelState] = useState({ isDirty: false, isPending: false, validationError: null as string | null });
+  const [activeTab, setActiveTab] = useState<"expense_policy" | "procurement_policy">("expense_policy");
+  
+  const [panelState, setPanelState] = useState({
+    isDirty: false,
+    isPending: false,
+    validationError: null as string | null,
+  });
+  
   const actionsRef = useRef<{ save: () => void; discard: () => void } | null>(null);
 
-  const handlePanelState = useCallback((state: typeof panelState) => setPanelState(state), []);
+  const handlePanelState = useCallback((state: any) => {
+    setPanelState(state);
+  }, []);
 
   return (
-    <div className="flex flex-col h-full bg-[#f4f7f5] pb-16">
-      {/* Sticky header with subtitle + action buttons */}
-      <div className="sticky -top-3 sm:-top-5 lg:-top-6 z-10 bg-[#f4f7f5] pb-4 mb-2 -mx-3 sm:-mx-5 lg:-mx-6 px-3 sm:px-5 lg:px-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-5 sm:pt-7 lg:pt-8">
-        {/* Constrain to match the exact total width of the layout below (w-48 + gap-8 + max-w-4xl = 70rem) */}
-        <div className="w-full max-w-[70rem] flex items-center justify-between gap-4">
+    <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 pt-0 sm:pt-0 lg:pt-0 pb-32 min-h-0">
+      <div className="sticky -top-3 sm:-top-5 lg:-top-6 z-50 bg-[#f4f7f5] -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 mb-6 border-b border-black/[0.06] -mx-3 sm:-mx-5 lg:-mx-6 px-3 sm:px-5 lg:px-6">
+        <div className="flex items-center justify-between gap-4">
           <p className="text-[13px] text-[#68726d]">
             Define how policies are approved, activated, and communicated across your organization.
           </p>
 
-          {/* Action buttons — only shown when dirty */}
           {panelState.isDirty && (
             <div className="flex items-center gap-2 shrink-0">
               <div className="flex items-center gap-1.5 text-[11px] text-[#087f70] font-medium mr-1">
@@ -368,14 +805,12 @@ function PolicyGovernancePage() {
                 Discard
               </button>
               
-              {/* Custom Tooltip wrapper for disabled state hover */}
               {panelState.validationError ? (
                 <TooltipProvider delayDuration={100}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-block cursor-not-allowed">
                         <button
-                          onClick={() => actionsRef.current?.save()}
                           disabled={true}
                           className="h-8 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-50 flex items-center gap-1.5 pointer-events-none"
                         >
@@ -395,11 +830,7 @@ function PolicyGovernancePage() {
                   disabled={panelState.isPending}
                   className="h-8 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  {panelState.isPending ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Save className="w-3.5 h-3.5" />
-                  )}
+                  {panelState.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                   Save Changes
                 </button>
               )}
@@ -409,36 +840,35 @@ function PolicyGovernancePage() {
       </div>
 
       <div className="flex flex-1 min-h-0 gap-8">
-        {/* Left nav */}
         <div className="w-48 shrink-0 flex flex-col gap-4 sticky top-20 self-start">
           <button
             onClick={() => setActiveTab("expense_policy")}
-            className={cn(
-              "text-left text-[14px] font-medium transition-colors hover:text-[#087f70]",
-              activeTab === "expense_policy" ? "text-[#087f70] font-semibold" : "text-[#68726d]"
-            )}
+            className={cn("text-left text-[14px] font-medium transition-colors hover:text-[#087f70]", activeTab === "expense_policy" ? "text-[#087f70] font-semibold" : "text-[#68726d]")}
           >
             Expense policy
           </button>
           <button
             onClick={() => setActiveTab("procurement_policy")}
-            className={cn(
-              "text-left text-[14px] font-medium transition-colors hover:text-[#087f70]",
-              activeTab === "procurement_policy" ? "text-[#087f70] font-semibold" : "text-[#68726d]"
-            )}
+            className={cn("text-left text-[14px] font-medium transition-colors hover:text-[#087f70]", activeTab === "procurement_policy" ? "text-[#087f70] font-semibold" : "text-[#68726d]")}
           >
             Procurement policy
           </button>
         </div>
 
-        {/* Right panel — key forces remount on tab switch, resetting all local draft state */}
         <div className="flex-1 max-w-4xl">
-          <TargetPanel
-            key={activeTab}
-            target={activeTab}
-            onStateChange={handlePanelState}
-            onRegisterActions={(actions) => { actionsRef.current = actions; }}
-          />
+          {activeTab === "expense_policy" ? (
+            <ExpensePanel
+              key="expense_policy"
+              onStateChange={handlePanelState}
+              onRegisterActions={(actions: any) => { actionsRef.current = actions; }}
+            />
+          ) : (
+            <SpendProgramPanel
+              key="procurement_policy"
+              onStateChange={handlePanelState}
+              onRegisterActions={(actions: any) => { actionsRef.current = actions; }}
+            />
+          )}
         </div>
       </div>
     </div>

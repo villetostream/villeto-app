@@ -21,18 +21,18 @@ import {
   ClipboardCheck,
   Receipt
 } from "lucide-react";
-import PermissionGuard from "@/components/permissions/permission-protected-components";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
 import { useLegalEntities } from "@/queries/legal-entities";
-import { useCompanyExpenses } from "@/lib/react-query/expenses";
+import { useCompanyExpenses, usePersonalExpenses } from "@/lib/react-query/expenses";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS, PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import { cn } from "@/lib/utils";
 import { COUNTRY_CURRENCY_CONFIG } from "@/lib/utils/currency";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
-const currency = (value: number, code = "USD") => new Intl.NumberFormat(undefined, { style: "currency", currency: code, maximumFractionDigits: 0 }).format(value);
+const currency = (value: number, code = "USD") => new Intl.NumberFormat("en-NG", { style: "currency", currency: code, maximumFractionDigits: 0 }).format(value);
 const date = (value?: string) => value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value)) : "No date";
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -43,8 +43,7 @@ const getGreeting = () => {
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
-  const can = useAuthStore((state) => state.can);
-  const permissions = useAuthStore((state) => state.companyPermissions); // Subscribe to trigger re-renders
+  const policies = useAuthorizationPolicies();
   const axios = useAxios();
 
   const [greeting, setGreeting] = useState("Welcome back");
@@ -61,7 +60,7 @@ export default function DashboardPage() {
   // --- Data Fetching ---
 
   // Legal Entities
-  const canViewEntities = can("legal_entity", "view");
+  const canViewEntities = policies.legalEntities.canView;
   const { data: entityResponse, isLoading: entityLoading } = useLegalEntities({ enabled: canViewEntities });
   const entity = (entityResponse?.data || []).find((item) => item.isDefault) || entityResponse?.data?.[0];
   
@@ -71,35 +70,59 @@ export default function DashboardPage() {
   const code = entity?.baseCurrency || fallbackCurrency;
 
   // Purchase Requests
-  const prScope = can("procurement.purchase_request", "read_company") ? "company" : can("procurement.purchase_request", "read_department") ? "team" : "own";
-  const { data: prResponse, isLoading: prLoading } = useGetPurchaseRequests({ scope: prScope, page: 1, limit: 50 });
+  const prScope = policies.purchaseRequests.listScope ?? "own";
+  const { data: prResponse, isLoading: prLoading } = useGetPurchaseRequests(
+    { scope: prScope, page: 1, limit: 50 },
+    { enabled: policies.purchaseRequests.canView },
+  );
   const requests = prResponse?.data || [];
   
   // PR Action Counts
   const pendingPRApprovals = requests.filter(item => 
     item.currentUserActionRequired || 
-    (item.status === "submitted" && can("procurement.purchase_request", "approve"))
+    (item.status === "submitted" && policies.purchaseRequests.canApprove)
   );
   const prsReadyForConversion = requests.filter(item => item.status === "approved" || item.status === "partially_converted");
   const recentPRs = requests.slice(0, 5);
 
   // Purchase Orders
-  const poScope = can("procurement.purchase_order", "read_company") ? "company" : can("procurement.purchase_order", "read_department") ? "team" : "own";
-  const { data: poResponse, isLoading: poLoading } = usePurchaseOrders(1, 50, undefined, undefined, undefined, poScope);
+  const poScope = policies.purchaseOrders.listScope ?? "own";
+  const { data: poResponse, isLoading: poLoading } = usePurchaseOrders(
+    1, 50, undefined, undefined, undefined, poScope,
+    { enabled: policies.purchaseOrders.canView },
+  );
   const orders = poResponse?.data || [];
-  const openOrders = orders.filter((item) => !["closed", "cancelled"].includes(item.status || ""));
+  const openOrders = orders.filter((item) => ["approved", "issued", "acknowledged", "ready_for_delivery", "partially_delivered"].includes(item.status || ""));
   const receivingOrders = orders.filter((item) => ["issued", "acknowledged", "ready_for_delivery", "partially_delivered"].includes(item.status || ""));
-  const committedSpend = openOrders.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
 
   // Expenses
-  const expScope = can("expense.report", "read_company") ? "company" : can("expense.report", "read_department") ? "team" : null;
-  const { data: expensesData, isLoading: expLoading } = useCompanyExpenses(1, 50, expScope || "company", undefined, undefined, !!expScope);
-  const expenses = expensesData?.reports || [];
+  const expScope = policies.expenses.listScope;
+  const companyExpenseScope = expScope === "company" || expScope === "team" ? expScope : null;
+  const { data: companyExpensesData, isLoading: companyExpensesLoading } = useCompanyExpenses(
+    1,
+    50,
+    companyExpenseScope || "company",
+    undefined,
+    undefined,
+    companyExpenseScope !== null,
+  );
+  const { data: personalExpensesData, isLoading: personalExpensesLoading } = usePersonalExpenses(
+    1,
+    50,
+    undefined,
+    undefined,
+    undefined,
+    expScope === "own",
+  );
+  const expenses = companyExpenseScope
+    ? companyExpensesData?.reports || []
+    : personalExpensesData?.reports || [];
   const pendingExpenses = expenses.filter(e => e.status === "pending");
-  const approvedExpensesSpend = expenses.filter(e => e.status === "approved").reduce((sum, e) => sum + Number(e.totalAmount || 0), 0);
+  const approvedExpenses = expenses.filter(e => e.status === "approved");
+  const approvedExpensesSpend = approvedExpenses.reduce((sum, e) => sum + Number(e.totalAmount || 0), 0);
 
   // Users (Team)
-  const canViewUsers = can("user", "read");
+  const canViewUsers = policies.people.canManageUsers;
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ["dashboard_users"],
     queryFn: async () => {
@@ -112,7 +135,7 @@ export default function DashboardPage() {
   const totalUsers = usersData?.meta?.totalCount || usersData?.data?.length || 0;
 
   // Vendors
-  const canViewVendors = can("vendor", "read_company");
+  const canViewVendors = policies.vendors.canViewSensitive;
   const { data: vendorsData, isLoading: vendorsLoading } = useQuery({
     queryKey: ["dashboard_vendors", "active"],
     queryFn: async () => {
@@ -126,13 +149,28 @@ export default function DashboardPage() {
   const activeVendors = vendorsData?.meta?.totalCount || vendorsList.length;
 
   // Total Metric Calculations
-  const totalSpend = committedSpend + approvedExpensesSpend;
+  const spendByCurrency = [...openOrders, ...approvedExpenses].reduce((acc, item: any) => {
+    const c = item.currency || code;
+    acc[c] = (acc[c] || 0) + Number(item.totalAmount || 0);
+    return acc;
+  }, {} as Record<string, number>);
+
+  const primarySpend = spendByCurrency[code] || 0;
+  
+  const otherCurrencies = Object.entries(spendByCurrency)
+    .filter(([c, val]) => c !== code && val > 0)
+    .map(([c, val]) => currency(val, c));
+  
+  const otherCurrenciesLabel = otherCurrencies.length > 0 
+    ? <span className="block mt-2 text-[11px] text-[#89918d] truncate">↳ + {otherCurrencies.join(' and ')} in other entities</span> 
+    : undefined;
+
   const totalPendingActions = pendingPRApprovals.length + prsReadyForConversion.length + pendingExpenses.length;
   
+  const expLoading = companyExpenseScope ? companyExpensesLoading : personalExpensesLoading;
   const isAnyLoading = prLoading || poLoading || entityLoading || expLoading || usersLoading || vendorsLoading;
 
   return (
-    <PermissionGuard>
       <div className="space-y-6 pb-12 h-full">
         
         {/* 1. Welcome Hero */}
@@ -152,19 +190,23 @@ export default function DashboardPage() {
             </div>
             
             <div className="flex flex-wrap items-center gap-3 shrink-0">
-              <Link href="/procurement/purchase-request/new" className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#087f70] px-4 text-[13px] font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#076b5e] shadow-sm">
-                <Plus className="size-4" /> New request
-              </Link>
-              <Link href="/expenses" className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-white text-[#0b100e] px-4 text-[13px] font-semibold transition hover:-translate-y-0.5 hover:bg-[#f0f4f2] shadow-sm">
-                <Receipt className="size-4" /> New expense
-              </Link>
+              {policies.purchaseRequests.canCreate && (
+                <Link href="/procurement/purchase-request/new" className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#087f70] px-4 text-[13px] font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#076b5e] shadow-sm">
+                  <Plus className="size-4" /> New request
+                </Link>
+              )}
+              {policies.expenses.canCreate && (
+                <Link href="/expenses" className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-white text-[#0b100e] px-4 text-[13px] font-semibold transition hover:-translate-y-0.5 hover:bg-[#f0f4f2] shadow-sm">
+                  <Receipt className="size-4" /> New expense
+                </Link>
+              )}
             </div>
           </div>
         </section>
 
         {/* 2. KPI Metrics Row */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard title="Total Committed Spend" value={currency(totalSpend, code)} icon={<BadgeDollarSign />} color="teal" isLoading={isAnyLoading} />
+          <MetricCard title="Total Committed Spend" value={currency(primarySpend, code)} subtitle={otherCurrenciesLabel} icon={<BadgeDollarSign />} color="teal" isLoading={isAnyLoading} />
           <MetricCard title="Pending Actions" value={totalPendingActions.toString()} icon={<CalendarClock />} color="amber" isLoading={isAnyLoading} />
           {canViewVendors && <MetricCard title="Active Vendors" value={activeVendors.toString()} icon={<Store />} color="blue" isLoading={isAnyLoading} />}
           {canViewUsers && <MetricCard title="Team Members" value={totalUsers.toString()} icon={<Users />} color="purple" isLoading={isAnyLoading} />}
@@ -182,7 +224,7 @@ export default function DashboardPage() {
               icon={<Receipt />} 
               href="/expenses" 
               color="emerald"
-              visible={!!expScope}
+              visible={policies.expenses.canView}
               isLoading={isAnyLoading}
               stats={[
                 { label: "Pending approval", value: pendingExpenses.length.toString() },
@@ -195,7 +237,7 @@ export default function DashboardPage() {
               icon={<ShoppingCart />} 
               href="/procurement" 
               color="teal"
-              visible={prScope !== "own" || poScope !== "own"} // Show if they have some visibility
+              visible={policies.purchaseRequests.canView || policies.purchaseOrders.canView}
               isLoading={isAnyLoading}
               stats={[
                 { label: "Open Requests", value: requests.filter(r => !["closed", "cancelled"].includes(r.status)).length.toString() },
@@ -225,7 +267,15 @@ export default function DashboardPage() {
               isLoading={isAnyLoading}
               stats={[
                 { label: "Total Members", value: totalUsers.toString() },
-                { label: "Active", value: usersData?.data?.filter((u:any) => u.status === "Active")?.length?.toString() || "0" }
+                {
+                  label: "Active",
+                  value:
+                    usersData?.data
+                      ?.filter((directoryUser: { status?: string }) =>
+                        directoryUser.status === "Active"
+                      )
+                      ?.length?.toString() || "0",
+                }
               ]}
             />
 
@@ -234,7 +284,7 @@ export default function DashboardPage() {
               icon={<Briefcase />} 
               href="/accounting" 
               color="amber"
-              visible={canViewEntities}
+              visible={policies.accounting.canView}
               isLoading={isAnyLoading}
               stats={[
                 { label: "Base Currency", value: code },
@@ -247,12 +297,11 @@ export default function DashboardPage() {
               icon={<CreditCard />} 
               href="/bill-pay" 
               color="indigo"
-              visible={can("bill_pay.invoice", "view") || can("bill_pay.intake", "view")}
-              comingSoon={true}
+              visible={policies.billPay.canViewInvoices}
               isLoading={isAnyLoading}
               stats={[
-                { label: "Status", value: "Coming soon" },
-                { label: "Payments", value: "—" }
+                { label: "Payments", value: "0" },
+                { label: "Invoices", value: "0" }
               ]}
             />
 
@@ -260,9 +309,9 @@ export default function DashboardPage() {
         </section>
 
         {/* 4. Activity & Attention */}
-        <section className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6">
+        <section className={cn("grid grid-cols-1 gap-6", policies.purchaseRequests.canView && "lg:grid-cols-[1.5fr_1fr]")}>
           {/* Left: Recent PRs */}
-          <div className="bg-white rounded-[16px] border border-black/[0.06] shadow-[0_2px_10px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
+          {policies.purchaseRequests.canView && <div className="bg-white rounded-[16px] border border-black/[0.06] shadow-[0_2px_10px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
             <div className="p-5 border-b border-black/[0.04] flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-[14px] font-bold text-[#0b100e]">Recent Purchase Requests</h3>
@@ -308,7 +357,7 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* Right: Attention Queue & Quick Actions */}
           <div className="space-y-6">
@@ -319,7 +368,7 @@ export default function DashboardPage() {
                 <p className="text-[12px] text-[#68726d] mt-0.5">Items requiring your action</p>
               </div>
               <div className="p-3 space-y-2">
-                {(pendingPRApprovals.length > 0 || can("procurement.purchase_request", "approve")) && (
+                {policies.purchaseRequests.canApprove && (
                   <AttentionRow 
                     icon={<ClipboardCheck />} 
                     title={`${pendingPRApprovals.length} approvals waiting`} 
@@ -329,7 +378,7 @@ export default function DashboardPage() {
                     isLoading={isAnyLoading}
                   />
                 )}
-                {can("procurement.purchase_request", "convert_to_po") && (
+                {policies.purchaseRequests.canConvertToPurchaseOrder && (
                   <AttentionRow 
                     icon={<ShoppingCart />} 
                     title={`${prsReadyForConversion.length} PRs ready for PO`} 
@@ -339,15 +388,17 @@ export default function DashboardPage() {
                     isLoading={isAnyLoading}
                   />
                 )}
-                <AttentionRow 
-                  icon={<Truck />} 
-                  title={`${receivingOrders.length} orders in receiving`} 
-                  detail="Track active deliveries" 
-                  href="/procurement/confirmation" 
-                  tone="blue" 
-                  isLoading={isAnyLoading}
-                />
-                {canViewEntities && (
+                {policies.purchaseOrders.canView && (
+                  <AttentionRow
+                    icon={<Truck />}
+                    title={`${receivingOrders.length} orders in receiving`}
+                    detail="Track active deliveries"
+                    href="/procurement/confirmation"
+                    tone="blue"
+                    isLoading={isAnyLoading}
+                  />
+                )}
+                {policies.accounting.canView && (
                   <AttentionRow 
                     icon={<CheckCircle2 />} 
                     title={entity?.readinessStatus === "accounting_ready" ? "Accounting is ready" : "Finish accounting setup"} 
@@ -366,14 +417,14 @@ export default function DashboardPage() {
                 <h3 className="text-[14px] font-bold text-[#0b100e]">Quick Actions</h3>
               </div>
               <div className="p-4 grid grid-cols-2 gap-2">
-                <QuickLink href="/procurement/purchase-request/new" icon={<FileText />} label="New PR" />
-                {can("procurement.purchase_order", "create") && (
+                {policies.purchaseRequests.canCreate && <QuickLink href="/procurement/purchase-request/new" icon={<FileText />} label="New PR" />}
+                {policies.purchaseOrders.canCreate && (
                   <QuickLink href="/procurement/purchase-order/new" icon={<ShoppingCart />} label="New PO" />
                 )}
                 {canViewVendors && (
                   <QuickLink href="/vendors" icon={<Store />} label="Vendors" />
                 )}
-                {canViewEntities && (
+                {policies.legalEntities.canManage && (
                   <QuickLink href="/settings/entities" icon={<CheckCircle2 />} label="Entity Setup" />
                 )}
               </div>
@@ -382,13 +433,12 @@ export default function DashboardPage() {
         </section>
 
       </div>
-    </PermissionGuard>
   );
 }
 
 // --- Subcomponents ---
 
-function MetricCard({ title, value, icon, color, isLoading }: { title: string, value: string, icon: React.ReactNode, color: "teal" | "amber" | "blue" | "purple", isLoading?: boolean }) {
+function MetricCard({ title, value, subtitle, icon, color, isLoading }: { title: string, value: string, subtitle?: React.ReactNode, icon: React.ReactNode, color: "teal" | "amber" | "blue" | "purple", isLoading?: boolean }) {
   const colorStyles = {
     teal: "bg-[#e8f8f5] text-[#087f70]",
     amber: "bg-[#fff6df] text-[#a46709]",
@@ -407,7 +457,10 @@ function MetricCard({ title, value, icon, color, isLoading }: { title: string, v
       {isLoading ? (
         <div className="h-[24px] w-16 animate-pulse rounded-[6px] bg-[#f0f2f1]" />
       ) : (
-        <p className="text-[24px] font-bold leading-none tracking-tight text-[#0b100e]">{value}</p>
+        <>
+          <p className="text-[24px] font-bold leading-none tracking-tight text-[#0b100e]">{value}</p>
+          {subtitle && subtitle}
+        </>
       )}
     </div>
   );

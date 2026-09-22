@@ -10,8 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import BillLineItemBatchModal from "@/components/bill-pay/BillLineItemBatchModal";
+import withPermissions from "@/components/permissions/permission-protected-routes";
+import { useCreateBillPayIntake } from "@/queries/bill-pay";
+import { useLegalEntities } from "@/queries/legal-entities";
+import { toast } from "sonner";
 
-export default function AddBillPage() {
+function AddBillPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   
@@ -55,6 +59,38 @@ export default function AddBillPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setAttachment(e.target.files[0]);
+    }
+  };
+
+  const createIntake = useCreateBillPayIntake();
+  const { data: legalEntitiesData } = useLegalEntities();
+  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "a3c0738f-a024-497a-9cbf-a488dba29bf4";
+
+  const handleSubmit = async () => {
+    try {
+      await createIntake.mutateAsync({
+        legalEntityId,
+        source: "manual_entry",
+        externalReference: vendorName,
+        senderType: "user",
+        senderName: "User",
+        senderEmail: "user@example.com",
+        messageSubject: `Invoice from ${vendorName}`,
+        messageBody: description,
+        structuredInput: {
+          lineItems,
+          paymentMethod,
+          beneficiaryName,
+          beneficiaryBank,
+          accountNumber,
+          invoiceDate,
+          dueDate,
+        }
+      });
+      toast.success("Bill submitted successfully");
+      router.push("/bill-pay");
+    } catch (err) {
+      toast.error("Failed to submit bill");
     }
   };
 
@@ -360,10 +396,10 @@ export default function AddBillPage() {
                   <Button variant="outline" className="w-32 h-10 text-[#52605b] border-black/[0.08] rounded-[8px] font-semibold text-[13px] hover:bg-[#f9faf9]" onClick={() => setStep(2)}>Back</Button>
                   <Button 
                     className="w-48 h-10 bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] font-semibold text-[13px]" 
-                    onClick={() => router.push('/bill-pay')}
-                    disabled={!beneficiaryName.trim() || !beneficiaryBank.trim() || !accountNumber.trim()}
+                    onClick={handleSubmit}
+                    disabled={!beneficiaryName.trim() || !beneficiaryBank.trim() || !accountNumber.trim() || createIntake.isPending}
                   >
-                    Submit for Approval
+                    {createIntake.isPending ? "Submitting..." : "Submit for Approval"}
                   </Button>
                 </div>
               </div>
@@ -374,3 +410,8 @@ export default function AddBillPage() {
     </div>
   );
 }
+
+export default withPermissions(AddBillPage, [
+    { resource: "bill_pay.invoice", action: "create" },
+    { resource: "bill_pay.intake", action: "create" },
+]);

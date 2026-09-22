@@ -24,7 +24,14 @@ import VilletoSetupGuide from "@/components/tour/VilletoSetupGuide";
 import { useTourStore } from "@/stores/useTourStore";
 import { ChatPortal } from "@/components/chat";
 import { SplashScreen } from "@/components/ui/splash-screen";
-import { getEffectiveCompanyPermissions } from "@/features/auth/role-access";
+import SilentRefreshGate from "@/components/dashboard/layout/SilentRefreshGate";
+import {
+  AUTHORIZATION_FOCUS_MAX_AGE_MS,
+  AUTHORIZATION_INVALIDATED_EVENT,
+  parseAuthorizationSnapshot,
+} from "@/features/auth/authorization";
+import { logoutAndRedirect } from "@/lib/logout";
+import { useGetSpendProgramSettings } from "@/queries/procurement/policies";
 
 function subscribe() {
   return () => {};
@@ -49,11 +56,18 @@ export default function DashboardLayoutContent({
 }: DashboardLayoutProps) {
   const isMounted = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
   const axios = useAxios();
-  const { setCompanyPermissions, login, logout, user, isLoading } = useAuthStore();
+  const { login, logout, user, isLoading } = useAuthStore();
   const accessToken = useAuthStore((s) => s.accessToken);
   const isTourActive = useTourStore((s) => s.isTourActive);
   const setupGuideReady = useTourStore((s) => s.setupGuideReady);
+
+  const canViewPolicies = useAuthStore(s => s.can)('policy', 'view');
+
+  // Eagerly fetch spend program settings so they are cached by the time the user navigates to Policies
+  useGetSpendProgramSettings({ enabled: !!user && canViewPolicies });
+
   const [profileFetched, setProfileFetched] = useState(false);
+  const [silentRefreshDone, setSilentRefreshDone] = useState(false);
 
   useEffect(() => {
     // Lock body scroll to prevent double scrollbars in dashboard
@@ -81,26 +95,25 @@ export default function DashboardLayoutContent({
           userData.status === "deleted" ||
           userData.deletedAt
         ) {
-          useAuthStore.getState().logout();
-          window.location.href = "/login";
+          logoutAndRedirect();
           return;
         }
 
         const currentUser = useAuthStore.getState().user;
+        const authorization = parseAuthorizationSnapshot(userData.authorization);
         login({
           ...currentUser,
           ...userData,
           companyId: companyId || userData.companyId || currentUser?.companyId,
+          authorization,
         } as User);
       }
-
-      setCompanyPermissions(getEffectiveCompanyPermissions(responseData));
     } catch {
       // Silently handle — user session may still be valid
     } finally {
       setProfileFetched(true);
     }
-  }, [axios, login, setCompanyPermissions]);
+  }, [axios, login]);
 
   // Always hold the latest version of the function so setInterval/addEventListener
   // call the current closure without needing to be listed as effect deps.
@@ -109,10 +122,12 @@ export default function DashboardLayoutContent({
 
   useEffect(() => {
     if (isLoading) return;
+    if (!silentRefreshDone) return; // Wait for SilentRefreshGate to finish first
 
-    if (!user) {
-      logout();
-      window.location.href = "/login";
+    // Re-read user from the store — it may have been populated by SilentRefreshGate
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) {
+      logoutAndRedirect();
       return;
     }
 
@@ -120,20 +135,29 @@ export default function DashboardLayoutContent({
     refreshRef.current();
 
     // Re-check permissions every 2 min so admin role changes propagate without re-login.
-    // Using refreshRef so this never causes the effect to re-run when the function identity changes.
-    const interval = setInterval(() => refreshRef.current(), 2 * 60 * 1000);
-    const handleFocus = () => refreshRef.current();
+    const interval = setInterval(() => { void refreshRef.current(); }, 2 * 60 * 1000);
+
+    const handleFocus = () => {
+      if (useAuthStore.getState().isAuthorizationStale(AUTHORIZATION_FOCUS_MAX_AGE_MS)) {
+        void refreshRef.current();
+      }
+    };
+
+    const handleAuthorizationInvalidated = () => {
+      void refreshRef.current();
+    };
+
     window.addEventListener("focus", handleFocus);
+    window.addEventListener(AUTHORIZATION_INVALIDATED_EVENT, handleAuthorizationInvalidated);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("focus", handleFocus);
+      window.removeEventListener(AUTHORIZATION_INVALIDATED_EVENT, handleAuthorizationInvalidated);
     };
-  // Intentionally only isLoading: runs once after hydration.
-  // Adding user/router here would create an infinite loop because refreshUserAndPermissions
-  // updates user, which would re-trigger this effect endlessly.
+  // Runs once after hydration AND after silent refresh completes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+  }, [isLoading, silentRefreshDone]);
 
   // Ensure the premium splash screen is visible long enough to play its animation
   // when the user first boots the app or logs in.
@@ -146,7 +170,23 @@ export default function DashboardLayoutContent({
   }, []);
 
   if (!isMounted || isLoading || !minSplashTimeMet) {
-    return <SplashScreen />;
+    return (
+      <>
+        <SilentRefreshGate onDone={() => setSilentRefreshDone(true)} />
+        <SplashScreen />
+      </>
+    );
+  }
+
+  // While a silent refresh is in-flight (hard refresh scenario with no
+  // sessionStorage), keep showing splash rather than bouncing to /login.
+  if (!silentRefreshDone && !user) {
+    return (
+      <>
+        <SilentRefreshGate onDone={() => setSilentRefreshDone(true)} />
+        <SplashScreen />
+      </>
+    );
   }
 
   if (!user) {
@@ -159,6 +199,8 @@ export default function DashboardLayoutContent({
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f4f7f5]" suppressHydrationWarning>
+      {/* Silent token refresh — mounted always so it re-runs on each hard refresh */}
+      <SilentRefreshGate onDone={() => setSilentRefreshDone(true)} />
       <SidebarProvider defaultOpen={defaultOpen}>
         <DashboardSidebar isProfileLoading={!profileFetched} />
         <div className="flex flex-col flex-1 h-full overflow-hidden">

@@ -16,7 +16,7 @@ import { logger } from "@/lib/logger";
 
 import FormSectionHeader from "@/components/dashboard/people/FormSectionHeader";
 import withPermissions from "@/components/permissions/permission-protected-routes";
-import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
+import { isRoleActive, useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import { Department, useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import FormFieldSelect from "@/components/form fields/formFieldSelect";
 import FormFieldInput from "@/components/form fields/formFieldInput";
@@ -99,7 +99,7 @@ function AddSingleUser() {
                 jobTitle: data?.jobTitle ?? "",
                 location: data?.location ?? "",
                 departmentId: data?.departmentId ?? "",
-                roleIds: data.companyRoles?.map((role: any) => role.roleId)
+                roleIds: data.companyRoles?.map((role) => role.roleId)
                     ?? (data.companyRole ? [data.companyRole.roleId] : []),
                 id: data?.userId
             })
@@ -117,7 +117,7 @@ function AddSingleUser() {
         try {
             if (isEdit) {
                 if (!data.id) throw new Error("Missing user ID for update");
-                await updateUser.mutateAsync({ id: data.id, companyRoleIds: data.roleIds } as any);
+                await updateUser.mutateAsync({ id: data.id, companyRoleIds: data.roleIds });
             } else {
                 await inviteUser.mutateAsync(data);
             }
@@ -195,19 +195,19 @@ function AddSingleUser() {
                                     <RoleMultiSelect
                                         value={roleIds}
                                         options={(allRoles.data?.data ?? [])
-                                            .filter((role: any) => role.isActive)
+                                            .filter(isRoleActive)
                                             .slice()
-                                            .sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""))
-                                            .map((role: any) => ({
+                                            .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+                                            .map((role) => ({
                                                 id: role.roleId,
                                                 label: role.name,
                                                 description: role.description,
                                             }))}
-                                        onChange={(ids) => setValue("roleIds" as any, ids, {
+                                        onChange={(ids) => setValue("roleIds", ids, {
                                             shouldValidate: true,
                                             shouldDirty: true,
                                         })}
-                                        error={(errors as any).roleIds?.message}
+                                        error={errors.roleIds?.message}
                                     />
                                 </div>
 
@@ -303,4 +303,4 @@ function AddSingleUser() {
     );
 }
 
-export default withPermissions(AddSingleUser, []);
+export default withPermissions(AddSingleUser, [{ resource: "user", action: "manage" }]);

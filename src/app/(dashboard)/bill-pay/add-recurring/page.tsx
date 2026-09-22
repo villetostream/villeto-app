@@ -13,6 +13,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 
 import { useEffect } from "react";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 function formatNumberInput(value: string) {
   let numeric = value.replace(/[^0-9.]/g, '');
@@ -24,7 +25,7 @@ function formatNumberInput(value: string) {
   return dec !== undefined ? `${formattedInt}.${dec}` : formattedInt;
 }
 
-export default function AddRecurringBillPage() {
+function AddRecurringBillPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   
@@ -342,3 +343,7 @@ export default function AddRecurringBillPage() {
     </div>
   );
 }
+
+export default withPermissions(AddRecurringBillPage, [
+    { resource: "bill_pay.invoice", action: "create" },
+]);

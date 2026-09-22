@@ -1,6 +1,9 @@
+"use client";
+
 import React from 'react'
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { TransactionTable } from "@/components/dashboard/TransactionTable";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 const Page = () => {
     return (
@@ -14,4 +17,6 @@ const Page = () => {
     )
 }
 
-export default Page
+export default withPermissions(Page, [
+    { resource: "expense.report", action: "read_company" },
+]);

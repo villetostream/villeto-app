@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
     Select,
     SelectContent,
@@ -25,6 +26,7 @@ import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
 import { asArray, asRecord, getApiErrorMessage, getString, isRecord, pickString } from "@/lib/types/api-error";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 interface StagedUser {
     id: string;           // local keying
@@ -46,7 +48,7 @@ interface FormValues {
     ownershipPercentage?: number;
 }
 
-export default function InviteLeadershipPage() {
+function InviteLeadershipPage() {
     const router = useRouter();
     const axios = useAxios();
     const rolesApi = useGetVilletoRolesApi();
@@ -74,6 +76,8 @@ export default function InviteLeadershipPage() {
     // --- Edit modal ---
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<StagedUser | null>(null);
+
+    const [complianceChecked, setComplianceChecked] = useState(true);
 
     const { handleSubmit, reset, control } = useForm<FormValues>({
         defaultValues: { role: "", issueCard: false, ownershipPercentage: 0 },
@@ -551,9 +555,9 @@ export default function InviteLeadershipPage() {
                                     <label className="text-[12px] font-semibold text-[#202723] uppercase tracking-[0.06em]">
                                         Ownership %<span className="text-red-500 ml-0.5">*</span>
                                     </label>
-                                    <span className={`text-[13px] font-semibold ${(ownershipValue ?? 0) >= 24 ? "text-red-500" : "text-[#087f70]"}`}>
+                                    <span className={`text-[13px] font-semibold ${(ownershipValue ?? 0) > (complianceChecked ? 25 : 100) ? "text-red-500" : "text-[#087f70]"}`}>
                                         {ownershipValue || 0}%
-                                        {(ownershipValue ?? 0) >= 24 && " (Max)"}
+                                        {(ownershipValue ?? 0) >= (complianceChecked ? 25 : 100) && " (Max)"}
                                     </span>
                                 </div>
 
@@ -564,30 +568,43 @@ export default function InviteLeadershipPage() {
                                         <Slider
                                             value={[field.value || 0]}
                                             onValueChange={(val) => field.onChange(val[0])}
-                                            max={24}
+                                            max={complianceChecked ? 25 : 100}
                                             step={1}
                                             className="w-full"
                                         />
                                     )}
                                 />
 
-                                {(ownershipValue ?? 0) >= 24 && (
+                                {(ownershipValue ?? 0) >= (complianceChecked ? 25 : 100) && complianceChecked && (
                                     <p className="text-red-500 text-[12px] flex items-center gap-1.5">
                                         <AlertCircle className="h-3.5 w-3.5" />
                                         Ownership cannot exceed 25% to stay compliant with financial regulations
                                     </p>
                                 )}
 
-                                {/* Compliance note */}
-                                <div className="flex items-start gap-3 p-3 bg-[#e7f6f2] rounded-[10px] border border-[#0ea894]/20">
-                                    <div className="w-4 h-4 rounded-[4px] bg-[#0ea894] flex items-center justify-center shrink-0 mt-0.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 text-white">
-                                            <polyline points="20 6 9 17 4 12" />
-                                        </svg>
-                                    </div>
-                                    <div className="space-y-0.5">
-                                        <p className="text-[13px] font-semibold text-[#0b100e]">No single owner holds 25% or more</p>
-                                        <p className="text-[12px] text-[#66706b]">Required to stay compliant with financial regulations</p>
+                                {/* Compliance Checkbox */}
+                                <div
+                                    className={`flex cursor-pointer items-start gap-3 rounded-[10px] border p-3.5 transition-colors ${
+                                        complianceChecked ? "border-[#c3ece7] bg-[#f0faf8]" : "border-amber-200 bg-amber-50"
+                                    }`}
+                                    onClick={() => setComplianceChecked(!complianceChecked)}
+                                >
+                                    <Checkbox
+                                        id="compliance"
+                                        checked={complianceChecked}
+                                        onCheckedChange={(checked) => setComplianceChecked(checked === true)}
+                                        className="mt-0.5"
+                                        onClick={e => e.stopPropagation()}
+                                    />
+                                    <div>
+                                        <label htmlFor="compliance" className="cursor-pointer text-[13px] font-semibold text-[#0b100e]">
+                                            No single owner holds 25% or more
+                                        </label>
+                                        <p className="mt-0.5 text-[12px] text-[#68726d]">
+                                            {complianceChecked
+                                                ? "Checked — ownership is capped at 25% for compliance"
+                                                : "Unchecked — ownership can go up to 100%"}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -721,3 +738,7 @@ export default function InviteLeadershipPage() {
         </div>
     );
 }
+
+export default withPermissions(InviteLeadershipPage, [
+    { resource: "user", action: "manage" },
+]);

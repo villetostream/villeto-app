@@ -6,24 +6,29 @@ import { useAxios } from "@/hooks/useAxios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
 import { CheckCircle2, XCircle, X, FileText } from "lucide-react";
-import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { asArray, asRecord, getString, isRecord, pickString } from "@/lib/types/api-error";
 import { useQueryClient } from "@tanstack/react-query";
+import { 
+  useGetBeneficiaries, 
+  useCreateBeneficiary,
+} from "@/queries/bill-pay";
+import { useLegalEntities } from "@/queries/legal-entities";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { VendorLegalEntityPanel } from "@/components/vendors/VendorLegalEntityPanel";
-
-export default withPermissions(VendorDetailsPage, [
-  { resource: "vendor", action: "read_company" },
-  { resource: "vendor", action: "manage" },
-]);
 
 function VendorDetailsPage() {
   const { vendorId } = useParams() as { vendorId: string };
   const router = useRouter();
   const axiosInstance = useAxios();
   const queryClient = useQueryClient();
-  const can = useAuthStore(s => s.can);
+  const policies = useAuthorizationPolicies();
 
   const [vendor, setVendor] = useState<Record<string, unknown> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,6 +39,36 @@ function VendorDetailsPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
   const [previewDocName, setPreviewDocName] = useState<string | null>(null);
+
+  const { data: legalEntitiesData } = useLegalEntities();
+  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "a3c0738f-a024-497a-9cbf-a488dba29bf4";
+  
+  const { data: beneficiariesData } = useGetBeneficiaries(legalEntityId);
+  const beneficiaries = ((beneficiariesData as any)?.data || []);
+
+  const [addBeneficiaryModalOpen, setAddBeneficiaryModalOpen] = useState(false);
+  const [beneficiaryName, setBeneficiaryName] = useState("");
+  const [beneficiaryAccount, setBeneficiaryAccount] = useState("");
+  const createBeneficiaryMutation = useCreateBeneficiary();
+
+  const handleCreateBeneficiary = async () => {
+    try {
+      await createBeneficiaryMutation.mutateAsync({
+        legalEntityId,
+        vendorId,
+        name: beneficiaryName,
+        maskedIdentifier: beneficiaryAccount,
+        externalReference: "",
+        currency: "NGN",
+      });
+      toast.success("Payment method added successfully");
+      setAddBeneficiaryModalOpen(false);
+      setBeneficiaryName("");
+      setBeneficiaryAccount("");
+    } catch (e) {
+      toast.error("Failed to add payment method");
+    }
+  };
 
   const fetchVendor = async () => {
     setIsLoading(true);
@@ -193,35 +228,35 @@ function VendorDetailsPage() {
 
         <div className="flex items-center gap-3">
           {/* Approve / Reject / Request Info */}
-          {isUnderReview && can('vendor', 'reject') && (
+          {isUnderReview && policies.vendors.canReject && (
             <button disabled={isSubmitting} onClick={() => setRejectModalOpen(true)}
               className="px-4 h-9 rounded-[8px] border border-[#d33d44] text-[#d33d44] font-semibold text-[13px] hover:bg-[#fdf2f2] transition-colors disabled:opacity-50">
               Reject vendor
             </button>
           )}
 
-          {isUnderReview && can('vendor', 'approve') && (
+          {isUnderReview && policies.vendors.canApprove && (
             <button disabled={isSubmitting} onClick={() => handleDecision("approved")}
               className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm">
               {isSubmitting ? "Processing..." : "Approve vendor"}
             </button>
           )}
           {/* Activate */}
-          {(isApprovedPhase4 || isDeactivated) && can('vendor', 'activate') && (
+          {(isApprovedPhase4 || isDeactivated) && policies.vendors.canActivate && (
             <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Active")}
               className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm">
               {isSubmitting ? "Processing..." : isDeactivated ? "Reactivate vendor" : "Activate vendor"}
             </button>
           )}
           {/* Deactivate */}
-          {isActive && can('vendor', 'deactivate') && (
+          {isActive && policies.vendors.canDeactivate && (
             <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Inactive")}
               className="px-4 h-9 rounded-[8px] border border-[#d33d44] text-[#d33d44] font-semibold text-[13px] hover:bg-[#fdf2f2] transition-colors disabled:opacity-50">
               {isSubmitting ? "Processing..." : "Deactivate vendor"}
             </button>
           )}
           {/* Resend Invitation */}
-          {(isInvited || isOnboarding) && can('vendor', 'invite') && (
+          {(isInvited || isOnboarding) && policies.vendors.canInvite && (
             <button disabled={isSubmitting} onClick={handleResendInvitation}
               className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm cursor-pointer">
               {isSubmitting ? "Sending..." : "Resend Invitation"}
@@ -339,6 +374,39 @@ function VendorDetailsPage() {
               </div>
             ) : (
               <p className="text-[13px] font-medium text-[#68726d]">No documents uploaded.</p>
+            )}
+          </div>
+
+          <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em]">PAYMENT METHODS</h2>
+              <button
+                onClick={() => setAddBeneficiaryModalOpen(true)}
+                className="px-3 h-8 rounded-[6px] bg-[#087f70] text-white text-[12px] font-bold hover:bg-[#076b5e] transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Method
+              </button>
+            </div>
+            
+            {beneficiaries.length > 0 ? (
+              <div className="space-y-3">
+                {beneficiaries.map((ben: any) => (
+                  <div key={ben.vendorBeneficiaryId} className="flex items-center justify-between p-3.5 rounded-[10px] border border-black/[0.06] bg-white">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-[#f0faf8] flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-4 h-4 text-[#087f70]" />
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-semibold text-[#0b100e] leading-tight">{ben.name}</p>
+                        <p className="text-[12px] text-[#84908a] mt-0.5">Account: ***{ben.maskedIdentifier?.slice(-4) || ben.maskedIdentifier} • {ben.currency}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[13px] font-medium text-[#68726d]">No payment methods found.</p>
             )}
           </div>
         </div>
@@ -553,6 +621,48 @@ function VendorDetailsPage() {
           </div>
         </div>
       )}
+
+      {/* ── Add Beneficiary Modal ── */}
+      <Dialog open={addBeneficiaryModalOpen} onOpenChange={setAddBeneficiaryModalOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-[16px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#10231d]">Add Payment Method</DialogTitle>
+            <DialogDescription className="text-sm text-[#68726d]">Add a new beneficiary account for this vendor.</DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Beneficiary Name</Label>
+              <Input 
+                value={beneficiaryName} 
+                onChange={(e) => setBeneficiaryName(e.target.value)} 
+                placeholder="e.g. John Doe / Business Name"
+                className="rounded-[8px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Account Number</Label>
+              <Input 
+                value={beneficiaryAccount} 
+                onChange={(e) => setBeneficiaryAccount(e.target.value)} 
+                placeholder="e.g. 1234567890"
+                className="rounded-[8px]"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddBeneficiaryModalOpen(false)} className="rounded-[8px]">Cancel</Button>
+            <Button onClick={handleCreateBeneficiary} disabled={createBeneficiaryMutation.isPending || !beneficiaryName || !beneficiaryAccount} className="bg-[#087f70] text-white hover:bg-[#076b5e] rounded-[8px]">
+              Add Method
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+export default withPermissions(VendorDetailsPage, [
+  { resource: "vendor", action: "sensitive.read" },
+]);

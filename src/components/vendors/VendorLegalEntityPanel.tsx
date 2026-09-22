@@ -227,7 +227,7 @@ function Field({ label, required, value, disabled, onChange, placeholder, maxLen
 export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: string; axiosInstance: AxiosInstance }) {
   const can = useAuthStore((state) => state.can);
   const canManageSites = can("vendor", "create");
-  const canReadMatrix = can("vendor", "read_sensitive");
+  const canReadMatrix = can("vendor", "sensitive.read");
   const canApproveRelationships = can("vendor", "approve");
   const canSuspendRelationships = can("vendor", "deactivate");
   const canReactivateRelationships = can("vendor", "activate");

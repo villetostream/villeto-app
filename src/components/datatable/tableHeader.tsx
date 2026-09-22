@@ -56,8 +56,6 @@ export function TableHeader({
 
   const actionsContent = (
     <div className="flex flex-wrap items-center gap-2">
-      {tableHeader?.actionButton && <div>{tableHeader.actionButton}</div>}
-
       {tableHeader?.isSearchable && (
         <div className="relative w-full sm:w-[280px]">
           <SearchIcon
@@ -137,6 +135,8 @@ export function TableHeader({
           <span className="hidden sm:inline">Export CSV</span>
         </Button>
       )}
+
+      {tableHeader?.actionButton && <div>{tableHeader.actionButton}</div>}
     </div>
   );
 

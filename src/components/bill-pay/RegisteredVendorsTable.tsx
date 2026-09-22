@@ -10,19 +10,23 @@ import { useDataTable } from "@/components/datatable/useDataTable";
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
 
 type RegisteredVendor = {
+  invoiceId: string;
   vendor: string;
-  contact: string;
-  category: string;
-  totalPaid: string;
+  amount: string;
+  poNumber: string;
+  dueDate: string;
   status: string;
 };
 
 const mockRegisteredVendors: RegisteredVendor[] = [
-  { vendor: "Atlas Partners", contact: "contact@atlas.com", category: "Equipment", totalPaid: "₦12,500,000.00", status: "Active" },
-  { vendor: "Nexa Solutions", contact: "billing@nexa.com", category: "Software", totalPaid: "₦3,200,000.00", status: "Active" },
-  { vendor: "Global Office Supplies", contact: "sales@globaloffice.com", category: "Office Supplies", totalPaid: "₦1,450,000.00", status: "Inactive" },
-  { vendor: "TechCorp Inc.", contact: "finance@techcorp.com", category: "Hardware", totalPaid: "₦8,900,000.00", status: "Active" },
-  { vendor: "Marketing Masters", contact: "hello@marketingmasters.com", category: "Marketing", totalPaid: "₦5,600,000.00", status: "Active" },
+  { invoiceId: "INV-00041", vendor: "Acme Ltd", amount: "₦4,200,000.00", poNumber: "PO-1042", dueDate: "10 Sept 2025", status: "Awaiting Approval" },
+  { invoiceId: "INV-00039", vendor: "Delta Services", amount: "₦4,200,000.00", poNumber: "N/A", dueDate: "10 Sept 2025", status: "Approved" },
+  { invoiceId: "INV-00039", vendor: "Nova Tech", amount: "₦4,200,000.00", poNumber: "PO-1042", dueDate: "10 Sept 2025", status: "Paid" },
+  { invoiceId: "INV-00039", vendor: "Zenith Corp", amount: "₦4,200,000.00", poNumber: "N/A", dueDate: "10 Sept 2025", status: "Awaiting Approval" },
+  { invoiceId: "INV-00039", vendor: "Delta Services", amount: "₦4,200,000.00", poNumber: "PO-1042", dueDate: "10 Sept 2025", status: "Approved" },
+  { invoiceId: "INV-00039", vendor: "Pinnacle Ltd", amount: "₦4,200,000.00", poNumber: "N/A", dueDate: "10 Sept 2025", status: "Ready for Payment" },
+  { invoiceId: "INV-00039", vendor: "Delta Services", amount: "₦4,200,000.00", poNumber: "PO-1042", dueDate: "10 Sept 2025", status: "Ready for Payment" },
+  { invoiceId: "INV-00039", vendor: "Atlas Partners", amount: "₦4,200,000.00", poNumber: "PO-1042", dueDate: "10 Sept 2025", status: "Paid" },
 ];
 
 const columnHelper = createColumnHelper<RegisteredVendor>();
@@ -42,9 +46,9 @@ export function RegisteredVendorsTable() {
     if (tableprops.globalSearch) {
       const searchLower = tableprops.globalSearch.toLowerCase();
       result = result.filter(r => 
-        r.vendor.toLowerCase().includes(searchLower) || 
-        r.contact.toLowerCase().includes(searchLower) ||
-        r.category.toLowerCase().includes(searchLower)
+        r.invoiceId.toLowerCase().includes(searchLower) ||
+        r.vendor.toLowerCase().includes(searchLower) ||
+        r.poNumber.toLowerCase().includes(searchLower)
       );
     }
     return result;
@@ -55,30 +59,38 @@ export function RegisteredVendorsTable() {
   }, [filteredVendors.length, tableprops.setTotalItems]);
 
   const columns = useMemo(() => [
+    columnHelper.accessor("invoiceId", {
+      header: "INVOICE ID",
+      cell: (info) => <p className="text-gray-500">{info.getValue()}</p>,
+    }),
     columnHelper.accessor("vendor", {
       header: "VENDOR NAME",
-      cell: (info) => <p className="font-medium text-gray-900">{info.getValue()}</p>,
+      cell: (info) => <p className="font-bold text-gray-900">{info.getValue()}</p>,
     }),
-    columnHelper.accessor("contact", {
-      header: "CONTACT EMAIL",
+    columnHelper.accessor("amount", {
+      header: "AMOUNT",
+      cell: (info) => <p className="font-bold text-gray-900">{info.getValue()}</p>,
+    }),
+    columnHelper.accessor("poNumber", {
+      header: "PO NUMBER",
       cell: (info) => <p className="text-gray-500">{info.getValue()}</p>,
     }),
-    columnHelper.accessor("category", {
-      header: "CATEGORY",
+    columnHelper.accessor("dueDate", {
+      header: "DUE DATE",
       cell: (info) => <p className="text-gray-500">{info.getValue()}</p>,
-    }),
-    columnHelper.accessor("totalPaid", {
-      header: "TOTAL PAID (YTD)",
-      cell: (info) => <p className="font-medium text-gray-900">{info.getValue()}</p>,
     }),
     columnHelper.accessor("status", {
       header: "STATUS",
       cell: (info) => {
         const status = info.getValue().toLowerCase();
-        if (status === "active") {
-          return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-50 font-normal">Active</Badge>;
-        } else if (status === "inactive") {
-          return <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-50 font-normal">Inactive</Badge>;
+        if (status === "awaiting approval") {
+          return <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-50 font-normal">Awaiting Approval</Badge>;
+        } else if (status === "approved") {
+          return <Badge variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-50 font-normal">Approved</Badge>;
+        } else if (status === "paid") {
+          return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-50 font-normal">Paid</Badge>;
+        } else if (status === "ready for payment") {
+          return <Badge variant="outline" className="bg-[#f0f4ff] text-[#4b7cf3] border-[#d8e2fd] hover:bg-[#f0f4ff] font-normal">Ready for Payment</Badge>;
         }
         return <Badge variant="outline">{info.getValue()}</Badge>;
       },

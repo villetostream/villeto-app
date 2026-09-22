@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { useAuthStore } from "@/stores/auth-stores";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import withPermissions from "@/components/permissions/permission-protected-routes";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import {
   Table,
   TableBody,
@@ -30,13 +28,12 @@ function RegularBillDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
-  const { can } = useAuthStore();
+  const policies = useAuthorizationPolicies();
   const { setBackHandler, clearBackHandler } = useHeaderBackStore();
 
   const [status, setStatus] = useState<"Pending" | "Approved">("Pending");
 
-  const canEdit = can("bill_pay.invoice", "edit");
-  const canApprove = can("bill_pay.invoice", "approve");
+  const canApprove = policies.billPay.canApproveInvoice;
 
   useEffect(() => {
     setBackHandler(() => router.back());
@@ -66,7 +63,7 @@ function RegularBillDetailsPage() {
           </div>
           
           <div className="flex items-center gap-3">
-             {status === "Pending" && (
+             {status === "Pending" && canApprove && (
                 <>
                    <Button variant="outline" className="text-[#d33d44] border-red-200 hover:bg-red-50 hover:text-red-700 h-10 rounded-[8px] font-semibold text-[13px] px-6" onClick={() => setStatus("Approved")}>
                       Reject Invoice

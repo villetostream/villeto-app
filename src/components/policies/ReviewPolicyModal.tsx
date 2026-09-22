@@ -10,11 +10,12 @@ import { AlertCircle } from "lucide-react";
 interface ReviewPolicyModalProps {
   policy: Policy | null;
   onClose: () => void;
+  readOnly?: boolean;
 }
 
 const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
 
-export function ReviewPolicyModal({ policy, onClose }: ReviewPolicyModalProps) {
+export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyModalProps) {
   const approveMutation = useApprovePolicy();
   const rejectMutation = useRejectPolicy();
 
@@ -198,22 +199,30 @@ export function ReviewPolicyModal({ policy, onClose }: ReviewPolicyModalProps) {
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-center gap-4">
-          <button
-            onClick={handleReject}
-            disabled={isPending}
-            className="flex-1 max-w-[160px] h-12 rounded-xl border border-red-400 text-red-500 font-medium text-sm hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center"
-          >
-            {rejectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
-          </button>
-          <button
-            onClick={handleApprove}
-            disabled={isPending}
-            className="flex-1 max-w-[160px] h-12 rounded-xl bg-[#087f70] text-white font-medium text-sm hover:bg-[#076b5e] transition-colors disabled:opacity-50 flex items-center justify-center"
-          >
-            {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
-          </button>
-        </div>
+        {readOnly ? (
+          <div className="flex items-center justify-center">
+            <div className="flex items-center gap-2.5 px-5 py-3 rounded-xl bg-amber-50 border border-amber-200">
+              <span className="text-sm font-medium text-amber-700">Awaiting review by an approver</span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-4">
+            <button
+              onClick={handleReject}
+              disabled={isPending}
+              className="flex-1 max-w-[160px] h-12 rounded-xl border border-red-400 text-red-500 font-medium text-sm hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center"
+            >
+              {rejectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
+            </button>
+            <button
+              onClick={handleApprove}
+              disabled={isPending}
+              className="flex-1 max-w-[160px] h-12 rounded-xl bg-[#087f70] text-white font-medium text-sm hover:bg-[#076b5e] transition-colors disabled:opacity-50 flex items-center justify-center"
+            >
+              {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

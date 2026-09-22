@@ -3,13 +3,14 @@ import { useRouter } from 'next/navigation';
 import { DataTable } from '@/components/datatable';
 import { columns } from './column';
 import { useDataTable } from '@/components/datatable/useDataTable';
-import { Role, useGetAllRolesApi } from '@/queries/role/get-all-roles';
+import { isRoleActive, Role, useGetAllRolesApi } from '@/queries/role/get-all-roles';
 import { toStringFilterRecord, unwrapFilterKeys } from '../user-table-utils';
 
 const RoleTable = () => {
 
     const router = useRouter();
     const tableprops = useTableData();
+    const setTotalItems = tableprops.setTotalItems;
     const depts = useGetAllRolesApi(
         { page: 1, limit: 1000 },
     );
@@ -33,15 +34,15 @@ const RoleTable = () => {
         const filters = tableprops.filterBy || {};
         if (filters.status && filters.status !== "all") {
             const isActiveFilter = filters.status.toLowerCase() === "active";
-            result = result.filter(r => r.isActive === isActiveFilter);
+            result = result.filter(r => isRoleActive(r) === isActiveFilter);
         }
 
         return result;
     }, [roles, tableprops.globalSearch, tableprops.filterBy]);
 
     useEffect(() => {
-        tableprops.setTotalItems(filteredRoles.length);
-    }, [filteredRoles.length, tableprops.setTotalItems]);
+        setTotalItems(filteredRoles.length);
+    }, [filteredRoles.length, setTotalItems]);
 
     return (
         <DataTable

@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
-  CheckCircle2, Loader2, Pencil, Search,
+  CheckCircle2, Loader2, Pencil, Search, AlertCircle, AlertTriangle, XCircle
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
+import { LineItemDetailModal } from "@/components/procurement/LineItemDetailModal";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
-import { useAuthStore } from "@/stores/auth-stores";
 import {
   useCreatePurchaseOrder,
   useAddPOLineItems,
@@ -29,12 +30,21 @@ import {
   type PRPriority,
 } from "@/queries/procurement/purchase-requests";
 import { toast } from "sonner";
-import { getApiErrorMessage } from "@/lib/types/api-error";
+
 import { isPRPriority } from "@/lib/types/purchase-request-helpers";
 import {
   isProcurementReadyLegalEntity,
   useLegalEntities,
 } from "@/queries/legal-entities";
+import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
+import { 
+  getApiErrorMessage, 
+  isProcurementPolicyViolationError, 
+  getProcurementPolicyViolations, 
+  applyProcurementPolicyErrorToLineItems, 
+  type ProcurementPolicyViolation 
+} from "@/lib/types/api-error";
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -209,13 +219,20 @@ function NewPurchaseOrderPage() {
   const [editingItem, setEditingItem] = useState<{ item: any; index: number } | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ item: any; index: number } | null>(null);
   const [panelSaving, setPanelSaving] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedDetailItem, setSelectedDetailItem] = useState<any | null>(null);
+  const [detailModalStartsInEditMode, setDetailModalStartsInEditMode] = useState(false);
 
   // API Hooks
   const createPO = useCreatePurchaseOrder();
   const addLineItem = useAddPOLineItems(purchaseOrderId || "");
-  const updateLineItem = useUpdatePOLineItem(purchaseOrderId || "", editingItem?.item?.purchaseOrderLineItemId || editingItem?.item?.id || "");
+  const updateLineItem = useUpdatePOLineItem(purchaseOrderId || "", selectedDetailItem?.purchaseOrderLineItemId || selectedDetailItem?.id || "");
   const deleteLineItem = useDeletePOLineItem(purchaseOrderId || "");
   const submitPO = useSubmitPurchaseOrderForApproval(purchaseOrderId || "");
+
+  const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+
   const { refetch: refetchPO } = usePurchaseOrder(purchaseOrderId || "");
 
   const { data: catData } = useGetProcurementCategories();
@@ -295,6 +312,7 @@ function NewPurchaseOrderPage() {
       const refetched = await refetchPO();
       const items = refetched.data?.data?.lineItems || [];
       if (items.length > 0) setSavedLineItems(items);
+      setPolicyViolations(null);
       toast.success(`${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to add items"));
@@ -314,6 +332,7 @@ function NewPurchaseOrderPage() {
       if (items.length > 0) setSavedLineItems(items);
       setEditingItem(null);
       setShowModal(false);
+      setPolicyViolations(null);
       toast.success("Item updated");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to update item"));
@@ -336,6 +355,7 @@ function NewPurchaseOrderPage() {
       } else {
         setSavedLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
       }
+      setPolicyViolations(null);
       toast.success("Item removed");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to remove item"));
@@ -456,7 +476,7 @@ function NewPurchaseOrderPage() {
             <StepIndicator step={step} />
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pb-4 pr-2">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-5 pb-4 pr-2">
             {/* Read-only PO summary */}
             <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
               <div className="flex items-center justify-between mb-4">
@@ -517,9 +537,41 @@ function NewPurchaseOrderPage() {
                       {savedLineItems.map((item, i) => {
                         const catName = getCategoryName(item.categoryId);
                         const sub = (item.quantity || 0) * (item.unitPrice || 0);
+                        const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
+                        const hasBlock = hasViolations && item.policyViolations!.some((v: any) => v.type === "hard_block");
+                        const itemKey = item.id || item.purchaseOrderLineItemId || i;
                         return (
-                          <tr key={item.id || item.purchaseOrderLineItemId} className="border-b border-border/40 last:border-0 hover:bg-[#f9faf9] transition-colors">
-                            <td className="px-5 py-3.5 font-semibold text-[#0b100e]">{item.name}</td>
+                          <React.Fragment key={itemKey}>
+                            <tr 
+                              className={`border-b ${hasViolations ? "border-transparent" : "border-border/40 last:border-0"} hover:bg-[#f9faf9] transition-colors cursor-pointer`}
+                              onClick={() => {
+                                setSelectedDetailItem({ ...item, categoryName: catName, index: i });
+                                setDetailModalStartsInEditMode(false);
+                                setIsDetailModalOpen(true);
+                              }}
+                            >
+                              <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
+                                <div className="flex items-center gap-1.5">
+                                  {item.name}
+                                  {hasViolations && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span 
+                                          className={`inline-flex items-center justify-center w-4 h-4 rounded-full shrink-0 cursor-help ${hasBlock ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}
+                                        >
+                                          {hasBlock 
+                                            ? <XCircle className="w-3 h-3" /> 
+                                            : <AlertTriangle className="w-3 h-3" />
+                                          }
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-[280px] text-center whitespace-pre-wrap">
+                                        {item.policyViolations!.map((v: any) => v.message).join('\n\n')}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                              </td>
                             <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
                             <td className="px-5 py-3.5">
                               {catName
@@ -530,10 +582,14 @@ function NewPurchaseOrderPage() {
                             <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
                             <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                             <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(sub || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3.5">
+                            <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center gap-1">
                                 <div className="relative group">
-                                  <button type="button" onClick={() => openEditModal(item, i)}
+                                  <button type="button" onClick={() => {
+                                      setSelectedDetailItem({ ...item, categoryName: catName, index: i });
+                                      setDetailModalStartsInEditMode(true);
+                                      setIsDetailModalOpen(true);
+                                    }}
                                     className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
                                     <Pencil className="w-3.5 h-3.5" />
                                   </button>
@@ -549,8 +605,10 @@ function NewPurchaseOrderPage() {
                               </div>
                             </td>
                           </tr>
-                        );
-                      })}
+
+                        </React.Fragment>
+                      );
+                    })}
                     </tbody>
                   </table>
 
@@ -586,17 +644,30 @@ function NewPurchaseOrderPage() {
             <button type="button" disabled={savedLineItems.length === 0 || submitPO.isPending}
               onClick={async () => {
                 if (!purchaseOrderId) return;
+                if (policyViolations) {
+                  setIsPolicyModalOpen(true);
+                  return;
+                }
                 try {
-                  await submitPO.mutateAsync();
+                  await submitPO.mutateAsync({});
                   toast.success("Purchase order submitted for approval!");
                   router.push("/procurement/purchase-order");
                 } catch (err: unknown) {
-                  toast.error(getApiErrorMessage(err, "Failed to submit"));
+                  if (isProcurementPolicyViolationError(err)) {
+                    const violations = getProcurementPolicyViolations(err);
+                    setPolicyViolations(violations);
+                    setIsPolicyModalOpen(true);
+                    setSavedLineItems(prev => applyProcurementPolicyErrorToLineItems(prev, violations));
+                  } else {
+                    toast.error(getApiErrorMessage(err, "Failed to submit"));
+                  }
                 }
               }}
-              className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
+              className={`h-11 px-8 rounded-[12px] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm ${
+                policyViolations ? "bg-[#d33d44] hover:bg-[#c33339]" : "bg-[#087f70]"
+              }`}>
               {submitPO.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Submit Order
+              {policyViolations ? "Fix Violations to Submit" : "Submit Order"}
             </button>
           </div>
         </div>
@@ -609,21 +680,50 @@ function NewPurchaseOrderPage() {
         currency={currency}
         onSaveAll={handleAddItems as any}
         saving={panelSaving}
-        editInitial={editingItem ? {
-          name: editingItem.item.name || "",
-          description: editingItem.item.description || "",
-          categoryId: editingItem.item.categoryId || "",
-          categoryName: getCategoryName(editingItem.item.categoryId) || "",
-          quantity: editingItem.item.quantity || 0,
-          unitPrice: editingItem.item.unitPrice,
-          taxAmount: editingItem.item.taxAmount || 0,
-          sku: editingItem.item.sku || "",
-          unitOfMeasure: editingItem.item.unitOfMeasure || "unit",
-          accountingResolutionStatus: "unresolved",
-        } : null}
-        onEditSaved={handleEditItem as any}
-        editSaving={panelSaving}
+        editInitial={undefined}
+        onEditSaved={async () => {}}
+        editSaving={false}
         persistKey={`po-draft-${purchaseOrderId}`}
+      />
+
+      <LineItemDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => { setIsDetailModalOpen(false); setSelectedDetailItem(null); setDetailModalStartsInEditMode(false); }}
+        item={selectedDetailItem}
+        currency={currency}
+        startInEditMode={detailModalStartsInEditMode}
+        onSave={async (updatedItem) => {
+          if (updatedItem.index !== undefined && updatedItem.index !== null) {
+            const idx = updatedItem.index;
+            setPanelSaving(true);
+            try {
+              if (purchaseOrderId) {
+                await updateLineItem.mutateAsync({
+                  name: updatedItem.name,
+                  categoryId: updatedItem.categoryId!,
+                  quantity: updatedItem.quantity,
+                  unitPrice: updatedItem.unitPrice,
+                  taxAmount: updatedItem.taxAmount || 0,
+                  unitOfMeasure: updatedItem.unitOfMeasure,
+                  sku: updatedItem.sku,
+                  description: updatedItem.description,
+                });
+                await refetchPO();
+              } else {
+                const copy = [...savedLineItems];
+                copy[idx] = { ...copy[idx], ...updatedItem };
+                setSavedLineItems(copy);
+              }
+              setIsDetailModalOpen(false);
+              setSelectedDetailItem(null);
+              setPolicyViolations(null);
+            } catch (err: any) {
+              toast.error(err?.response?.data?.message || "Failed to update item");
+            } finally {
+              setPanelSaving(false);
+            }
+          }
+        }}
       />
 
       <AlertDialog open={!!itemToDelete} onOpenChange={(val) => !val && setItemToDelete(null)}>
@@ -642,6 +742,37 @@ function NewPurchaseOrderPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Policy Violation Modal */}
+      {policyViolations && (
+        <ProcurementPolicyCheckModal
+          isOpen={isPolicyModalOpen}
+          onClose={() => setIsPolicyModalOpen(false)}
+          violations={policyViolations}
+          onEditRequest={() => setIsPolicyModalOpen(false)}
+          onProceedWithWarnings={async (justification) => {
+            if (!purchaseOrderId) return;
+            try {
+              await submitPO.mutateAsync({ 
+                policyJustification: justification,
+                spendProgramJustification: justification
+              });
+              toast.success("Purchase order submitted for approval!");
+              setPolicyViolations(null);
+              setIsPolicyModalOpen(false);
+              router.push("/procurement/purchase-order");
+            } catch (err: unknown) {
+              if (isProcurementPolicyViolationError(err)) {
+                const violations = getProcurementPolicyViolations(err);
+                setPolicyViolations(violations);
+                setSavedLineItems(prev => applyProcurementPolicyErrorToLineItems(prev, violations));
+              } else {
+                toast.error(getApiErrorMessage(err, "Failed to submit with justifications"));
+              }
+            }
+          }}
+        />
+      )}
     </>
   );
 }
@@ -649,4 +780,3 @@ function NewPurchaseOrderPage() {
 export default withPermissions(NewPurchaseOrderPage, [
   { resource: "procurement.purchase_order", action: "create" },
 ]);
-

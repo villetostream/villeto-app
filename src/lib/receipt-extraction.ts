@@ -71,6 +71,18 @@ export async function uploadReceipt(
   return unwrap<ReceiptExtraction>(response.data);
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
 export async function waitForReceiptExtraction(
   axios: AxiosInstance,
   extractionId: string,
@@ -122,17 +134,17 @@ export async function uploadAndExtractReceipt(
   );
 }
 
-export function dataUrlToFile(dataUrl: string, filename: string): File {
-  const [metadata, encoded] = dataUrl.split(",", 2);
-  if (!metadata || !encoded) throw new Error("Invalid receipt image");
-  const mimeType = metadata.match(/^data:([^;]+);base64$/)?.[1] ?? "image/jpeg";
-  const bytes = window.atob(encoded);
-  const buffer = new Uint8Array(bytes.length);
-  for (let index = 0; index < bytes.length; index += 1) {
-    buffer[index] = bytes.charCodeAt(index);
-  }
-  return new File([buffer], filename, { type: mimeType });
-}
+
+
+
+
+
+
+
+
+
+
+
 
 export function extractedReceiptValues(extraction: ReceiptExtraction) {
   const values = extraction.extractedValues ?? {};

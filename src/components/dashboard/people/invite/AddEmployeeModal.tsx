@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useImportReferences, useValidateManualEmployee, useSubmitManualEmployee, ManualEmployee } from "@/queries/users/bulk-manual";
 import { useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
+import { useLegalEntities } from "@/queries/legal-entities";
 import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { X, Loader2, AlertCircle, ChevronDown, Check, CalendarIcon } from "lucide-react";
@@ -37,6 +38,8 @@ const INITIAL_STATE: ManualEmployee = {
     employment_type: "",
     status: "Active",
     effective_date: "",
+    legal_entity_code: "",
+    legal_entity_name: "",
 };
 
 // Custom Combobox that allows typing anything while showing options
@@ -140,6 +143,7 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
     const { data: jobGradesRes, isLoading: loadingGrades } = useImportReferences("job_grades", isOpen);
     const { data: mgmtLevelsRes, isLoading: loadingLevels } = useImportReferences("management_levels", isOpen);
     const { data: dirUsersRes, isLoading: loadingDirUsers } = useGetDirectoryUsersApi({ enabled: isOpen, params: { status: "all" } });
+    const entitiesQuery = useLegalEntities({ enabled: isOpen });
 
     const validateMutation = useValidateManualEmployee();
     const submitMutation = useSubmitManualEmployee();
@@ -149,6 +153,7 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
     const jobGrades = jobGradesRes?.data?.jobGrades || (Array.isArray(jobGradesRes?.data) ? jobGradesRes.data : (Array.isArray(jobGradesRes) ? jobGradesRes : []));
     const mgmtLevels = mgmtLevelsRes?.data?.managementLevels || (Array.isArray(mgmtLevelsRes?.data) ? mgmtLevelsRes.data : (Array.isArray(mgmtLevelsRes) ? mgmtLevelsRes : []));
     const dirUsers = Array.isArray(dirUsersRes?.data) ? dirUsersRes.data : (Array.isArray(dirUsersRes) ? dirUsersRes : []);
+    const activeEntities = entitiesQuery.data?.data?.filter((e: any) => e.status === "active") || [];
 
     // Reset on open/close
     useEffect(() => {
@@ -172,6 +177,13 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
             if (field === "department_name") {
                 const found = departments.find(d => d.departmentName === value);
                 if (found) next.department_external_id = found.departmentExternalId || found.code || found.departmentId || "";
+            }
+
+            // Auto-fill legal entity code based on name
+            if (field === "legal_entity_name") {
+                const found = activeEntities.find((e: any) => e.legalName === value);
+                if (found) next.legal_entity_code = found.code;
+                else next.legal_entity_code = value; // fallback to user typed value
             }
 
             // Auto-fill form if employee ID or email exactly matches a directory user
@@ -258,10 +270,10 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
                 const parts = msg.split(': ');
                 let rawError = parts.length > 1 ? parts[1] : parts[0];
                 rawError = rawError.charAt(0).toUpperCase() + rawError.slice(1);
-                return rawError.replace(/_/g, ' ');
+                return rawError.replace(/_/g, ' ').replace(' in this file or company', ' in the company');
             }).join(" • ");
         }
-        return String(msgData || "Validation failed");
+        return String(msgData || "Validation failed").replace(' in this file or company', ' in the company');
     };
 
     const handleInitialSubmit = async () => {
@@ -286,7 +298,7 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
                 const hardErrors = errors.filter((e: any) => !e.message.toLowerCase().includes("duplicate") && !e.message.toLowerCase().includes("already belongs"));
 
                 if (hardErrors.length > 0) {
-                    setValidationError(hardErrors[0].message);
+                    setValidationError(hardErrors[0].message.replace(' in this file or company', ' in the company'));
                 } else if (hasDuplicates) {
                     setDuplicateMode(true);
                 } else {
@@ -567,6 +579,17 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
                                     />
                                 </PopoverContent>
                             </Popover>
+                        </div>
+
+                        <div>
+                            <Label className="text-[13px] font-medium text-[#464f4b] mb-1.5 block">Legal entity</Label>
+                            <CreatableCombobox 
+                                placeholder="Select or type" 
+                                value={formData.legal_entity_name || formData.legal_entity_code || ""} 
+                                onChange={(val) => handleChange("legal_entity_name", val)}
+                                options={activeEntities.map((e: any) => e.legalName).filter(Boolean) as string[]}
+                                isLoading={entitiesQuery.isLoading}
+                            />
                         </div>
 
                         <div>

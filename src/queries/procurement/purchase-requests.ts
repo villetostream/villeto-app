@@ -36,6 +36,7 @@ export interface PurchaseRequestLineItem {
   sku?: string;
   unitOfMeasure?: string;
   categoryId?: string;
+  categoryName?: string;
   departmentId?: string;
   accountingAccountRef?: string;
   accountingItemRef?: string;
@@ -340,7 +341,7 @@ export const useDeleteLineItem = (
 
 export const useSubmitPurchaseRequest = (
   id: string
-): UseMutationResult<ApiResponse<PurchaseRequest>, Error, { policyJustifications?: Record<string, string> } | void> => {
+): UseMutationResult<ApiResponse<PurchaseRequest>, Error, { policyJustification?: string; spendProgramJustification?: string } | void> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
@@ -397,6 +398,8 @@ export interface ConvertToPOPayload {
   deliveryDate?: string;
   notes?: string;
   lineAssignments?: unknown[];
+  policyJustification?: string;
+  spendProgramJustification?: string;
 }
 
 export const useConvertToPO = (
@@ -412,6 +415,7 @@ export const useConvertToPO = (
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
     },
   });
 };
@@ -551,11 +555,12 @@ export interface Vendor {
   vendorId: string;
   legalName: string | null;
   displayName: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
   status: string;
   approvalStatus: string;
+  isPaymentEnabled?: boolean;
 }
 
 export const useGetVendors = (
@@ -565,8 +570,9 @@ export const useGetVendors = (
   return useQuery({
     queryKey: QUERY_KEYS.vendors.approved,
     queryFn: async () => {
-      // Pass the approvalStatus query param as the user specified, ensuring we only fetch approved vendors
-      const url = `/vendors?page=1&limit=100&approvalStatus=approved`;
+      // Procurement selection only needs safe lookup fields. The full /vendors
+      // endpoint intentionally requires sensitive-vendor access.
+      const url = `/vendors/directory?page=1&limit=100&approvalStatus=approved`;
       const res = await axiosInstance.get(url);
       return res.data;
     },

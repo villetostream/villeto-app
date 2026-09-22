@@ -35,6 +35,7 @@ interface Permission {
 interface RichCompanyRole {
     roleId: string
     name: string
+    templateKey?: string | null
     description?: string
     permissions: Permission[]
     capabilityGroups?: CapabilityGroup[]
@@ -196,8 +197,7 @@ function OverviewTab({
 
     const currentUserId = useAuthStore.getState().user?.userId;
     const assignedRoles = user.companyRoles ?? (user.companyRole ? [user.companyRole] : [])
-    const isOwner = assignedRoles.some(role => role.name.toUpperCase().includes("OWNER"))
-        || String(user.position || "").toUpperCase() === "OWNER";
+    const isOwner = assignedRoles.some(role => role.templateKey === "owner");
     const isSelf = user.userId === currentUserId;
     const canDeactivate = !isOwner && !isSelf;
 

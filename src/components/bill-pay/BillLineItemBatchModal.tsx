@@ -213,7 +213,6 @@ export default function BillLineItemBatchModal({
           
           {/* Left Pane (Form) */}
           <div className="md:w-[45%] bg-white flex flex-col min-h-0 overflow-y-auto border-r border-black/[0.06] p-6 space-y-5">
-            <h4 className="text-[14px] font-bold text-[#10231d]">New Item Details</h4>
 
             <div className="space-y-1.5">
               <label className="text-[13px] font-medium text-[#10231d]">
@@ -263,7 +262,7 @@ export default function BillLineItemBatchModal({
               />
             </div>
 
-            <div className="pt-2">
+            <div className="pt-2 mt-auto">
               <button type="button" onClick={handleAddToStaging}
                 className="w-full h-10 rounded-[8px] border border-[#087f70]/30 bg-[#f0faf8] text-[#087f70] text-[13px] font-semibold hover:bg-[#e6f7f3] transition-colors flex items-center justify-center gap-2 shadow-sm">
                 <Plus className="w-4 h-4" />

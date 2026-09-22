@@ -79,7 +79,7 @@ export function UserPermissionsDialog({
         isLoading: isLoadingCapabilities,
         error: capabilitiesError,
         refetch: refetchCapabilities,
-    } = useGetAllRoleCapabilitiesApi(undefined, open);
+    } = useGetAllRoleCapabilitiesApi(open);
 
     const updateCapabilities = useUpdateRoleCapabilitiesApi();
 
@@ -130,7 +130,7 @@ export function UserPermissionsDialog({
     const handleSave = () => {
         if (!roleId) return;
         updateCapabilities.mutate(
-            { roleId, capabilityGroupKeys: Array.from(enabledGroupKeys) },
+            { roleId, capabilities: Array.from(enabledGroupKeys).map(key => ({ key, scopeType: "company" as const })) },
             {
                 onSuccess: () => {
                     toast.success("Permissions updated.");

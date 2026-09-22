@@ -1,4 +1,6 @@
 
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -14,6 +16,8 @@ import {
     Users,
     Hotel
 } from "lucide-react";
+import PermissionGuard from "@/components/permissions/permission-protected-components";
+import withPermissions from "@/components/permissions/permission-protected-routes";
 
 const travelExpenses = [
     {
@@ -48,7 +52,7 @@ const travelExpenses = [
     }
 ];
 
-export default function Travel() {
+function Travel() {
 
 
     return (
@@ -68,10 +72,12 @@ export default function Travel() {
                                 <Calendar className="w-4 h-4 mr-2" />
                                 Travel Calendar
                             </Button>
-                            <Button className="bg-dashboard-accent hover:bg-dashboard-accent/90">
-                                <Plus className="w-4 h-4 mr-2" />
-                                Book Travel
-                            </Button>
+                            <PermissionGuard resource="expense.report" action="create">
+                                <Button className="bg-dashboard-accent hover:bg-dashboard-accent/90">
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Book Travel
+                                </Button>
+                            </PermissionGuard>
                         </div>
                     </div>
 
@@ -196,3 +202,9 @@ export default function Travel() {
         </>
     );
 }
+
+export default withPermissions(Travel, [
+    { resource: "expense.report", action: "read_own" },
+    { resource: "expense.report", action: "read_department" },
+    { resource: "expense.report", action: "read_company" },
+]);

@@ -64,13 +64,22 @@ export const navigationItems: NavItem[] = [
     icon: <HugeiconsIcon icon={MoneySendSquareFreeIcons} />,
     label: "Expenses",
     href: "/expenses",
-    permissions: [], // Always visible — personal tab is the minimum
+    permissions: [
+      { resource: "expense.report", action: "read_own" },
+      { resource: "expense.report", action: "read_department" },
+      { resource: "expense.report", action: "read_company" },
+      { resource: "expense.report", action: "create" },
+    ],
     section: "MAIN MENU",
     subItems: [
       {
         label: "All Expenses",
         href: "/expenses",
-        permissions: [],
+        permissions: [
+          { resource: "expense.report", action: "read_own" },
+          { resource: "expense.report", action: "read_department" },
+          { resource: "expense.report", action: "read_company" },
+        ],
       },
       {
         label: "Card Transactions",
@@ -81,7 +90,7 @@ export const navigationItems: NavItem[] = [
       {
         label: "Reimbursements",
         href: "/expenses/reimbursements",
-        permissions: [],
+        permissions: [{ resource: "expense.report", action: "read_own" }],
       },
       {
         label: "Travel",
@@ -98,98 +107,6 @@ export const navigationItems: NavItem[] = [
     permissions: [],
     section: "MAIN MENU",
     comingSoon: true,
-  },
-  {
-    icon: <Profile2User />,
-    label: "People",
-    href: "/people",
-    permissions: [
-      { resource: "user", action: "manage" },
-      { resource: "user", action: "read" },
-    ],
-    section: "MANAGEMENT",
-  },
-  {
-    icon: <DocumentText />,
-    label: "Policies",
-    href: "/policies/expense-policy",
-    permissions: [
-      { resource: "policy.domain", action: "expense" },
-      { resource: "policy.domain", action: "procurement" },
-      { resource: "policy.domain", action: "all" },
-      { resource: "policy", action: "read_company" },
-      { resource: "policy", action: "manage" }
-    ],
-    section: "MANAGEMENT",
-    subItems: [
-      {
-        label: "Expense Policy",
-        href: "/policies/expense-policy",
-        permissions: [
-          { resource: "policy.domain", action: "expense" },
-          { resource: "policy.domain", action: "all" }
-        ],
-      },
-      {
-        label: "Procurement Policy",
-        href: "/policies/procurement-policy",
-        permissions: [
-          { resource: "policy.domain", action: "procurement" },
-          { resource: "policy.domain", action: "all" }
-        ],
-      },
-      {
-        label: "Policy Governance",
-        href: "/policies/governance",
-        permissions: [{ resource: "policy", action: "update_approval_setting" }],
-      },
-    ],
-  },
-  {
-    icon: <HugeiconsIcon icon={InvoiceIcon} />,
-    label: "Bill Pay",
-    href: "/bill-pay",
-    permissions: [
-      { resource: "bill_pay.invoice", action: "view" },
-      { resource: "bill_pay.intake", action: "view" },
-    ],
-    section: "MANAGEMENT",
-    subItems: [
-      {
-        label: "All Bills & Invoices",
-        href: "/bill-pay",
-        permissions: [
-          { resource: "bill_pay.invoice", action: "view" },
-          { resource: "bill_pay.intake", action: "view" },
-        ],
-      },
-      {
-        label: "Payments",
-        href: "/bill-pay/payments",
-        permissions: [
-          { resource: "bill_pay.payment", action: "schedule" },
-          { resource: "bill_pay.payment", action: "initiate" },
-        ],
-      },
-    ],
-  },
-  {
-    icon: <Calculator />,
-    label: "Accounting",
-    href: "/accounting",
-    permissions: [
-      { resource: "accounting.account", action: "view" },
-      { resource: "accounting.journal", action: "view" },
-      { resource: "accounting.configuration", action: "manage" },
-    ],
-    section: "MANAGEMENT",
-  },
-  {
-    icon: <Shop />,
-    label: "Vendors",
-    href: "/vendors",
-    permissions: [{ resource: "vendor", action: "read_company" }],
-    section: "MANAGEMENT",
   },
   {
     icon: <ShoppingCart />,
@@ -254,6 +171,108 @@ export const navigationItems: NavItem[] = [
         permissions: [{ resource: "expense.category", action: "manage" }],
       },
     ],
+  },
+  {
+    icon: <HugeiconsIcon icon={InvoiceIcon} />,
+    label: "Bill Pay",
+    href: "/bill-pay",
+    permissions: [
+      { resource: "bill_pay.invoice", action: "view" },
+      { resource: "bill_pay.intake", action: "view" },
+      { resource: "bill_pay.invoice", action: "create" },
+      { resource: "bill_pay.payment", action: "initiate" },
+      { resource: "bill_pay.payment", action: "schedule" },
+    ],
+    section: "MANAGEMENT",
+    subItems: [
+      {
+        label: "All Bills & Invoices",
+        href: "/bill-pay",
+        permissions: [
+          { resource: "bill_pay.invoice", action: "view" },
+          { resource: "bill_pay.intake", action: "view" },
+        ],
+      },
+      {
+        label: "Payments",
+        href: "/bill-pay/payments",
+        permissions: [
+          { resource: "bill_pay.payment", action: "schedule" },
+          { resource: "bill_pay.payment", action: "initiate" },
+        ],
+      },
+      {
+        label: "Settings",
+        href: "/bill-pay/settings",
+        permissions: [
+          { resource: "bill_pay.configuration", action: "manage" }
+        ],
+      },
+    ],
+  },
+  {
+    icon: <DocumentText />,
+    label: "Policies",
+    href: "/policies/expense-policy",
+    permissions: [
+      { resource: "policy.domain", action: "expense" },
+      { resource: "policy.domain", action: "procurement" },
+      { resource: "policy.domain", action: "all" },
+      { resource: "policy", action: "read_company" },
+      { resource: "policy", action: "manage" }
+    ],
+    section: "MANAGEMENT",
+    subItems: [
+      {
+        label: "Expense",
+        href: "/policies/expense-policy",
+        permissions: [
+          { resource: "policy.domain", action: "expense" },
+          { resource: "policy.domain", action: "all" }
+        ],
+      },
+      {
+        label: "Procurement",
+        href: "/policies/procurement-policy",
+        permissions: [
+          { resource: "policy.domain", action: "procurement" },
+          { resource: "policy.domain", action: "all" }
+        ],
+      },
+      {
+        label: "Policy Governance",
+        href: "/policies/governance",
+        permissions: [{ resource: "policy", action: "update_approval_setting" }],
+      },
+    ],
+  },
+  {
+    icon: <Shop />,
+    label: "Vendors",
+    href: "/vendors",
+    permissions: [{ resource: "vendor", action: "read_company" }],
+    section: "MANAGEMENT",
+  },
+  {
+    icon: <Profile2User />,
+    label: "People",
+    href: "/people",
+    permissions: [
+      { resource: "user", action: "manage" },
+      { resource: "user", action: "read" },
+    ],
+    section: "MANAGEMENT",
+  },
+  {
+    icon: <Calculator />,
+    label: "Accounting",
+    href: "/accounting",
+    permissions: [
+      { resource: "accounting.account", action: "view" },
+      { resource: "accounting.journal", action: "view" },
+      { resource: "accounting.configuration", action: "manage" },
+    ],
+    section: "MANAGEMENT",
   },
   {
     icon: <LampOn />,

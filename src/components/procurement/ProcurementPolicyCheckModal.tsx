@@ -16,7 +16,7 @@ interface ProcurementPolicyCheckModalProps {
   onClose: () => void;
   violations: ProcurementPolicyViolation[];
   onEditRequest: () => void;
-  onProceedWithWarnings?: (justifications: Record<string, string>) => void;
+  onProceedWithWarnings?: (justification: string) => void;
 }
 
 export function ProcurementPolicyCheckModal({
@@ -28,7 +28,7 @@ export function ProcurementPolicyCheckModal({
 }: ProcurementPolicyCheckModalProps) {
   const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
   const userCurrencySymbol = getCurrencySymbol();
-  const [justifications, setJustifications] = useState<Record<string, string>>({});
+  const [justification, setJustification] = useState("");
 
   // Deduplicate violations by policyId + rule
   const uniqueViolations = violations.filter((v, index, self) => 
@@ -42,23 +42,13 @@ export function ProcurementPolicyCheckModal({
 
   const hasHardBlocks = hardBlocks.length > 0;
   
-  const allWarningsJustified = softWarnings.every(
-    (v) => (justifications[v.policyId] || "").trim().length > 0
-  );
+  const allWarningsJustified = justification.trim().length > 0;
 
   const canProceed = !hasHardBlocks && allWarningsJustified && softWarnings.length > 0;
 
-  const handleJustificationChange = (policyId: string, value: string) => {
-    setJustifications((prev) => ({ ...prev, [policyId]: value }));
-  };
-
   const handleProceed = () => {
     if (!canProceed || !onProceedWithWarnings) return;
-    const merged: Record<string, string> = {};
-    softWarnings.forEach((v) => {
-      merged[v.policyId] = justifications[v.policyId] || "";
-    });
-    onProceedWithWarnings(merged);
+    onProceedWithWarnings(justification);
   };
 
   // Header text
@@ -71,6 +61,54 @@ export function ProcurementPolicyCheckModal({
   const showSoftSection = softWarnings.length > 0;
 
   const renderLimitCheck = (v: ProcurementPolicyViolation, color: "red" | "amber") => {
+    const ruleText = `${v.rule || ""} ${v.policyGroup || ""} ${v.message || ""}`.toLowerCase();
+    const isQuantityViolation = ruleText.includes("quantity") || ruleText.includes("qty");
+
+    // Quantity-based limit check
+    if (isQuantityViolation) {
+      const qtyLimitMatch = v.message.match(/allowed\s+quantity\s+is\s+([\d,]+)/i)
+        || v.message.match(/quantity\s+limit.*?([\d,]+)/i);
+      if (qtyLimitMatch) {
+        const limit = parseFloat(qtyLimitMatch[1].replace(/,/g, ''));
+        const maxQty = v.lineItems
+          ? Math.max(...v.lineItems.map((li: any) => li.quantity || 0))
+          : 0;
+        const overageColor = color === "red" ? "text-red-600" : "text-amber-600";
+        const borderColor = color === "red" ? "border-red-100" : "border-amber-100";
+        const bgBar = color === "red" ? "bg-red-100" : "bg-amber-100";
+        const fgBar = color === "red" ? "bg-red-500" : "bg-amber-500";
+        const percentage = Math.min(100, (maxQty / (limit || 1)) * 100);
+
+        return (
+          <div className={`mt-3 rounded-lg bg-white border ${borderColor} p-3 space-y-2`}>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Quantity limit</span>
+              <span className="font-semibold text-gray-900">{limit.toLocaleString()} units</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Highest item quantity</span>
+              <span className={`font-medium ${overageColor}`}>{maxQty.toLocaleString()} units</span>
+            </div>
+            <div className="space-y-1">
+              <div className={`h-2 rounded-full ${bgBar} overflow-hidden`}>
+                <div
+                  className={`h-full rounded-full ${fgBar} transition-all`}
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
+              {maxQty > limit && (
+                <div className="flex justify-between text-[10px]">
+                  <span className={`${overageColor} font-semibold`}>
+                    {(maxQty - limit).toLocaleString()} units over limit
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+    }
+
     if (!v.details) return null;
     const { actualAmount, threshold, currency, thresholdCurrency, minimumQuotes, actualQuotes } = v.details;
     
@@ -148,6 +186,90 @@ export function ProcurementPolicyCheckModal({
     return null;
   };
 
+  const renderAffectedItems = (v: ProcurementPolicyViolation, color: "red" | "amber") => {
+    if (!v.lineItems || v.lineItems.length === 0) return null;
+    
+    const textColor = color === "red" ? "text-red-900" : "text-amber-900";
+    const subtextColor = color === "red" ? "text-red-800" : "text-amber-800";
+    const bgClass = color === "red" ? "bg-red-100/50" : "bg-amber-100/50";
+    const badgeBg = color === "red" ? "bg-red-200" : "bg-amber-200";
+    const badgeText = color === "red" ? "text-red-800" : "text-amber-800";
+    const okBg = "bg-green-100";
+    const okText = "text-green-700";
+
+    // Detect if this is a quantity-based violation
+    const ruleText = `${v.rule || ""} ${v.policyGroup || ""} ${v.message || ""}`.toLowerCase();
+    const isQuantityViolation = ruleText.includes("quantity") || ruleText.includes("qty");
+
+    // Try to parse the limit from the message 
+    // e.g. "The allowed quantity is 100." or "The configured limit is NGN 1,000,000."
+    let parsedLimit: number | null = null;
+    if (isQuantityViolation) {
+      const qtyLimitMatch = v.message.match(/allowed\s+quantity\s+is\s+([\d,]+)/i)
+        || v.message.match(/quantity\s+limit.*?([\d,]+)/i)
+        || v.message.match(/limit\s+is\s+([\d,]+)/i);
+      if (qtyLimitMatch) {
+        parsedLimit = parseFloat(qtyLimitMatch[1].replace(/,/g, ''));
+      }
+    }
+
+    // For quantity violations, filter to only items that actually exceed the limit
+    let displayItems = v.lineItems;
+    let compliantItems: any[] = [];
+    if (isQuantityViolation && parsedLimit !== null) {
+      displayItems = v.lineItems.filter((li: any) => (li.quantity || 0) > parsedLimit!);
+      compliantItems = v.lineItems.filter((li: any) => (li.quantity || 0) <= parsedLimit!);
+    }
+
+    return (
+      <div className={`mt-2 rounded-lg ${bgClass} p-3 space-y-2`}>
+        <p className={`text-xs font-semibold ${textColor}`}>
+          {isQuantityViolation
+            ? `${displayItems.length} item${displayItems.length !== 1 ? "s" : ""} exceed${displayItems.length === 1 ? "s" : ""} the quantity limit${parsedLimit !== null ? ` of ${parsedLimit.toLocaleString()}` : ""}:`
+            : "Affected items:"}
+        </p>
+        <div className="space-y-1.5">
+          {displayItems.map((li: any, idx: number) => (
+            <div key={idx} className="flex items-center justify-between gap-2 bg-white/60 rounded-md px-2.5 py-1.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`text-[11px] font-semibold ${subtextColor}`}>{li.lineItemName || "Item"}</span>
+                {li.categoryName && <span className={`text-[10px] opacity-60 ${subtextColor}`}>({li.categoryName})</span>}
+              </div>
+              {isQuantityViolation ? (
+                <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ${badgeBg} ${badgeText}`}>
+                  Qty: {(li.quantity || 0).toLocaleString()}
+                </span>
+              ) : (
+                <span className={`shrink-0 text-[11px] font-semibold ${subtextColor}`}>
+                  {userCurrencySymbol}{(li.lineTotal || 0).toLocaleString()}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Show compliant items collapsed for quantity violations */}
+        {isQuantityViolation && compliantItems.length > 0 && (
+          <div className="mt-1.5 pt-1.5 border-t border-black/[0.05]">
+            <p className={`text-[10px] font-medium text-gray-500 mb-1`}>
+              {compliantItems.length} item{compliantItems.length !== 1 ? "s" : ""} within limit:
+            </p>
+            <div className="space-y-1">
+              {compliantItems.map((li: any, idx: number) => (
+                <div key={idx} className="flex items-center justify-between gap-2 px-2.5 py-1 opacity-60">
+                  <span className="text-[10px] text-gray-600">{li.lineItemName || "Item"}</span>
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${okBg} ${okText}`}>
+                    Qty: {(li.quantity || 0).toLocaleString()} ✓
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
@@ -202,6 +324,7 @@ export function ProcurementPolicyCheckModal({
                     </div>
                   </div>
                   {renderLimitCheck(v, "red")}
+                  {renderAffectedItems(v, "red")}
                 </div>
               ))}
             </div>
@@ -225,19 +348,21 @@ export function ProcurementPolicyCheckModal({
                     </p>
                   </div>
                   {renderLimitCheck(v, "amber")}
-                  <div>
-                    <label className="text-xs font-medium text-foreground block mb-1.5 mt-2">
-                      Justification Required
-                    </label>
-                    <Textarea
-                      placeholder="Please provide a justification to proceed..."
-                      value={justifications[v.policyId] ?? ""}
-                      onChange={(e) => handleJustificationChange(v.policyId, e.target.value)}
-                      className="text-xs min-h-[72px] bg-white border-amber-200 focus:border-amber-400 resize-none"
-                    />
-                  </div>
+                  {renderAffectedItems(v, "amber")}
                 </div>
               ))}
+              
+              <div className="mt-4">
+                <label className="text-xs font-medium text-foreground block mb-1.5 mt-2">
+                  Justification Required
+                </label>
+                <Textarea
+                  placeholder="Please provide a justification to proceed..."
+                  value={justification}
+                  onChange={(e) => setJustification(e.target.value)}
+                  className="text-xs min-h-[72px] bg-white border-amber-200 focus:border-amber-400 resize-none"
+                />
+              </div>
             </div>
           )}
 
@@ -262,6 +387,7 @@ export function ProcurementPolicyCheckModal({
                     </p>
                   </div>
                   {renderLimitCheck(v, "amber")}
+                  {renderAffectedItems(v, "amber")}
                   <p className="text-xs text-muted-foreground mt-1 italic">
                     Will require justification after the block above is fixed.
                   </p>

@@ -11,6 +11,9 @@ interface PermissionGate {
 interface PermissionGuardProps {
   resource?: string;
   action?: string;
+  anyOf?: string[];
+  allOf?: string[];
+  /** @deprecated Use anyOf with complete permission names. */
   permissions?: PermissionGate[];
   fallback?: React.ReactNode;
   children: React.ReactNode;
@@ -19,23 +22,37 @@ interface PermissionGuardProps {
 const PermissionGuard: React.FC<PermissionGuardProps> = ({
   resource,
   action,
+  anyOf,
+  allOf,
   permissions,
   fallback = null,
   children,
 }) => {
   const can = useAuthStore((state) => state.can);
-  const permissionsState = useAuthStore((state) => state.companyPermissions); // Subscribe to trigger re-renders
+  const canAny = useAuthStore((state) => state.canAny);
+  const canAll = useAuthStore((state) => state.canAll);
+  useAuthStore((state) => state.authorization?.revision); // trigger re-render
+
+  const requirements: boolean[] = [];
+
+  if (anyOf?.length) {
+    requirements.push(canAny(anyOf));
+  }
+
+  if (allOf?.length) {
+    requirements.push(canAll(allOf));
+  }
 
   if (permissions && permissions.length > 0) {
-    const hasAny = permissions.some((p) => can(p.resource, p.action));
-    return hasAny ? <>{children}</> : <>{fallback}</>;
+    requirements.push(permissions.some((p) => can(p.resource, p.action)));
   }
 
   if (resource && action) {
-    return can(resource, action) ? <>{children}</> : <>{fallback}</>;
+    requirements.push(can(resource, action));
   }
 
-  return <>{children}</>;
+  const hasAccess = requirements.length > 0 && requirements.every(Boolean);
+  return hasAccess ? <>{children}</> : <>{fallback}</>;
 };
 
 export default PermissionGuard;

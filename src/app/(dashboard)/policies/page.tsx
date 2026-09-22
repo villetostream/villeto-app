@@ -44,6 +44,7 @@ import { useDeleteExpensePolicyDraft, useGetExpensePolicyDraft } from "@/queries
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useGetEligibleRoles } from "@/queries/policies/governance";
+import { useGetSpendProgramSettings } from "@/queries/procurement/policies";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { useAxios } from "@/hooks/useAxios";
@@ -741,12 +742,28 @@ function PoliciesPage() {
     pathname.includes("procurement") ? "procurement" : "expense";
 
   const procurementView = searchParams.get("action") === "create" ? "create" : "list";
-  const setProcurementView = useCallback((view: "list" | "create") => {
+  const editingProcurementPolicyId = searchParams.get("policyId");
+  const editingProcurementDraftId = searchParams.get("draftId");
+  const procurementWizardStep = parseInt(searchParams.get("step") || "1", 10);
+
+  const setProcurementView = useCallback((
+    view: "list" | "create",
+    options?: { policyId?: string | null; draftId?: string | null; step?: number }
+  ) => {
     const params = new URLSearchParams(searchParams.toString());
     if (view === "create") {
       params.set("action", "create");
+      if (options?.policyId) params.set("policyId", options.policyId);
+      else params.delete("policyId");
+      if (options?.draftId) params.set("draftId", options.draftId);
+      else params.delete("draftId");
+      if (options?.step) params.set("step", options.step.toString());
+      else params.delete("step");
     } else {
       params.delete("action");
+      params.delete("policyId");
+      params.delete("draftId");
+      params.delete("step");
     }
     router.push(`${pathname}?${params.toString()}`);
   }, [searchParams, pathname, router]);
@@ -763,9 +780,7 @@ function PoliciesPage() {
   const [editingStep, setEditingStep] = useState<1 | 2 | 3 | 4>(1);
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
 
-  const [editingProcurementPolicyId, setEditingProcurementPolicyId] = useState<string | null>(null);
-  const [editingProcurementDraftId, setEditingProcurementDraftId] = useState<string | null>(null);
-  const [procurementWizardStep, setProcurementWizardStep] = useState<number>(1);
+  // (procurement state is now derived from URL)
 
   const can = useAuthStore(s => s.can);
 
@@ -916,6 +931,17 @@ function PoliciesPage() {
     });
   }, [policiesApi.data?.data, liveExpenseCategories]);
 
+  const { data: spendProgramSettingsResponse, isLoading: isSettingsLoading } = useGetSpendProgramSettings();
+  const isSpendProgramEnabled = spendProgramSettingsResponse?.data?.enabled ?? true;
+
+  // Protect against URL bypass when Governance is off
+  useEffect(() => {
+    if (policyType === "procurement" && procurementView === "create" && !isSettingsLoading && !isSpendProgramEnabled) {
+      toast.error("Spend Programs are disabled in Governance.");
+      setProcurementView("list");
+    }
+  }, [policyType, procurementView, isSettingsLoading, isSpendProgramEnabled, setProcurementView]);
+
   // Register dynamic header CTA button
   const { setAction, clearAction } = useHeaderActionStore();
 
@@ -930,6 +956,8 @@ function PoliciesPage() {
           label: "New Procurement Policy",
           dataTourId: "new-procurement-policy-button",
           onClick: () => setProcurementView("create"),
+          disabled: isSettingsLoading || !isSpendProgramEnabled,
+          tooltip: !isSpendProgramEnabled && !isSettingsLoading ? "Spend Programs are currently disabled in Governance." : undefined,
         });
       } else {
         clearAction();
@@ -954,7 +982,7 @@ function PoliciesPage() {
     }
     // Cleanup on unmount
     return () => clearAction();
-  }, [activeTab, policyType, procurementView, setAction, clearAction, canCreatePolicy, canManageCategories]);
+  }, [activeTab, policyType, procurementView, setAction, clearAction, canCreatePolicy, canManageCategories, isSettingsLoading, isSpendProgramEnabled]);
 
   /* derived */
   const activePolicies   = useMemo(() => policies.filter(p => !p.archivedOn), [policies]);
@@ -1072,6 +1100,11 @@ function PoliciesPage() {
    * check we re-fetch and confirm before allowing the action to surface.
    */
   const handleOpenReview = useCallback(async (policy: Policy) => {
+    // ── Open the modal immediately with the row data so the UI feels instant ──
+    setReviewPolicy(policy as any);
+
+    // ── Verify in the background that this user is still an approver ──────────
+    // If verification fails we quietly close the modal and notify the user.
     try {
       const res = await axios.get(API_KEYS.EXPENSE.POLICY_BY_ID(policy.id));
       const freshPolicy = asRecord(res.data?.data);
@@ -1082,10 +1115,8 @@ function PoliciesPage() {
 
       let stillApprover = false;
       const approvalSetting = (freshPolicy as any).approvalSetting;
-      if (hasGodModeApprove) {
+      if (approvalSetting?.allRolesCanApprove) {
         stillApprover = true;
-      } else if (approvalSetting?.allRolesCanApprove) {
-        stillApprover = true; // Assuming eligibleRoles check passed earlier
       } else if (approvalSetting?.approverRoleIds?.length) {
         stillApprover = approvalSetting.approverRoleIds.includes(currentUserRoleId);
       } else {
@@ -1096,13 +1127,45 @@ function PoliciesPage() {
         });
       }
 
+      // Evaluate if the user is the creator
+      const createdByObj = (freshPolicy as any).createdBy;
+      const creatorId = isRecord(createdByObj) 
+        ? pickString(createdByObj, "id", "userId") 
+        : (freshPolicy as any).createdById;
+        
+      let isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
+      
+      if (!isCreator && user) {
+        const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
+        let creatorName = "";
+        if (typeof createdByObj === 'string') {
+          creatorName = createdByObj.trim().toLowerCase();
+        } else if (isRecord(createdByObj)) {
+          creatorName = `${pickString(createdByObj, "firstName") || ''} ${pickString(createdByObj, "lastName") || ''}`.trim().toLowerCase();
+        } else if (typeof (freshPolicy as any).createdByName === 'string') {
+          creatorName = (freshPolicy as any).createdByName.trim().toLowerCase();
+        }
+        if (userFullName && creatorName && userFullName === creatorName) {
+          isCreator = true;
+        }
+      }
+
+      if (isCreator) {
+        stillApprover = false;
+      }
+
       if (!stillApprover) {
+        // Close the modal we just opened — user is no longer an approver
+        setReviewPolicy(null);
         toast.error("You are no longer an approver for this policy.");
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
         return;
       }
-      setReviewPolicy({ ...policy, ...freshPolicy } as any);
+
+      // Merge fresher data into the already-open modal (e.g. latest approvers list)
+      setReviewPolicy((prev) => prev ? { ...prev, ...freshPolicy } as any : prev);
     } catch (error: unknown) {
+      setReviewPolicy(null);
       toast.error(getApiErrorMessage(error, "Failed to load policy details. Please try again."));
     }
   }, [axios, queryClient, user?.userId]);
@@ -1128,9 +1191,7 @@ function PoliciesPage() {
     const { can } = useAuthStore.getState();
     const canApprovePolicy = can('policy', 'approve');
 
-    if (canApprovePolicy) {
-      isApprover = true;
-    } else if (policy.approvalSetting?.allRolesCanApprove) {
+    if (policy.approvalSetting?.allRolesCanApprove) {
       isApprover = eligibleRoles.some(r => r.roleId === currentUserRoleId);
     } else if (policy.approvalSetting?.approverRoleIds?.length) {
       isApprover = policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
@@ -1168,31 +1229,45 @@ function PoliciesPage() {
     }
 
     if (isApprover && isCreator) {
-      // Determine if there is ANY other possible approver
-      let hasOtherApprovers = false;
-      
-      if (policy.approvalSetting?.allRolesCanApprove) {
-        hasOtherApprovers = true;
-      } else if (policy.approvalSetting?.approverRoleIds?.length) {
-        // Assume there are other people in these roles. Enforce separation of duties.
-        hasOtherApprovers = true;
-      } else {
-        const specificUserIds = new Set<string>();
-        (policy.approversRaw || []).forEach((rawApprover) => {
-          const a = asRecord(rawApprover);
-          const id = pickString(a, "userId");
-          if (id) specificUserIds.add(id);
-        });
-        (policy.approverIds || []).forEach(id => specificUserIds.add(id));
-        
-        specificUserIds.delete(user?.userId!);
-        hasOtherApprovers = specificUserIds.size > 0;
-      }
-      
-      if (hasOtherApprovers) {
-        isApprover = false;
-      }
+      isApprover = false;
     }
+
+    const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
+    // Show the Review button for approvers AND for the creator (so creators can track status)
+    return isPending && (isApprover || isCreator);
+  }, [user, eligibleRoles]);
+
+  // Separate check: can this user actually approve/reject (i.e. not just view)
+  const checkIfCanApprove = useCallback((policy: Policy) => {
+    let isApprover = false;
+    const currentUserRoleId = 
+      user?.companyRole?.roleId || 
+      (user as any)?.companyRole?.id || 
+      (user as any)?.villetoRole?.roleId || 
+      (user as any)?.villetoRole?.id || 
+      (user as any)?.role?.roleId || 
+      (user as any)?.role?.id || 
+      "";
+
+    if (policy.approvalSetting?.allRolesCanApprove) {
+      isApprover = eligibleRoles.some(r => r.roleId === currentUserRoleId);
+    } else if (policy.approvalSetting?.approverRoleIds?.length) {
+      isApprover = policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
+    } else {
+      isApprover = (policy.approversRaw || []).some((rawApprover) => {
+        const a = asRecord(rawApprover);
+        return pickString(a, "userId") === user?.userId;
+      }) || (user?.userId ? (policy.approverIds?.includes(user.userId) ?? false) : false);
+    }
+
+    const createdByObj = (policy as any).createdBy;
+    const creatorId = isRecord(createdByObj) 
+      ? pickString(createdByObj, "id", "userId") 
+      : (policy as any).createdById;
+    const isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
+
+    // If also the creator, cannot approve their own policy
+    if (isApprover && isCreator) isApprover = false;
 
     const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
     return isPending && isApprover;
@@ -1285,7 +1360,7 @@ function PoliciesPage() {
         );
       },
     },
-  ], [handleOpenReview, handleEdit, handleArchive, checkIfReviewable]);
+  ], [handleOpenReview, handleEdit, handleArchive, checkIfReviewable, checkIfCanApprove]);
 
   /* DataTable columns for Archived tab */
   const archivedColumns = useMemo<ColumnDef<Policy>[]>(() => [
@@ -1473,7 +1548,8 @@ function PoliciesPage() {
       <div className="h-full flex flex-col">
         <div className="bg-white rounded-[1.25rem] flex-1 flex flex-col min-h-0 overflow-hidden">
           <ProcurementPolicyWizard
-            policyId={editingProcurementPolicyId}
+            key={editingProcurementPolicyId ?? editingProcurementDraftId ?? "new"}
+            programId={editingProcurementPolicyId}
             initialDraftId={editingProcurementDraftId}
             initialStep={procurementWizardStep}
             onCancel={() => setProcurementView("list")}
@@ -1492,22 +1568,23 @@ function PoliciesPage() {
         <ProcurementPolicySection
           canCreate={canCreatePolicy}
           onCreateClick={() => {
-            setEditingProcurementPolicyId(null);
-            setEditingProcurementDraftId(null);
-            setProcurementWizardStep(1);
-            setProcurementView("create");
+            setProcurementView("create", { policyId: null, draftId: null, step: 1 });
           }}
-          onEdit={(p) => {
-            setEditingProcurementPolicyId(p.status !== "draft" ? p.procurementPolicyId : null);
-            setEditingProcurementDraftId(p.status === "draft" ? p.procurementPolicyId : null);
-            setProcurementWizardStep(1);
-            setProcurementView("create");
+          onEdit={(p: any) => {
+            const id = (p as any).procurementSpendProgramId ?? (p as any).procurementPolicyId;
+            setProcurementView("create", { 
+              policyId: p.status !== "draft" ? id : null,
+              draftId: p.status === "draft" ? id : null,
+              step: 1
+            });
           }}
-          onSubmitDraft={(p) => {
-            setEditingProcurementPolicyId(null);
-            setEditingProcurementDraftId(p.procurementPolicyId);
-            setProcurementWizardStep(5);
-            setProcurementView("create");
+          onSubmitDraft={(p: any) => {
+            const id = (p as any).procurementSpendProgramId ?? (p as any).procurementPolicyId;
+            setProcurementView("create", {
+              policyId: null,
+              draftId: id,
+              step: 5 // Used for review/submit mode
+            });
           }}
         />
       ) : (
