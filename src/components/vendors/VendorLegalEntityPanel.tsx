@@ -124,23 +124,25 @@ function SiteDialog({
   submitting,
   onOpenChange,
   onSave,
+  onInactivate,
 }: {
   open: boolean;
   site: VendorSite | null;
   submitting: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (draft: SiteDraft) => Promise<void>;
+  onInactivate: (site: VendorSite, reason: string) => Promise<void>;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[620px]">
-        {open && <SiteDialogForm key={site?.vendorSiteId || "new"} site={site} submitting={submitting} onClose={() => onOpenChange(false)} onSave={onSave} />}
+        {open && <SiteDialogForm key={site?.vendorSiteId || "new"} site={site} submitting={submitting} onClose={() => onOpenChange(false)} onSave={onSave} onInactivate={onInactivate} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function SiteDialogForm({ site, submitting, onClose, onSave }: { site: VendorSite | null; submitting: boolean; onClose: () => void; onSave: (draft: SiteDraft) => Promise<void> }) {
+function SiteDialogForm({ site, submitting, onClose, onSave, onInactivate }: { site: VendorSite | null; submitting: boolean; onClose: () => void; onSave: (draft: SiteDraft) => Promise<void>; onInactivate: (site: VendorSite, reason: string) => Promise<void> }) {
   const [draft, setDraft] = useState<SiteDraft>(() => site ? {
     code: site.code,
     name: site.name,
@@ -151,6 +153,8 @@ function SiteDialogForm({ site, submitting, onClose, onSave }: { site: VendorSit
     countryCode: site.countryCode || "",
     isPrimary: site.isPrimary,
   } : emptySiteDraft);
+  const [inactivationMode, setInactivationMode] = useState(false);
+  const [inactivationReason, setInactivationReason] = useState("");
   const update = (field: keyof SiteDraft, value: string | boolean) => setDraft((current) => ({ ...current, [field]: value }));
 
   return <>
@@ -171,10 +175,19 @@ function SiteDialogForm({ site, submitting, onClose, onSave }: { site: VendorSit
       <input type="checkbox" checked={draft.isPrimary} onChange={(event) => update("isPrimary", event.target.checked)} className="h-4 w-4 accent-[#087f70]" />
       Make this the primary vendor site
     </label>
-    <DialogFooter>
+    {site && inactivationMode && <div className="rounded-[8px] border border-[#fbd5d5] bg-[#fdf2f2] p-3">
+      <label className="block text-[12px] font-semibold text-[#93292e]">Reason for inactivation *</label>
+      <textarea value={inactivationReason} onChange={(event) => setInactivationReason(event.target.value)} rows={3} placeholder="Why can this site no longer be used?" className="mt-1.5 w-full rounded-[7px] border border-[#fbd5d5] bg-white p-2.5 text-[13px] text-[#0b100e] outline-none placeholder:text-[#a0aaa5] focus:border-[#d33d44]" />
+      <p className="mt-1.5 text-[11px] leading-relaxed text-[#a3454a]">This preserves issued PO and invoice history. It only prevents this site from being used in new legal-entity assignments.</p>
+    </div>}
+    <DialogFooter className="sm:justify-between">
+      {site && !inactivationMode ? <button type="button" onClick={() => setInactivationMode(true)} className="mr-auto h-10 rounded-[8px] border border-[#fbd5d5] px-4 text-[13px] font-semibold text-[#d33d44] hover:bg-[#fdf2f2]">Inactivate site</button> : <span />}
       <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-black/[0.08] px-4 text-[13px] font-semibold text-[#68726d] hover:bg-[#f9faf9]">Cancel</button>
-      <button type="button" disabled={submitting || !draft.code.trim() || !draft.name.trim()} onClick={() => void onSave(draft)} className="h-10 rounded-[8px] bg-[#087f70] px-4 text-[13px] font-semibold text-white hover:bg-[#076b5e] disabled:opacity-50">
-        {submitting ? "Saving..." : site ? "Save site" : "Add site"}
+      <button type="button" disabled={submitting || (inactivationMode ? !inactivationReason.trim() : !draft.code.trim() || !draft.name.trim())} onClick={() => {
+        if (site && inactivationMode) { void onInactivate(site, inactivationReason); return; }
+        void onSave(draft);
+      }} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold text-white disabled:opacity-50 ${inactivationMode ? "bg-[#d33d44] hover:bg-[#c33339]" : "bg-[#087f70] hover:bg-[#076b5e]"}`}>
+        {submitting ? "Saving..." : inactivationMode ? "Inactivate site" : site ? "Save site" : "Add site"}
       </button>
     </DialogFooter>
   </>;
@@ -253,6 +266,24 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
     }
   };
 
+  const inactivateSite = async (site: VendorSite, reason: string) => {
+    setSubmitting(true);
+    try {
+      await axiosInstance.patch(`/vendors/${vendorId}/sites/${site.vendorSiteId}`, {
+        status: "inactive",
+        inactivationReason: reason.trim(),
+      });
+      toast.success("Vendor site inactivated. Historical records were preserved.");
+      setSiteDialogOpen(false);
+      setEditingSite(null);
+      await load();
+    } catch {
+      toast.error("Could not inactivate the vendor site. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const inactiveSites = useMemo(() => sites.filter((site) => site.status === "inactive").length, [sites]);
 
   return <section className="space-y-5">
@@ -278,7 +309,7 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
         {inactiveSites > 0 && <p className="mt-3 text-[11px] text-[#84908a]">Inactive sites remain visible for historical context and cannot be assigned to new activity.</p>}
       </div>
     </div>
-    <SiteDialog open={siteDialogOpen} site={editingSite} submitting={submitting} onOpenChange={(open) => { setSiteDialogOpen(open); if (!open) setEditingSite(null); }} onSave={saveSite} />
+    <SiteDialog open={siteDialogOpen} site={editingSite} submitting={submitting} onOpenChange={(open) => { setSiteDialogOpen(open); if (!open) setEditingSite(null); }} onSave={saveSite} onInactivate={inactivateSite} />
   </section>;
 }
 
