@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { AxiosInstance } from "axios";
-import { Building2, MapPin, Plus, RefreshCw, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { isAxiosError, type AxiosInstance } from "axios";
+import { Building2, Link2, MapPin, Plus, RefreshCw, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
 import {
@@ -35,10 +35,12 @@ interface VendorSite {
 
 interface SiteAssignment {
   vendorEntitySiteAssignmentId: string;
+  vendorSiteId: string | null;
   purpose: AssignmentPurpose;
   status: SiteStatus;
   effectiveFrom: string | null;
   effectiveTo: string | null;
+  inactivationReason?: string | null;
   site: Pick<VendorSite, "vendorSiteId" | "code" | "name" | "status" | "isPrimary"> | null;
 }
 
@@ -50,8 +52,22 @@ interface EntityRelationship {
   purchasingEnabled: boolean;
   invoicingEnabled: boolean;
   paymentEnabled: boolean;
+  configurationVersion: number;
+  decisionReason?: string | null;
+  approvedAt?: string | null;
+  suspendedAt?: string | null;
+  reactivatedAt?: string | null;
   siteAssignments: SiteAssignment[];
 }
+
+interface LegalEntityOption {
+  legalEntityId: string;
+  code: string;
+  legalName: string;
+  status: "active" | "inactive";
+}
+
+type LifecycleAction = "approve" | "suspend" | "reactivate";
 
 type SiteDraft = {
   code: string;
@@ -116,6 +132,18 @@ function purposeState(relationship: EntityRelationship, purpose: AssignmentPurpo
   if (!enabled) return { label: "On hold", tone: "muted" };
   if (!assignment) return { label: "Site required", tone: "warning" };
   return { label: "Ready", tone: "ready" };
+}
+
+function apiErrorMessage(error: unknown, fallback: string) {
+  if (!isAxiosError(error)) return fallback;
+  const data = error.response?.data as { message?: unknown; error?: unknown } | undefined;
+  const message = data?.message || data?.error;
+  if (Array.isArray(message)) return message.join(" ");
+  return typeof message === "string" ? message : fallback;
+}
+
+function isVersionConflict(error: unknown) {
+  return isAxiosError(error) && error.response?.status === 409;
 }
 
 function SiteDialog({
@@ -206,13 +234,21 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
   const can = useAuthStore((state) => state.can);
   const canManageSites = can("vendor", "create");
   const canReadMatrix = can("vendor", "read_sensitive");
+  const canApproveRelationships = can("vendor", "approve");
+  const canSuspendRelationships = can("vendor", "deactivate");
+  const canReactivateRelationships = can("vendor", "activate");
   const [sites, setSites] = useState<VendorSite[]>([]);
   const [relationships, setRelationships] = useState<EntityRelationship[]>([]);
+  const [legalEntities, setLegalEntities] = useState<LegalEntityOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [matrixError, setMatrixError] = useState(false);
   const [siteDialogOpen, setSiteDialogOpen] = useState(false);
   const [editingSite, setEditingSite] = useState<VendorSite | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [createRelationshipOpen, setCreateRelationshipOpen] = useState(false);
+  const [lifecycleAction, setLifecycleAction] = useState<{ action: LifecycleAction; relationship: EntityRelationship } | null>(null);
+  const [assignmentRelationship, setAssignmentRelationship] = useState<EntityRelationship | null>(null);
+  const [endingAssignment, setEndingAssignment] = useState<{ relationship: EntityRelationship; assignment: SiteAssignment } | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -284,6 +320,119 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
     }
   };
 
+  const loadLegalEntities = async () => {
+    try {
+      const response = await axiosInstance.get("/legal-entities");
+      setLegalEntities(unwrap<LegalEntityOption[]>(response));
+      return true;
+    } catch (error) {
+      toast.error(apiErrorMessage(error, "Could not load legal entities."));
+      return false;
+    }
+  };
+
+  const openCreateRelationship = async () => {
+    if (legalEntities.length === 0 && !(await loadLegalEntities())) return;
+    setCreateRelationshipOpen(true);
+  };
+
+  const createRelationship = async (legalEntityId: string) => {
+    setSubmitting(true);
+    try {
+      await axiosInstance.post(`/vendors/${vendorId}/entity-relationships`, { legalEntityId });
+      toast.success("Vendor relationship started. Approve it when the entity is ready to transact.");
+      setCreateRelationshipOpen(false);
+      await load();
+    } catch (error) {
+      toast.error(apiErrorMessage(error, "Could not start this vendor relationship."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const transitionRelationship = async (relationship: EntityRelationship, action: LifecycleAction, reason: string) => {
+    setSubmitting(true);
+    try {
+      await axiosInstance.post(
+        `/vendors/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/${action}`,
+        { expectedVersion: relationship.configurationVersion, ...(reason.trim() ? { reason: reason.trim() } : {}) },
+      );
+      toast.success(`Vendor relationship ${action === "approve" ? "approved" : action === "suspend" ? "suspended" : "reactivated"}.`);
+      setLifecycleAction(null);
+      await load();
+    } catch (error) {
+      if (isVersionConflict(error)) {
+        toast.error("This relationship changed elsewhere. The latest configuration has been loaded for review.");
+        await load();
+      } else {
+        toast.error(apiErrorMessage(error, "Could not update this vendor relationship."));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const createAssignment = async (relationship: EntityRelationship, siteId: string, purpose: AssignmentPurpose, effectiveFrom?: string, effectiveTo?: string) => {
+    setSubmitting(true);
+    try {
+      await axiosInstance.post(`/vendors/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/site-assignments`, {
+        vendorSiteId: siteId,
+        purpose,
+        ...(effectiveFrom ? { effectiveFrom } : {}),
+        ...(effectiveTo ? { effectiveTo } : {}),
+      });
+      toast.success(`${purposeLabel[purpose]} site assigned.`);
+      setAssignmentRelationship(null);
+      await load();
+    } catch (error) {
+      toast.error(apiErrorMessage(error, "Could not assign this vendor site."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const endAssignment = async (relationship: EntityRelationship, assignment: SiteAssignment, reason: string) => {
+    setSubmitting(true);
+    try {
+      await axiosInstance.patch(
+        `/vendors/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/site-assignments/${assignment.vendorEntitySiteAssignmentId}`,
+        { status: "inactive", inactivationReason: reason.trim() },
+      );
+      toast.success("Site assignment ended. Historical transactions were preserved.");
+      setEndingAssignment(null);
+      await load();
+    } catch (error) {
+      toast.error(apiErrorMessage(error, "Could not end this site assignment."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const setPurchasing = async (relationship: EntityRelationship, enabled: boolean) => {
+    if (enabled && !activeAssignment(relationship, "purchasing")) {
+      toast.error("Assign an active purchasing site before enabling purchasing.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await axiosInstance.patch(`/vendors/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/controls`, {
+        expectedVersion: relationship.configurationVersion,
+        purchasingEnabled: enabled,
+      });
+      toast.success(enabled ? "Purchasing enabled for this legal entity." : "Purchasing placed on hold for this legal entity.");
+      await load();
+    } catch (error) {
+      if (isVersionConflict(error)) {
+        toast.error("This relationship changed elsewhere. The latest configuration has been loaded for review.");
+        await load();
+      } else {
+        toast.error(apiErrorMessage(error, "Could not update purchasing controls."));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const inactiveSites = useMemo(() => sites.filter((site) => site.status === "inactive").length, [sites]);
 
   return <section className="space-y-5">
@@ -300,8 +449,8 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
 
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
       <div className="rounded-[14px] border border-black/[0.08] bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">LEGAL ENTITIES</h3><p className="mt-1 text-[13px] text-[#68726d]">Relationship status and readiness by entity.</p></div></div>
-        {!canReadMatrix ? <PermissionNotice /> : loading ? <PanelSkeleton /> : matrixError ? <LoadFailure onRetry={load} /> : relationships.length === 0 ? <EmptyMatrix /> : <div className="space-y-3">{relationships.map((relationship) => <RelationshipRow key={relationship.vendorEntityRelationshipId} relationship={relationship} />)}</div>}
+        <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">LEGAL ENTITIES</h3><p className="mt-1 text-[13px] text-[#68726d]">Relationship status and readiness by entity.</p></div>{canReadMatrix && canApproveRelationships && <button onClick={() => void openCreateRelationship()} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add entity</button>}</div>
+        {!canReadMatrix ? <PermissionNotice /> : loading ? <PanelSkeleton /> : matrixError ? <LoadFailure onRetry={load} /> : relationships.length === 0 ? <EmptyMatrix canCreate={canApproveRelationships} onCreate={openCreateRelationship} /> : <div className="space-y-3">{relationships.map((relationship) => <RelationshipRow key={relationship.vendorEntityRelationshipId} relationship={relationship} canApprove={canApproveRelationships} canSuspend={canSuspendRelationships} canReactivate={canReactivateRelationships} activeSites={sites.filter((site) => site.status === "active")} submitting={submitting} onLifecycle={(action) => setLifecycleAction({ action, relationship })} onAssignSite={() => setAssignmentRelationship(relationship)} onEndAssignment={(assignment) => setEndingAssignment({ relationship, assignment })} onSetPurchasing={(enabled) => void setPurchasing(relationship, enabled)} />)}</div>}
       </div>
       <div className="rounded-[14px] border border-black/[0.08] bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">VENDOR SITES</h3><p className="mt-1 text-[13px] text-[#68726d]">Shared locations available for future entity assignment.</p></div>{canManageSites && <button onClick={() => { setEditingSite(null); setSiteDialogOpen(true); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add site</button>}</div>
@@ -310,12 +459,92 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
       </div>
     </div>
     <SiteDialog open={siteDialogOpen} site={editingSite} submitting={submitting} onOpenChange={(open) => { setSiteDialogOpen(open); if (!open) setEditingSite(null); }} onSave={saveSite} onInactivate={inactivateSite} />
+    <CreateRelationshipDialog open={createRelationshipOpen} entities={legalEntities.filter((entity) => entity.status === "active" && !relationships.some((relationship) => relationship.legalEntity?.legalEntityId === entity.legalEntityId))} submitting={submitting} onOpenChange={setCreateRelationshipOpen} onCreate={createRelationship} />
+    <LifecycleDialog actionState={lifecycleAction} submitting={submitting} onOpenChange={(open) => !open && setLifecycleAction(null)} onSubmit={(reason) => {
+      if (lifecycleAction) return transitionRelationship(lifecycleAction.relationship, lifecycleAction.action, reason);
+    }} />
+    <SiteAssignmentDialog relationship={assignmentRelationship} sites={sites.filter((site) => site.status === "active")} submitting={submitting} onOpenChange={(open) => !open && setAssignmentRelationship(null)} onCreate={(siteId, purpose, effectiveFrom, effectiveTo) => {
+      if (assignmentRelationship) return createAssignment(assignmentRelationship, siteId, purpose, effectiveFrom, effectiveTo);
+    }} />
+    <EndAssignmentDialog state={endingAssignment} submitting={submitting} onOpenChange={(open) => !open && setEndingAssignment(null)} onSubmit={(reason) => {
+      if (endingAssignment) return endAssignment(endingAssignment.relationship, endingAssignment.assignment, reason);
+    }} />
   </section>;
 }
 
-function RelationshipRow({ relationship }: { relationship: EntityRelationship }) {
+function RelationshipRow({ relationship, canApprove, canSuspend, canReactivate, activeSites, submitting, onLifecycle, onAssignSite, onEndAssignment, onSetPurchasing }: {
+  relationship: EntityRelationship;
+  canApprove: boolean;
+  canSuspend: boolean;
+  canReactivate: boolean;
+  activeSites: VendorSite[];
+  submitting: boolean;
+  onLifecycle: (action: LifecycleAction) => void;
+  onAssignSite: () => void;
+  onEndAssignment: (assignment: SiteAssignment) => void;
+  onSetPurchasing: (enabled: boolean) => void;
+}) {
   const entityName = relationship.legalEntity?.displayName || relationship.legalEntity?.legalName || "Unknown legal entity";
-  return <div className="rounded-[10px] border border-black/[0.08] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[13px] font-semibold text-[#0b100e]">{entityName}</p><p className="mt-0.5 text-[11px] font-medium text-[#84908a]">{relationship.legalEntity?.code || "No entity code"}</p></div><span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize ${statusClass[relationship.status]}`}>{relationship.status}</span></div><div className="mt-3 grid grid-cols-3 gap-2">{(["purchasing", "invoicing", "remit_to"] as AssignmentPurpose[]).map((purpose) => { const state = purposeState(relationship, purpose); const assignment = activeAssignment(relationship, purpose); return <div key={purpose} className="rounded-[7px] bg-[#f9faf9] p-2"><p className="text-[10px] font-bold uppercase tracking-wide text-[#84908a]">{purposeLabel[purpose]}</p><p className={`mt-1 text-[11px] font-semibold ${state.tone === "ready" ? "text-[#087f70]" : state.tone === "warning" ? "text-[#b27b00]" : "text-[#68726d]"}`}>{state.label}</p>{assignment?.site && <p className="mt-1 truncate text-[10px] text-[#84908a]" title={assignment.site.name}>{assignment.site.name}</p>}</div>; })}</div></div>;
+  const purchasingSite = activeAssignment(relationship, "purchasing");
+  const lifecycleDate = relationship.suspendedAt || relationship.reactivatedAt || relationship.approvedAt;
+  return <div className="rounded-[10px] border border-black/[0.08] p-4">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[13px] font-semibold text-[#0b100e]">{entityName}</p><p className="mt-0.5 text-[11px] font-medium text-[#84908a]">{relationship.legalEntity?.code || "No entity code"} · Version {relationship.configurationVersion}</p></div><div className="flex items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize ${statusClass[relationship.status]}`}>{relationship.status}</span>{relationship.status === "pending" && canApprove && <ActionButton onClick={() => onLifecycle("approve")} disabled={submitting}>Approve</ActionButton>}{relationship.status === "approved" && canSuspend && <ActionButton danger onClick={() => onLifecycle("suspend")} disabled={submitting}>Suspend</ActionButton>}{relationship.status === "suspended" && canReactivate && <ActionButton onClick={() => onLifecycle("reactivate")} disabled={submitting}>Reactivate</ActionButton>}</div></div>
+    {(relationship.decisionReason || lifecycleDate) && <p className="mt-2 text-[11px] leading-relaxed text-[#68726d]">{relationship.decisionReason || "Lifecycle action recorded"}{lifecycleDate ? ` · ${new Date(lifecycleDate).toLocaleDateString()}` : ""}</p>}
+    <div className="mt-3 grid grid-cols-3 gap-2">{(["purchasing", "invoicing", "remit_to"] as AssignmentPurpose[]).map((purpose) => { const state = purposeState(relationship, purpose); const assignment = activeAssignment(relationship, purpose); return <div key={purpose} className="rounded-[7px] bg-[#f9faf9] p-2"><p className="text-[10px] font-bold uppercase tracking-wide text-[#84908a]">{purposeLabel[purpose]}</p><p className={`mt-1 text-[11px] font-semibold ${state.tone === "ready" ? "text-[#087f70]" : state.tone === "warning" ? "text-[#b27b00]" : "text-[#68726d]"}`}>{state.label}</p>{assignment?.site && <p className="mt-1 truncate text-[10px] text-[#84908a]" title={assignment.site.name}>{assignment.site.name}</p>}</div>; })}</div>
+    <div className="mt-3 border-t border-black/[0.06] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-semibold text-[#5e6863]">Site assignments</p>{canApprove && <ActionButton onClick={onAssignSite} disabled={submitting || activeSites.length === 0}><Link2 className="h-3.5 w-3.5" />Assign site</ActionButton>}</div>{relationship.siteAssignments.length === 0 ? <p className="mt-2 text-[11px] text-[#84908a]">No sites are assigned to this entity.</p> : <div className="mt-2 space-y-1.5">{relationship.siteAssignments.map((assignment) => <div key={assignment.vendorEntitySiteAssignmentId} className="flex items-center justify-between gap-2 rounded-[6px] bg-[#f9faf9] px-2.5 py-2"><p className="min-w-0 truncate text-[11px] text-[#5e6863]"><span className="font-semibold text-[#39423e]">{purposeLabel[assignment.purpose]}</span> · {assignment.site?.name || "Unknown site"} {assignment.status === "inactive" ? "(inactive)" : ""}</p>{canApprove && assignment.status === "active" && <button onClick={() => onEndAssignment(assignment)} className="shrink-0 text-[10px] font-semibold text-[#d33d44] hover:underline">End</button>}</div>)}</div>}</div>
+    {relationship.status === "approved" && canApprove && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[8px] bg-[#f0faf8] px-3 py-2.5"><div><p className="text-[11px] font-semibold text-[#0b100e]">Purchasing</p><p className="mt-0.5 text-[10px] text-[#68726d]">{relationship.purchasingEnabled ? `Enabled${purchasingSite?.site ? ` · ${purchasingSite.site.name}` : ""}` : purchasingSite ? "Ready to enable" : "Assign a purchasing site first"}</p></div><ActionButton onClick={() => onSetPurchasing(!relationship.purchasingEnabled)} disabled={submitting || (!relationship.purchasingEnabled && !purchasingSite)}>{relationship.purchasingEnabled ? "Put on hold" : "Enable"}</ActionButton></div>}
+  </div>;
+}
+
+function ActionButton({ children, onClick, disabled, danger }: { children: ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
+  return <button onClick={onClick} disabled={disabled} className={`inline-flex h-7 items-center gap-1 rounded-[6px] border px-2 text-[10px] font-semibold disabled:opacity-50 ${danger ? "border-[#fbd5d5] text-[#d33d44] hover:bg-[#fdf2f2]" : "border-[#c8eee6] text-[#087f70] hover:bg-[#f0faf8]"}`}>{children}</button>;
+}
+
+function CreateRelationshipDialog({ open, entities, submitting, onOpenChange, onCreate }: { open: boolean; entities: LegalEntityOption[]; submitting: boolean; onOpenChange: (open: boolean) => void; onCreate: (legalEntityId: string) => Promise<void> }) {
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-[520px]">{open && <CreateRelationshipForm key={entities.map((entity) => entity.legalEntityId).join("-")} entities={entities} submitting={submitting} onClose={() => onOpenChange(false)} onCreate={onCreate} />}</DialogContent></Dialog>;
+}
+
+function CreateRelationshipForm({ entities, submitting, onClose, onCreate }: { entities: LegalEntityOption[]; submitting: boolean; onClose: () => void; onCreate: (legalEntityId: string) => Promise<void> }) {
+  const [legalEntityId, setLegalEntityId] = useState(entities[0]?.legalEntityId || "");
+  return <><DialogHeader><DialogTitle>Add legal-entity relationship</DialogTitle><DialogDescription>This creates a pending relationship. It is not usable for purchasing until an authorized admin approves it and assigns a site.</DialogDescription></DialogHeader>{entities.length === 0 ? <div className="rounded-[8px] border border-dashed border-black/[0.12] p-4 text-[13px] text-[#68726d]">Every active legal entity already has a relationship with this vendor.</div> : <label className="block text-[12px] font-semibold text-[#39423e]">Legal entity<select value={legalEntityId} onChange={(event) => setLegalEntityId(event.target.value)} className="mt-1.5 h-10 w-full rounded-[8px] border border-black/[0.1] bg-white px-3 text-[13px] outline-none focus:border-[#087f70]">{entities.map((entity) => <option key={entity.legalEntityId} value={entity.legalEntityId}>{entity.legalName} ({entity.code})</option>)}</select></label>}<DialogFooter><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-black/[0.08] px-4 text-[13px] font-semibold text-[#68726d] hover:bg-[#f9faf9]">Cancel</button><button type="button" disabled={submitting || !legalEntityId} onClick={() => void onCreate(legalEntityId)} className="h-10 rounded-[8px] bg-[#087f70] px-4 text-[13px] font-semibold text-white hover:bg-[#076b5e] disabled:opacity-50">{submitting ? "Creating..." : "Create pending relationship"}</button></DialogFooter></>;
+}
+
+function LifecycleDialog({ actionState, submitting, onOpenChange, onSubmit }: { actionState: { action: LifecycleAction; relationship: EntityRelationship } | null; submitting: boolean; onOpenChange: (open: boolean) => void; onSubmit: (reason: string) => Promise<void> | void }) {
+  const open = Boolean(actionState);
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-[520px]">{actionState && <LifecycleForm key={`${actionState.action}-${actionState.relationship.vendorEntityRelationshipId}-${actionState.relationship.configurationVersion}`} actionState={actionState} submitting={submitting} onClose={() => onOpenChange(false)} onSubmit={onSubmit} />}</DialogContent></Dialog>;
+}
+
+function LifecycleForm({ actionState, submitting, onClose, onSubmit }: { actionState: { action: LifecycleAction; relationship: EntityRelationship }; submitting: boolean; onClose: () => void; onSubmit: (reason: string) => Promise<void> | void }) {
+  const [reason, setReason] = useState("");
+  const entityName = actionState.relationship.legalEntity?.displayName || actionState.relationship.legalEntity?.legalName || "this legal entity";
+  const config = actionState.action === "approve" ? { title: "Approve vendor relationship", button: "Approve relationship", detail: "Approval allows this entity to be configured for operational use. Purchasing still requires an active purchasing site." } : actionState.action === "suspend" ? { title: "Suspend vendor relationship", button: "Suspend relationship", detail: "Suspension blocks new activity for this entity but preserves issued PO and invoice history." } : { title: "Reactivate vendor relationship", button: "Reactivate relationship", detail: "Reactivation restores the approved relationship. Purpose controls remain subject to their existing site prerequisites." };
+  return <><DialogHeader><DialogTitle>{config.title}</DialogTitle><DialogDescription>{entityName}: {config.detail}</DialogDescription></DialogHeader><label className="block text-[12px] font-semibold text-[#39423e]">Reason {actionState.action === "suspend" ? "*" : "(optional)"}<textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={4} placeholder={actionState.action === "suspend" ? "Why must this vendor be suspended for this entity?" : "Add approval or reactivation context"} className="mt-1.5 w-full rounded-[8px] border border-black/[0.1] p-3 text-[13px] outline-none placeholder:text-[#a0aaa5] focus:border-[#087f70]" /></label><DialogFooter><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-black/[0.08] px-4 text-[13px] font-semibold text-[#68726d] hover:bg-[#f9faf9]">Cancel</button><button type="button" disabled={submitting || (actionState.action === "suspend" && !reason.trim())} onClick={() => void onSubmit(reason)} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold text-white disabled:opacity-50 ${actionState.action === "suspend" ? "bg-[#d33d44] hover:bg-[#c33339]" : "bg-[#087f70] hover:bg-[#076b5e]"}`}>{submitting ? "Saving..." : config.button}</button></DialogFooter></>;
+}
+
+function SiteAssignmentDialog({ relationship, sites, submitting, onOpenChange, onCreate }: { relationship: EntityRelationship | null; sites: VendorSite[]; submitting: boolean; onOpenChange: (open: boolean) => void; onCreate: (siteId: string, purpose: AssignmentPurpose, effectiveFrom?: string, effectiveTo?: string) => Promise<void> | void }) {
+  const open = Boolean(relationship);
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-[560px]">{relationship && <SiteAssignmentForm key={`${relationship.vendorEntityRelationshipId}-${relationship.configurationVersion}`} relationship={relationship} sites={sites} submitting={submitting} onClose={() => onOpenChange(false)} onCreate={onCreate} />}</DialogContent></Dialog>;
+}
+
+function SiteAssignmentForm({ relationship, sites, submitting, onClose, onCreate }: { relationship: EntityRelationship; sites: VendorSite[]; submitting: boolean; onClose: () => void; onCreate: (siteId: string, purpose: AssignmentPurpose, effectiveFrom?: string, effectiveTo?: string) => Promise<void> | void }) {
+  const [siteId, setSiteId] = useState(sites[0]?.vendorSiteId || "");
+  const [purpose, setPurpose] = useState<AssignmentPurpose>("purchasing");
+  const [effectiveFrom, setEffectiveFrom] = useState("");
+  const [effectiveTo, setEffectiveTo] = useState("");
+  const entityName = relationship.legalEntity?.displayName || relationship.legalEntity?.legalName || "this legal entity";
+  const alreadyAssigned = relationship.siteAssignments.some((assignment) => assignment.vendorSiteId === siteId && assignment.purpose === purpose && assignment.status === "active");
+  const invalidDates = Boolean(effectiveFrom && effectiveTo && effectiveTo <= effectiveFrom);
+  return <><DialogHeader><DialogTitle>Assign a vendor site</DialogTitle><DialogDescription>Authorize one active company-wide site for {entityName} and a specific operational purpose.</DialogDescription></DialogHeader><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><label className="block text-[12px] font-semibold text-[#39423e]">Site<select value={siteId} onChange={(event) => setSiteId(event.target.value)} className="mt-1.5 h-10 w-full rounded-[8px] border border-black/[0.1] bg-white px-3 text-[13px] outline-none focus:border-[#087f70]">{sites.map((site) => <option key={site.vendorSiteId} value={site.vendorSiteId}>{site.name} ({site.code})</option>)}</select></label><label className="block text-[12px] font-semibold text-[#39423e]">Purpose<select value={purpose} onChange={(event) => setPurpose(event.target.value as AssignmentPurpose)} className="mt-1.5 h-10 w-full rounded-[8px] border border-black/[0.1] bg-white px-3 text-[13px] outline-none focus:border-[#087f70]">{(["purchasing", "invoicing", "remit_to"] as AssignmentPurpose[]).map((item) => <option key={item} value={item}>{purposeLabel[item]}</option>)}</select></label><Field label="Effective from" value={effectiveFrom} onChange={setEffectiveFrom} placeholder="Leave blank for now" /><Field label="Effective to" value={effectiveTo} onChange={setEffectiveTo} placeholder="Optional" /></div><p className="text-[11px] leading-relaxed text-[#84908a]">Use ISO dates such as 2026-09-22. A site can be assigned to multiple entities, but each entity and purpose is configured independently.</p>{alreadyAssigned && <p className="rounded-[7px] bg-[#fff9e6] p-2.5 text-[11px] text-[#80621b]">This site is already active for the selected purpose. Choose another site or purpose.</p>}{invalidDates && <p className="rounded-[7px] bg-[#fdf2f2] p-2.5 text-[11px] text-[#a3454a]">The end date must be after the start date.</p>}<DialogFooter><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-black/[0.08] px-4 text-[13px] font-semibold text-[#68726d] hover:bg-[#f9faf9]">Cancel</button><button type="button" disabled={submitting || !siteId || alreadyAssigned || invalidDates} onClick={() => void onCreate(siteId, purpose, effectiveFrom || undefined, effectiveTo || undefined)} className="h-10 rounded-[8px] bg-[#087f70] px-4 text-[13px] font-semibold text-white hover:bg-[#076b5e] disabled:opacity-50">{submitting ? "Assigning..." : "Assign site"}</button></DialogFooter></>;
+}
+
+function EndAssignmentDialog({ state, submitting, onOpenChange, onSubmit }: { state: { relationship: EntityRelationship; assignment: SiteAssignment } | null; submitting: boolean; onOpenChange: (open: boolean) => void; onSubmit: (reason: string) => Promise<void> | void }) {
+  const open = Boolean(state);
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-[520px]">{state && <EndAssignmentForm key={state.assignment.vendorEntitySiteAssignmentId} state={state} submitting={submitting} onClose={() => onOpenChange(false)} onSubmit={onSubmit} />}</DialogContent></Dialog>;
+}
+
+function EndAssignmentForm({ state, submitting, onClose, onSubmit }: { state: { relationship: EntityRelationship; assignment: SiteAssignment }; submitting: boolean; onClose: () => void; onSubmit: (reason: string) => Promise<void> | void }) {
+  const [reason, setReason] = useState("");
+  return <><DialogHeader><DialogTitle>End site assignment</DialogTitle><DialogDescription>This stops new use of {state.assignment.site?.name || "this site"} for {purposeLabel[state.assignment.purpose]}. It does not rewrite historical transactions.</DialogDescription></DialogHeader><label className="block text-[12px] font-semibold text-[#93292e]">Reason *</label><textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={4} placeholder="Why should this site no longer be used for this purpose?" className="w-full rounded-[8px] border border-[#fbd5d5] p-3 text-[13px] outline-none placeholder:text-[#a0aaa5] focus:border-[#d33d44]" /><DialogFooter><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-black/[0.08] px-4 text-[13px] font-semibold text-[#68726d] hover:bg-[#f9faf9]">Cancel</button><button type="button" disabled={submitting || !reason.trim()} onClick={() => void onSubmit(reason)} className="h-10 rounded-[8px] bg-[#d33d44] px-4 text-[13px] font-semibold text-white hover:bg-[#c33339] disabled:opacity-50">{submitting ? "Saving..." : "End assignment"}</button></DialogFooter></>;
 }
 
 function SiteRow({ site, canManage, onEdit }: { site: VendorSite; canManage: boolean; onEdit: () => void }) {
@@ -324,6 +553,6 @@ function SiteRow({ site, canManage, onEdit }: { site: VendorSite; canManage: boo
 }
 
 function PermissionNotice() { return <div className="rounded-[9px] border border-[#ffe099] bg-[#fff9e6] p-4"><div className="flex gap-2"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#b27b00]" /><div><p className="text-[13px] font-semibold text-[#6e4d00]">Additional permission required</p><p className="mt-1 text-[12px] leading-relaxed text-[#80621b]">Legal-entity configuration includes sensitive vendor information. Ask an administrator for vendor sensitive-read access to view this matrix.</p></div></div></div>; }
-function EmptyMatrix() { return <div className="rounded-[9px] border border-dashed border-black/[0.12] p-4"><p className="text-[13px] font-semibold text-[#39423e]">No entity relationships yet</p><p className="mt-1 text-[12px] leading-relaxed text-[#68726d]">Relationships will be added and approved in Phase B. Existing sites can be prepared now.</p></div>; }
+function EmptyMatrix({ canCreate, onCreate }: { canCreate: boolean; onCreate: () => void }) { return <div className="rounded-[9px] border border-dashed border-black/[0.12] p-4"><p className="text-[13px] font-semibold text-[#39423e]">No entity relationships yet</p><p className="mt-1 text-[12px] leading-relaxed text-[#68726d]">Start a pending relationship for an active legal entity, then approve it and assign a site before enabling purchasing.</p>{canCreate && <button onClick={() => void onCreate()} className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add entity</button>}</div>; }
 function PanelSkeleton() { return <div className="space-y-2">{[1, 2, 3].map((item) => <div key={item} className="h-20 animate-pulse rounded-[9px] bg-[#f5f7f6]" />)}</div>; }
 function LoadFailure({ onRetry }: { onRetry: () => void }) { return <div className="rounded-[9px] border border-[#fbd5d5] bg-[#fdf2f2] p-4"><p className="text-[13px] font-semibold text-[#93292e]">Vendor setup could not be loaded.</p><button onClick={() => void onRetry()} className="mt-2 text-[12px] font-semibold text-[#93292e] underline">Try again</button></div>; }
