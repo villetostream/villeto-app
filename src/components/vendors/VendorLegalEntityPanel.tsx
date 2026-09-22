@@ -232,6 +232,7 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
   const canSuspendRelationships = can("vendor", "deactivate");
   const canReactivateRelationships = can("vendor", "activate");
   const [sites, setSites] = useState<VendorSite[]>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [relationships, setRelationships] = useState<EntityRelationship[]>([]);
   const [legalEntities, setLegalEntities] = useState<LegalEntityOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -440,8 +441,16 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
     });
     return counts;
   }, [relationships]);
+  const selectedSite = sites.find((site) => site.vendorSiteId === selectedSiteId) || null;
 
   return <section className="space-y-5">
+    {selectedSite ? <SiteWorkspace
+      site={selectedSite}
+      relationships={relationships}
+      canManage={canManageSites}
+      onBack={() => setSelectedSiteId(null)}
+      onEdit={() => { setEditingSite(selectedSite); setSiteDialogOpen(true); }}
+    /> : <>
     <div className="flex flex-col gap-3 rounded-[14px] border border-[#c8eee6] bg-[#f6fcfa] p-5 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex gap-3">
         <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-[#dff5ef] text-[#087f70]"><Building2 className="h-5 w-5" /></div>
@@ -461,10 +470,11 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
       </div>
       <div className="rounded-[14px] border border-black/[0.08] bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">SHARED VENDOR SITES</h3><p className="mt-1 text-[13px] text-[#68726d]">Locations can be assigned to more than one entity.</p></div>{canManageSites && <button onClick={() => { setEditingSite(null); setSiteDialogOpen(true); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add site</button>}</div>
-        {loading ? <PanelSkeleton /> : matrixError ? <LoadFailure onRetry={load} /> : sites.length === 0 ? <p className="rounded-[8px] border border-dashed border-black/[0.12] p-4 text-[13px] text-[#68726d]">No vendor sites have been added.</p> : <div className="space-y-2">{sites.map((site) => <SiteRow key={site.vendorSiteId} site={site} assignmentCount={assignmentCountBySite.get(site.vendorSiteId) || 0} canManage={canManageSites} onEdit={() => { setEditingSite(site); setSiteDialogOpen(true); }} />)}</div>}
+        {loading ? <PanelSkeleton /> : matrixError ? <LoadFailure onRetry={load} /> : sites.length === 0 ? <p className="rounded-[8px] border border-dashed border-black/[0.12] p-4 text-[13px] text-[#68726d]">No vendor sites have been added.</p> : <div className="space-y-2">{sites.map((site) => <SiteRow key={site.vendorSiteId} site={site} assignmentCount={assignmentCountBySite.get(site.vendorSiteId) || 0} canManage={canManageSites} onOpen={() => setSelectedSiteId(site.vendorSiteId)} onEdit={() => { setEditingSite(site); setSiteDialogOpen(true); }} />)}</div>}
         {inactiveSites > 0 && <p className="mt-3 text-[11px] text-[#84908a]">Inactive sites remain visible for historical context and cannot be assigned to new activity.</p>}
       </div>
     </div>
+    </>}
     <SiteDialog open={siteDialogOpen} site={editingSite} submitting={submitting} onOpenChange={(open) => { setSiteDialogOpen(open); if (!open) setEditingSite(null); }} onSave={saveSite} onInactivate={inactivateSite} />
     <CreateRelationshipDialog open={createRelationshipOpen} entities={legalEntities.filter((entity) => entity.status === "active" && !relationships.some((relationship) => relationship.legalEntity?.legalEntityId === entity.legalEntityId))} submitting={submitting} onOpenChange={setCreateRelationshipOpen} onCreate={createRelationship} />
     <LifecycleDialog actionState={lifecycleAction} submitting={submitting} onOpenChange={(open) => !open && setLifecycleAction(null)} onSubmit={(reason) => {
@@ -564,10 +574,34 @@ function EndAssignmentForm({ state, submitting, onClose, onSubmit }: { state: { 
   return <><DialogHeader><DialogTitle>End site assignment</DialogTitle><DialogDescription>This stops new use of {state.assignment.site?.name || "this site"} for {purposeLabel[state.assignment.purpose]}. It does not rewrite historical transactions.</DialogDescription></DialogHeader><label className="block text-[12px] font-semibold text-[#93292e]">Reason *</label><textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={4} placeholder="Why should this site no longer be used for this purpose?" className="w-full rounded-[8px] border border-[#fbd5d5] p-3 text-[13px] outline-none placeholder:text-[#a0aaa5] focus:border-[#d33d44]" /><DialogFooter><button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-black/[0.08] px-4 text-[13px] font-semibold text-[#68726d] hover:bg-[#f9faf9]">Cancel</button><button type="button" disabled={submitting || !reason.trim()} onClick={() => void onSubmit(reason)} className="h-10 rounded-[8px] bg-[#d33d44] px-4 text-[13px] font-semibold text-white hover:bg-[#c33339] disabled:opacity-50">{submitting ? "Saving..." : "End assignment"}</button></DialogFooter></>;
 }
 
-function SiteRow({ site, assignmentCount, canManage, onEdit }: { site: VendorSite; assignmentCount: number; canManage: boolean; onEdit: () => void }) {
+function SiteRow({ site, assignmentCount, canManage, onOpen, onEdit }: { site: VendorSite; assignmentCount: number; canManage: boolean; onOpen: () => void; onEdit: () => void }) {
   const location = [site.addressLine1 || site.legacyAddressText, site.city, site.stateOrProvince, site.countryCode].filter(Boolean).join(", ");
-  return <div className="flex items-start gap-3 rounded-[9px] border border-black/[0.07] p-3"><div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-[#f0faf8] text-[#087f70]"><MapPin className="h-4 w-4" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><p className="truncate text-[13px] font-semibold text-[#0b100e]">{site.name}</p>{site.isPrimary && <span className="rounded bg-[#e8f7f2] px-1.5 py-0.5 text-[10px] font-semibold text-[#087f70]">Primary</span>}{site.status === "inactive" && <span className="rounded bg-[#f5f7f6] px-1.5 py-0.5 text-[10px] font-semibold text-[#68726d]">Inactive</span>}</div><p className="mt-0.5 text-[11px] font-medium text-[#84908a]">{site.code}{location ? ` · ${location}` : ""}</p>{site.status === "active" && <p className="mt-1 text-[10px] text-[#84908a]">{assignmentCount === 0 ? "Not assigned to an entity yet" : `${assignmentCount} active ${assignmentCount === 1 ? "assignment" : "assignments"}`}</p>}</div>{canManage && site.status === "active" && <button onClick={onEdit} className="h-7 rounded-[6px] px-2 text-[11px] font-semibold text-[#087f70] hover:bg-[#f0faf8]">Edit</button>}</div>;
+  return <div className="flex items-start gap-3 rounded-[9px] border border-black/[0.07] p-3"><div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-[#f0faf8] text-[#087f70]"><MapPin className="h-4 w-4" /></div><button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left"><div className="flex flex-wrap items-center gap-1.5"><p className="truncate text-[13px] font-semibold text-[#0b100e]">{site.name}</p>{site.isPrimary && <span className="rounded bg-[#e8f7f2] px-1.5 py-0.5 text-[10px] font-semibold text-[#087f70]">Primary</span>}{site.status === "inactive" && <span className="rounded bg-[#f5f7f6] px-1.5 py-0.5 text-[10px] font-semibold text-[#68726d]">Inactive</span>}</div><p className="mt-0.5 text-[11px] font-medium text-[#84908a]">{site.code}{location ? ` · ${location}` : ""}</p>{site.status === "active" && <p className="mt-1 text-[10px] text-[#84908a]">{assignmentCount === 0 ? "Not assigned to an entity yet" : `${assignmentCount} active ${assignmentCount === 1 ? "assignment" : "assignments"}`}</p>}</button><div className="flex shrink-0 items-center gap-1">{canManage && site.status === "active" && <button onClick={onEdit} className="h-7 rounded-[6px] px-2 text-[11px] font-semibold text-[#087f70] hover:bg-[#f0faf8]">Edit</button>}<button type="button" onClick={onOpen} className="inline-flex h-7 items-center gap-0.5 rounded-[6px] px-2 text-[11px] font-semibold text-[#39423e] hover:bg-[#f5f7f6]">Open<ChevronRight className="h-3.5 w-3.5" /></button></div></div>;
 }
+
+function SiteWorkspace({ site, relationships, canManage, onBack, onEdit }: { site: VendorSite; relationships: EntityRelationship[]; canManage: boolean; onBack: () => void; onEdit: () => void }) {
+  const location = [site.addressLine1 || site.legacyAddressText, site.city, site.stateOrProvince, site.postalCode, site.countryCode].filter(Boolean).join(", ");
+  const assignments = relationships.flatMap((relationship) => relationship.siteAssignments
+    .filter((assignment) => assignment.vendorSiteId === site.vendorSiteId)
+    .map((assignment) => ({ assignment, relationship })));
+
+  return <div className="space-y-5">
+    <nav aria-label="Vendor site breadcrumb" className="flex flex-wrap items-center gap-1.5 text-[12px] font-medium text-[#68726d]">
+      <button type="button" onClick={onBack} className="hover:text-[#087f70]">Entity configuration</button>
+      <ChevronRight className="h-3.5 w-3.5 text-[#a0aaa5]" />
+      <button type="button" onClick={onBack} className="hover:text-[#087f70]">Vendor sites</button>
+      <ChevronRight className="h-3.5 w-3.5 text-[#a0aaa5]" />
+      <span className="font-semibold text-[#0b100e]">{site.name}</span>
+    </nav>
+    <div className="rounded-[14px] border border-black/[0.08] bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="flex gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#e8f7f2] text-[#087f70]"><MapPin className="h-5 w-5" /></div><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-[17px] font-semibold text-[#0b100e]">{site.name}</h2>{site.isPrimary && <span className="rounded bg-[#e8f7f2] px-2 py-0.5 text-[10px] font-semibold text-[#087f70]">Primary site</span>}{site.status === "inactive" && <span className="rounded bg-[#f5f7f6] px-2 py-0.5 text-[10px] font-semibold text-[#68726d]">Inactive</span>}</div><p className="mt-1 text-[13px] text-[#68726d]">{site.code}{location ? ` · ${location}` : ""}</p></div></div><div className="flex gap-2"><button type="button" onClick={onBack} className="h-9 rounded-[8px] border border-black/[0.08] px-3 text-[12px] font-semibold text-[#39423e] hover:bg-[#f5f7f6]">All sites</button>{canManage && <button type="button" onClick={onEdit} className="h-9 rounded-[8px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]">Edit site</button>}</div></div>
+      <div className="mt-5 grid grid-cols-1 gap-3 border-t border-black/[0.06] pt-5 sm:grid-cols-3"><SiteDetail label="Status" value={site.status === "active" ? "Active" : "Inactive"} /><SiteDetail label="Legal-entity assignments" value={String(assignments.filter(({ assignment }) => assignment.status === "active").length)} /><SiteDetail label="Use" value={assignments.length === 0 ? "Not assigned" : "Configured"} /></div>
+    </div>
+    <div className="rounded-[14px] border border-black/[0.08] bg-white p-5 shadow-sm"><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">ENTITY ASSIGNMENTS</h3><p className="mt-1 text-[13px] text-[#68726d]">Every legal entity uses this site through its own purpose-specific assignment.</p>{assignments.length === 0 ? <p className="mt-4 rounded-[8px] border border-dashed border-black/[0.12] p-4 text-[13px] text-[#68726d]">This site is not assigned to a legal entity yet.</p> : <div className="mt-4 space-y-2">{assignments.map(({ assignment, relationship }) => <div key={assignment.vendorEntitySiteAssignmentId} className="flex flex-wrap items-center justify-between gap-3 rounded-[9px] border border-black/[0.07] p-3"><div><p className="text-[13px] font-semibold text-[#0b100e]">{relationship.legalEntity?.displayName || relationship.legalEntity?.legalName || "Legal entity"}</p><p className="mt-0.5 text-[11px] text-[#84908a]">{purposeLabel[assignment.purpose]} · {assignment.status === "active" ? "Active" : "Ended"}</p></div><span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize ${statusClass[relationship.status]}`}>{relationship.status}</span></div>)}</div>}</div>
+  </div>;
+}
+
+function SiteDetail({ label, value }: { label: string; value: string }) { return <div className="rounded-[8px] bg-[#f9faf9] p-3"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#84908a]">{label}</p><p className="mt-1 text-[13px] font-semibold text-[#0b100e]">{value}</p></div>; }
 
 function PermissionNotice() { return <div className="rounded-[9px] border border-[#ffe099] bg-[#fff9e6] p-4"><div className="flex gap-2"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#b27b00]" /><div><p className="text-[13px] font-semibold text-[#6e4d00]">Additional permission required</p><p className="mt-1 text-[12px] leading-relaxed text-[#80621b]">Legal-entity configuration includes sensitive vendor information. Ask an administrator for vendor sensitive-read access to view this matrix.</p></div></div></div>; }
 function EmptyMatrix({ canCreate, onCreate }: { canCreate: boolean; onCreate: () => void }) { return <div className="rounded-[9px] border border-dashed border-black/[0.12] p-4"><p className="text-[13px] font-semibold text-[#39423e]">No entity relationships yet</p><p className="mt-1 text-[12px] leading-relaxed text-[#68726d]">Start a pending relationship for an active legal entity, then approve it and assign a site before enabling purchasing.</p>{canCreate && <button onClick={() => void onCreate()} className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add entity</button>}</div>; }

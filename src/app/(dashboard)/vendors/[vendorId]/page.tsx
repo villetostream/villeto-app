@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { VendorLegalEntityPanel } from "@/components/vendors/VendorLegalEntityPanel";
+import Link from "next/link";
 
 function VendorDetailsPage() {
   const { vendorId } = useParams() as { vendorId: string };
@@ -265,6 +265,13 @@ function VendorDetailsPage() {
         </div>
       </div>
 
+      <nav aria-label="Vendor sections" className="flex w-fit items-center gap-1 rounded-[10px] border border-black/[0.08] bg-white p-1 shadow-sm">
+        <span className="rounded-[7px] bg-[#e8f7f2] px-3 py-2 text-[12px] font-semibold text-[#087f70]">Profile</span>
+        <Link href={`/vendors/${vendorId}/configuration`} className="rounded-[7px] px-3 py-2 text-[12px] font-semibold text-[#5e6863] transition-colors hover:bg-[#f5f7f6] hover:text-[#0b100e]">
+          Entity configuration
+        </Link>
+      </nav>
+
       {/* ── Content Grid ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
 
@@ -501,8 +508,6 @@ function VendorDetailsPage() {
           )}
         </div>
       </div>
-
-      <VendorLegalEntityPanel vendorId={vendorId} axiosInstance={axiosInstance} />
 
       {/* ── Request Info Modal ── */}
       {requestInfoModalOpen && (
