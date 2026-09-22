@@ -256,6 +256,19 @@ export function RuleConfigurationModal({
     return CURRENCY_OPTIONS.filter(c => allowedCurrencyCodes.has(c.value));
   }, [rule.legalEntityIds, legalEntities]);
 
+  const getEntityNamesForCurrency = (currencyCode: string) => {
+    const entityIds = rule.legalEntityIds?.length > 0 
+      ? rule.legalEntityIds 
+      : legalEntities.map(e => e.legalEntityId);
+      
+    const names = legalEntities
+      .filter(e => entityIds.includes(e.legalEntityId) && e.baseCurrency === currencyCode)
+      .map(e => e.legalName);
+      
+    if (names.length === 0) return currencyCode;
+    return names.join(" & ");
+  };
+
   // Keep single currency in sync when availableCurrencies changes (e.g., when toggling single legal entities)
   useEffect(() => {
     if (availableCurrencies.length === 1) {
@@ -319,6 +332,7 @@ export function RuleConfigurationModal({
   const handleRuleTypeChange = (ruleType: string) => {
     const def = ruleDefinitions.find(d => d.ruleType === ruleType);
     if (!def) return;
+    const filteredActions = def.allowedActions.filter(a => a !== "review" && a !== "approval");
     setRule(prev => ({
       ...prev,
       ruleType: def.ruleType,
@@ -326,12 +340,12 @@ export function RuleConfigurationModal({
       displayName: def.name,
       description: def.description,
       conditionConfig: {},
-      action: def.allowedActions[0] || "",
+      action: filteredActions[0] || "",
       actionConfig: {},
       exceptionConfig: {
         ...prev.exceptionConfig,
         conditionConfig: {},
-        action: def.allowedActions[0] || "",
+        action: filteredActions[0] || "",
         actionConfig: {},
       }
     }));
@@ -391,9 +405,10 @@ export function RuleConfigurationModal({
       payload.exceptionConfig = {
         ...payload.exceptionConfig,
         conditionConfig: {},
-        action: "",
         actionConfig: {}
       };
+      // Omit the action entirely so the backend doesn't validate an empty string
+      delete (payload.exceptionConfig as any).action;
     }
     
     onSave(payload);
@@ -486,9 +501,9 @@ export function RuleConfigurationModal({
                                         const val = isSingle ? rule.conditionConfig.amount : amountsMap[c.value];
 
                                         return (
-                                          <div key={c.value} className="space-y-1.5 flex flex-col">
+                                          <div key={c.value} className="space-y-1.5 flex flex-col justify-between">
                                             <Label className="text-[12px] font-medium text-[#68726d]">
-                                              {getAmountLabel(selectedDef, isSingle, c.value, false)}
+                                              {getAmountLabel(selectedDef, isSingle, getEntityNamesForCurrency(c.value), false)}
                                             </Label>
                                             <div className="relative">
                                               <div className="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
@@ -591,7 +606,7 @@ export function RuleConfigurationModal({
                         <SelectValue placeholder="Select an action..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {selectedDef.allowedActions.map((action: string) => (
+                        {selectedDef.allowedActions.filter((a: string) => a !== "review" && a !== "approval").map((action: string) => (
                           <SelectItem key={action} value={action}>{getActionLabel(action)}</SelectItem>
                         ))}
                       </SelectContent>
@@ -703,9 +718,9 @@ export function RuleConfigurationModal({
                                                   const val = isSingle ? rule.exceptionConfig.conditionConfig.amount : amountsMap[c.value];
 
                                                   return (
-                                                    <div key={c.value} className="space-y-1.5 flex flex-col">
+                                                    <div key={c.value} className="space-y-1.5 flex flex-col justify-between">
                                                       <Label className="text-[12px] font-medium text-[#68726d]">
-                                                        {getAmountLabel(selectedDef, isSingle, c.value, true)}
+                                                        {getAmountLabel(selectedDef, isSingle, getEntityNamesForCurrency(c.value), true)}
                                                       </Label>
                                                       <div className="relative">
                                                         <div className="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
@@ -814,7 +829,7 @@ export function RuleConfigurationModal({
                                   <SelectValue placeholder="Select an action..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {selectedDef.allowedActions.map((action: string) => (
+                                  {selectedDef.allowedActions.filter((a: string) => a !== "review" && a !== "approval").map((action: string) => (
                                     <SelectItem key={action} value={action}>{getActionLabel(action)}</SelectItem>
                                   ))}
                                 </SelectContent>
