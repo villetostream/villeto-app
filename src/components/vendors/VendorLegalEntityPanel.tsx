@@ -227,10 +227,7 @@ function Field({ label, required, value, disabled, onChange, placeholder, maxLen
 export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: string; axiosInstance: AxiosInstance }) {
   const can = useAuthStore((state) => state.can);
   const canManageSites = can("vendor", "create");
-  const canReadMatrix = can("vendor", "sensitive.read");
-  const canApproveRelationships = can("vendor", "approve");
-  const canSuspendRelationships = can("vendor", "deactivate");
-  const canReactivateRelationships = can("vendor", "activate");
+  const canManageEntityConfiguration = can("vendor.entity_configuration", "manage");
   const [sites, setSites] = useState<VendorSite[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [relationships, setRelationships] = useState<EntityRelationship[]>([]);
@@ -250,7 +247,7 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
     setMatrixError(false);
     try {
       const sitesRequest = axiosInstance.get(`/vendors/${vendorId}/sites`);
-      const relationshipRequest = canReadMatrix
+      const relationshipRequest = canManageEntityConfiguration
         ? axiosInstance.get(`/vendors/${vendorId}/entity-relationships`)
         : Promise.resolve(null);
       const [sitesResponse, relationshipsResponse] = await Promise.all([sitesRequest, relationshipRequest]);
@@ -266,7 +263,7 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
 
   useEffect(() => {
     queueMicrotask(() => { void load(); });
-  }, [vendorId, canReadMatrix]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [vendorId, canManageEntityConfiguration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveSite = async (draft: SiteDraft) => {
     setSubmitting(true);
@@ -464,9 +461,9 @@ export function VendorLegalEntityPanel({ vendorId, axiosInstance }: { vendorId: 
 
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.35fr_0.85fr]">
       <div className="rounded-[14px] border border-black/[0.08] bg-white p-5 shadow-sm">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">LEGAL-ENTITY COVERAGE</h3><p className="mt-1 text-[13px] text-[#68726d]">Each entity has its own relationship and purchasing setup.</p></div>{canReadMatrix && canApproveRelationships && <button onClick={() => void openCreateRelationship()} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add entity</button>}</div>
-        {canReadMatrix && relationships.length > 0 && <div className="mb-4 grid grid-cols-3 gap-2"><SetupMetric label="Ready" value={relationshipSummary.ready} tone="ready" /><SetupMetric label="Needs action" value={relationshipSummary.needsAction} tone="pending" /><SetupMetric label="Suspended" value={relationshipSummary.suspended} tone="blocked" /></div>}
-        {!canReadMatrix ? <PermissionNotice /> : loading ? <PanelSkeleton /> : matrixError ? <LoadFailure onRetry={load} /> : relationships.length === 0 ? <EmptyMatrix canCreate={canApproveRelationships} onCreate={openCreateRelationship} /> : <div className="space-y-3">{relationships.map((relationship) => <RelationshipRow key={relationship.vendorEntityRelationshipId} relationship={relationship} canApprove={canApproveRelationships} canSuspend={canSuspendRelationships} canReactivate={canReactivateRelationships} activeSites={sites.filter((site) => site.status === "active")} submitting={submitting} onLifecycle={(action) => setLifecycleAction({ action, relationship })} onAssignSite={() => setAssignmentRelationship(relationship)} onEndAssignment={(assignment) => setEndingAssignment({ relationship, assignment })} onSetPurchasing={(enabled) => void setPurchasing(relationship, enabled)} />)}</div>}
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">LEGAL-ENTITY COVERAGE</h3><p className="mt-1 text-[13px] text-[#68726d]">Each entity has its own relationship and purchasing setup.</p></div>{canManageEntityConfiguration && <button onClick={() => void openCreateRelationship()} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add entity</button>}</div>
+        {canManageEntityConfiguration && relationships.length > 0 && <div className="mb-4 grid grid-cols-3 gap-2"><SetupMetric label="Ready" value={relationshipSummary.ready} tone="ready" /><SetupMetric label="Needs action" value={relationshipSummary.needsAction} tone="pending" /><SetupMetric label="Suspended" value={relationshipSummary.suspended} tone="blocked" /></div>}
+        {!canManageEntityConfiguration ? <PermissionNotice /> : loading ? <PanelSkeleton /> : matrixError ? <LoadFailure onRetry={load} /> : relationships.length === 0 ? <EmptyMatrix canCreate={canManageEntityConfiguration} onCreate={openCreateRelationship} /> : <div className="space-y-3">{relationships.map((relationship) => <RelationshipRow key={relationship.vendorEntityRelationshipId} relationship={relationship} canApprove={canManageEntityConfiguration} canSuspend={canManageEntityConfiguration} canReactivate={canManageEntityConfiguration} activeSites={sites.filter((site) => site.status === "active")} submitting={submitting} onLifecycle={(action) => setLifecycleAction({ action, relationship })} onAssignSite={() => setAssignmentRelationship(relationship)} onEndAssignment={(assignment) => setEndingAssignment({ relationship, assignment })} onSetPurchasing={(enabled) => void setPurchasing(relationship, enabled)} />)}</div>}
       </div>
       <div className="rounded-[14px] border border-black/[0.08] bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-[10px] font-bold tracking-[0.1em] text-[#84908a]">SHARED VENDOR SITES</h3><p className="mt-1 text-[13px] text-[#68726d]">Locations can be assigned to more than one entity.</p></div>{canManageSites && <button onClick={() => { setEditingSite(null); setSiteDialogOpen(true); }} className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add site</button>}</div>
@@ -603,7 +600,7 @@ function SiteWorkspace({ site, relationships, canManage, onBack, onEdit }: { sit
 
 function SiteDetail({ label, value }: { label: string; value: string }) { return <div className="rounded-[8px] bg-[#f9faf9] p-3"><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#84908a]">{label}</p><p className="mt-1 text-[13px] font-semibold text-[#0b100e]">{value}</p></div>; }
 
-function PermissionNotice() { return <div className="rounded-[9px] border border-[#ffe099] bg-[#fff9e6] p-4"><div className="flex gap-2"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#b27b00]" /><div><p className="text-[13px] font-semibold text-[#6e4d00]">Additional permission required</p><p className="mt-1 text-[12px] leading-relaxed text-[#80621b]">Legal-entity configuration includes sensitive vendor information. Ask an administrator for vendor sensitive-read access to view this matrix.</p></div></div></div>; }
+function PermissionNotice() { return <div className="rounded-[9px] border border-[#ffe099] bg-[#fff9e6] p-4"><div className="flex gap-2"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[#b27b00]" /><div><p className="text-[13px] font-semibold text-[#6e4d00]">Additional permission required</p><p className="mt-1 text-[12px] leading-relaxed text-[#80621b]">Ask an administrator for Vendor Entity Configuration Manager access to manage relationships, site assignments, and operating holds.</p></div></div></div>; }
 function EmptyMatrix({ canCreate, onCreate }: { canCreate: boolean; onCreate: () => void }) { return <div className="rounded-[9px] border border-dashed border-black/[0.12] p-4"><p className="text-[13px] font-semibold text-[#39423e]">No entity relationships yet</p><p className="mt-1 text-[12px] leading-relaxed text-[#68726d]">Start a pending relationship for an active legal entity, then approve it and assign a site before enabling purchasing.</p>{canCreate && <button onClick={() => void onCreate()} className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#087f70] px-3 text-[12px] font-semibold text-white hover:bg-[#076b5e]"><Plus className="h-4 w-4" />Add entity</button>}</div>; }
 function PanelSkeleton() { return <div className="space-y-2">{[1, 2, 3].map((item) => <div key={item} className="h-20 animate-pulse rounded-[9px] bg-[#f5f7f6]" />)}</div>; }
 function LoadFailure({ onRetry }: { onRetry: () => void }) { return <div className="rounded-[9px] border border-[#fbd5d5] bg-[#fdf2f2] p-4"><p className="text-[13px] font-semibold text-[#93292e]">Vendor setup could not be loaded.</p><button onClick={() => void onRetry()} className="mt-2 text-[12px] font-semibold text-[#93292e] underline">Try again</button></div>; }

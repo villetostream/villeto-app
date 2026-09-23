@@ -73,5 +73,5 @@ function VendorConfigurationPage() {
 }
 
 export default withPermissions(VendorConfigurationPage, [
-  { resource: "vendor", action: "sensitive.read" },
+  { resource: "vendor.entity_configuration", action: "manage" },
 ]);
