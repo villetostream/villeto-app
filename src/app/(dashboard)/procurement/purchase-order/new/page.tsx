@@ -525,7 +525,8 @@ function NewPurchaseOrderPage() {
                 </div>
               ) : (
                 <>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border/60 bg-[#f9faf9]">
                         {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal", ""].map(h => (
@@ -537,15 +538,30 @@ function NewPurchaseOrderPage() {
                       {savedLineItems.map((item, i) => {
                         const catName = getCategoryName(item.categoryId);
                         const sub = (item.quantity || 0) * (item.unitPrice || 0);
-                        const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
-                        const hasBlock = hasViolations && item.policyViolations!.some((v: any) => v.type === "hard_block");
+                        let itemViolations = [...(item.policyViolations || [])];
+                        if (policyViolations && Array.isArray(policyViolations)) {
+                          policyViolations.forEach((issue: any) => {
+                            const appliesToItem = issue.lineItems?.some((li: any) => li.lineItemId === item.purchaseOrderLineItemId || li.lineItemId === (item as any).id) ||
+                                                  issue.categories?.some((c: any) => c.categoryId === item.categoryId);
+                            if (appliesToItem) {
+                              if (!itemViolations.some((v: any) => v.message === issue.message)) {
+                                itemViolations.push({
+                                  type: issue.resolution === "BLOCK" ? "hard_block" : "warning",
+                                  message: issue.message
+                                });
+                              }
+                            }
+                          });
+                        }
+                        const hasViolations = itemViolations.length > 0;
+                        const hasBlock = itemViolations.some((v: any) => v.type === "hard_block");
                         const itemKey = item.id || item.purchaseOrderLineItemId || i;
                         return (
                           <React.Fragment key={itemKey}>
                             <tr 
                               className={`border-b ${hasViolations ? "border-transparent" : "border-border/40 last:border-0"} hover:bg-[#f9faf9] transition-colors cursor-pointer`}
                               onClick={() => {
-                                setSelectedDetailItem({ ...item, categoryName: catName, index: i });
+                                setSelectedDetailItem({ ...item, policyViolations: itemViolations, categoryName: catName, index: i });
                                 setDetailModalStartsInEditMode(false);
                                 setIsDetailModalOpen(true);
                               }}
@@ -566,7 +582,7 @@ function NewPurchaseOrderPage() {
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent className="max-w-[280px] text-center whitespace-pre-wrap">
-                                        {item.policyViolations!.map((v: any) => v.message).join('\n\n')}
+                                        {itemViolations.map((v: any) => v.message).join('\n\n')}
                                       </TooltipContent>
                                     </Tooltip>
                                   )}
@@ -586,7 +602,7 @@ function NewPurchaseOrderPage() {
                               <div className="flex items-center gap-1">
                                 <div className="relative group">
                                   <button type="button" onClick={() => {
-                                      setSelectedDetailItem({ ...item, categoryName: catName, index: i });
+                                      setSelectedDetailItem({ ...item, policyViolations: itemViolations, categoryName: catName, index: i });
                                       setDetailModalStartsInEditMode(true);
                                       setIsDetailModalOpen(true);
                                     }}
@@ -611,6 +627,7 @@ function NewPurchaseOrderPage() {
                     })}
                     </tbody>
                   </table>
+                  </div>
 
                   <div className="px-5 py-3 border-t border-border/40">
                     <button type="button" onClick={() => { setEditingItem(null); setShowModal(true); }}
@@ -708,7 +725,9 @@ function NewPurchaseOrderPage() {
                   sku: updatedItem.sku,
                   description: updatedItem.description,
                 });
-                await refetchPO();
+                const refetched = await refetchPO();
+                const items = refetched.data?.data?.lineItems || [];
+                if (items.length > 0) setSavedLineItems(items);
               } else {
                 const copy = [...savedLineItems];
                 copy[idx] = { ...copy[idx], ...updatedItem };
