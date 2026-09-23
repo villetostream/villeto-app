@@ -253,7 +253,7 @@ export function ProcurementPolicyDetailsModal({
                         key={t.code}
                         onClick={() => setActiveTab(t.code)}
                         className={`px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all whitespace-nowrap ${
-                          activeTab === t.code
+                          currentTab === t.code
                             ? "bg-white text-gray-900 shadow-sm"
                             : "text-gray-500 hover:text-gray-700"
                         }`}

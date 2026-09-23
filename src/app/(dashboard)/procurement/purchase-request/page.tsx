@@ -665,7 +665,7 @@ function PRTable({
                       needsAction ? "border-l-4 border-l-[#087f70] bg-[#f0faf8]/40 hover:bg-[#f0faf8]/60" : ""
                     }`}
                   >
-                    <td className="px-5 py-4 font-semibold text-[#0b100e] font-mono text-[12px]">{pr.requestNumber}</td>
+                    <td className="px-5 py-4 font-semibold text-[#0b100e] font-mono text-[12px] whitespace-nowrap">{pr.requestNumber}</td>
                     <td className="px-5 py-4">
                       <div>
                         <p className="font-semibold text-[13px] text-[#0b100e]">{pr.title}</p>

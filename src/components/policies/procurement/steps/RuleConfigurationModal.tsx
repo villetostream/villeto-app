@@ -203,16 +203,18 @@ export function RuleConfigurationModal({
   useEffect(() => {
     if (isOpen) {
       if (existingRule) {
+        const safeExceptionConfig = existingRule.exceptionConfig || emptyRuleExceptionConfig();
         setRule({
           ...existingRule,
-          legalEntityIds: existingRule.legalEntityIds || []
+          legalEntityIds: existingRule.legalEntityIds || [],
+          exceptionConfig: safeExceptionConfig,
         });
-        const hasCustomConditions = Object.keys(existingRule.exceptionConfig.conditionConfig || {}).length > 0;
-        const hasCustomAction = !!existingRule.exceptionConfig.action;
+        const hasCustomConditions = Object.keys(safeExceptionConfig.conditionConfig || {}).length > 0;
+        const hasCustomAction = !!safeExceptionConfig.action;
         setShowExceptions(
-          existingRule.exceptionConfig.departmentIds.length > 0 ||
-          existingRule.exceptionConfig.managementLevelIds.length > 0 ||
-          existingRule.exceptionConfig.jobGradeIds.length > 0 ||
+          (safeExceptionConfig.departmentIds?.length || 0) > 0 ||
+          (safeExceptionConfig.managementLevelIds?.length || 0) > 0 ||
+          (safeExceptionConfig.jobGradeIds?.length || 0) > 0 ||
           hasCustomConditions ||
           hasCustomAction
         );
