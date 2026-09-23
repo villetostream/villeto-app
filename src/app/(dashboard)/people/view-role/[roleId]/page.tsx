@@ -279,7 +279,7 @@ function ViewRolePage() {
     const totalUsers = role.totalAssignedUsers || 0;
 
     const isViewedRoleOwner = role.templateKey === "owner";
-    const isCurrentUserOwner = (currentUser?.companyRole?.templateKey || (currentUser as any)?.villetoRole?.templateKey) === "owner";
+    const isCurrentUserOwner = (currentUser?.companyRole?.templateKey || currentUser?.villetoRole?.templateKey) === "owner";
     const isEditDisabled = isViewedRoleOwner && !isCurrentUserOwner;
 
     return (
