@@ -1104,7 +1104,7 @@ function CreatePOView({
                         </div>
                     </div>
                     {/* Items table */}
-                    <div className="bg-white overflow-visible">
+                    <div className="bg-white overflow-x-auto">
                       <table className="w-full text-sm">
                         <PurchaseRequestTableHead />
                         <tbody>
@@ -1138,7 +1138,7 @@ function CreatePOView({
                       Assign a vendor to proceed
                     </span>
                   </div>
-                  <div className="bg-white overflow-visible">
+                  <div className="bg-white overflow-x-auto">
                     <table className="w-full text-sm">
                       <PurchaseRequestTableHead />
                       <tbody>
@@ -2116,7 +2116,8 @@ function PRDetailPage() {
                             </div>
                           </div>
                           {/* PO Items Table */}
-                          <table className="w-full text-sm">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b border-border/60 bg-white">
                                 {["Item", "Description", "Category", "Qty", "Unit Price", "Subtotal"].map(h => (
@@ -2141,6 +2142,7 @@ function PRDetailPage() {
                               ))}
                             </tbody>
                           </table>
+                          </div>
                         </div>
                       );
                     })}
@@ -2178,7 +2180,8 @@ function PRDetailPage() {
                             )}
                           </div>
                           {/* Items Table */}
-                          <table className="w-full text-sm">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b border-amber-200/60 bg-white/60">
                                 {["Item", "Description", "Category", "Qty", "Unit Price", "Subtotal"].map(h => (
@@ -2203,6 +2206,7 @@ function PRDetailPage() {
                               ))}
                             </tbody>
                           </table>
+                          </div>
                         </div>
                       );
                     })()}
@@ -2258,7 +2262,7 @@ function PRDetailPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="sticky top-0 z-10 bg-white">
                           <tr className="border-b border-border/60 bg-[#f9faf9] shadow-sm">
@@ -2269,9 +2273,24 @@ function PRDetailPage() {
                         </thead>
                         <tbody>
                           {lineItems.map(item => {
-                            const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
-                            const hasBlock = hasViolations && item.policyViolations!.some(v => v.type === "hard_block");
-                            const violationCount = hasViolations ? item.policyViolations!.length : 0;
+                            let itemViolations = [...(item.policyViolations || [])];
+                            if (policyViolations && Array.isArray(policyViolations)) {
+                              policyViolations.forEach(issue => {
+                                const appliesToItem = issue.lineItems?.some(li => li.lineItemId === item.purchaseRequestLineItemId) ||
+                                                      issue.categories?.some(c => c.categoryId === item.categoryId);
+                                if (appliesToItem) {
+                                  if (!itemViolations.some((v: any) => v.message === issue.message)) {
+                                    itemViolations.push({
+                                      type: issue.resolution === "BLOCK" ? "hard_block" : "warning",
+                                      message: issue.message
+                                    });
+                                  }
+                                }
+                              });
+                            }
+                            const hasViolations = itemViolations.length > 0;
+                            const hasBlock = itemViolations.some((v: any) => v.type === "hard_block");
+                            const violationCount = itemViolations.length;
                             return (
                               <tr
                                 key={item.purchaseRequestLineItemId}
@@ -2283,6 +2302,7 @@ function PRDetailPage() {
                                 onClick={() => {
                                   setSelectedDetailItem({
                                     ...item,
+                                    policyViolations: itemViolations,
                                     categoryName: getCategoryName(item.categoryId) || undefined,
                                   } as any);
                                   setIsDetailModalOpen(true);

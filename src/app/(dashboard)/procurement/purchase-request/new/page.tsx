@@ -485,7 +485,8 @@ function NewPurchaseRequestPage() {
   const { data: catData } = useGetProcurementCategories();
   const { data: legalEntityData } = useLegalEntities();
   const addLineItem = useAddLineItem(purchaseRequestId || "");
-  const updateLineItem = useUpdateLineItem(purchaseRequestId || "", editingItem?.item.purchaseRequestLineItemId || (editingItem?.item as any)?.id || "");
+  const targetItemId = editingItem?.item.purchaseRequestLineItemId || (editingItem?.item as any)?.id || selectedDetailItem?.purchaseRequestLineItemId || selectedDetailItem?.id || "";
+  const updateLineItem = useUpdateLineItem(purchaseRequestId || "", targetItemId);
   const deleteLineItem = useDeleteLineItem(purchaseRequestId || "");
   const submitPR = useSubmitPurchaseRequest(purchaseRequestId || "");
   // Fetch the saved PR so we always have authoritative IDs for edit/delete
@@ -865,7 +866,8 @@ function NewPurchaseRequestPage() {
                 </div>
               ) : (
                 <>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border/60 bg-[#f9faf9]">
                         {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal", ""].map(h => (
@@ -876,9 +878,24 @@ function NewPurchaseRequestPage() {
                     <tbody>
                       {savedLineItems.map((item, i) => {
                         const catName = getCategoryName(item.categoryId);
-                        const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
-                        const hasBlock = hasViolations && item.policyViolations!.some(v => v.type === "hard_block");
-                        const violationCount = hasViolations ? item.policyViolations!.length : 0;
+                        let itemViolations = [...(item.policyViolations || [])];
+                        if (policyViolations && Array.isArray(policyViolations)) {
+                          policyViolations.forEach(issue => {
+                            const appliesToItem = issue.lineItems?.some(li => li.lineItemId === item.purchaseRequestLineItemId || li.lineItemId === (item as any).id) ||
+                                                  issue.categories?.some(c => c.categoryId === item.categoryId);
+                            if (appliesToItem) {
+                              if (!itemViolations.some((v: any) => v.message === issue.message)) {
+                                itemViolations.push({
+                                  type: issue.resolution === "BLOCK" ? "hard_block" : "warning",
+                                  message: issue.message
+                                });
+                              }
+                            }
+                          });
+                        }
+                        const hasViolations = itemViolations.length > 0;
+                        const hasBlock = itemViolations.some((v: any) => v.type === "hard_block");
+                        const violationCount = itemViolations.length;
                         const itemKey = item.purchaseRequestLineItemId || (item as any).id || i;
                         return (
                           <tr
@@ -891,6 +908,7 @@ function NewPurchaseRequestPage() {
                             onClick={() => {
                               setSelectedDetailItem({
                                 ...item,
+                                policyViolations: itemViolations,
                                 categoryName: catName || undefined,
                                 index: i, // keep index in case we want to edit it later
                               });
@@ -954,6 +972,7 @@ function NewPurchaseRequestPage() {
                       })}
                     </tbody>
                   </table>
+                  </div>
 
                   <div className="px-5 py-3 border-t border-border/40">
                     <button type="button" onClick={() => { setEditingItem(null); setPanelOpen(true); }}
@@ -1050,20 +1069,40 @@ function NewPurchaseRequestPage() {
         onSave={
           selectedDetailItem
             ? async (updatedItem) => {
-                setSavedLineItems(prev => {
-                  const copy = [...prev];
-                  const i = selectedDetailItem.index;
-                  copy[i] = {
-                    ...copy[i],
-                    ...updatedItem,
-                    subtotal: (updatedItem.quantity * updatedItem.unitPrice) + (updatedItem.taxAmount || 0),
-                  };
-                  return copy;
-                });
-                setIsDetailModalOpen(false);
-                setSelectedDetailItem(null);
-                setPolicyViolations(null);
-                toast.success("Item updated");
+                const idx = selectedDetailItem.index;
+                try {
+                  if (purchaseRequestId) {
+                    await updateLineItem.mutateAsync({
+                      name: updatedItem.name,
+                      categoryId: updatedItem.categoryId!,
+                      quantity: updatedItem.quantity,
+                      unitPrice: updatedItem.unitPrice,
+                      taxAmount: updatedItem.taxAmount || 0,
+                      unitOfMeasure: updatedItem.unitOfMeasure,
+                      sku: updatedItem.sku,
+                      description: updatedItem.description,
+                    } as any);
+                    const refetched = await refetchPR();
+                    const items = refetched.data?.data?.lineItems || [];
+                    if (items.length > 0) setSavedLineItems(items);
+                  } else {
+                    setSavedLineItems(prev => {
+                      const copy = [...prev];
+                      copy[idx] = {
+                        ...copy[idx],
+                        ...updatedItem,
+                        subtotal: (updatedItem.quantity * updatedItem.unitPrice) + (updatedItem.taxAmount || 0),
+                      };
+                      return copy;
+                    });
+                  }
+                  setIsDetailModalOpen(false);
+                  setSelectedDetailItem(null);
+                  setPolicyViolations(null);
+                  toast.success("Item updated");
+                } catch (err: any) {
+                  toast.error(err?.response?.data?.message || "Failed to update item");
+                }
               }
             : undefined
         }

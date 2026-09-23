@@ -994,8 +994,23 @@ function PODetailPage() {
                 </thead>
                 <tbody>
                   {lineItemsToDisplay.length ? lineItemsToDisplay.map((item: any) => {
-                    const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
-                    const hasBlock = hasViolations && item.policyViolations.some((v: any) => v.type === "hard_block");
+                    let itemViolations = [...(item.policyViolations || [])];
+                    if (policyViolations && Array.isArray(policyViolations)) {
+                      policyViolations.forEach((issue: any) => {
+                        const appliesToItem = issue.lineItems?.some((li: any) => li.lineItemId === item.purchaseOrderLineItemId) ||
+                                              issue.categories?.some((c: any) => c.categoryId === item.categoryId);
+                        if (appliesToItem) {
+                          if (!itemViolations.some((v: any) => v.message === issue.message)) {
+                            itemViolations.push({
+                              type: issue.resolution === "BLOCK" ? "hard_block" : "warning",
+                              message: issue.message
+                            });
+                          }
+                        }
+                      });
+                    }
+                    const hasViolations = itemViolations.length > 0;
+                    const hasBlock = itemViolations.some((v: any) => v.type === "hard_block");
 
                     return (
                     <tr 
@@ -1003,6 +1018,7 @@ function PODetailPage() {
                       onClick={() => {
                         setSelectedDetailItem({
                           ...item,
+                          policyViolations: itemViolations,
                           categoryName: item.category?.name || undefined,
                           purchaseRequestLineItemId: item.purchaseOrderLineItemId, // For LineItemDetailModal compatibility
                         });
@@ -1027,7 +1043,7 @@ function PODetailPage() {
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent className="max-w-[280px] text-center whitespace-pre-wrap">
-                                {item.policyViolations!.map((v: any) => v.message).join('\n\n')}
+                                {itemViolations.map((v: any) => v.message).join('\n\n')}
                               </TooltipContent>
                             </Tooltip>
                           )}

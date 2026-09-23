@@ -676,6 +676,7 @@ export interface ProcurementPolicyViolation {
   message: string;
   details?: Record<string, any>;
   lineItems?: any[];
+  categories?: any[];
 }
 
 export function isProcurementPolicyViolationError(error: unknown): boolean {
@@ -738,6 +739,7 @@ export function getProcurementPolicyViolations(error: unknown): ProcurementPolic
       message: msgStr,
       details: parsedDetails,
       lineItems: v.lineItems ? asArray(v.lineItems) : undefined,
+      categories: v.categories ? asArray(v.categories) : undefined,
     };
   });
 }
