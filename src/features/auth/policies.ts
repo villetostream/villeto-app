@@ -55,6 +55,7 @@ export const PERMISSIONS = {
     activate: "vendor.activate",
     deactivate: "vendor.deactivate",
     delete: "vendor.delete",
+    entityConfigurationManage: "vendor.entity_configuration.manage",
   },
   purchaseRequest: {
     create: "procurement.purchase_request.create",
