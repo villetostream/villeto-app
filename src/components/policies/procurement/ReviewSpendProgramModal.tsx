@@ -60,7 +60,8 @@ export function ReviewSpendProgramModal({
   const handleApprove = async () => {
     setError(null);
     try {
-      await approveMutation.mutateAsync(program.procurementSpendProgramId);
+      const id = (program as any).spendProgramId || program.procurementSpendProgramId || (program as any).procurementPolicyId || (program as any).id;
+      await approveMutation.mutateAsync(id);
       toast.success("Spend program approved successfully.");
       onClose();
     } catch (err) {
@@ -76,7 +77,8 @@ export function ReviewSpendProgramModal({
   const handleReject = async () => {
     setError(null);
     try {
-      await rejectMutation.mutateAsync(program.procurementSpendProgramId);
+      const id = (program as any).spendProgramId || program.procurementSpendProgramId || (program as any).procurementPolicyId || (program as any).id;
+      await rejectMutation.mutateAsync(id);
       toast.success("Spend program rejected.");
       onClose();
     } catch (err) {

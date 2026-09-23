@@ -204,7 +204,7 @@ export function ProcurementPolicySection({
 
   const handleRowClick = useCallback((row: SpendProgramListItem) => {
     setDetailPolicy({
-      id: row.procurementSpendProgramId,
+      id: row.procurementSpendProgramId || (row as any).procurementPolicyId || (row as any).id,
       isDraft: row.status === "draft",
       isReviewMode: checkIfReviewable(row),
       initialData: row,
@@ -362,7 +362,7 @@ export function ProcurementPolicySection({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
                     <DropdownMenuItem
-                      onClick={() => setDetailPolicy({ id: program.procurementSpendProgramId, isDraft: program.status === "draft", initialData: program })}
+                      onClick={() => setDetailPolicy({ id: program.procurementSpendProgramId || (program as any).procurementPolicyId || (program as any).id, isDraft: program.status === "draft", initialData: program })}
                       className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-[#0b100e] hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
                     >
                       <Eye className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} />
@@ -379,7 +379,7 @@ export function ProcurementPolicySection({
                     )}
                     {canUpdate && program.status === "draft" && (
                       <DropdownMenuItem
-                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(program.procurementSpendProgramId); }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(program.procurementSpendProgramId || (program as any).procurementPolicyId || (program as any).id); }}
                         className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-[17px] h-[17px] text-red-500 shrink-0" strokeWidth={1.5} />
@@ -579,7 +579,7 @@ export function ProcurementPolicySection({
         }}
         onArchive={async (p: any) => {
           try {
-            await deleteProgramMutation.mutateAsync(p.procurementSpendProgramId ?? p.procurementPolicyId);
+            await deleteProgramMutation.mutateAsync(p.procurementSpendProgramId || p.procurementPolicyId || p.id);
             toast.success("Spend program archived successfully.");
           } catch (err) {
             toast.error("Failed to archive spend program.");
@@ -591,12 +591,12 @@ export function ProcurementPolicySection({
           setDetailPolicy(null);
         }}
         onApprove={async (p: any) => {
-          await approveMutation.mutateAsync(p.procurementSpendProgramId ?? p.procurementPolicyId);
+          await approveMutation.mutateAsync(p.procurementSpendProgramId || p.procurementPolicyId || p.id);
           toast.success("Spend program approved successfully.");
           setDetailPolicy(null);
         }}
         onReject={async (p: any) => {
-          await rejectMutation.mutateAsync(p.procurementSpendProgramId ?? p.procurementPolicyId);
+          await rejectMutation.mutateAsync(p.procurementSpendProgramId || p.procurementPolicyId || p.id);
           toast.success("Spend program rejected.");
           setDetailPolicy(null);
         }}
