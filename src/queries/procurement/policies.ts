@@ -305,30 +305,40 @@ export function buildSpendProgramPayload(draft: SpendProgramDraft, isUpdate: boo
       .filter(g => g.rules.length > 0)
       .map(g => ({
         group: g.group,
-        rules: g.rules.map((r, idx) => ({
-          procurementSpendProgramRuleId: r.procurementSpendProgramRuleId || (r.id && !r.id.startsWith("rule-") ? r.id : undefined),
-          ruleDefinitionId: r.ruleDefinitionId,
-          ruleType: r.ruleType,
-          appliesToCategoryIds: r.appliesToAll ? draft.categoryIds : (r.appliesToCategoryIds || []),
-          legalEntityIds: r.legalEntityIds || [],
-          conditionConfig: transformConditionConfigToBackend(r.conditionConfig),
-          action: r.action,
-          actionConfig: r.actionConfig,
-          exceptionConfig: r.exceptionConfig ? {
-            departmentIds: r.exceptionConfig.departmentIds || [],
-            roleIds: r.exceptionConfig.roleIds || [],
-            jobGradeIds: r.exceptionConfig.jobGradeIds || [],
-            managementLevelIds: r.exceptionConfig.managementLevelIds || [],
-            userIds: r.exceptionConfig.userIds || [],
-            exceptionRule: {
-              conditionConfig: transformConditionConfigToBackend(r.exceptionConfig.conditionConfig),
-              action: r.exceptionConfig.action || "allow",
-              actionConfig: r.exceptionConfig.actionConfig || {},
-            }
-          } : undefined,
-          sortOrder: idx,
-          isActive: r.isActive ?? true,
-        })),
+        rules: g.rules.map((r, idx) => {
+          const hasExceptions = r.exceptionConfig && (
+            (r.exceptionConfig.departmentIds && r.exceptionConfig.departmentIds.length > 0) ||
+            (r.exceptionConfig.roleIds && r.exceptionConfig.roleIds.length > 0) ||
+            (r.exceptionConfig.jobGradeIds && r.exceptionConfig.jobGradeIds.length > 0) ||
+            (r.exceptionConfig.managementLevelIds && r.exceptionConfig.managementLevelIds.length > 0) ||
+            (r.exceptionConfig.userIds && r.exceptionConfig.userIds.length > 0)
+          );
+
+          return {
+            procurementSpendProgramRuleId: r.procurementSpendProgramRuleId || (r.id && !r.id.startsWith("rule-") ? r.id : undefined),
+            ruleDefinitionId: r.ruleDefinitionId,
+            ruleType: r.ruleType,
+            appliesToCategoryIds: r.appliesToAll ? draft.categoryIds : (r.appliesToCategoryIds || []),
+            legalEntityIds: r.legalEntityIds || [],
+            conditionConfig: transformConditionConfigToBackend(r.conditionConfig),
+            action: r.action,
+            actionConfig: r.actionConfig,
+            exceptionConfig: hasExceptions ? {
+              departmentIds: r.exceptionConfig.departmentIds || [],
+              roleIds: r.exceptionConfig.roleIds || [],
+              jobGradeIds: r.exceptionConfig.jobGradeIds || [],
+              managementLevelIds: r.exceptionConfig.managementLevelIds || [],
+              userIds: r.exceptionConfig.userIds || [],
+              exceptionRule: {
+                conditionConfig: transformConditionConfigToBackend(r.exceptionConfig.conditionConfig),
+                action: r.exceptionConfig.action || "allow",
+                actionConfig: r.exceptionConfig.actionConfig || {},
+              }
+            } : undefined,
+            sortOrder: idx,
+            isActive: r.isActive ?? true,
+          };
+        }),
         ...(isUpdate ? { isActive: g.isActive ?? true } : {}),
       })),
   };

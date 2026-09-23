@@ -136,7 +136,7 @@ export function ProcurementPolicyDetailsModal({
     setPendingAction("approve");
     setError(null);
     try {
-      await onApprove(policy.procurementSpendProgramId ?? policy.procurementPolicyId);
+      await onApprove(policy);
       onClose();
     } catch (err: unknown) {
       setError((err as any)?.response?.data?.message || "Failed to approve policy");
@@ -149,7 +149,7 @@ export function ProcurementPolicyDetailsModal({
     setPendingAction("reject");
     setError(null);
     try {
-      await onReject(policy.procurementSpendProgramId ?? policy.procurementPolicyId);
+      await onReject(policy);
       onClose();
     } catch (err: unknown) {
       setError((err as any)?.response?.data?.message || "Failed to reject policy");
@@ -197,7 +197,7 @@ export function ProcurementPolicyDetailsModal({
                 <StatusBadge status={policy.status} />
                 {isDraft && canUpdate && onDeleteDraft && (
                   <button
-                    onClick={() => onDeleteDraft(policy.procurementSpendProgramId ?? policy.procurementPolicyId)}
+                    onClick={() => onDeleteDraft(policy.procurementSpendProgramId || policy.procurementPolicyId || policy.id)}
                     className="p-1 rounded-md hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
                     title="Delete Draft"
                   >
