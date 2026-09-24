@@ -218,11 +218,13 @@ function OverviewTab({
         return `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() || "—"
     }, [user.managerId, user.manager, allUsers])
 
-    const roleOptions: RoleMultiSelectOption[] = roles.map(r => ({
-        id: r.roleId,
-        label: r.name,
-        description: r.description,
-    }))
+    const roleOptions: RoleMultiSelectOption[] = roles
+        .filter(r => r.templateKey !== "owner")
+        .map(r => ({
+            id: r.roleId,
+            label: r.name,
+            description: r.description,
+        }))
 
     const currentDeptName = useMemo(() => {
         if (editState.departmentId) {

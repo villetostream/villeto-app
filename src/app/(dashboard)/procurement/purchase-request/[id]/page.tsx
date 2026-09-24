@@ -14,6 +14,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
+import { SubmissionSuccessWarningsModal } from "@/components/procurement/SubmissionSuccessWarningsModal";
 import { LineItemDetailModal } from "@/components/procurement/LineItemDetailModal";
 import { WorkflowProgress, type WorkflowStep, type StepStatus } from "@/components/procurement/WorkflowProgress";
 import { format } from "date-fns";
@@ -977,6 +978,17 @@ function CreatePOView({
             <InfoCard label="Need by Date" value={formatDate(pr.neededByDate)} />
           </div>
 
+          {/* Policy Justification */}
+          {!!(pr as any).policyJustification && (
+            <div className="flex items-start gap-2.5 rounded-[12px] border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-indigo-600" />
+              <div className="flex-1">
+                <p className="font-semibold text-indigo-800">Policy Justification</p>
+                <p className="mt-0.5 text-indigo-900">{(pr as any).policyJustification as string}</p>
+              </div>
+            </div>
+          )}
+
           {/* Instructions — hidden once all items are assigned */}
           {assignedCount < lineItems.length && (
             <div className="flex items-start gap-3 px-4 py-3 rounded-[12px] bg-sky-50 border border-sky-200">
@@ -1306,6 +1318,8 @@ function PRDetailPage() {
   const [panelSaving, setPanelSaving] = useState(false);
   const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [submissionWarnings, setSubmissionWarnings] = useState<any[]>([]);
+  const [isSubmissionWarningModalOpen, setIsSubmissionWarningModalOpen] = useState(false);
   const [pendingConvertPayload, setPendingConvertPayload] = useState<{ draftPurchaseOrders: any[] } | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [detailModalStartsInEditMode, setDetailModalStartsInEditMode] = useState(false);
@@ -1465,7 +1479,26 @@ function PRDetailPage() {
 
   const handleSubmit = async () => {
     try {
-      await submitPR.mutateAsync();
+      const response = await submitPR.mutateAsync();
+      const warnings = (response as any)?.data?.policyEvaluationResult?.spendProgramEvaluation?.warnings;
+      if (warnings && warnings.length > 0) {
+          const mappedWarnings = warnings.map((v: any) => ({
+             policyId: v.spendProgramId,
+             policyName: v.spendProgramName,
+             policyGroup: v.group || "",
+             rule: v.ruleType || v.ruleId || "",
+             enforcementAction: v.action,
+             resolution: v.resolution,
+             message: v.message,
+             details: v.details,
+             lineItems: v.lineItems,
+             categories: v.categories
+          }));
+          setSubmissionWarnings(mappedWarnings);
+          setIsSubmissionWarningModalOpen(true);
+          setModal(null);
+          return;
+      }
       setModal(null);
       toast.success("Purchase request submitted for review!");
     } catch (err: unknown) {
@@ -1769,6 +1802,14 @@ function PRDetailPage() {
   // ── Standard detail view ──────────────────────────────────────────────────
   return (
     <>
+      <SubmissionSuccessWarningsModal
+        isOpen={isSubmissionWarningModalOpen}
+        violations={submissionWarnings}
+        onClose={() => {
+          setIsSubmissionWarningModalOpen(false);
+          router.push("/procurement/purchase-request");
+        }}
+      />
       {/* Modals */}
       {modal === "delete_item" && itemToDelete && (
         <ConfirmModal
@@ -1870,7 +1911,7 @@ function PRDetailPage() {
 
             {/* Action buttons — permission gated */}
             {(canEdit || canDelete || canSubmit || canApprove || canWithdraw || canCreatePO) && (
-              <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+              <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end w-full sm:w-auto">
                 {canEdit && (
                   <>
                     <button onClick={() => setModal("edit_header")}
@@ -1976,6 +2017,17 @@ function PRDetailPage() {
             <div>
               <p className="font-semibold">{pr.status === "rejected" ? "Reason for Rejection" : "Reason for Withdrawal"}</p>
               <p className="mt-0.5">{pr.rejectionReason}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Policy Justification */}
+        {!!(pr as any).policyJustification && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-indigo-600" />
+            <div className="flex-1">
+              <p className="font-semibold text-indigo-800">Policy Justification</p>
+              <p className="mt-0.5 text-indigo-900">{(pr as any).policyJustification as string}</p>
             </div>
           </div>
         )}

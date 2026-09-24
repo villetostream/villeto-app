@@ -196,6 +196,7 @@ function AddSingleUser() {
                                         value={roleIds}
                                         options={(allRoles.data?.data ?? [])
                                             .filter(isRoleActive)
+                                            .filter(role => role.templateKey !== "owner")
                                             .slice()
                                             .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
                                             .map((role) => ({
