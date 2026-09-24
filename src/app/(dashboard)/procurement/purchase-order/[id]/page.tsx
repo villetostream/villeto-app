@@ -21,6 +21,7 @@ import {
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import EditPOHeaderModal from "@/components/procurement/EditPOHeaderModal";
+import { SubmissionSuccessWarningsModal } from "@/components/procurement/SubmissionSuccessWarningsModal";
 import { useAuthStore } from "@/stores/auth-stores";
 import { getPOStatusLabel } from "@/lib/constants/purchase-order-status";
 import {
@@ -297,6 +298,8 @@ function PODetailPage() {
   
   const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [submissionWarnings, setSubmissionWarnings] = useState<any[]>([]);
+  const [isSubmissionWarningModalOpen, setIsSubmissionWarningModalOpen] = useState(false);
 
   const { data, isPending: isQueryPending, isFetching, isError } = usePurchaseOrder(id);
   // Use isFetching (not just isLoading) so we block rendering while React Query
@@ -339,7 +342,30 @@ function PODetailPage() {
 
   const handleSimpleAction = async (type: "submit" | "issue" | "close" | "approve") => {
     try {
-      if (type === "submit")  { await submitMut.mutateAsync({});    toast.success("Purchase order submitted for approval."); }
+      if (type === "submit")  { 
+        const response = await submitMut.mutateAsync({});
+        const warnings = response?.data?.policyEvaluationResult?.spendProgramEvaluation?.warnings;
+        if (warnings && warnings.length > 0) {
+          // Parse backend warning format into ProcurementPolicyViolation format
+          const mappedWarnings = warnings.map((v: any) => ({
+             policyId: v.spendProgramId,
+             policyName: v.spendProgramName,
+             policyGroup: v.group || "",
+             rule: v.ruleType || v.ruleId || "",
+             enforcementAction: v.action,
+             resolution: v.resolution,
+             message: v.message,
+             details: v.details,
+             lineItems: v.lineItems,
+             categories: v.categories
+          }));
+          setSubmissionWarnings(mappedWarnings);
+          setIsSubmissionWarningModalOpen(true);
+          setModal(null);
+          return;
+        }
+        toast.success("Purchase order submitted for approval."); 
+      }
       if (type === "issue")   { await issueMut.mutateAsync(id);   toast.success("Purchase order issued to vendor."); }
       if (type === "close")   { await closeMut.mutateAsync(id);   toast.success("Purchase order closed."); }
       if (type === "approve") {
@@ -593,6 +619,16 @@ function PODetailPage() {
         />
       )}
 
+      {/* Post-Submission Warnings Modal */}
+      <SubmissionSuccessWarningsModal
+        isOpen={isSubmissionWarningModalOpen}
+        violations={submissionWarnings}
+        onClose={() => {
+          setIsSubmissionWarningModalOpen(false);
+          router.push(listUrl);
+        }}
+      />
+
       {/* Modals */}
       <ConfirmModal
         open={modal === "submit"}
@@ -812,7 +848,7 @@ function PODetailPage() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+            <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end w-full sm:w-auto">
               {showEditDraft && (
                 <button
                   onClick={() => setModal("edit_header")}
@@ -892,12 +928,23 @@ function PODetailPage() {
           <div className="flex-1 flex flex-col min-w-0 space-y-4">
 
           {/* Rejection / Withdrawal Reason */}
-          {po.rejectionReason && (stage === "rejected" || stage === "cancelled") && (
+          {!!(po as any).rejectionReason && (stage === "rejected" || stage === "cancelled") && (
             <div className={`flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm ${stage === "rejected" ? "border-[#d33d44]/20 bg-[#fff5f5] text-red-800" : "border-gray-200 bg-gray-50 text-gray-800"}`}>
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <div>
                 <p className="font-semibold">{stage === "rejected" ? "Reason for Rejection" : "Reason for Withdrawal"}</p>
-                <p className="mt-0.5">{po.rejectionReason}</p>
+                <p className="mt-0.5">{(po as any).rejectionReason}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Policy Justification */}
+          {!!(po as any).policyJustification && (
+            <div className="flex items-start gap-2.5 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-indigo-600" />
+              <div className="flex-1">
+                <p className="font-semibold text-indigo-800">Policy Justification</p>
+                <p className="mt-0.5 text-indigo-900">{(po as any).policyJustification as string}</p>
               </div>
             </div>
           )}

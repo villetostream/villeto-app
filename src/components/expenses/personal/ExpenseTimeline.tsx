@@ -60,8 +60,8 @@ const getTimelineEntries = (
         submitted,
         {
           stage: "Under Review",
-          by: "Awaiting Manager Review",
-          timestamp: "Pending",
+          by: "",
+          timestamp: "",
           dotColor: "bg-yellow-500",
           isActive: false,
         },
@@ -73,7 +73,7 @@ const getTimelineEntries = (
         submitted,
         {
           stage: "Under Review",
-          by: "Manager Review Completed",
+          by: "",
           timestamp: "",
           dotColor: "bg-yellow-500",
           isActive: true,
@@ -93,7 +93,7 @@ const getTimelineEntries = (
         submitted,
         {
           stage: "Under Review",
-          by: "Manager Review Completed",
+          by: "",
           timestamp: "",
           dotColor: "bg-yellow-500",
           isActive: true,
@@ -128,7 +128,7 @@ const getTimelineEntries = (
         submitted,
         {
           stage: "Under Review",
-          by: "Manager Review Completed",
+          by: "",
           timestamp: "",
           dotColor: "bg-yellow-500",
           isActive: true,
@@ -148,7 +148,7 @@ const getTimelineEntries = (
         submitted,
         {
           stage: "Under Review",
-          by: "Manager Review Completed",
+          by: "",
           timestamp: "",
           dotColor: "bg-yellow-500",
           isActive: true,
@@ -224,8 +224,8 @@ export function ExpenseTimeline({
 
         return {
           stage,
-          by: byString,
-          timestamp: new Date(event.timestamp).toLocaleString("en-US", {
+          by: event.action === "under_review" ? "" : byString,
+          timestamp: event.action === "under_review" ? "" : new Date(event.timestamp).toLocaleString("en-US", {
             month: "2-digit",
             day: "2-digit",
             year: "numeric",
@@ -269,7 +269,7 @@ export function ExpenseTimeline({
                 <p className="text-sm font-semibold text-foreground leading-tight">
                   {entry.stage}
                 </p>
-                <p className="text-sm text-muted-foreground mt-0.5">{entry.by}</p>
+                {entry.by && <p className="text-sm text-muted-foreground mt-0.5">{entry.by}</p>}
                 {entry.timestamp && (
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {entry.timestamp}
