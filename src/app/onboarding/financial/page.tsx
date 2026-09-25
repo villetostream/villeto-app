@@ -65,10 +65,10 @@ export default function FinancialPulse() {
                     <Button
                         disabled={loading ?? !canContinue}
                         onClick={handleSubmit}
-                        className="h-[54px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all sm:w-auto"
+                        className="flex items-center justify-center gap-2.5 min-h-[48px] w-full rounded-[10px] bg-[#0ea894] px-10 py-3.5 text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all sm:w-auto"
                     >
                         {loading ? "Saving..." : "Continue"}
-                        {loading ? <Loader2 className="size-4 animate-spin" /> : <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-7-7 7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                        {loading ? <Loader2 className="size-4 animate-spin" /> : <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-7-7 7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                     </Button>
                 </div>
 

@@ -34,7 +34,8 @@ function RecurringBillDetailsPage() {
   const { setBackHandler, clearBackHandler } = useHeaderBackStore();
 
   const policies = useAuthorizationPolicies();
-  const [billStatus, setBillStatus] = useState<"pending" | "active">("pending");
+  const [demoScenario, setDemoScenario] = useState<"normal" | "discrepancy" | "insufficient_funds">("normal");
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
 
   useEffect(() => {
     setBackHandler(() => router.back());
@@ -48,10 +49,11 @@ function RecurringBillDetailsPage() {
       {/* Demo Controls - ONLY FOR TESTING THE 3 VIEWS */}
       <div className="hidden bg-[#f0faf8] border-b border-[#087f70]/20 p-3 flex justify-end gap-4 text-[13px] sticky top-0 z-50">
         <div className="flex items-center gap-2">
-           <span className="text-[#087f70] font-semibold">Demo Status:</span>
-           <select className="bg-white border border-[#087f70]/30 rounded-[6px] px-2 py-1 text-[#10231d] outline-none shadow-sm" value={billStatus} onChange={(e) => setBillStatus(e.target.value as "pending" | "active")}>
-              <option value="pending">Pending</option>
-              <option value="active">Active (After Payments)</option>
+           <span className="text-[#087f70] font-semibold">Demo Scenario:</span>
+           <select className="bg-white border border-[#087f70]/30 rounded-[6px] px-2 py-1 text-[#10231d] outline-none shadow-sm" value={demoScenario} onChange={(e) => setDemoScenario(e.target.value as any)}>
+              <option value="normal">Normal (Confirmed)</option>
+              <option value="discrepancy">Amount Discrepancy</option>
+              <option value="insufficient_funds">Insufficient Funds</option>
            </select>
         </div>
       </div>
@@ -62,35 +64,25 @@ function RecurringBillDetailsPage() {
           <div>
             <div className="flex items-center gap-3 mb-1.5">
               <h1 className="text-[24px] font-bold text-[#10231d]">{billData.vendor}</h1>
-              {billStatus === "pending" ? (
-                 <StatusBadge status="awaiting_authorization" label="Awaiting Authorization" />
-              ) : (
-                 <StatusBadge status="approved" />
-              )}
+              <StatusBadge status="approved" label="Active" />
             </div>
             <p className="text-[13px] text-[#68726d]">Cloud Services • REC-{id || "0089"}</p>
           </div>
           
           <div className="flex items-center gap-3">
-             {billStatus === "pending" && policies.billPay.canEditInvoice && (
-                <>
-                   <Button variant="outline" className="text-[#087f70] border-[#087f70]/30 hover:bg-[#f0faf8] hover:text-[#076b5e] h-10 rounded-[8px] font-semibold text-[13px] px-5">
-                      <Pencil className="w-4 h-4 mr-2" /> Edit Bill
-                   </Button>
-                   <Button className="bg-[#d33d44] hover:bg-[#b9353c] text-white h-10 rounded-[8px] font-semibold text-[13px] px-5">
-                      <XCircle className="w-4 h-4 mr-2" /> Withdraw Bill
-                   </Button>
-                </>
-             )}
-             {billStatus === "pending" && policies.billPay.canApproveInvoice && (
+             {demoScenario === "discrepancy" ? (
                 <>
                    <Button variant="outline" className="text-[#d33d44] border-red-200 hover:bg-red-50 hover:text-red-700 h-10 rounded-[8px] font-semibold text-[13px] px-6">
                       Reject Bill
                    </Button>
-                   <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
-                      Approve Bill
+                   <Button onClick={() => setShowApprovalModal(true)} className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
+                      Approve New Bill
                    </Button>
                 </>
+             ) : (
+                <Button variant="outline" className="text-[#087f70] border-[#087f70]/30 hover:bg-[#f0faf8] hover:text-[#076b5e] h-10 rounded-[8px] font-semibold text-[13px] px-5">
+                   <Pencil className="w-4 h-4 mr-2" /> Update billing
+                </Button>
              )}
           </div>
         </div>
@@ -103,11 +95,37 @@ function RecurringBillDetailsPage() {
            {/* Main Content (Left) */}
            <div className="flex-1 space-y-6 min-w-0 w-full">
               
+              {/* Banners */}
+              {demoScenario === "discrepancy" && (
+                <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-[10px] p-4 flex gap-3 mb-6 items-start">
+                   <div className="text-amber-500 mt-0.5">
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                   </div>
+                   <div>
+                     <h4 className="text-[13px] font-bold text-amber-800">Amount Discrepancy Detected</h4>
+                     <p className="text-[13px] text-amber-700 mt-0.5">The actual invoice amount (₦390,000) differs from your expected scheduled amount (₦300,000). This variation of +17.5% exceeds your preset ±10% auto-approval tolerance threshold.</p>
+                   </div>
+                </div>
+              )}
+              {demoScenario === "insufficient_funds" && (
+                <div className="bg-red-50 border border-red-100 rounded-[10px] p-4 flex gap-3 mb-6 items-start">
+                   <div className="text-red-500 mt-0.5">
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                   </div>
+                   <div>
+                     <h4 className="text-[13px] font-bold text-red-800">Insufficient Funds</h4>
+                     <p className="text-[13px] text-red-700 mt-0.5">Your payment could not be processed.</p>
+                   </div>
+                </div>
+              )}
+
               {/* Schedule Information */}
               <Card className="rounded-[14px] shadow-sm border-black/[0.08] overflow-hidden">
                  <CardContent className="p-6">
                     <div className="mb-6">
-                       <span className="text-[28px] font-bold text-[#087f70]">{billData.amount}</span>
+                       <span className="text-[28px] font-bold text-[#087f70]">
+                          {demoScenario === "discrepancy" || demoScenario === "insufficient_funds" ? "₦390,000" : billData.amount}
+                       </span>
                        <span className="text-[14px] text-[#68726d] font-medium ml-1">/ {billData.freq.toLowerCase()}</span>
                     </div>
                     
@@ -157,8 +175,7 @@ function RecurringBillDetailsPage() {
                  </CardContent>
               </Card>
 
-              {/* Payment History (Only when Active) */}
-              {billStatus === "active" && (
+              {/* Payment History */}
                 <Card className="rounded-[14px] shadow-sm border-black/[0.08] overflow-hidden">
                   <CardContent className="p-0">
                     <div className="p-6 pb-4 border-b border-black/[0.06]">
@@ -197,70 +214,14 @@ function RecurringBillDetailsPage() {
                     </Table>
                   </CardContent>
                 </Card>
-              )}
            </div>
 
            {/* Sidebar (Right) */}
            <div className="w-full lg:w-[320px] shrink-0 space-y-6">
              
-             {billStatus === "pending" && (
-                <div className="bg-white rounded-[14px] border border-black/[0.06] shadow-sm overflow-hidden">
-                   <div className="bg-[#1C2B36] rounded-t-[14px] px-6 py-4">
-                      <h3 className="text-base font-bold text-white">Workflow Progress</h3>
-                   </div>
-                   <div className="p-6">
-                      <div className="relative border-l-[2px] border-black/[0.06] ml-3.5 space-y-7 pb-2 mt-2">
-                         
-                         {/* Step 1 */}
-                         <div className="relative pl-7">
-                            <div className="absolute -left-[11px] -top-1 bg-white py-1">
-                               <CheckCircle2 className="w-5 h-5 text-[#087f70] fill-[#f0faf8]" />
-                            </div>
-                            <p className="text-[13px] font-bold text-[#10231d]">Submitted</p>
-                            <p className="text-[11px] text-[#84908a] mt-0.5">09-10-2025 07:07 PM</p>
-                         </div>
-                         
-                         {/* Step 2 */}
-                         <div className="relative pl-7">
-                            <div className="absolute -left-[9px] top-0.5 bg-white py-1">
-                               <div className="w-4 h-4 rounded-full border-[3px] border-[#087f70] flex items-center justify-center bg-white shadow-sm">
-                               </div>
-                            </div>
-                            <p className="text-[13px] font-bold text-[#10231d]">Under Review</p>
-                            <p className="text-[11px] text-[#84908a] mt-0.5">09-10-2025 07:07 PM</p>
-                         </div>
+             {/* Sidebar Content is only the Summary for now, based on Figma */}
 
-                         {/* Step 3 */}
-                         <div className="relative pl-7">
-                            <div className="absolute -left-1.5 top-1 bg-white py-1">
-                               <div className="w-2.5 h-2.5 rounded-full bg-black/[0.12]"></div>
-                            </div>
-                            <p className="text-[13px] font-medium text-[#84908a]">Manager Approved</p>
-                         </div>
-
-                         {/* Step 4 */}
-                         <div className="relative pl-7">
-                            <div className="absolute -left-1.5 top-1 bg-white py-1">
-                               <div className="w-2.5 h-2.5 rounded-full bg-black/[0.12]"></div>
-                            </div>
-                            <p className="text-[13px] font-medium text-[#84908a]">PO Created</p>
-                         </div>
-
-                         {/* Step 5 */}
-                         <div className="relative pl-7">
-                            <div className="absolute -left-1.5 top-1 bg-white py-1">
-                               <div className="w-2.5 h-2.5 rounded-full bg-black/[0.12]"></div>
-                            </div>
-                            <p className="text-[13px] font-medium text-[#84908a]">PO Approved</p>
-                         </div>
-
-                      </div>
-                   </div>
-                </div>
-             )}
-
-             {billStatus === "active" && (
-                <Card className="rounded-[14px] shadow-sm border-black/[0.08] overflow-hidden">
+             <Card className="rounded-[14px] shadow-sm border-black/[0.08] overflow-hidden">
                    <div className="px-6 py-5 border-b border-black/[0.06] bg-[#f9faf9]">
                       <h3 className="text-[15px] font-semibold text-[#10231d]">Recurring Summary</h3>
                    </div>
@@ -281,12 +242,54 @@ function RecurringBillDetailsPage() {
                          <Progress value={67} className="h-2 bg-black/[0.06] [&>div]:bg-[#087f70]" />
                       </div>
                    </CardContent>
-                </Card>
-             )}
+             </Card>
 
            </div>
         </div>
       </div>
+
+      {/* Modal for Discrepancy Approval */}
+      {showApprovalModal && (
+         <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[16px] shadow-xl w-full max-w-[480px] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+               <div className="p-6">
+                  <h2 className="text-[18px] font-bold text-[#10231d] mb-2">Approve New Amount</h2>
+                  <p className="text-[13px] text-[#68726d] mb-6">How would you like to apply this new amount of ₦390,000?</p>
+                  
+                  <div className="space-y-3">
+                     <label className="flex items-start gap-3 p-4 rounded-[10px] border border-[#087f70] bg-[#f0faf8] cursor-pointer">
+                        <div className="mt-0.5">
+                           <div className="w-4 h-4 rounded-full border-[5px] border-[#087f70] bg-white"></div>
+                        </div>
+                        <div>
+                           <p className="text-[13px] font-bold text-[#10231d]">Apply to all future bills</p>
+                           <p className="text-[12px] text-[#68726d] mt-0.5">The new amount will be used for all upcoming scheduled payments.</p>
+                        </div>
+                     </label>
+
+                     <label className="flex items-start gap-3 p-4 rounded-[10px] border border-black/[0.08] hover:bg-[#f9faf9] cursor-pointer">
+                        <div className="mt-0.5">
+                           <div className="w-4 h-4 rounded-full border-[1.5px] border-black/[0.24]"></div>
+                        </div>
+                        <div>
+                           <p className="text-[13px] font-bold text-[#10231d]">Just this time</p>
+                           <p className="text-[12px] text-[#68726d] mt-0.5">Only this payment will use the new amount. Future bills will use the original amount of ₦300,000.</p>
+                        </div>
+                     </label>
+                  </div>
+               </div>
+               
+               <div className="p-4 bg-[#f9faf9] border-t border-black/[0.06] flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => setShowApprovalModal(false)} className="text-[#52605b] border-black/[0.08] hover:bg-[#f5f7f6] rounded-[8px] font-semibold">
+                     Cancel
+                  </Button>
+                  <Button onClick={() => setShowApprovalModal(false)} className="bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] font-semibold">
+                     Confirm Approval
+                  </Button>
+               </div>
+            </div>
+         </div>
+      )}
     </div>
   );
 }

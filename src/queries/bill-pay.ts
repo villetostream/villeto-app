@@ -81,6 +81,13 @@ export interface BillPayIntake {
     legalEntityId: string;
   };
   documentCount: number;
+  // Fields expected by Figma — will be populated once backend adds them
+  invoiceId?: string;
+  vendorName?: string;
+  billDescription?: string;
+  amount?: string;
+  currency?: string;
+  dueDate?: string;
 }
 
 export interface GetBillPayIntakesParams {

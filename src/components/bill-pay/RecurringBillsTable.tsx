@@ -64,7 +64,7 @@ export function RecurringBillsTable() {
       cell: (info) => <p className="text-gray-500 font-medium">{info.getValue()}</p>,
     }),
     columnHelper.accessor("vendor", {
-      header: "VENDOR",
+      header: "VENDOR NAME",
       cell: (info) => <p className="font-medium text-gray-900">{info.getValue()}</p>,
     }),
     columnHelper.accessor("description", {
@@ -81,7 +81,7 @@ export function RecurringBillsTable() {
     }),
     columnHelper.accessor("nextDue", {
       header: "NEXT DUE",
-      cell: (info) => <p className="text-gray-500">{info.getValue()}</p>,
+      cell: (info) => <p className="text-gray-500">{info.getValue() || "-"}</p>,
     }),
     columnHelper.accessor("status", {
       header: "STATUS",
@@ -89,8 +89,12 @@ export function RecurringBillsTable() {
         const status = info.getValue().toLowerCase();
         if (status === "active") {
           return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-50 font-normal">Active</Badge>;
+        } else if (status === "pending") {
+          return <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-50 font-normal">Pending</Badge>;
         } else if (status === "paused") {
           return <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-50 font-normal">Paused</Badge>;
+        } else if (status === "action required" || status === "action_required") {
+          return <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-50 font-normal whitespace-nowrap">Action required</Badge>;
         }
         return <Badge variant="outline">{info.getValue()}</Badge>;
       },

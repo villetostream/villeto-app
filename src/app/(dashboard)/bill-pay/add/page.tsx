@@ -24,6 +24,9 @@ function AddBillPage() {
   const [description, setDescription] = useState("");
   const [invoiceDate, setInvoiceDate] = useState<Date>();
   const [dueDate, setDueDate] = useState<Date>();
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState("NGN");
+  const [purchaseOrder, setPurchaseOrder] = useState("");
   
   // Step 2 State
   const [lineItems, setLineItems] = useState<any[]>([]);
@@ -34,6 +37,7 @@ function AddBillPage() {
   const [beneficiaryName, setBeneficiaryName] = useState("");
   const [beneficiaryBank, setBeneficiaryBank] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
+  const [sortCode, setSortCode] = useState("");
   
   // Attachments
 
@@ -78,11 +82,17 @@ function AddBillPage() {
         messageSubject: `Invoice from ${vendorName}`,
         messageBody: description,
         structuredInput: {
+          vendorName,
+          purchaseDescription: description,
+          amount,
+          currency,
+          purchaseOrder,
           lineItems,
           paymentMethod,
           beneficiaryName,
           beneficiaryBank,
           accountNumber,
+          sortCode,
           invoiceDate,
           dueDate,
         }
@@ -135,12 +145,50 @@ function AddBillPage() {
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h2 className="text-[18px] font-bold text-[#10231d]">Billing Information</h2>
-                  <Button variant="outline" className="h-9 px-4 text-[#087f70] border-[#087f70]/30 bg-[#f0faf8] hover:bg-[#e6f7f3] hover:text-[#076b5e] font-medium text-[13px] rounded-[8px]">
-                    <ScanLine className="mr-2 h-4 w-4" /> Scan an Invoice
-                  </Button>
+                  <div>
+                    <input 
+                      type="file" 
+                      id="scan-invoice-upload" 
+                      className="hidden" 
+                      accept=".pdf,image/jpeg,image/png,.doc,.docx" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          toast.info(`Scanning ${file.name}...`);
+                          setTimeout(() => {
+                            toast.success("Invoice scanned successfully!");
+                            // Auto-populate dummy data
+                            setVendorName("Acme Corp");
+                            setDescription("Office supplies");
+                            setAmount("500000");
+                            setCurrency("NGN");
+                            setPurchaseOrder("PO-1234");
+                            setInvoiceDate(new Date());
+                            const nextWeek = new Date();
+                            nextWeek.setDate(nextWeek.getDate() + 7);
+                            setDueDate(nextWeek);
+                            // Set the file as the attachment as well
+                            setAttachment(file);
+                          }, 1500);
+                        }
+                      }} 
+                    />
+                    <Button 
+                      variant="outline" 
+                      onClick={() => document.getElementById("scan-invoice-upload")?.click()}
+                      className="h-9 px-4 text-[#087f70] border-[#087f70]/30 bg-[#f0faf8] hover:bg-[#e6f7f3] hover:text-[#076b5e] font-medium text-[13px] rounded-[8px]"
+                    >
+                      <ScanLine className="mr-2 h-4 w-4" /> Scan an Invoice
+                    </Button>
+                  </div>
                 </div>
                 
                 <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-medium text-[#10231d]">Invoice Date</label>
+                    <DatePicker date={invoiceDate} setDate={setInvoiceDate} className="rounded-[8px] border-black/[0.08] text-[13px]" />
+                  </div>
+
                   <div className="space-y-1.5">
                     <label className="text-[13px] font-medium text-[#10231d]">Vendor Name</label>
                     <Input 
@@ -152,9 +200,9 @@ function AddBillPage() {
                   </div>
                   
                   <div className="space-y-1.5">
-                    <label className="text-[13px] font-medium text-[#10231d]">Description</label>
+                    <label className="text-[13px] font-medium text-[#10231d]">Purchase Description</label>
                     <Input 
-                      placeholder="e.g. Office Supplies" 
+                      placeholder="e.g. Office supplies" 
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" 
@@ -163,13 +211,42 @@ function AddBillPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[13px] font-medium text-[#10231d]">Invoice Date</label>
-                      <DatePicker date={invoiceDate} setDate={setInvoiceDate} className="rounded-[8px] border-black/[0.08] text-[13px]" />
+                      <label className="text-[13px] font-medium text-[#10231d]">Amount</label>
+                      <div className="flex h-10 rounded-[8px] border border-black/[0.08] focus-within:border-black/[0.16] focus-within:ring-1 focus-within:ring-black/[0.08] overflow-hidden bg-white shadow-sm transition-shadow">
+                        <Select value={currency} onValueChange={setCurrency}>
+                          <SelectTrigger className="h-full w-[85px] border-0 rounded-none shadow-none focus:ring-0 text-[13px] font-medium bg-[#f9faf9] border-r border-black/[0.08]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NGN">NGN</SelectItem>
+                            <SelectItem value="USD">USD</SelectItem>
+                            <SelectItem value="GBP">GBP</SelectItem>
+                            <SelectItem value="EUR">EUR</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input 
+                          type="number"
+                          placeholder="0.00" 
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          className="h-full border-0 rounded-none shadow-none focus-visible:ring-0 text-[13px] flex-1 bg-transparent" 
+                        />
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[13px] font-medium text-[#10231d]">Due Date</label>
                       <DatePicker date={dueDate} setDate={setDueDate} className="rounded-[8px] border-black/[0.08] text-[13px]" />
                     </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-medium text-[#10231d]">Purchase Order (Optional)</label>
+                    <Input 
+                      placeholder="e.g. PO-1234" 
+                      value={purchaseOrder}
+                      onChange={(e) => setPurchaseOrder(e.target.value)}
+                      className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" 
+                    />
                   </div>
 
                   <div className="space-y-1.5">
@@ -388,7 +465,12 @@ function AddBillPage() {
                   
                   <div className="space-y-1.5">
                     <label className="text-[13px] font-medium text-[#10231d]">Sort Code (Optional)</label>
-                    <Input placeholder="057-434244" className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" />
+                    <Input 
+                      placeholder="e.g. 057-XXXXXX" 
+                      value={sortCode}
+                      onChange={(e) => setSortCode(e.target.value)}
+                      className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" 
+                    />
                   </div>
                 </div>
 

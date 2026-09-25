@@ -149,7 +149,7 @@ export function ActionButtons({
                 <Button
                     variant="outline"
                     onClick={onAdd}
-                    className="flex flex-1 items-center gap-2 h-[54px] rounded-[10px] border-black/[0.1] text-[14px] font-semibold"
+                    className="flex flex-1 justify-center items-center gap-2.5 min-h-[48px] py-3.5 rounded-[10px] border-black/[0.1] text-[14px] font-semibold"
                     disabled={loading}
                 >
                     {addButtonText}
@@ -158,7 +158,7 @@ export function ActionButtons({
 
                 <Button
                     onClick={onContinue}
-                    className={`flex flex-1 items-center gap-2 h-[54px] rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all ${!hasOwners ? 'opacity-50' : ''}`}
+                    className={`flex flex-1 justify-center items-center gap-2.5 min-h-[48px] py-3.5 px-10 rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all ${!hasOwners ? 'opacity-50' : ''}`}
                     disabled={!loading && !hasOwners}
                 >
                     {hasOwners ? continueButtonText : "Next Step"}
@@ -174,7 +174,7 @@ export function ActionButtons({
             <div className="flex justify-end pt-6 mt-auto w-full border-t border-black/[0.07]">
                 <Button
                     onClick={onAdd}
-                    className="flex items-center gap-2 h-[54px] rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all"
+                    className="flex justify-center items-center gap-2.5 px-10 min-h-[48px] py-3.5 rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all sm:w-auto"
                     disabled={loading}
                 >
                     {addButtonText} <Plus className="h-4 w-4" />
@@ -188,7 +188,7 @@ export function ActionButtons({
             <Button
                 variant="outline"
                 onClick={onAdd}
-                className="flex items-center gap-2 flex-1 h-[54px] rounded-[10px] border-black/[0.1] text-[14px] font-semibold"
+                className="flex justify-center items-center gap-2.5 flex-1 min-h-[48px] py-3.5 rounded-[10px] border-black/[0.1] text-[14px] font-semibold"
                 disabled={loading}
             >
                 {addButtonText}
@@ -197,7 +197,7 @@ export function ActionButtons({
 
             <Button
                 onClick={onContinue}
-                className="flex items-center gap-2 flex-1 h-[54px] rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all"
+                className="flex justify-center items-center gap-2.5 flex-1 min-h-[48px] py-3.5 px-10 rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all"
                 disabled={loading}
             >
                 {continueButtonText}
@@ -329,7 +329,6 @@ export default function Leadership() {
                 lastName: owner.lastName,
                 email: owner.email,
                 ownershipPercentage: owner.ownershipPercentage ?? 0,
-                phone: owner.phone && owner.phone !== "00000000000" ? owner.phone : "00000000000",
             })),
         };
 
