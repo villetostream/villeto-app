@@ -37,16 +37,21 @@ export function OtherSourcesTable() {
 
   const columns = useMemo(() => [
     columnHelper.accessor("invoiceIntakeId", {
-      header: "INTAKE ID",
+      header: "INVOICE ID",
+      cell: (info) => {
+        // Use human-readable invoiceId if backend provides it, otherwise derive from intake ID
+        const row = info.row.original;
+        const displayId = row.invoiceId || `INV-${info.getValue().split('-')[0].toUpperCase().slice(0, 5)}`;
+        return <p className="text-gray-500 font-medium">{displayId}</p>;
+      },
+    }),
+    columnHelper.accessor("vendorName", {
+      header: "VENDOR NAME",
       cell: (info) => (
-        <p className="text-gray-500 max-w-[120px] truncate" title={info.getValue()}>
-          {info.getValue().split('-')[0].toUpperCase()}
+        <p className="font-bold text-gray-900">
+          {info.getValue() || "—"}
         </p>
       ),
-    }),
-    columnHelper.accessor("externalReference", {
-      header: "REFERENCE",
-      cell: (info) => <p className="font-bold text-gray-900">{info.getValue() || "N/A"}</p>,
     }),
     columnHelper.accessor("source", {
       header: "SOURCE",
@@ -56,30 +61,59 @@ export function OtherSourcesTable() {
         </p>
       ),
     }),
-    columnHelper.accessor("documentCount", {
-      header: "DOCUMENTS",
-      cell: (info) => <p className="text-gray-500">{info.getValue()}</p>,
-    }),
-    columnHelper.accessor("receivedAt", {
-      header: "RECEIVED DATE",
+    columnHelper.accessor("billDescription", {
+      header: "BILL / PURCHASE",
       cell: (info) => (
         <p className="text-gray-500">
-          {info.getValue() ? format(new Date(info.getValue()), "dd MMM yyyy") : "N/A"}
+          {info.getValue() || "—"}
         </p>
       ),
+    }),
+    columnHelper.accessor("amount", {
+      header: "AMOUNT",
+      cell: (info) => {
+        const row = info.row.original;
+        const amount = info.getValue();
+        if (!amount) return <p className="font-bold text-gray-900">—</p>;
+        const formatted = Number(amount).toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        return (
+          <p className="font-bold text-gray-900">
+            {row.currency === "NGN" ? "₦" : row.currency || "₦"}{formatted}
+          </p>
+        );
+      },
+    }),
+    columnHelper.accessor("dueDate", {
+      header: "DUE DATE",
+      cell: (info) => {
+        const val = info.getValue();
+        if (!val) return <p className="text-gray-500">—</p>;
+        try {
+          return <p className="text-gray-500">{format(new Date(val), "dd MMM yyyy")}</p>;
+        } catch {
+          return <p className="text-gray-500">{val}</p>;
+        }
+      },
     }),
     columnHelper.accessor("status", {
       header: "STATUS",
       cell: (info) => {
         const status = info.getValue().toLowerCase();
-        if (status === "validating" || status === "queued") {
-          return <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-50 font-normal capitalize">{status}</Badge>;
-        } else if (status === "processed" || status === "completed") {
-          return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-50 font-normal capitalize">{status}</Badge>;
-        } else if (status === "failed" || status === "rejected") {
-          return <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-50 font-normal capitalize">{status}</Badge>;
+        if (status === "awaiting approval" || status === "awaiting_approval" || status === "validating" || status === "queued") {
+          return <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-50 font-normal whitespace-nowrap">Awaiting Approval</Badge>;
+        } else if (status === "approved") {
+          return <Badge variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-50 font-normal">Approved</Badge>;
+        } else if (status === "paid" || status === "processed" || status === "completed") {
+          return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-50 font-normal">Paid</Badge>;
+        } else if (status === "ready for payment" || status === "ready_for_payment") {
+          return <Badge variant="outline" className="bg-[#f0f4ff] text-[#4b7cf3] border-[#d8e2fd] hover:bg-[#f0f4ff] font-normal whitespace-nowrap">Ready for Payment</Badge>;
         } else if (status === "received") {
           return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-50 font-normal capitalize">{status}</Badge>;
+        } else if (status === "failed" || status === "rejected") {
+          return <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 hover:bg-red-50 font-normal capitalize">{status}</Badge>;
         }
         return <Badge variant="outline" className="capitalize">{status}</Badge>;
       },
@@ -104,6 +138,8 @@ export function OtherSourcesTable() {
       result = result.filter(r => 
         r.invoiceIntakeId.toLowerCase().includes(s) ||
         r.source.toLowerCase().includes(s) ||
+        (r.vendorName || "").toLowerCase().includes(s) ||
+        (r.billDescription || "").toLowerCase().includes(s) ||
         (r.externalReference || "").toLowerCase().includes(s)
       );
     }

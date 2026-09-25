@@ -6,6 +6,7 @@ import {
   CheckCircle2, AlertCircle,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
+import { UnitOfMeasureCombobox } from "@/components/procurement/UnitOfMeasureCombobox";
 
 export interface BillLineItemPayload {
   description: string;
@@ -255,10 +256,9 @@ export default function BillLineItemBatchModal({
               <label className="text-[13px] font-medium text-[#10231d]">
                 Unit of Measure
               </label>
-              <input type="text" value={form.unitOfMeasure}
-                onChange={e => set("unitOfMeasure", e.target.value)}
-                placeholder="e.g. unit, kg, box"
-                className="w-full h-10 px-3 rounded-[8px] border border-black/[0.08] text-[13px] focus:outline-none focus:border-[#087f70] transition-colors"
+              <UnitOfMeasureCombobox
+                value={form.unitOfMeasure}
+                onChange={val => set("unitOfMeasure", val)}
               />
             </div>
 

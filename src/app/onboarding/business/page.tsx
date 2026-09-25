@@ -360,14 +360,14 @@ export default function Business() {
           <div className="mt-4 shrink-0 flex w-full border-t border-black/[0.07] pt-5">
             <Button
               type="submit"
-              className="ml-auto h-[54px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all sm:w-auto disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none"
+              className="flex items-center justify-center gap-2.5 ml-auto min-h-[48px] w-full rounded-[10px] bg-[#0ea894] px-10 py-3.5 text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all sm:w-auto disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none"
               disabled={loading || !isValid}
             >
-              {loading ? "Creating..." : "Continue"}{" "}
+              {loading ? "Creating..." : "Continue"}
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
               ) : (
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 shrink-0" />
               )}
             </Button>
           </div>

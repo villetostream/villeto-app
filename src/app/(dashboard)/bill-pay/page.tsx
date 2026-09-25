@@ -37,7 +37,7 @@ function BillPayPage() {
       items: [
         {
           label: "Add a Bill",
-          description: "Upload or enter a bill",
+          description: "Upload or enter an invoice",
           onClick: () => router.push("/bill-pay/add"),
         },
         {

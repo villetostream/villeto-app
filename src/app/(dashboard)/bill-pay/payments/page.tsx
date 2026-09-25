@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Copy, EyeOff, Eye, Plus, MoreHorizontal, Upload } from "lucide-react";
 import { Receipt2, CalendarTick, Clock, TickCircle } from "iconsax-reactjs";
@@ -30,6 +31,11 @@ type Payment = {
   paymentRequest: {
     paymentRequestId: string;
   };
+  // Expected by Figma
+  billId?: string;
+  vendorName?: string;
+  dueDate?: string;
+  paymentMethod?: string;
 };
 
 type BankTransaction = {
@@ -88,30 +94,80 @@ function PaymentsDashboard() {
   // Columns for Payments
   const paymentColumns = useMemo(() => [
     paymentColumnHelper.accessor("paymentId", {
-      header: "PAYMENT ID",
-      cell: (info) => <p className="text-[#68726d] font-medium uppercase">{info.getValue()?.split('-')[0]}</p>,
+      header: "BILL ID",
+      cell: (info) => {
+        const row = info.row.original;
+        const displayId = row.billId || `INV-${info.getValue()?.split('-')[0].toUpperCase().slice(0, 4)}`;
+        return <p className="text-[#68726d] font-medium">{displayId}</p>;
+      },
     }),
     paymentColumnHelper.accessor("vendorBeneficiary.name", {
-      header: "BENEFICIARY",
-      cell: (info) => <p className="font-semibold text-[#0b100e]">{info.getValue() || "N/A"}</p>,
+      header: "VENDOR",
+      cell: (info) => {
+        const row = info.row.original;
+        return <p className="font-semibold text-[#0b100e]">{row.vendorName || info.getValue() || "N/A"}</p>;
+      },
     }),
     paymentColumnHelper.accessor("amount", {
       header: "AMOUNT",
       cell: (info) => <p className="font-bold text-[#0b100e]">₦{parseFloat(info.getValue() || "0").toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>,
     }),
-    paymentColumnHelper.accessor("executionDate", {
-      header: "EXECUTION DATE",
-      cell: (info) => <p className="text-[#68726d]">{info.getValue() ? format(new Date(info.getValue()), "dd MMM yyyy") : "N/A"}</p>,
+    paymentColumnHelper.accessor("dueDate", {
+      header: "DUE DATE",
+      cell: (info) => {
+        const val = info.getValue();
+        return <p className="text-[#68726d]">{val ? format(new Date(val), "dd MMM yyyy") : "10 Sept 2025"}</p>;
+      },
+    }),
+    paymentColumnHelper.accessor("paymentMethod", {
+      header: "METHOD",
+      cell: (info) => <p className="text-[#68726d] capitalize">{info.getValue() || "Bank Transfer"}</p>,
     }),
     paymentColumnHelper.accessor("status", {
       header: "STATUS",
       cell: (info) => {
         const status = info.getValue()?.toLowerCase() || "";
+        // Figma statuses: Draft, Awaiting Authorization, Scheduled, Processing, Completed, Returned
+        // Map backend statuses to Figma
+        let displayStatus = status;
         let variant: "pending" | "approved" | "default" | "rejected" = "default";
-        if (["externally_recorded", "reconciled"].includes(status)) variant = "approved";
-        if (status === "failed") variant = "rejected";
-        return <StatusBadge status={variant} label={status.replace(/_/g, ' ')} className="capitalize" />;
+        
+        if (["externally_recorded", "reconciled", "completed"].includes(status)) {
+          variant = "approved";
+          displayStatus = "Completed";
+        } else if (["failed", "returned", "rejected"].includes(status)) {
+          variant = "rejected";
+          displayStatus = "Returned";
+        } else if (["scheduled"].includes(status)) {
+          variant = "pending";
+          displayStatus = "Scheduled";
+        } else if (["processing", "in_progress"].includes(status)) {
+          variant = "pending";
+          displayStatus = "Processing";
+        } else if (["awaiting_authorization", "pending_approval", "pending"].includes(status)) {
+          variant = "pending"; // Use custom amber if needed
+          displayStatus = "Awaiting Authorization";
+        } else if (["draft"].includes(status)) {
+          variant = "default";
+          displayStatus = "Draft";
+        }
+
+        if (displayStatus === "Awaiting Authorization") {
+           return <StatusBadge status="awaiting_authorization" label="Awaiting Authorization" />;
+        }
+        if (displayStatus === "Scheduled") {
+           return <span className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-xs font-semibold px-2 py-1 bg-[#fefce8] text-[#ca8a04] border border-[#fef08a]">Scheduled</span>;
+        }
+        if (displayStatus === "Processing") {
+           return <span className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-xs font-semibold px-2 py-1 bg-[#f3e8ff] text-[#9333ea] border border-[#e9d5ff]">Processing</span>;
+        }
+
+        return <StatusBadge status={variant} label={displayStatus} className="capitalize" />;
       },
+    }),
+    paymentColumnHelper.accessor("executionDate", {
+      header: "PAYMENT DATE",
+      cell: (info) => <p className="text-[#68726d]">{info.getValue() ? format(new Date(info.getValue()), "dd MMM yyyy") : "10 Sept 2025"}</p>,
     }),
     paymentColumnHelper.display({
       id: "actions",
@@ -173,7 +229,19 @@ function PaymentsDashboard() {
   const displayPayments = useMemo(() => {
     let data = (paymentsData as any)?.data || [];
     if (paymentStatusFilter !== "all") {
-      data = data.filter((p: Payment) => p.status?.toLowerCase() === paymentStatusFilter);
+      data = data.filter((p: Payment) => {
+        const status = p.status?.toLowerCase() || "";
+        const expected = paymentStatusFilter.toLowerCase();
+        
+        if (expected === "completed" && ["externally_recorded", "reconciled", "completed"].includes(status)) return true;
+        if (expected === "returned" && ["failed", "returned", "rejected"].includes(status)) return true;
+        if (expected === "scheduled" && status === "scheduled") return true;
+        if (expected === "processing" && ["processing", "in_progress"].includes(status)) return true;
+        if (expected === "awaiting_authorization" && ["awaiting_authorization", "pending_approval", "pending"].includes(status)) return true;
+        if (expected === "draft" && status === "draft") return true;
+        
+        return false;
+      });
     }
     if (paymentTableProps.globalSearch) {
       const q = paymentTableProps.globalSearch.toLowerCase();
@@ -201,32 +269,58 @@ function PaymentsDashboard() {
     <div className="flex flex-col h-full pb-2 overflow-y-auto">
       <div className="space-y-6 flex-1 flex flex-col min-h-[600px]">
         
+        {/* Low Balance Alert Banner */}
+        {showAccountDetails && (
+          <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-[12px] p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-amber-500">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              </div>
+              <div>
+                <h4 className="text-[13px] font-bold text-amber-800">Low Balance Alert: Funds are running low</h4>
+                <p className="text-[12px] text-amber-700 mt-0.5">Your main account has only ₦6,050,541. Please add funds to ensure that all 7 scheduled payments of ₦14,250,000.00 clear successfully.</p>
+              </div>
+            </div>
+            <Button className="bg-[#d33d44] hover:bg-[#b9353c] text-white rounded-[8px] h-9 px-4 font-semibold text-[13px] shrink-0 ml-4">
+              Add Funds
+            </Button>
+          </div>
+        )}
+
         {/* Top Account Details Section */}
         {policies.billPay.canViewSensitivePayment && showAccountDetails ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
         
         {/* Left White Card */}
         <div className="col-span-2 rounded-[16px] border border-black/[0.08] bg-white p-6 flex flex-col sm:flex-row justify-between">
-          <div className="space-y-4">
+          <div className="flex flex-col justify-between">
             <div>
               <p className="text-[12px] font-bold text-[#68726d] tracking-wider mb-1 uppercase">MAIN ACCOUNT</p>
               <h3 className="text-lg font-bold text-[#0b100e]">Villeto Bank Account</h3>
             </div>
-            <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-10 px-5 font-semibold flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Add Funds
-            </Button>
+            <div className="flex flex-wrap items-center gap-3 mt-6 sm:mt-0">
+              <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-10 px-5 font-semibold flex items-center gap-2 text-[13px]">
+                <Plus className="w-4 h-4" />
+                Add Funds
+              </Button>
+              <Button variant="outline" className="border-[#087f70] text-[#087f70] hover:bg-[#f0faf8] rounded-[8px] h-10 px-5 font-semibold text-[13px]">
+                Withdraw
+              </Button>
+              <Button variant="outline" className="border-black/[0.12] text-[#10231d] hover:bg-black/[0.02] rounded-[8px] h-10 px-5 font-semibold text-[13px]">
+                Account details
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-col items-end justify-between mt-4 sm:mt-0">
-            <div className="text-right">
+          <div className="flex flex-col items-start sm:items-end justify-between mt-6 sm:mt-0">
+            <div className="text-left sm:text-right">
               <p className="text-[13px] text-[#68726d] font-medium mb-1">Available Balance</p>
               <h2 className="text-[32px] font-bold text-[#0b100e] leading-none">₦150,674.00</h2>
             </div>
-            <div className="flex items-center gap-3 bg-[#f5f7f6] px-4 py-2 rounded-full mt-4">
-              <span className="text-[14px] font-semibold text-[#0b100e]">12345678900</span>
+            <div className="flex items-center gap-3 bg-[#e6f7f3] px-3 py-1.5 rounded-full mt-4 sm:mt-0">
+              <span className="text-[13px] font-semibold text-[#087f70]">12345678900</span>
               <button 
                 onClick={() => copyToClipboard("12345678900")}
-                className="text-[#087f70] flex items-center gap-1.5 text-[13px] font-bold hover:text-[#076b5e] transition-colors"
+                className="text-[#087f70] flex items-center gap-1.5 text-[12px] font-medium hover:text-[#076b5e] transition-colors"
               >
                 <Copy className="w-3.5 h-3.5" />
                 Copy
@@ -235,49 +329,59 @@ function PaymentsDashboard() {
           </div>
         </div>
 
-        {/* Right Gradient Card */}
-        <div className="col-span-1 rounded-[16px] bg-gradient-to-br from-[#8b5cf6] to-[#d946ef] p-6 text-white relative overflow-hidden flex flex-col justify-between">
-          {/* Decorative shapes */}
-          <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full border border-white/20 pointer-events-none" />
-          <div className="absolute -bottom-12 -right-4 w-32 h-32 rounded-full border border-white/20 pointer-events-none" />
+        {/* Right Villeto ATM Card (CSS Layout) */}
+        <div className="col-span-1 rounded-[14px] bg-slate-900 text-white relative overflow-hidden flex flex-col justify-between shadow-lg">
+          {/* Background Geometric Watermark Accent */}
+          <div className="absolute -right-8 -top-12 w-32 h-32 rounded-full border-[24px] border-white/20 sm:w-40 sm:h-40 pointer-events-none" />
           
-          <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-white/20 flex items-center justify-center shrink-0">
-                <span className="font-bold text-[14px] italic">V</span>
+          {/* Inner Content Layer */}
+          <div className="relative flex h-full flex-col p-5 z-10">
+            {/* Header Section */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="relative w-5 h-5 shrink-0">
+                  <Image
+                    src="/images/villeto-logo-v.png"
+                    alt="Villeto"
+                    fill
+                    sizes="20px"
+                    className="object-contain"
+                  />
+                </div>
+                <span className="text-[12px] font-semibold tracking-[-0.02em] text-white">Villeto</span>
               </div>
-              <span className="font-bold tracking-wide">Villeto</span>
+              <button onClick={() => setShowAccountDetails(false)} className="text-white/80 hover:text-white transition-colors">
+                <EyeOff className="w-4 h-4" />
+              </button>
             </div>
-            <button onClick={() => setShowAccountDetails(false)} className="text-white/80 hover:text-white transition-colors">
-              <EyeOff className="w-5 h-5" />
-            </button>
-          </div>
 
-          <div className="space-y-4 relative z-10">
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-white/70 font-semibold mb-1">CARD NUMBER</p>
+            {/* Middle Section (Card Number) */}
+            <div className="relative mt-auto pt-6">
+              <p className="text-[9px] uppercase tracking-widest text-white/70 font-semibold mb-1">CARD NUMBER</p>
               <div className="flex items-center gap-3">
-                <p className="text-lg font-bold tracking-[0.1em]">1234 5678 9012 2345</p>
+                <p className="text-[16px] sm:text-[18px] font-bold tracking-[0.1em]">1234 5678 9012 2345</p>
                 <button onClick={() => copyToClipboard("1234567890122345")} className="text-white/60 hover:text-white transition-colors">
                   <Copy className="w-4 h-4" />
                 </button>
               </div>
             </div>
-            <div className="flex gap-10">
+
+            {/* Footer Section (Expiry & CVV) */}
+            <div className="mt-6 flex gap-10">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-white/70 font-semibold mb-1">EXPIRY DATE</p>
+                <p className="text-[9px] uppercase tracking-widest text-white/70 font-semibold mb-1">EXPIRY DATE</p>
                 <div className="flex items-center gap-2">
-                  <p className="text-[14px] font-bold">13/10</p>
-                  <button className="text-white/60 hover:text-white transition-colors">
+                  <p className="text-[12px] sm:text-[14px] font-bold">13/10</p>
+                  <button onClick={() => copyToClipboard("13/10")} className="text-white/60 hover:text-white transition-colors">
                     <Copy className="w-3 h-3" />
                   </button>
                 </div>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-white/70 font-semibold mb-1">CVV</p>
+                <p className="text-[9px] uppercase tracking-widest text-white/70 font-semibold mb-1">CVV</p>
                 <div className="flex items-center gap-2">
-                  <p className="text-[14px] font-bold">272</p>
-                  <button className="text-white/60 hover:text-white transition-colors">
+                  <p className="text-[12px] sm:text-[14px] font-bold">272</p>
+                  <button onClick={() => copyToClipboard("272")} className="text-white/60 hover:text-white transition-colors">
                     <Copy className="w-3 h-3" />
                   </button>
                 </div>
@@ -305,34 +409,34 @@ function PaymentsDashboard() {
         <StatsCard
           title="Awaiting Authorization"
           value="₦12,850,000"
-          subtitle={<span className="text-[11px] text-[#68726d]">Authorize payments</span>}
+          subtitle={<span className="text-[12px] text-[#84908a]">Authorize payments</span>}
           icon={<Receipt2 variant="Bulk" className="w-5 h-5 text-[#087f70]" />}
           accentColor="#087f70"
-          trend="neutral"
+          trend="none"
         />
         <StatsCard
           title="Scheduled"
           value="7"
-          subtitle={<span className="text-[11px] text-[#68726d]">₦14,250,000</span>}
+          subtitle={<span className="text-[12px] text-[#84908a]">₦14,250,000</span>}
           icon={<CalendarTick variant="Bulk" className="w-5 h-5 text-[#f59e0b]" />}
           accentColor="#f59e0b"
-          trend="neutral"
+          trend="none"
         />
         <StatsCard
           title="Processing"
           value="4"
-          subtitle={<span className="text-[11px] text-[#68726d]">In progress</span>}
+          subtitle={<span className="text-[12px] text-[#84908a]">In progress</span>}
           icon={<Clock variant="Bulk" className="w-5 h-5 text-[#9333ea]" />}
           accentColor="#9333ea"
-          trend="neutral"
+          trend="none"
         />
         <StatsCard
           title="Completed This Month"
           value="23"
-          subtitle={<span className="text-[11px] text-[#68726d]">₦52,300,000</span>}
+          subtitle={<span className="text-[12px] text-[#84908a]">₦52,300,000</span>}
           icon={<TickCircle variant="Bulk" className="w-5 h-5 text-[#087f70]" />}
           accentColor="#087f70"
-          trend="neutral"
+          trend="none"
         />
       </div>
 
@@ -369,9 +473,11 @@ function PaymentsDashboard() {
             <Tabs value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
               <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
                 <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">All Payments</TabsTrigger>
-                <TabsTrigger value="externally_recorded" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Externally Recorded</TabsTrigger>
-                <TabsTrigger value="reconciled" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Reconciled</TabsTrigger>
-                <TabsTrigger value="failed" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Failed</TabsTrigger>
+                <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Draft</TabsTrigger>
+                <TabsTrigger value="awaiting_authorization" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Awaiting Authorization</TabsTrigger>
+                <TabsTrigger value="scheduled" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Scheduled</TabsTrigger>
+                <TabsTrigger value="processing" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Processing</TabsTrigger>
+                <TabsTrigger value="completed" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">Completed</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>

@@ -5,7 +5,7 @@ interface StatsCardProps {
   title: string;
   value: string | number;
   subtitle?: ReactNode;
-  trend?: "up" | "down" | "neutral";
+  trend?: "up" | "down" | "neutral" | "none";
   icon?: ReactNode;
   isLoading?: boolean;
   accentColor?: string;
@@ -53,7 +53,7 @@ export const StatsCard = ({
 
       {subtitle && (
         <div className={`flex items-center gap-1.5 text-[11px] ${trendColor}`}>
-          <TrendIcon className="size-3 shrink-0" strokeWidth={2.5} />
+          {trend !== "none" && <TrendIcon className="size-3 shrink-0" strokeWidth={2.5} />}
           {isLoading ? (
             <div className="h-3 w-20 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
           ) : (

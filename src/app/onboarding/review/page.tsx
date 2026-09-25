@@ -247,7 +247,7 @@ export default function ReviewConfirmation() {
         <Button
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className="h-[54px] w-full rounded-[10px] bg-[#0ea894] px-8 text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all sm:w-auto"
+          className="flex items-center justify-center gap-2.5 min-h-[48px] w-full rounded-[10px] bg-[#0ea894] px-10 py-3.5 text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all sm:w-auto"
         >
           {isSubmitting ? (
             <>Submitting... <Loader2 className="size-4 animate-spin" /></>

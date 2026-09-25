@@ -27,13 +27,13 @@ export const useHydrateOnboardingData = () => {
 
     const hasHydrated = useRef(false);
 
-    const { data, isLoading, isError } = useGetOnboardingDetailsApi(
+    const { data, isLoading, isError, isFetching } = useGetOnboardingDetailsApi(
         onboardingId,
         { enabled: !!onboardingId }
     );
 
     useEffect(() => {
-        if (!data?.data || hasHydrated.current) return;
+        if (!data?.data || hasHydrated.current || isFetching) return;
 
         const onboarding = data.data;
         const company = onboarding.company;
@@ -63,79 +63,88 @@ export const useHydrateOnboardingData = () => {
         const apiOwners = onboarding.businessOwners && onboarding.businessOwners.length > 0 
             ? onboarding.businessOwners 
             : (company.owners || []);
+        
+        // Check if we actually got owner data from the API
+        const hasApiOwnerData = apiOwners.length > 0;
+        
+        // Check if the store already has leadership data (e.g. set by OTP page)
+        const currentStore = useOnboardingStore.getState();
+        const storeAlreadyHasOwnerData = (currentStore.userProfiles.length > 0) || (currentStore.selfOwner !== null);
+
+        // Only hydrate leadership data if the API actually returned owners.
+        // If the API returned no owners but the store already has data (from OTP page),
+        // skip overwriting to avoid wiping correctly populated data.
+        if (hasApiOwnerData) {
+            const ownerProfiles = apiOwners.map((owner: any) => ({
+                id: owner.userId || owner.ownerId || owner.user?.userId || Date.now().toString(),
+                firstName: owner.firstName || owner.user?.firstName || "",
+                lastName: owner.lastName || owner.user?.lastName || "",
+                email: owner.email || owner.user?.email || "",
+                role: owner.position || owner.user?.role || "OWNER",
+                phone: (owner.phone === "00000000000" ? undefined : owner.phone) || (owner.user?.phone === "00000000000" ? undefined : owner.user?.phone) || undefined,
+                ownershipPercentage: typeof owner.ownershipPercentage === 'string' ? parseFloat(owner.ownershipPercentage) : owner.ownershipPercentage,
+            }));
+
+            const officerProfiles = (company.controllingOfficers || []).map((officer: ControllingOfficer) => ({
+                id: officer.controllingOfficerId || officer.user?.userId || Date.now().toString(),
+                firstName: officer.user?.firstName || "",
+                lastName: officer.user?.lastName || "",
+                email: officer.user?.email || "",
+                role: officer.user?.role || "",
+            }));
+
+            type HydratedProfile = {
+                id: string;
+                firstName: string;
+                lastName: string;
+                email: string;
+                role: string;
+                phone?: string;
+                ownershipPercentage?: number;
+            };
+
+            const profileMap = new Map<string, HydratedProfile>();
+            const mergedProfiles: HydratedProfile[] = [
+                ...ownerProfiles,
+                ...officerProfiles.map(o => ({ ...o, ownershipPercentage: undefined as number | undefined })),
+            ];
+            mergedProfiles.forEach(profile => {
+                const key = profile.email || profile.id;
+                if (profileMap.has(key)) {
+                    const existing = profileMap.get(key)!;
+                    profileMap.set(key, {
+                        ...existing,
+                        ...profile,
+                        ownershipPercentage: existing.ownershipPercentage ?? profile.ownershipPercentage,
+                        role: existing.role || profile.role,
+                    });
+                } else {
+                    profileMap.set(key, profile);
+                }
+            });
+
+            const allProfiles = Array.from(profileMap.values());
             
-        const ownerProfiles = apiOwners.map((owner: any) => ({
-            id: owner.userId || owner.ownerId || owner.user?.userId || Date.now().toString(),
-            firstName: owner.firstName || owner.user?.firstName || "",
-            lastName: owner.lastName || owner.user?.lastName || "",
-            email: owner.email || owner.user?.email || "",
-            role: owner.position || owner.user?.role || "OWNER",
-            phone: (owner.phone === "00000000000" ? undefined : owner.phone) || (owner.user?.phone === "00000000000" ? undefined : owner.user?.phone) || undefined,
-            ownershipPercentage: typeof owner.ownershipPercentage === 'string' ? parseFloat(owner.ownershipPercentage) : owner.ownershipPercentage,
-        }));
-
-        const officerProfiles = (company.controllingOfficers || []).map((officer: ControllingOfficer) => ({
-            id: officer.controllingOfficerId || officer.user?.userId || Date.now().toString(),
-            firstName: officer.user?.firstName || "",
-            lastName: officer.user?.lastName || "",
-            email: officer.user?.email || "",
-            role: officer.user?.role || "",
-        }));
-
-        type HydratedProfile = {
-            id: string;
-            firstName: string;
-            lastName: string;
-            email: string;
-            role: string;
-            phone?: string;
-            ownershipPercentage?: number;
-        };
-
-        const profileMap = new Map<string, HydratedProfile>();
-        const mergedProfiles: HydratedProfile[] = [
-            ...ownerProfiles,
-            ...officerProfiles.map(o => ({ ...o, ownershipPercentage: undefined as number | undefined })),
-        ];
-        mergedProfiles.forEach(profile => {
-            const key = profile.email || profile.id;
-            if (profileMap.has(key)) {
-                const existing = profileMap.get(key)!;
-                profileMap.set(key, {
-                    ...existing,
-                    ...profile,
-                    ownershipPercentage: existing.ownershipPercentage ?? profile.ownershipPercentage,
-                    role: existing.role || profile.role,
-                });
-            } else {
-                profileMap.set(key, profile);
+            // Extract selfOwner if they are the applicant
+            const selfProfileIndex = allProfiles.findIndex(p => p.email && contactEmail && p.email.toLowerCase() === contactEmail.toLowerCase());
+            
+            if (selfProfileIndex !== -1) {
+                const selfProfile = allProfiles[selfProfileIndex];
+                if (selfProfile.ownershipPercentage !== undefined) {
+                    setSelfOwner({
+                        firstName: selfProfile.firstName,
+                        lastName: selfProfile.lastName,
+                        email: selfProfile.email,
+                        ownershipPercentage: selfProfile.ownershipPercentage
+                    });
+                }
+                // Remove self from userProfiles to avoid duplication
+                allProfiles.splice(selfProfileIndex, 1);
             }
-        });
 
-        const allProfiles = Array.from(profileMap.values());
-        
-        // Extract selfOwner if they are the applicant
-        const selfProfileIndex = allProfiles.findIndex(p => p.email && contactEmail && p.email.toLowerCase() === contactEmail.toLowerCase());
-        
-        if (selfProfileIndex !== -1) {
-            const selfProfile = allProfiles[selfProfileIndex];
-            if (selfProfile.ownershipPercentage !== undefined) {
-                setSelfOwner({
-                    firstName: selfProfile.firstName,
-                    lastName: selfProfile.lastName,
-                    email: selfProfile.email,
-                    ownershipPercentage: selfProfile.ownershipPercentage
-                });
-            }
-            // Remove self from userProfiles to avoid duplication
-            allProfiles.splice(selfProfileIndex, 1);
-        }
-
-        if (allProfiles.length > 0) {
             updateUserProfiles(allProfiles);
-        } else {
-            updateUserProfiles([]);
         }
+        // If API returned no owners and store already has data, leave store untouched
 
         // Hydrate financial pulse (spend limit)
         const spendLimit = company.spendLimit;
@@ -178,7 +187,7 @@ export const useHydrateOnboardingData = () => {
         }
 
         hasHydrated.current = true;
-    }, [data, businessSnapshot.logo, updateBusinessSnapshot, updateUserProfiles]);
+    }, [data, isFetching, businessSnapshot.logo, updateBusinessSnapshot, updateUserProfiles]);
 
     return { isLoading, isError, data };
 };

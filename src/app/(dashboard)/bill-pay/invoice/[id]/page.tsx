@@ -95,36 +95,32 @@ function InvoiceDetailsPage() {
              {statusVariant === "pending" && policies.billPay.canEditInvoice && (
                 <>
                    <Button variant="outline" className="text-[#087f70] border-[#087f70]/30 hover:bg-[#f0faf8] hover:text-[#076b5e] h-10 rounded-[8px] font-semibold text-[13px] px-5">
-                      <Pencil className="w-4 h-4 mr-2" /> Edit Intake
+                      <Pencil className="w-4 h-4 mr-2" /> Edit Bill
                    </Button>
+                   {/* In real life, submit for review might be a separate action, but we follow Figma for layout */}
                    <Button 
-                      onClick={async () => {
-                         try {
-                            await submitIntake.mutateAsync(id);
-                            toast.success("Intake submitted for review successfully");
-                         } catch (err) {
-                            toast.error("Failed to submit intake");
-                         }
-                      }}
-                      disabled={submitIntake.isPending}
-                      className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-5"
-                   >
-                      {submitIntake.isPending ? "Submitting..." : "Submit for Review"}
-                   </Button>
-                   <Button 
-                      variant="outline" 
-                      className="text-[#d33d44] border-red-200 hover:bg-red-50 hover:text-red-700 h-10 rounded-[8px] font-semibold text-[13px] px-5"
+                      className="bg-[#d33d44] hover:bg-[#b9353c] text-white h-10 rounded-[8px] font-semibold text-[13px] px-5"
                       onClick={async () => {
                          try {
                             await cancelIntake.mutateAsync(id);
-                            toast.success("Intake cancelled successfully");
+                            toast.success("Bill withdrawn successfully");
                          } catch (err) {
-                            toast.error("Failed to cancel intake");
+                            toast.error("Failed to withdraw bill");
                          }
                       }}
                       disabled={cancelIntake.isPending}
                    >
-                      <XCircle className="w-4 h-4 mr-2" /> {cancelIntake.isPending ? "Cancelling..." : "Cancel"}
+                      <XCircle className="w-4 h-4 mr-2" /> {cancelIntake.isPending ? "Withdrawing..." : "Withdraw Bill"}
+                   </Button>
+                </>
+             )}
+             {statusVariant === "pending" && policies.billPay.canApproveInvoice && (
+                <>
+                   <Button variant="outline" className="text-[#d33d44] border-red-200 hover:bg-red-50 hover:text-red-700 h-10 rounded-[8px] font-semibold text-[13px] px-6">
+                      Reject Bill
+                   </Button>
+                   <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
+                      Approve Bill
                    </Button>
                 </>
              )}
