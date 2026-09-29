@@ -64,7 +64,7 @@ export function TableHeader({
           />
           <Input
             placeholder="Search..."
-            className="pl-10 h-[41px] w-full bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary rounded-[12px] text-sm"
+            className="pl-10 h-10 w-full bg-white border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary rounded-[10px] text-sm"
             value={tableHeader?.search}
             onChange={(e) => tableHeader?.searchQuery?.(e.target.value)}
           />

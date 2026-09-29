@@ -16,13 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-const MOCK_DATA: Record<string, { vendor: string, amount: string }> = {
-  "atlas-partners": { vendor: "Atlas Partners", amount: "₦12,500,000.00" },
-  "nexa-solutions": { vendor: "Nexa Solutions", amount: "₦3,200,000.00" },
-  "global-office-supplies": { vendor: "Global Office Supplies", amount: "₦1,450,000.00" },
-  "techcorp-inc.": { vendor: "TechCorp Inc.", amount: "₦8,900,000.00" },
-  "marketing-masters": { vendor: "Marketing Masters", amount: "₦5,600,000.00" },
-};
+import { useGetBillPayInvoiceById } from "@/queries/bill-pay";
+import { format } from "date-fns";
 
 function RegularBillDetailsPage() {
   const router = useRouter();
@@ -31,7 +26,11 @@ function RegularBillDetailsPage() {
   const policies = useAuthorizationPolicies();
   const { setBackHandler, clearBackHandler } = useHeaderBackStore();
 
-  const [status, setStatus] = useState<"Pending" | "Approved">("Pending");
+  const { data: invoiceResponse, isLoading } = useGetBillPayInvoiceById(id);
+  const invoiceData = invoiceResponse?.data;
+
+  // Use the API's workflowStage for the status badge, fallback to pending logic
+  const currentStage = invoiceData?.workflowStage?.toLowerCase() || "awaiting_approval";
 
   const canApprove = policies.billPay.canApproveInvoice;
 
@@ -40,10 +39,20 @@ function RegularBillDetailsPage() {
     return () => clearBackHandler();
   }, [setBackHandler, clearBackHandler, router]);
 
-  const billData = MOCK_DATA[id] || { 
-    vendor: id.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '), 
-    amount: "₦200,000" 
-  };
+  const baseCurrency = invoiceData?.currency || "NGN";
+  const formatter = new Intl.NumberFormat("en-NG", { style: "currency", currency: baseCurrency });
+
+  const totalAmount = invoiceData?.amount 
+    ? formatter.format(parseFloat(invoiceData.amount)) 
+    : "—";
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 p-8 flex items-center justify-center">
+        <p className="text-gray-500">Loading invoice details...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 pb-8 flex flex-col">
@@ -52,29 +61,30 @@ function RegularBillDetailsPage() {
         <div className="max-w-[1200px] mx-auto w-full flex flex-col sm:flex-row justify-between items-start gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1.5">
-              <h1 className="text-[24px] font-bold text-[#10231d]">{id.startsWith('In-') ? id : `INV-${id.substring(0,6).toUpperCase()}`}</h1>
-              {status === "Pending" ? (
-                 <StatusBadge status="awaiting_authorization" label="Awaiting Authorization" />
-              ) : (
-                 <StatusBadge status="approved" />
-              )}
+              <h1 className="text-[24px] font-bold text-[#10231d]">
+                {invoiceData?.invoiceNumber || (id.startsWith('In-') ? id : `INV-${id.substring(0,6).toUpperCase()}`)}
+              </h1>
+              <StatusBadge 
+                status={currentStage} 
+                label={currentStage.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())} 
+              />
             </div>
             <p className="text-[13px] text-[#68726d]">View a detailed breakdown of the information in the invoice</p>
           </div>
           
           <div className="flex items-center gap-3">
-             {status === "Pending" && canApprove && (
+             {currentStage === "awaiting_approval" && canApprove && (
                 <>
-                   <Button variant="outline" className="text-[#d33d44] border-red-200 hover:bg-red-50 hover:text-red-700 h-10 rounded-[8px] font-semibold text-[13px] px-6" onClick={() => setStatus("Approved")}>
+                   <Button variant="outline" className="text-[#d33d44] border-red-200 hover:bg-red-50 hover:text-red-700 h-10 rounded-[8px] font-semibold text-[13px] px-6">
                       Reject Invoice
                    </Button>
-                   <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6" onClick={() => setStatus("Approved")}>
+                   <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
                       Approve Bill
                    </Button>
                 </>
              )}
-             {status === "Approved" && (
-                <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6" onClick={() => setStatus("Pending")}>
+             {currentStage === "approved" && (
+                <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
                    Download PDF
                 </Button>
              )}
@@ -98,22 +108,24 @@ function RegularBillDetailsPage() {
                     <div className="grid grid-cols-4 gap-4">
                        <div>
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Vendor</p>
-                          <p className="text-[13px] font-bold text-[#10231d]">{billData.vendor}</p>
+                          <p className="text-[13px] font-bold text-[#10231d]">{invoiceData?.vendorName || "N/A"}</p>
                        </div>
                        <div>
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Total Amount</p>
-                          <p className="text-[13px] font-bold text-[#10231d]">{billData.amount}</p>
+                          <p className="text-[13px] font-bold text-[#10231d]">{totalAmount}</p>
                        </div>
                        <div>
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Related PO</p>
                           <p className="text-[13px] font-bold text-[#10231d] flex items-center gap-2">
-                             PO-2024-001
-                             <Button variant="link" className="h-auto p-0 text-[#087f70] font-semibold text-[12px] hover:text-[#076b5e]">View</Button>
+                             {invoiceData?.purchaseOrderId || "N/A"}
+                             {invoiceData?.purchaseOrderId && (
+                                <Button variant="link" className="h-auto p-0 text-[#087f70] font-semibold text-[12px] hover:text-[#076b5e]">View</Button>
+                             )}
                           </p>
                        </div>
                        <div>
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Due Date</p>
-                          <p className="text-[13px] font-bold text-[#10231d]">09-10-2025</p>
+                          <p className="text-[13px] font-bold text-[#10231d]">{invoiceData?.dueDate ? format(new Date(invoiceData.dueDate), "dd-MM-yyyy") : "N/A"}</p>
                        </div>
                     </div>
                  </CardContent>
@@ -124,7 +136,7 @@ function RegularBillDetailsPage() {
                  <CardHeader className="p-6 border-b border-black/[0.04]">
                     <div className="flex items-center gap-3">
                        <h3 className="text-[15px] font-bold text-[#10231d]">Invoice Items</h3>
-                       <StatusBadge status="provisional" label="5" className="bg-[#f4f7f5] text-[#10231d] border-transparent" />
+                       <StatusBadge status="provisional" label={(invoiceData?.items?.length || 0).toString()} className="bg-[#f4f7f5] text-[#10231d] border-transparent" />
                     </div>
                  </CardHeader>
                  <CardContent className="p-0">
@@ -138,26 +150,24 @@ function RegularBillDetailsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {[
-                          { name: "Heavy Duty Pallets", qty: 10, price: "₦4,000", total: "₦40,000" },
-                          { name: "Industrial Shrink Wrap", qty: 10, price: "₦4,000", total: "₦40,000" },
-                          { name: "Heavy Duty Pallets", qty: 10, price: "₦4,000", total: "₦40,000" },
-                          { name: "Industrial Shrink Wrap", qty: 10, price: "₦4,000", total: "₦40,000" },
-                          { name: "Heavy Duty Pallets", qty: 10, price: "₦4,000", total: "₦40,000" }
-                        ].map((row, i) => (
+                        {invoiceData?.items?.length ? invoiceData.items.map((row, i) => (
                            <TableRow key={i} className="border-black/[0.04] hover:bg-[#f9faf9]/50 transition-colors">
-                             <TableCell className="text-[13px] font-semibold text-[#10231d] pl-6 py-4">{row.name}</TableCell>
-                             <TableCell className="text-[13px] text-[#68726d] py-4">{row.qty}</TableCell>
-                             <TableCell className="text-[13px] text-[#68726d] py-4">{row.price}</TableCell>
-                             <TableCell className="text-[13px] font-semibold text-[#10231d] py-4 pr-6 text-right">{row.total}</TableCell>
+                             <TableCell className="text-[13px] font-semibold text-[#10231d] pl-6 py-4">{row.description}</TableCell>
+                             <TableCell className="text-[13px] text-[#68726d] py-4">{row.quantity}</TableCell>
+                             <TableCell className="text-[13px] text-[#68726d] py-4">{formatter.format(parseFloat(row.unitPrice || "0"))}</TableCell>
+                             <TableCell className="text-[13px] font-semibold text-[#10231d] py-4 pr-6 text-right">{formatter.format(parseFloat(row.amount || "0"))}</TableCell>
                            </TableRow>
-                        ))}
+                        )) : (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-6 text-gray-500">No items found</TableCell>
+                          </TableRow>
+                        )}
                       </TableBody>
                     </Table>
                     
                     <div className="p-6 flex justify-end items-center gap-6 border-t border-black/[0.08]">
                        <span className="text-[14px] font-semibold text-[#68726d]">Total Amount</span>
-                       <span className="text-[18px] font-bold text-[#10231d]">₦200,000</span>
+                       <span className="text-[18px] font-bold text-[#10231d]">{totalAmount}</span>
                     </div>
                  </CardContent>
               </Card>

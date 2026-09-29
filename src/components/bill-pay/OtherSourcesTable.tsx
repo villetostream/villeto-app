@@ -167,8 +167,29 @@ export function OtherSourcesTable() {
         search: tableprops.globalSearch,
         searchQuery: tableprops.setGlobalSearch,
         filterProps: {
-          title: "Filter",
-          filterData: [],
+          title: "Other Sources",
+          filterData: [
+            {
+              label: "Status",
+              name: "status",
+              type: "select",
+              options: [
+                { label: "Received", value: "received" },
+                { label: "Processed", value: "processed" },
+                { label: "Failed", value: "failed" },
+              ]
+            },
+            {
+              label: "Source",
+              name: "source",
+              type: "select",
+              options: [
+                { label: "Email", value: "email" },
+                { label: "Web Upload", value: "web_upload" },
+                { label: "API", value: "api" },
+              ]
+            }
+          ],
           onFilter: () => {
             tableprops.setPage(1);
           },

@@ -618,3 +618,157 @@ export function useMatchBankTransaction() {
     },
   });
 }
+
+export interface BillPayDashboardSummary {
+  legalEntity: {
+    legalEntityId: string;
+    code: string;
+    legalName: string;
+    baseCurrency: string;
+    timezone: string;
+  };
+  period: {
+    current: { start: string; end: string };
+    previous: { start: string; end: string };
+  };
+  metrics: {
+    totalBills: {
+      count: number;
+      amount: string;
+      previousCount: number;
+      previousAmount: string;
+      countPercentageChange: string;
+      amountPercentageChange: string;
+    };
+    awaitingApproval?: {
+      count: number;
+      amount: string;
+      previousCount: number;
+      previousAmount: string;
+      countPercentageChange: string;
+      amountPercentageChange: string;
+    };
+    readyForPayment?: {
+      count: number;
+      amount: string;
+      previousCount: number;
+      previousAmount: string;
+      countPercentageChange: string;
+      amountPercentageChange: string;
+    };
+    completed?: {
+      count: number;
+      amount: string;
+      previousCount: number;
+      previousAmount: string;
+      countPercentageChange: string;
+      amountPercentageChange: string;
+    };
+  };
+}
+
+export function useGetBillPayDashboardSummary(
+  legalEntityId: string,
+  periodStart?: string,
+  periodEnd?: string
+) {
+  const axios = useAxios();
+  return useQuery({
+    queryKey: ["bill-pay", "dashboard", "summary", legalEntityId, periodStart, periodEnd],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (legalEntityId) searchParams.append("legalEntityId", legalEntityId);
+      if (periodStart) searchParams.append("periodStart", periodStart);
+      if (periodEnd) searchParams.append("periodEnd", periodEnd);
+      
+      const res = await axios.get(`/bill-pay/dashboard/summary?${searchParams.toString()}`);
+      return res.data.data as BillPayDashboardSummary;
+    },
+    enabled: !!legalEntityId,
+  });
+}
+
+export interface BillPayInvoice {
+  vendorInvoiceId: string;
+  invoiceNumber: string;
+  description: string;
+  invoiceDate: string;
+  dueDate: string;
+  workflowStage: string;
+  currency: string;
+  amount: string;
+  outstandingAmount: string;
+  source: string;
+}
+
+export interface GetBillPayInvoicesParams {
+  page?: number;
+  limit?: number;
+  legalEntityId?: string;
+  vendorId?: string;
+  purchaseOrderId?: string;
+  source?: string;
+  status?: string;
+  paymentStatus?: string;
+  workflowStage?: string;
+  invoiceDateFrom?: string;
+  invoiceDateTo?: string;
+  dueDateFrom?: string;
+  dueDateTo?: string;
+  search?: string;
+}
+
+export function useGetBillPayInvoices(params: GetBillPayInvoicesParams = {}) {
+  const axios = useAxios();
+  return useQuery({
+    queryKey: ["bill-pay", "invoices", params],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (params.page) searchParams.append("page", params.page.toString());
+      if (params.limit) searchParams.append("limit", params.limit.toString());
+      if (params.legalEntityId) searchParams.append("legalEntityId", params.legalEntityId);
+      if (params.vendorId) searchParams.append("vendorId", params.vendorId);
+      if (params.purchaseOrderId) searchParams.append("purchaseOrderId", params.purchaseOrderId);
+      if (params.source) searchParams.append("source", params.source);
+      if (params.status) searchParams.append("status", params.status);
+      if (params.paymentStatus) searchParams.append("paymentStatus", params.paymentStatus);
+      if (params.workflowStage) searchParams.append("workflowStage", params.workflowStage);
+      if (params.invoiceDateFrom) searchParams.append("invoiceDateFrom", params.invoiceDateFrom);
+      if (params.invoiceDateTo) searchParams.append("invoiceDateTo", params.invoiceDateTo);
+      if (params.dueDateFrom) searchParams.append("dueDateFrom", params.dueDateFrom);
+      if (params.dueDateTo) searchParams.append("dueDateTo", params.dueDateTo);
+      if (params.search) searchParams.append("search", params.search);
+      
+      const res = await axios.get(`/bill-pay/invoices?${searchParams.toString()}`);
+      return res.data as { data: { data: BillPayInvoice[]; meta: { totalCount: number; totalPages: number; currentPage: number; limit: number } } };
+    }
+  });
+}
+
+export interface BillPayInvoiceDetail extends BillPayInvoice {
+  purchaseOrderId?: string;
+  paymentStatus?: string;
+  items?: Array<{
+    description: string;
+    quantity: number;
+    unitPrice: string;
+    amount: string;
+    accountCode?: string;
+  }>;
+  subTotal?: string;
+  taxAmount?: string;
+  totalAmount?: string;
+  vendorName?: string;
+}
+
+export function useGetBillPayInvoiceById(vendorInvoiceId: string) {
+  const axios = useAxios();
+  return useQuery({
+    queryKey: ["bill-pay", "invoices", vendorInvoiceId],
+    queryFn: async () => {
+      const res = await axios.get(`/bill-pay/invoices/${vendorInvoiceId}`);
+      return res.data as { data: BillPayInvoiceDetail };
+    },
+    enabled: !!vendorInvoiceId,
+  });
+}

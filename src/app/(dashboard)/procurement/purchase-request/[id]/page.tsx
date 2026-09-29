@@ -843,6 +843,7 @@ function CreatePOView({
              ? Number(quantityOverrides[i.purchaseRequestLineItemId]) 
              : i.quantity;
 
+         /*
          const isQtyChanged = quantity !== i.quantity;
          const isPriceChanged = unitPrice !== (i.unitPrice || 0);
          const hasOverride = isQtyChanged || isPriceChanged;
@@ -851,20 +852,21 @@ function CreatePOView({
          if (hasOverride && (!overrideReason || !overrideReason.trim())) {
            missingReason = true;
          }
+         */
              
          lineAssignments.push({
             purchaseRequestLineItemId: i.purchaseRequestLineItemId,
             vendorId: vId,
             quantity: quantity,
             unitPrice: unitPrice,
-            ...(hasOverride ? { overrideReason } : {}),
+            // ...(hasOverride ? { overrideReason } : {}),
          });
          
          return { 
            purchaseRequestLineItemId: i.purchaseRequestLineItemId,
            quantity: quantity,
            unitPrice: unitPrice,
-           ...(hasOverride ? { overrideReason } : {}),
+           // ...(hasOverride ? { overrideReason } : {}),
          };
       });
 
@@ -877,7 +879,7 @@ function CreatePOView({
     });
     if (draftPurchaseOrders.length === 0) { toast.error("No items to create PO from"); return; }
     if (missingDate) { toast.error("Please specify a delivery date for all vendor groups"); return; }
-    if (missingReason) { toast.error("Please provide an override reason for all changed items"); return; }
+    // if (missingReason) { toast.error("Please provide an override reason for all changed items"); return; }
     
     onConvertToPOs({
       purchaseRequestId: pr.purchaseRequestId,
@@ -1006,7 +1008,7 @@ function CreatePOView({
       )}
       {!inGroup && <td className="px-2 py-3" />}
     </tr>
-    {hasOverride && (
+    {/* hasOverride && (
       <tr className={`border-b border-border/30 ${inGroup && accent ? accent.rowAccent : "bg-[#f9faf9]"}`}>
         <td colSpan={6} className="px-4 py-2.5 bg-amber-50/50">
           <div className="flex items-center gap-3">
@@ -1027,7 +1029,7 @@ function CreatePOView({
           </div>
         </td>
       </tr>
-    )}
+    ) */}
   </React.Fragment>
   );
   };
