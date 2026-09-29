@@ -43,6 +43,7 @@ import {
   type Vendor,
   type PRPriority,
   type DraftPurchaseOrder,
+  type ConvertToPOPayload,
 } from "@/queries/procurement/purchase-requests";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { toast } from "sonner";
@@ -744,7 +745,7 @@ function CreatePOView({
 }: {
   pr: PurchaseRequest;
   vendors: Vendor[];
-  onConvertToPOs: (draftPurchaseOrders: DraftPurchaseOrder[]) => void;
+  onConvertToPOs: (payload: ConvertToPOPayload) => void;
   onCancel?: () => void;
   convertLoading: boolean;
   departmentName?: string | null;
@@ -824,26 +825,51 @@ function CreatePOView({
       return;
     }
     const draftPurchaseOrders: DraftPurchaseOrder[] = [];
+    const lineAssignments: any[] = [];
     let missingDate = false;
     vendorGroups.forEach((items, vId) => {
       const details = vendorDetails[vId];
       const deliveryDate = details?.deliveryDate || defaultDate;
       if (!deliveryDate) missingDate = true;
+
+      const lineItemsForDraft = items.map(i => {
+         const unitPrice = priceOverrides[i.purchaseRequestLineItemId] !== undefined && priceOverrides[i.purchaseRequestLineItemId] !== "" 
+             ? Number(priceOverrides[i.purchaseRequestLineItemId]) 
+             : i.unitPrice;
+             
+         lineAssignments.push({
+            purchaseRequestLineItemId: i.purchaseRequestLineItemId,
+            vendorId: vId,
+            quantity: i.quantity,
+            unitPrice: unitPrice,
+         });
+         
+         return { 
+           purchaseRequestLineItemId: i.purchaseRequestLineItemId,
+           quantity: i.quantity,
+           unitPrice: unitPrice,
+         };
+      });
+
       draftPurchaseOrders.push({
         vendorId: vId,
         deliveryDate: deliveryDate,
         notes: details?.notes || undefined,
-        lineItems: items.map(i => ({ 
-           purchaseRequestLineItemId: i.purchaseRequestLineItemId,
-           unitPrice: priceOverrides[i.purchaseRequestLineItemId] !== undefined && priceOverrides[i.purchaseRequestLineItemId] !== "" 
-               ? Number(priceOverrides[i.purchaseRequestLineItemId]) 
-               : undefined 
-        }))
+        lineItems: lineItemsForDraft
       });
     });
     if (draftPurchaseOrders.length === 0) { toast.error("No items to create PO from"); return; }
     if (missingDate) { toast.error("Please specify a delivery date for all vendor groups"); return; }
-    onConvertToPOs(draftPurchaseOrders);
+    
+    onConvertToPOs({
+      purchaseRequestId: pr.purchaseRequestId,
+      draftPurchaseOrders,
+      vendorId: draftPurchaseOrders[0]?.vendorId,
+      vendorSiteId: draftPurchaseOrders[0]?.vendorId,
+      deliveryDate: draftPurchaseOrders[0]?.deliveryDate,
+      notes: draftPurchaseOrders[0]?.notes,
+      lineAssignments
+    });
   };
 
   const renderItemRow = ({
@@ -1543,60 +1569,14 @@ function PRDetailPage() {
     }
   };
 
-  const handleConvertToPOs = async (draftPurchaseOrders: DraftPurchaseOrder[]) => {
+  const handleConvertToPOs = async (payload: ConvertToPOPayload) => {
     try {
-      // 1. If there are any overridden prices, we must PATCH the line items first before converting
-      // The backend expects the PR line items to reflect the agreed unit price before PO creation.
-      /*
-      const updatePromises: Promise<any>[] = [];
-      draftPurchaseOrders.forEach((draft) => {
-        draft.lineItems.forEach((li) => {
-          if (li.unitPrice !== undefined) {
-            // Find original item to preserve other required fields if needed, 
-            // though typical PATCH only needs the updated fields.
-            const originalItem = pr?.lineItems.find(item => item.purchaseRequestLineItemId === li.purchaseRequestLineItemId);
-            if (originalItem) {
-              const payload: LineItemPayload = {
-                name: originalItem.name,
-                description: originalItem.description,
-                quantity: originalItem.quantity,
-                unitPrice: li.unitPrice,
-                taxAmount: originalItem.taxAmount,
-                sku: originalItem.sku,
-                unitOfMeasure: originalItem.unitOfMeasure,
-                categoryId: originalItem.categoryId,
-                departmentId: originalItem.departmentId,
-                accountingAccountRef: originalItem.accountingAccountRef,
-                accountingItemRef: originalItem.accountingItemRef,
-                accountingClassRef: originalItem.accountingClassRef,
-                accountingLocationRef: originalItem.accountingLocationRef,
-                accountingProjectRef: originalItem.accountingProjectRef,
-                accountingTaxCodeRef: originalItem.accountingTaxCodeRef,
-                accountingResolutionStatus: originalItem.accountingResolutionStatus,
-              };
-              updatePromises.push(
-                axiosInstance.patch(
-                  PROCUREMENT_KEYS.LINE_ITEM(id, li.purchaseRequestLineItemId),
-                  payload
-                )
-              );
-            }
-          }
-        });
-      });
-
-      if (updatePromises.length > 0) {
-        await Promise.all(updatePromises);
-      }
-      */
-
-      // 2. Convert to POs using the (now updated) line items
-      await convertToPO.mutateAsync({ draftPurchaseOrders });
+      await convertToPO.mutateAsync(payload);
       toast.success("Purchase orders created successfully!");
     } catch (err: unknown) {
       if (isProcurementPolicyViolationError(err)) {
         setPolicyViolations(getProcurementPolicyViolations(err));
-        setPendingConvertPayload({ draftPurchaseOrders });
+        setPendingConvertPayload(payload as any);
         setIsPolicyModalOpen(true);
       } else {
         toast.error(getApiErrorMessage(err, "Failed to create purchase orders"));
@@ -1757,7 +1737,7 @@ function PRDetailPage() {
               try {
                 if (pendingConvertPayload) {
                   await convertToPO.mutateAsync({ 
-                    draftPurchaseOrders: pendingConvertPayload.draftPurchaseOrders, 
+                    ...pendingConvertPayload, 
                     policyJustification: justification,
                     spendProgramJustification: justification
                   });
