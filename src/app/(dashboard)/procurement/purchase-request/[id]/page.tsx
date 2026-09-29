@@ -793,6 +793,8 @@ function CreatePOView({
   };
 
   const [priceOverrides, setPriceOverrides] = useState<Record<string, string>>({});
+  const [quantityOverrides, setQuantityOverrides] = useState<Record<string, string>>({});
+  const [reasonOverrides, setReasonOverrides] = useState<Record<string, string>>({});
 
   // ── Derived state ─────────────────────────────────────────────────────
   const vendorGroups = useMemo(() => {
@@ -827,6 +829,7 @@ function CreatePOView({
     const draftPurchaseOrders: DraftPurchaseOrder[] = [];
     const lineAssignments: any[] = [];
     let missingDate = false;
+    let missingReason = false;
     vendorGroups.forEach((items, vId) => {
       const details = vendorDetails[vId];
       const deliveryDate = details?.deliveryDate || defaultDate;
@@ -836,18 +839,32 @@ function CreatePOView({
          const unitPrice = priceOverrides[i.purchaseRequestLineItemId] !== undefined && priceOverrides[i.purchaseRequestLineItemId] !== "" 
              ? Number(priceOverrides[i.purchaseRequestLineItemId]) 
              : i.unitPrice;
+         const quantity = quantityOverrides[i.purchaseRequestLineItemId] !== undefined && quantityOverrides[i.purchaseRequestLineItemId] !== "" 
+             ? Number(quantityOverrides[i.purchaseRequestLineItemId]) 
+             : i.quantity;
+
+         const isQtyChanged = quantity !== i.quantity;
+         const isPriceChanged = unitPrice !== (i.unitPrice || 0);
+         const hasOverride = isQtyChanged || isPriceChanged;
+         const overrideReason = reasonOverrides[i.purchaseRequestLineItemId];
+         
+         if (hasOverride && (!overrideReason || !overrideReason.trim())) {
+           missingReason = true;
+         }
              
          lineAssignments.push({
             purchaseRequestLineItemId: i.purchaseRequestLineItemId,
             vendorId: vId,
-            quantity: i.quantity,
+            quantity: quantity,
             unitPrice: unitPrice,
+            ...(hasOverride ? { overrideReason } : {}),
          });
          
          return { 
            purchaseRequestLineItemId: i.purchaseRequestLineItemId,
-           quantity: i.quantity,
+           quantity: quantity,
            unitPrice: unitPrice,
+           ...(hasOverride ? { overrideReason } : {}),
          };
       });
 
@@ -860,6 +877,7 @@ function CreatePOView({
     });
     if (draftPurchaseOrders.length === 0) { toast.error("No items to create PO from"); return; }
     if (missingDate) { toast.error("Please specify a delivery date for all vendor groups"); return; }
+    if (missingReason) { toast.error("Please provide an override reason for all changed items"); return; }
     
     onConvertToPOs({
       purchaseRequestId: pr.purchaseRequestId,
@@ -882,9 +900,18 @@ function CreatePOView({
     inGroup: boolean;
     vendorId: string;
     accent?: typeof CARD_ACCENTS[0];
-  }) => (
-    <tr key={item.purchaseRequestLineItemId} className={`border-b border-border/30 last:border-0 transition-colors hover:bg-[#f9faf9] ${inGroup && accent ? accent.rowAccent : ""}`}>
-      <td className="px-4 py-3">
+  }) => {
+    const qtyOverride = quantityOverrides[item.purchaseRequestLineItemId];
+    const priceOverride = priceOverrides[item.purchaseRequestLineItemId];
+    
+    const isQtyChanged = qtyOverride !== undefined && qtyOverride !== "" && Number(qtyOverride) !== item.quantity;
+    const isPriceChanged = priceOverride !== undefined && priceOverride !== "" && Number(priceOverride) !== (item.unitPrice || 0);
+    const hasOverride = isQtyChanged || isPriceChanged;
+
+    return (
+      <React.Fragment key={item.purchaseRequestLineItemId}>
+        <tr className={`border-b border-border/30 last:border-0 transition-colors hover:bg-[#f9faf9] ${inGroup && accent ? accent.rowAccent : ""}`}>
+          <td className="px-4 py-3">
         <p className="font-semibold text-[#0b100e] text-sm leading-tight flex items-center gap-1.5">
           {item.name}
           {item.policyViolations && item.policyViolations.length > 0 && (
@@ -909,7 +936,20 @@ function CreatePOView({
           <p className="text-xs text-[#68726d] mt-0.5 truncate max-w-[180px]">{item.description}</p>
         )}
       </td>
-      <td className="px-4 py-3 text-sm text-[#0b100e] whitespace-nowrap">{item.quantity}</td>
+      <td className="px-4 py-3 text-sm text-[#0b100e] whitespace-nowrap">
+        <input
+          type="number"
+          min="1"
+          className="w-16 h-8 px-2 rounded-md border border-black/[0.06] text-xs focus:outline-none focus:border-[#087f70] transition-colors bg-white"
+          value={quantityOverrides[item.purchaseRequestLineItemId] ?? item.quantity ?? ""}
+          onChange={e => {
+            const val = e.target.value;
+            setQuantityOverrides(prev => ({ ...prev, [item.purchaseRequestLineItemId]: val }));
+            onClearPolicyViolations?.();
+          }}
+          placeholder="Qty"
+        />
+      </td>
       <td className="px-4 py-3 text-sm text-[#0b100e] whitespace-nowrap">
         <div className="relative w-28">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#68726d] text-xs">{{ USD: "$", NGN: "₦", EUR: "€", GBP: "£", CAD: "$", AUD: "$" }[currency] || currency}</span>
@@ -936,7 +976,15 @@ function CreatePOView({
         </div>
       </td>
       <td className="px-4 py-3 text-sm font-semibold text-[#0b100e] whitespace-nowrap">
-        {formatAmount(item.quantity * (priceOverrides[item.purchaseRequestLineItemId] !== undefined && priceOverrides[item.purchaseRequestLineItemId] !== "" ? Number(priceOverrides[item.purchaseRequestLineItemId]) : (item.unitPrice || 0)), currency)}
+        {formatAmount(
+          (quantityOverrides[item.purchaseRequestLineItemId] !== undefined && quantityOverrides[item.purchaseRequestLineItemId] !== "" 
+            ? Number(quantityOverrides[item.purchaseRequestLineItemId]) 
+            : item.quantity) * 
+          (priceOverrides[item.purchaseRequestLineItemId] !== undefined && priceOverrides[item.purchaseRequestLineItemId] !== "" 
+            ? Number(priceOverrides[item.purchaseRequestLineItemId]) 
+            : (item.unitPrice || 0)), 
+          currency
+        )}
       </td>
       <td className="px-4 py-3 min-w-[180px]">
         <VendorSelect
@@ -958,7 +1006,31 @@ function CreatePOView({
       )}
       {!inGroup && <td className="px-2 py-3" />}
     </tr>
+    {hasOverride && (
+      <tr className={`border-b border-border/30 ${inGroup && accent ? accent.rowAccent : "bg-[#f9faf9]"}`}>
+        <td colSpan={6} className="px-4 py-2.5 bg-amber-50/50">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="text-xs font-semibold text-amber-700 whitespace-nowrap">Reason for change:</span>
+            <input 
+              type="text" 
+              value={reasonOverrides[item.purchaseRequestLineItemId] || ""}
+              onChange={e => {
+                setReasonOverrides(prev => ({...prev, [item.purchaseRequestLineItemId]: e.target.value}));
+                onClearPolicyViolations?.();
+              }}
+              placeholder="Required: Please explain why the price or quantity was changed"
+              className={`flex-1 h-8 px-2.5 rounded-md border text-xs focus:outline-none transition-colors bg-white ${
+                !reasonOverrides[item.purchaseRequestLineItemId]?.trim() ? "border-amber-300 focus:border-amber-500" : "border-border/60 focus:border-[#087f70]"
+              }`}
+            />
+          </div>
+        </td>
+      </tr>
+    )}
+  </React.Fragment>
   );
+  };
 
 
   return (
@@ -1074,7 +1146,10 @@ function CreatePOView({
                   const price = priceOverrides[li.purchaseRequestLineItemId] !== undefined && priceOverrides[li.purchaseRequestLineItemId] !== "" 
                     ? Number(priceOverrides[li.purchaseRequestLineItemId]) 
                     : (li.unitPrice || 0);
-                  return s + (li.quantity * price);
+                  const qty = quantityOverrides[li.purchaseRequestLineItemId] !== undefined && quantityOverrides[li.purchaseRequestLineItemId] !== ""
+                    ? Number(quantityOverrides[li.purchaseRequestLineItemId])
+                    : li.quantity;
+                  return s + (qty * price);
                 }, 0);
 
                 return (
@@ -1266,7 +1341,7 @@ function CreatePOView({
               if (step.label === "Converted to PO" && step.status === "inactive") {
                 return {
                   ...step,
-                  label: "Create PO",
+                  label: "Convert to PO",
                   person: user ? `${user.firstName || ""} ${user.lastName || ""} (You)` : "You",
                   badge: "Pending",
                   badgeColor: "text-amber-600 bg-amber-50",
