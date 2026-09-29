@@ -1,7 +1,8 @@
 import React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { Input } from "../ui/input";
-
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../ui/select";
+import { DatePicker } from "../ui/date-picker";
 
 import FormFieldSelect from "../form fields/formFieldSelect";
 import { Button } from "../ui/button";
@@ -75,14 +76,14 @@ export function Filter({ filterProps }: { filterProps: FilterProps }) {
         toggle();
       }}
       isOpen={isOpen}
-      title={`Filter ${title}`}
+      title={title}
       buttonText={""}
       icon={FilterIcon}
     >
       <Form {...form}>
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 gap-8 px-4"
+          className="grid grid-cols-1 gap-6 px-1 py-2"
         >
           {filterData?.map((filter, _index) => (
             <div key={filter.label}>
@@ -102,35 +103,54 @@ export function Filter({ filterProps }: { filterProps: FilterProps }) {
               )}
 
               {filter.type === "select" && filter.options && (
-                <FormFieldSelect
-                  placeholder={filter.placeholder || `Select ${filter.label}`}
-                  name={filter.name}
-                  label={filter.label}
-                  values={filter.options}
-                  control={control}
-                />
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {filter.label}
+                  </label>
+                  <Controller
+                    control={control}
+                    name={filter.name}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value?.toString()}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger className="h-10 px-4 w-full bg-white border-gray-200 text-gray-700 rounded-[10px] focus:ring-1 focus:ring-primary focus:border-primary">
+                          <SelectValue placeholder={filter.placeholder || `Select ${filter.label}`} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-[12px] shadow-lg">
+                          {filter.options?.map((opt) => (
+                            <SelectItem key={opt.value.toString()} value={opt.value.toString()}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
               )}
 
               {filter.type === "dateRange" && (
-                <div className="col-span-1 lg:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
                     {filter.label}
                   </label>
-                  <div className="flex flex-col md:flex-row gap-2">
+                  <div className="flex gap-4">
                     <div className="flex-1">
                       <Controller
                         control={control}
                         name={`${filter.name}.startDate`}
                         render={({ field }) => (
-                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">
+                          <div className="space-y-1">
+                            <label className="block text-xs text-gray-500">
                               Start Date
                             </label>
-                            <Input
-                              type="date"
-                              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              {...field}
-                              value={field.value || ""}
+                            <DatePicker
+                              date={field.value ? new Date(field.value) : undefined}
+                              setDate={(d) => field.onChange(d ? format(d, "yyyy-MM-dd") : undefined)}
+                              className="h-10 w-full rounded-[10px] border-gray-200 bg-white text-gray-700"
+                              placeholder="Start Date"
                             />
                           </div>
                         )}
@@ -141,15 +161,15 @@ export function Filter({ filterProps }: { filterProps: FilterProps }) {
                         control={control}
                         name={`${filter.name}.endDate`}
                         render={({ field }) => (
-                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">
+                          <div className="space-y-1">
+                            <label className="block text-xs text-gray-500">
                               End Date
                             </label>
-                            <Input
-                              type="date"
-                              className="block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              {...field}
-                              value={field.value || ""}
+                            <DatePicker
+                              date={field.value ? new Date(field.value) : undefined}
+                              setDate={(d) => field.onChange(d ? format(d, "yyyy-MM-dd") : undefined)}
+                              className="h-10 w-full rounded-[10px] border-gray-200 bg-white text-gray-700"
+                              placeholder="End Date"
                             />
                           </div>
                         )}
@@ -161,22 +181,21 @@ export function Filter({ filterProps }: { filterProps: FilterProps }) {
             </div>
           ))}
 
-          <div className="col-span-2 flex justify-end space-x-4 pb-4">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-2">
             <Button
-              variant={"ghost"}
+              type="button"
+              variant="outline"
               onClick={() => {
                 reset({});
                 close();
               }}
-              className="bg-gray-200 text-gray-800"
+              className="h-10 px-6 rounded-[10px] border-gray-200 text-gray-700 hover:bg-gray-50 font-medium"
             >
-              {" "}
               Reset
             </Button>
             <Button
-              variant={"default"}
               type="submit"
-              className="block rounded-md  px-4 py-2 text-center text-sm font-semibold text-white"
+              className="h-10 px-6 rounded-[10px] font-medium"
             >
               Apply Filter
             </Button>

@@ -29,6 +29,7 @@ import {
 } from "@tanstack/react-table";
 import { isRecord } from "@/lib/types/api-error";
 // import MyLoader from "../loader-components";
+import { EmptyState } from "@/components/ui/empty-state";
 import exportCSV from "@/lib/exportCSV";
 import { ITableHeader, TableHeader } from "./tableHeader";
 import {
@@ -438,9 +439,11 @@ function DataTable<Data extends object, Value = unknown>(
                     {emptyState ? (
                       <div className="w-full flex justify-center py-10 px-4">{emptyState}</div>
                     ) : (
-                      <div className="text-center py-20 text-lg hover:bg-transparent">
-                        Oops, No data available!!!
-                      </div>
+                      <EmptyState
+                        className="my-10 mx-auto max-w-md border-0"
+                        title="No data available"
+                        description="There are no records to display matching your criteria."
+                      />
                     )}
                   </TableCell>
                 </TableRow>

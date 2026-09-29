@@ -131,8 +131,20 @@ export function RecurringBillsTable() {
         search: tableprops.globalSearch,
         searchQuery: tableprops.setGlobalSearch,
         filterProps: {
-          title: "Filter",
-          filterData: [],
+          title: "Recurring Bills",
+          filterData: [
+            {
+              label: "Status",
+              name: "workflowStage",
+              type: "select",
+              options: [
+                { label: "Awaiting Approval", value: "awaiting_approval" },
+                { label: "Approved", value: "approved" },
+                { label: "Ready for Payment", value: "ready_for_payment" },
+                { label: "Paid", value: "paid" },
+              ]
+            }
+          ],
           onFilter: () => {
             tableprops.setPage(1);
           },

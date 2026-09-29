@@ -30,10 +30,10 @@ const ModalComponent = ({
     return (
         <Dialog open={isOpen} onOpenChange={onOpen}>
             <DialogTrigger asChild>
-                <Button variant={variant} size="md" className="flex items-center gap-2">
-                    <Filter className="w-4 h-4 mr-2" />
-                    Filter
-                    <ArrowDown2 />
+                <Button variant={variant} size="sm" className="h-10 px-4 flex items-center gap-2 border-gray-200 hover:bg-gray-50 text-gray-600 font-medium rounded-[10px]">
+                    {_Icon ? <_Icon className="w-4 h-4" /> : <Filter className="w-4 h-4" />}
+                    {_buttonText || "Filter"}
+                    <ArrowDown2 className="w-4 h-4 text-gray-400" />
                 </Button>
             </DialogTrigger>
             <DialogContent className='!p-6 max-h-[80%] overflow-y-auto rounded-lg'>
