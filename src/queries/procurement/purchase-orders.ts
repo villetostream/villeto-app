@@ -82,7 +82,8 @@ export const usePurchaseOrder = (id: string) => {
     queryKey: QUERY_KEYS.procurement.purchaseOrder(id),
     queryFn: async () => {
       const response = await axios.get<PurchaseOrderDetailResponse>(
-        PROCUREMENT_KEYS.PURCHASE_ORDER(id)
+        PROCUREMENT_KEYS.PURCHASE_ORDER(id),
+        { _skipErrorToast: true } as any
       );
       return response.data;
     },
@@ -310,14 +311,13 @@ export const useCancelPurchaseOrder = () => {
 // ── Delete Purchase Order (Draft) ───────────────────────────────────────────
 
 export const useDeletePurchaseOrder = () => {
+  const axios = useAxios();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // TODO: Implement real endpoint when backend pushes code
-      // For now, simulate a successful deletion
-      console.warn("delete purchase order endpoint not ready. simulating success.");
-      return Promise.resolve({ success: true, id });
+      const response = await axios.delete(PROCUREMENT_KEYS.PURCHASE_ORDER(id));
+      return response.data;
     },
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders, type: "inactive" });

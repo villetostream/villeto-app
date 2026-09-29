@@ -380,6 +380,8 @@ export const useCancelPurchaseRequest = (
 export interface DraftPurchaseOrderLineItem {
   purchaseRequestLineItemId: string;
   overrideReason?: string;
+  quantity?: number;
+  unitPrice?: number;
 }
 
 export interface DraftPurchaseOrder {
@@ -392,9 +394,8 @@ export interface DraftPurchaseOrder {
 export interface ConvertToPOPayload {
   purchaseRequestId?: string;
   draftPurchaseOrders?: DraftPurchaseOrder[];
-  // Keep the other fields as optional to not break any existing typed logic, 
-  // though the UI will primarily use draftPurchaseOrders for batch creation.
   vendorId?: string;
+  vendorSiteId?: string;
   deliveryDate?: string;
   notes?: string;
   lineAssignments?: unknown[];
