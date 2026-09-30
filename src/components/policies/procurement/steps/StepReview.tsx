@@ -34,8 +34,23 @@ type SimulationResult = {
 };
 
 export function StepReview({ draft }: StepReviewProps) {
-  const [activeTab, setActiveTab] = useState<SpendProgramGroup>("pr_submission");
-  const [simStage, setSimStage] = useState<SpendProgramGroup>("pr_submission");
+  const availableGroups = useMemo(() => {
+    return SPEND_PROGRAM_GROUPS.filter(
+      (g) => (draft.groups.find((draftGroup) => draftGroup.group === g.value)?.rules?.length || 0) > 0
+    );
+  }, [draft.groups]);
+
+  const [internalActiveTab, setInternalActiveTab] = useState<SpendProgramGroup | null>(null);
+  const [internalSimStage, setInternalSimStage] = useState<SpendProgramGroup | null>(null);
+
+  const activeTab = (internalActiveTab && availableGroups.some(g => g.value === internalActiveTab) 
+    ? internalActiveTab 
+    : availableGroups[0]?.value) as SpendProgramGroup;
+
+  const simStage = (internalSimStage && availableGroups.some(g => g.value === internalSimStage)
+    ? internalSimStage
+    : availableGroups[0]?.value) as SpendProgramGroup;
+
   const [simAmount, setSimAmount] = useState("");
   const [simQty, setSimQty] = useState("");
   const [simCategory, setSimCategory] = useState("");
@@ -201,22 +216,24 @@ export function StepReview({ draft }: StepReviewProps) {
                 ENFORCEMENT RULES
               </h4>
               
-              <div className="flex bg-[#f1f2f1] p-1 rounded-xl w-fit mb-5">
-                {SPEND_PROGRAM_GROUPS.map((g) => (
-                  <button
-                    key={g.value}
-                    onClick={() => setActiveTab(g.value)}
-                    className={cn(
-                      "px-5 py-1.5 rounded-lg text-[12px] font-semibold transition-all duration-200",
-                      activeTab === g.value
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500 hover:text-gray-900 hover:bg-black/5"
-                    )}
-                  >
-                    {g.shortLabel}
-                  </button>
-                ))}
-              </div>
+              {availableGroups.length > 0 && (
+                <div className="flex bg-[#f1f2f1] p-1 rounded-xl w-fit mb-5">
+                  {availableGroups.map((g) => (
+                    <button
+                      key={g.value}
+                      onClick={() => setInternalActiveTab(g.value)}
+                      className={cn(
+                        "px-5 py-1.5 rounded-lg text-[12px] font-semibold transition-all duration-200",
+                        activeTab === g.value
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-500 hover:text-gray-900 hover:bg-black/5"
+                      )}
+                    >
+                      {g.shortLabel}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="space-y-3">
                 {activeGroupRules.length === 0 ? (
@@ -297,17 +314,19 @@ export function StepReview({ draft }: StepReviewProps) {
           <div className="space-y-5 mb-6">
             <div className="space-y-1.5">
               <label className="text-[13px] font-semibold text-[#10231d]">Stage</label>
-              <Select value={simStage} onValueChange={(val: SpendProgramGroup) => {
-                setSimStage(val);
+              <Select value={simStage || ""} onValueChange={(val: SpendProgramGroup) => {
+                setInternalSimStage(val);
                 setIsSimDirty(true);
               }}>
                 <SelectTrigger className="w-full h-10 bg-white border-black/[0.08] rounded-lg">
                   <SelectValue placeholder="Select a stage" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SPEND_PROGRAM_GROUPS.map(g => (
+                  {availableGroups.length > 0 ? availableGroups.map(g => (
                     <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-                  ))}
+                  )) : (
+                    <SelectItem value="none" disabled>No stages with rules</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -362,7 +381,7 @@ export function StepReview({ draft }: StepReviewProps) {
 
           <button 
             onClick={runSimulation}
-            disabled={!isSimDirty || (!simAmount && !simQty)}
+            disabled={!isSimDirty || (!simAmount && !simQty) || availableGroups.length === 0}
             className="w-full h-10 rounded-lg bg-[#087f70] text-white font-bold text-[13px] hover:opacity-90 transition-opacity mb-6 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {hasRun && !isSimDirty ? "Simulation Up to Date" : "Run Simulation"}

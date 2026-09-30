@@ -77,14 +77,24 @@ export function StepRules({ draft, onChange, activeStages }: StepRulesProps) {
     : true;
 
   const handleSaveRule = (rule: SpendProgramRule) => {
+    let groupFound = false;
     const updatedGroups = draft.groups.map((g) => {
       if (g.group !== activeTab) return g;
+      groupFound = true;
       const exists = g.rules.some(r => r.id === rule.id);
       if (exists) {
         return { ...g, rules: g.rules.map(r => r.id === rule.id ? rule : r) };
       }
       return { ...g, rules: [...g.rules, rule] };
     });
+
+    if (!groupFound) {
+      updatedGroups.push({
+        group: activeTab,
+        rules: [rule],
+      });
+    }
+
     onChange({ groups: updatedGroups });
     setIsModalOpen(false);
     setEditingRule(undefined);
