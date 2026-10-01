@@ -641,7 +641,7 @@ function VendorPage() {
   const [_selectedVendorId, _setSelectedVendorId] = useState<string | null>(null);
 
   const axiosInstance = useAxios();
-  const vendorsApi = useGetAllVendors();
+  const vendorsApi = useGetAllVendors({}, { refetchInterval: 60_000 });
   const isLoading = vendorsApi.isLoading;
 
   const vendors = useMemo(() => {

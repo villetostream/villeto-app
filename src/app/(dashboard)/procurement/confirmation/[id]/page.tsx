@@ -74,7 +74,7 @@ function FulfillmentHistoryCard({ notice, index, canReceive, onReceive, purchase
   const titlePrefix = isDigital ? "Digital Delivery" : "Shipment";
   const canReceiveThisFulfillment =
     canReceive &&
-    notice.dispatchStatus === "dispatched" &&
+    (notice.dispatchStatus === "dispatched" || notice.fulfillmentMethod === "digital" || notice.fulfillmentMethod === "service") &&
     (notice.lineItems || []).some((item: any) => Number(item.quantityAwaitingReceipt || 0) > 0);
 
   return (
@@ -393,6 +393,7 @@ function ConfirmationDetailPage() {
   const finalizeBillingMut = useConfirmPOFinalBilling(id);
   const [activeNotice, setActiveNotice] = useState<any>(null);
   const [selectedItemForDrawer, setSelectedItemForDrawer] = useState<any>(null);
+  const [showFinalBillingModal, setShowFinalBillingModal] = useState(false);
 
   const { data, isLoading, isError } = usePurchaseOrder(id);
 
@@ -606,9 +607,45 @@ function ConfirmationDetailPage() {
     ] : [])
   ];
 
+  const closeBlockers = (po.closeBlockers || []) as string[];
+  const canConfirmFinalBilling =
+    stage === "delivered" &&
+    closeBlockers.includes("final_billing_confirmation_required");
+
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0 bg-transparent">
-      {/* Header - Transparent with exact original padding */}
+      {/* Final Billing Modal */}
+      {showFinalBillingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowFinalBillingModal(false)} />
+          <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
+            <div>
+              <h3 className="text-base font-bold text-[#0b100e]">Confirm Final Billing</h3>
+              <p className="text-sm text-[#68726d] mt-1">Confirm that all invoices have been generated and no further vendor billing is expected. This unlocks the ability to close the PO.</p>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setShowFinalBillingModal(false)} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium">Cancel</button>
+              <button
+                disabled={finalizeBillingMut.isPending}
+                onClick={async () => {
+                  try {
+                    await finalizeBillingMut.mutateAsync({ reason: "All invoices confirmed; no further billing expected." });
+                    toast.success("Final billing confirmed. The PO can now be closed.");
+                    setShowFinalBillingModal(false);
+                  } catch (err: any) {
+                    toast.error(err?.response?.data?.message || "Unable to confirm final billing.");
+                  }
+                }}
+                className="flex-1 h-10 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {finalizeBillingMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Billing Complete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
       <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
         <div className="max-w-6xl mx-auto w-full flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -642,6 +679,17 @@ function ConfirmationDetailPage() {
             </div>
             <p className="text-sm text-[#68726d] mt-1.5">{po.vendor?.legalName || po.vendor?.displayName || "Vendor"}</p>
           </div>
+          {/* Header actions */}
+          <div className="flex items-center gap-3">
+            {canConfirmFinalBilling && (
+              <button
+                onClick={() => setShowFinalBillingModal(true)}
+                className="h-9 px-4 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+              >
+                Confirm Final Billing
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -655,9 +703,9 @@ function ConfirmationDetailPage() {
               {/* Main Order Line Items */}
               <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
                 <div className="px-6 py-5 border-b border-black/[0.06]">
-                  <h2 className="text-base font-semibold text-[#0b100e]">Order Items</h2>
+                  <h2 className="text-base font-semibold text-[#0b100e]">Ordered Items</h2>
                 </div>
-                <div>
+                <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-black/[0.06] bg-[#f9faf9]">
@@ -810,28 +858,20 @@ function ConfirmationDetailPage() {
         <ConfirmReceiptModal
           open={!!activeNotice}
           onClose={() => setActiveNotice(null)}
-          onConfirm={async (payload, finalizeBilling) => {
+          onConfirm={async (payload) => {
             try {
               await receiptMut.mutateAsync({
                 fulfillmentId: activeNotice.vendorDeliveryNoticeId,
                 payload,
               });
-              
-              if (finalizeBilling) {
-                await finalizeBillingMut.mutateAsync({
-                  reason: "All vendor invoices are resolved; no further billing is expected.",
-                });
-              }
-
               toast.success("Delivery receipt confirmed.");
               setActiveNotice(null);
             } catch (err: any) {
               toast.error(err.response?.data?.message || "Failed to confirm receipt");
             }
           }}
-          isPending={receiptMut.isPending || finalizeBillingMut.isPending}
+          isPending={receiptMut.isPending}
           lineItems={activeNotice.lineItems || []}
-          isFinalDeliveryDefault={isFinalDeliveryDefault}
         />
       )}
     </div>

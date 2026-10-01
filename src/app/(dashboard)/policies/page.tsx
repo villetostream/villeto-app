@@ -812,7 +812,7 @@ function PoliciesPage() {
   const { data: eligibleRolesData } = useGetEligibleRoles("expense_policy");
   const eligibleRoles = eligibleRolesData?.data || [];
 
-  const expCatApi = useGetExpenseCategoryCoverageAllApi({ enabled: canReadExpenseCategories });
+  const expCatApi = useGetExpenseCategoryCoverageAllApi({ enabled: canReadExpenseCategories, refetchInterval: 60_000 });
   const canManageCategories = can('expense.category', 'manage');
   const canCreatePolicy = can('policy', 'create');
 
@@ -854,7 +854,7 @@ function PoliciesPage() {
     page: 1, 
     limit: 1000, 
     excludeDrafts: false
-  }, { enabled: canReadPolicies });
+  }, { enabled: canReadPolicies, refetchInterval: 60_000 });
 
 
   const expenseTableProps = useDataTable({

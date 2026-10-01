@@ -471,12 +471,9 @@ function PODetailPage() {
   const isApproved = stage === "approved" || stage === "ready_to_issue" || stage === "issued" || stage === "acknowledged" || stage === "ready_for_delivery" || isDelivered || stage === "closed";
 
   // Workflow steps — updated to reflect draft→submitted→approved chain and backend timeline
-  const isCompanyScope = outerTab === "company";
+  const isCompanyScope = outerTab === "all" || outerTab === "company" || outerTab === "team";
   const isSubmitted = stage === "pending_approval" || stage === "submitted";
-  const showOverrideBanner = isCompanyScope && !isOwnPO && (
-    (isSubmitted && canApprovePO) ||
-    ((isSubmitted || isApproved) && (canCancelPO || canApprovePO))
-  );
+  const showOverrideBanner = (canApprovePO || canCancelPO) && (isSubmitted || isApproved);
 
   const workflowSteps = [
     {
@@ -573,21 +570,18 @@ function PODetailPage() {
   ];
   const hasApprovePermission = canApprovePO;
   
-  const showApprove    = stage === "pending_approval" && !isSubmitterView && canApprovePO && (!isCompanyScope || overrideUnlocked);
-  const showReject     = stage === "pending_approval" && !isSubmitterView && canApprovePO && (!isCompanyScope || overrideUnlocked);
+  const showApprove = stage === "pending_approval" && canApprovePO && overrideUnlocked;
+  const showReject  = stage === "pending_approval" && canApprovePO && overrideUnlocked;
   
-  const showWithdraw = stage === "pending_approval" && (
-    (isOwnScope && isOwnPO && canCancelPO) ||
-    (isCompanyScope && hasApprovePermission && overrideUnlocked)
-  );
+  const showWithdraw = stage === "pending_approval" && isOwnScope && isOwnPO && canCancelPO;
   /** Neutral cancel for drafts — always false here (handled in the edit page) */
   const showCancelDraft = false;
   /** Close (close endpoint) — after approval, any time until already closed/cancelled */
-  const showClose = stage === "delivered" && canClosePO && po.canClose === true;
-  const showReceipt = (stage === "ready_for_delivery" || stage === "delivered") && canReceivePO;
   const closeBlockers = (po.closeBlockers || []) as string[];
   const canConfirmFinalBilling = canClosePO && stage === "delivered" &&
     closeBlockers.length === 1 && closeBlockers[0] === "final_billing_confirmation_required";
+  // Close PO is only available once billing is finalized (no blockers remaining)
+  const showClose = stage === "delivered" && canClosePO && po.canClose === true && closeBlockers.length === 0;
   const statusLabel = getPOStatusLabel(stage, isSubmitterView);
 
   return (
@@ -899,11 +893,7 @@ function PODetailPage() {
                   Issue PO
                 </button>
               )}
-              {showReceipt && (
-                <button onClick={() => router.push(`/procurement/confirmation/${id}`)} className="h-9 px-5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-2">
-                  <PackageCheck className="w-4 h-4" /> Select Shipment to Receive
-                </button>
-              )}
+
               {canConfirmFinalBilling && (
                 <button onClick={() => setModal("final_billing")} className="h-9 px-4 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity">
                   Confirm Final Billing

@@ -13,6 +13,23 @@ export interface WorkflowStep {
   status: StepStatus;
 }
 
+function formatTimestamp(raw: string): string {
+  try {
+    const date = new Date(raw);
+    if (isNaN(date.getTime())) return raw;
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return raw;
+  }
+}
+
 export function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
   return (
     <div className="space-y-0 pt-1 pl-1">
@@ -56,7 +73,7 @@ export function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
                 </span>
               )}
               {step.timestamp && (
-                <p className="text-xs text-[#68726d] mt-0.5">{step.timestamp}</p>
+                <p className="text-xs text-[#68726d] mt-0.5">{formatTimestamp(step.timestamp)}</p>
               )}
             </div>
           </div>
@@ -65,3 +82,4 @@ export function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
     </div>
   );
 }
+

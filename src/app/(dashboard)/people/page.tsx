@@ -24,11 +24,11 @@ function People() {
     const { canManageUsers, canViewRoles, canViewUsers: canReadDirectory, canManageRoles } = policies.people;
     const { canViewAssignments, canManageAssignments } = policies.legalEntities;
 
-    const totalInvitedUsersApi = useGetInvitedUsersApi({ enabled: canManageUsers, params: { limit: 1 } });
-    const activeInvitedUsersApi = useGetInvitedUsersApi({ enabled: canManageUsers, params: { limit: 1, status: "Active" } });
+    const totalInvitedUsersApi = useGetInvitedUsersApi({ enabled: canManageUsers, params: { limit: 1 }, refetchInterval: 60_000 });
+    const activeInvitedUsersApi = useGetInvitedUsersApi({ enabled: canManageUsers, params: { limit: 1, status: "Active" }, refetchInterval: 60_000 });
     
-    const rolesApi     = useGetAllRolesApi({ limit: 50 }, { enabled: canViewRoles });
-    const directoryApi = useGetDirectoryUsersApi({ enabled: canReadDirectory, params: { status: "all" } });
+    const rolesApi     = useGetAllRolesApi({ limit: 50 }, { enabled: canViewRoles, refetchInterval: 60_000 });
+    const directoryApi = useGetDirectoryUsersApi({ enabled: canReadDirectory, params: { status: "all" }, refetchInterval: 60_000 });
 
     const directoryTotalCount = directoryApi?.data?.meta?.totalCount ?? 0;
     const hasDirectoryData    = directoryTotalCount > 0;

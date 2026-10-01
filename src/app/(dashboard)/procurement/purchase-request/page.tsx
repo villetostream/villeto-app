@@ -4,9 +4,9 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import {
-  Search, Eye, Download, ChevronDown, Loader2, RefreshCw,
-  Plus, Check, ChevronLeft, ChevronRight, MoreHorizontal,
+  Search, Eye, Download, ChevronDown, ChevronLeft, ChevronRight, Plus, Loader2, RefreshCw,
   CheckCircle, XCircle, X, AlertCircle,
+  ArrowUp, ArrowDown, ChevronsUpDown, MoreHorizontal, Check
 } from "lucide-react";
 import { useGetPurchaseRequests, useApprovePurchaseRequest, useRejectPurchaseRequest } from "@/queries/procurement/purchase-requests";
 import type { PurchaseRequest } from "@/queries/procurement/purchase-requests";
@@ -27,6 +27,34 @@ import {
 import { toast } from "sonner";
 import { ProcurementPageHeader } from "@/components/procurement/ProcurementWorkspace";
 
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+function SortableHeader({ title, sortKey, currentSort, onSort, className }: { title: string, sortKey: string, currentSort: { key: string, direction: 'asc'|'desc' } | null, onSort: (key: string) => void, className?: string }) {
+  const isSorted = currentSort?.key === sortKey;
+  
+  if (sortKey === "action") {
+    return <th className={`px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest bg-[#f9faf9] ${className || ""}`}>{title}</th>;
+  }
+
+  return (
+    <th 
+      className={`px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest bg-[#f9faf9] cursor-pointer hover:bg-black/[0.02] transition-colors select-none ${className || ""}`}
+      onClick={() => onSort(sortKey)}
+    >
+      <div className="flex items-center gap-1.5">
+        <span className={isSorted ? "text-[#0b100e]" : ""}>{title}</span>
+        {isSorted ? (
+          currentSort.direction === 'asc' 
+            ? <ArrowUp className="w-3.5 h-3.5 text-[#087f70]" /> 
+            : <ArrowDown className="w-3.5 h-3.5 text-[#087f70]" />
+        ) : (
+          <ChevronsUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+        )}
+      </div>
+    </th>
+  );
+}
+
 // ─── Status / Priority Badges ─────────────────────────────────────────────────
 
 function PRPriorityBadge({ priority }: { priority: string }) {
@@ -43,7 +71,7 @@ function PRPriorityBadge({ priority }: { priority: string }) {
 function ActionBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+    <span className="ml-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold" style={{ paddingTop: '1px' }}>
       {count > 99 ? "99+" : count}
     </span>
   );
@@ -343,6 +371,7 @@ function PRTable({
   const [priorityOpen, setPriorityOpen]       = useState(false);
   const [pageByKey, setPageByKey] = useState<Record<string, number>>({});
   const [perPage, setPerPage]                 = useState(10);
+  const [sortConfig, setSortConfig]           = useState<{ key: string, direction: 'asc'|'desc' } | null>({ key: "date", direction: "desc" });
 
   // Reject modal state
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
@@ -408,23 +437,26 @@ function PRTable({
 
   // ── Badge count queries (lightweight — reads meta.totalCount only) ──────────
 
+  const isExplicitPRManager = policies.purchaseRequests.canReadDepartment;
+  const showPRApprovalCount = canApprove && isExplicitPRManager;
+
   const { data: approvalCountData } = useGetPurchaseRequests(
     { scope, status: "submitted", requiresMyApproval: true },
-    { enabled: canApprove && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: showPRApprovalCount, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const awaitingCount = scope === "company" ? 0 : ((approvalCountData as unknown as number) ?? 0);
+  const awaitingCount = showPRApprovalCount ? ((approvalCountData as unknown as number) ?? 0) : 0;
 
   const { data: conversionCountData } = useGetPurchaseRequests(
     { scope, status: "approved", requiresMyConversion: true },
-    { enabled: canConvert && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const readyForPOCount = scope === "company" ? 0 : ((conversionCountData as unknown as number) ?? 0);
+  const readyForPOCount = (conversionCountData as unknown as number) ?? 0;
 
   const { data: partialConversionCountData } = useGetPurchaseRequests(
     { scope, status: "partially_converted", requiresMyConversion: true },
-    { enabled: canConvert && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const partialPOCount = scope === "company" ? 0 : ((partialConversionCountData as unknown as number) ?? 0);
+  const partialPOCount = (partialConversionCountData as unknown as number) ?? 0;
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -461,12 +493,45 @@ function PRTable({
   const totalCount  = meta?.totalCount  ?? requests.length;
   const totalPages  = meta?.totalPages  ?? Math.ceil(totalCount / perPage);
 
-  // With server-side pagination the API returns only the current page's records;
-  // client-side slicing is only applied as a fallback when meta is absent.
   const paginated = useMemo(() => {
-    if (meta) return requests;
-    return requests.slice((page - 1) * perPage, page * perPage);
-  }, [requests, page, perPage, meta]);
+    let base = meta ? requests : requests.slice((page - 1) * perPage, page * perPage);
+    
+    if (sortConfig) {
+      base = [...base].sort((a: PurchaseRequest, b: PurchaseRequest) => {
+        let valA: any, valB: any;
+        if (sortConfig.key === "requestNumber") { valA = a.requestNumber; valB = b.requestNumber; }
+        else if (sortConfig.key === "title") { valA = a.title; valB = b.title; }
+        else if (sortConfig.key === "requester") { valA = getRequesterName(a); valB = getRequesterName(b); }
+        else if (sortConfig.key === "department") { valA = getDeptName(a); valB = getDeptName(b); }
+        else if (sortConfig.key === "priority") { 
+          const weights: Record<string, number> = { low: 1, medium: 2, urgent: 3 };
+          valA = weights[a.priority] || 0; valB = weights[b.priority] || 0; 
+        }
+        else if (sortConfig.key === "date") { valA = new Date(a.neededByDate || 0).getTime(); valB = new Date(b.neededByDate || 0).getTime(); }
+        else if (sortConfig.key === "status") { valA = a.status; valB = b.status; }
+        
+        if (valA === undefined || valA === null) valA = "";
+        if (valB === undefined || valB === null) valB = "";
+
+        if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    
+    return base;
+  }, [requests, page, perPage, meta, sortConfig]);
+
+  const handleSort = (key: string) => {
+    if (key === "action") return;
+    setSortConfig(current => {
+      if (current?.key === key) {
+        if (current.direction === 'asc') return { key, direction: 'desc' };
+        return null;
+      }
+      return { key, direction: 'asc' };
+    });
+  };
 
   const selectedPriorityLabel = PRIORITY_OPTIONS.find(p => p.value === priority)?.label || "All Priorities";
 
@@ -615,11 +680,14 @@ function PRTable({
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-[#f9faf9] shadow-[0_1px_0_rgba(0,0,0,0.06)]">
                 <tr className="border-b border-black/[0.06]">
-                  {columns.map(h => (
-                    <th key={h} className="px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest bg-[#f9faf9]">
-                      {h}
-                    </th>
-                  ))}
+                  <SortableHeader title="Request No." sortKey="requestNumber" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="Title" sortKey="title" currentSort={sortConfig} onSort={handleSort} />
+                  {showRequester && <SortableHeader title="Requester" sortKey="requester" currentSort={sortConfig} onSort={handleSort} />}
+                  <SortableHeader title="Department" sortKey="department" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="Priority" sortKey="priority" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="Need by Date" sortKey="date" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="Status" sortKey="status" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="Action" sortKey="action" currentSort={sortConfig} onSort={handleSort} className="text-center w-16" />
                 </tr>
               </thead>
             <tbody>
@@ -635,7 +703,7 @@ function PRTable({
                 ))
               ) : paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length} className="px-5 py-10 text-center border-0 p-0">
+                  <td colSpan={showRequester ? 8 : 7} className="px-5 py-10 text-center border-0 p-0">
                     <div className="w-full flex justify-center flex-col items-center">
                       <EmptyState
                         icon={<Search className="w-6 h-6" />}

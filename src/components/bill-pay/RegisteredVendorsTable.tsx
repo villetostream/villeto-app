@@ -42,7 +42,7 @@ export function RegisteredVendorsTable() {
     invoiceDateTo: filters["dateRanges[invoiceDate][endDate]"] as string,
     dueDateFrom: filters["dateRanges[dueDate][startDate]"] as string,
     dueDateTo: filters["dateRanges[dueDate][endDate]"] as string,
-  });
+  }, { refetchInterval: 60_000 });
 
   const invoices = invoicesResponse?.data?.data || [];
   const meta = invoicesResponse?.data?.meta;

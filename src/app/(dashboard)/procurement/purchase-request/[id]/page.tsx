@@ -1492,10 +1492,10 @@ function PRDetailPage() {
   // Approve/Reject base permission
   const hasApprovePermission = policies.purchaseRequests.canApprove;
 
-  // Withdraw: owner can withdraw their own submitted or approved request. 
-  // (Drafts cannot be withdrawn, and company scope overrides cannot withdraw).
+  // Withdraw: owner can withdraw their own submitted request. 
+  // (Drafts and approved requests cannot be withdrawn, and company scope overrides cannot withdraw).
   const hasWithdrawPermission = policies.purchaseRequests.canCancelOwn;
-  const canWithdraw = (isSubmitted || isApproved) && (
+  const canWithdraw = isSubmitted && (
     isOwnScope && isOwnRequest && hasWithdrawPermission
   );
 
@@ -1506,8 +1506,8 @@ function PRDetailPage() {
     (isTeamScope || (isCompanyScope && overrideUnlocked));
   const _canReject  = canApprove;
 
-  // Create PO: available on team/company scope regardless of override state
-  const canCreatePO = !isOwnScope && isApproved && policies.purchaseRequests.canConvertToPurchaseOrder;
+  // Create PO: available if approved and user has permission
+  const canCreatePO = isApproved && policies.purchaseRequests.canConvertToPurchaseOrder;
 
   // Whether to show the lock/unlock override banner.
   // Never show it on the requester's own request — there is nothing to override.
@@ -1719,13 +1719,16 @@ function PRDetailPage() {
           status: "done"
         };
       } else {
+        const isPartial = poEvent?.action === "partially_converted" || pr.status === "partially_converted";
         step4 = poEvent ? {
-          label: "Converted to PO",
+          label: isPartial ? "Partially Converted to PO" : "Converted to PO",
           person: formatPerson(poEvent),
           timestamp: formatTs(poEvent.timestamp),
+          badge: isPartial ? "Partial" : undefined,
+          badgeColor: isPartial ? "text-amber-600 bg-amber-50" : undefined,
           status: "done"
         } : { 
-          label: pr.status === "cancelled" ? "Withdrawn" : "Converted to PO", 
+          label: pr.status === "cancelled" ? "Withdrawn" : pr.status === "partially_converted" ? "Partially Converted to PO" : "Converted to PO", 
           status: "inactive" 
         };
       }
@@ -1762,10 +1765,10 @@ function PRDetailPage() {
         timestamp: isApprovedOrBeyond ? formatTs(pr.approvedAt || pr.updatedAt) : undefined,
       },
       {
-        label: pr.status === "cancelled" ? "Withdrawn" : "Converted to PO",
+        label: pr.status === "cancelled" ? "Withdrawn" : pr.status === "partially_converted" ? "Partially Converted to PO" : "Converted to PO",
         status: (pr.status === "cancelled" ? "done" : isPOCreated ? "done" : "inactive") as StepStatus,
-        badge: pr.status === "cancelled" ? "Withdrawn" : undefined,
-        badgeColor: pr.status === "cancelled" ? "text-[#d33d44] bg-[#fff5f5]" : undefined,
+        badge: pr.status === "cancelled" ? "Withdrawn" : pr.status === "partially_converted" ? "Partial" : undefined,
+        badgeColor: pr.status === "cancelled" ? "text-[#d33d44] bg-[#fff5f5]" : pr.status === "partially_converted" ? "text-amber-600 bg-amber-50" : undefined,
       },
     ];
   })() : [];
@@ -2662,13 +2665,15 @@ function PRDetailPage() {
                 },
                 {
                   key: withdrawEvent ? "withdrawn" : "create_po",
-                  label: withdrawEvent ? "Withdrawn" : "Converted to PO",
+                  label: withdrawEvent ? "Withdrawn" : poEvent?.action === "partially_converted" || pr.status === "partially_converted" ? "Partially Converted to PO" : "Converted to PO",
                   done: !!(poEvent || withdrawEvent),
                   personName: withdrawEvent ? formatPerson(withdrawEvent) : poEvent ? formatPerson(poEvent) : null,
                   badge: withdrawEvent 
                     ? { text: "Withdrawn", color: "bg-[#fff5f5] text-[#d33d44]" }
                     : poEvent
-                    ? { text: "Done", color: "bg-[#f0faf8] text-[#087f70]" }
+                    ? poEvent.action === "partially_converted" || pr.status === "partially_converted"
+                      ? { text: "Partial", color: "bg-amber-50 text-amber-600" }
+                      : { text: "Done", color: "bg-[#f0faf8] text-[#087f70]" }
                     : nextStepKey === "create_po"
                     ? { text: "Pending", color: "bg-amber-50 text-amber-600" }
                     : null,
@@ -2711,11 +2716,13 @@ function PRDetailPage() {
                 },
                 {
                   key: pr.status === "cancelled" ? "withdrawn" : "create_po",
-                  label: pr.status === "cancelled" ? "Withdrawn" : "Converted to PO",
+                  label: pr.status === "cancelled" ? "Withdrawn" : pr.status === "partially_converted" ? "Partially Converted to PO" : "Converted to PO",
                   done: pr.status === "cancelled" ? true : hasPO,
                   personName: pr.status === "cancelled" ? "System" : (hasPO ? (isPoCreatorSelf ? `${poCreatorName} (You)` : poCreatorName) : null),
                   badge: pr.status === "cancelled"
                     ? { text: "Withdrawn", color: "bg-[#fff5f5] text-[#d33d44]" }
+                    : pr.status === "partially_converted" && hasPO
+                    ? { text: "Partial", color: "bg-amber-50 text-amber-600" }
                     : hasPO
                     ? { text: "Done", color: "bg-[#f0faf8] text-[#087f70]" }
                     : nextStepKey === "create_po"

@@ -191,37 +191,57 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   // ── Badge Counts ──
   const canApprovePR = policies.purchaseRequests.canApprove;
   const canConvertPR = policies.purchaseRequests.canConvertToPurchaseOrder;
-  const isPRManager  = policies.purchaseRequests.canReadDepartment;
+  const isExplicitPRManager = policies.purchaseRequests.canReadDepartment;
+  const prListScope = policies.purchaseRequests.listScope || "own";
 
+  const showPRApprovalCount = canApprovePR && isExplicitPRManager;
   const { data: prApprovalData } = useGetPurchaseRequests(
     { scope: "team", status: "submitted", requiresMyApproval: true },
-    { enabled: canApprovePR && isPRManager, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: showPRApprovalCount, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const prAwaitingCount = isPRManager ? ((prApprovalData as unknown as number) ?? 0) : 0;
+  const prAwaitingCount = showPRApprovalCount ? ((prApprovalData as unknown as number) ?? 0) : 0;
 
   const { data: prConversionData } = useGetPurchaseRequests(
-    { scope: "team", status: "approved", requiresMyConversion: true },
-    { enabled: canConvertPR && isPRManager, select: (d) => d.meta?.totalCount ?? 0 }
+    { scope: prListScope, status: "approved", requiresMyConversion: true },
+    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const prReadyForPOCount = isPRManager ? ((prConversionData as unknown as number) ?? 0) : 0;
+  const prReadyForPOCount = canConvertPR ? ((prConversionData as unknown as number) ?? 0) : 0;
 
   const { data: prPartialConversionData } = useGetPurchaseRequests(
-    { scope: "team", status: "partially_converted", requiresMyConversion: true },
-    { enabled: canConvertPR && isPRManager, select: (d) => d.meta?.totalCount ?? 0 }
+    { scope: prListScope, status: "partially_converted", requiresMyConversion: true },
+    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const prPartialPOCount = isPRManager ? ((prPartialConversionData as unknown as number) ?? 0) : 0;
+  const prPartialPOCount = canConvertPR ? ((prPartialConversionData as unknown as number) ?? 0) : 0;
   const totalPRActionCount = prAwaitingCount + prReadyForPOCount + prPartialPOCount;
 
   const canApprovePO = policies.purchaseOrders.canApprove;
-  const isPOManager  = policies.purchaseOrders.canReadDepartment;
+  const isExplicitPOManager = policies.purchaseOrders.canReadDepartment;
+  const showPOApprovalCount = canApprovePO && isExplicitPOManager;
 
   const { data: poApprovalData } = usePurchaseOrders(
     1, 1, "pending_approval", undefined, undefined, "team",
-    { enabled: canApprovePO && isPOManager, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: showPOApprovalCount, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const totalPOActionCount = isPOManager ? ((poApprovalData as unknown as number) ?? 0) : 0;
+  const totalPOActionCount = showPOApprovalCount ? ((poApprovalData as unknown as number) ?? 0) : 0;
 
-  const isExpenseManager = policies.expenses.canReadDepartment;
+  const canReceivePO = policies.purchaseOrders.canReceive;
+  const poListScope = policies.purchaseOrders.listScope || "own";
+
+  const { data: poReadyForDeliveryData } = usePurchaseOrders(
+    1, 1, "ready_for_delivery", undefined, undefined, poListScope,
+    { enabled: canReceivePO, select: (d) => d.meta?.totalCount ?? 0 }
+  );
+  const poReadyForDeliveryCount = canReceivePO ? ((poReadyForDeliveryData as unknown as number) ?? 0) : 0;
+
+  const { data: poPartiallyDeliveredData } = usePurchaseOrders(
+    1, 1, "partially_delivered", undefined, undefined, poListScope,
+    { enabled: canReceivePO, select: (d) => d.meta?.totalCount ?? 0 }
+  );
+  const poPartiallyDeliveredCount = canReceivePO ? ((poPartiallyDeliveredData as unknown as number) ?? 0) : 0;
+
+  const totalConfirmationCount = poReadyForDeliveryCount + poPartiallyDeliveredCount;
+
+  const isExpenseManager = policies.expenses.listScope === "company" || policies.expenses.listScope === "team";
   const { data: expensesData } = useCompanyExpenses(1, 100, "team", undefined, undefined, isExpenseManager);
   const totalExpenseActionCount = isExpenseManager && expensesData?.reports
     ? expensesData.reports.filter(e => e.status === "submitted").length
@@ -238,7 +258,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
           if (totalExpenseActionCount > 0) currentItem.badge = totalExpenseActionCount.toString();
         }
         if (currentItem.href === "/procurement") {
-          const totalProcurement = totalPRActionCount + totalPOActionCount;
+          const totalProcurement = totalPRActionCount + totalPOActionCount + totalConfirmationCount;
           if (totalProcurement > 0) currentItem.badge = totalProcurement.toString();
         }
         if (currentItem.subItems) {
@@ -256,6 +276,8 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
                 currentSub.badge = totalPRActionCount.toString();
               if (currentSub.label === "Purchase Orders" && totalPOActionCount > 0)
                 currentSub.badge = totalPOActionCount.toString();
+              if (currentSub.label === "Confirmation" && totalConfirmationCount > 0)
+                currentSub.badge = totalConfirmationCount.toString();
               return currentSub;
             })
             .filter((sub) => hasNavPermission(sub.permissions));

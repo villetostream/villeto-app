@@ -71,7 +71,8 @@ function BillPayPage() {
   const { data: summaryData, isLoading: isSummaryLoading } = useGetBillPayDashboardSummary(
     legalEntityId,
     periodDates.start,
-    periodDates.end
+    periodDates.end,
+    { refetchInterval: 60_000 }
   );
 
   useEffect(() => {
