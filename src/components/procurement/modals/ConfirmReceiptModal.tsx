@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 
 export default function ConfirmReceiptModal({
   open,
@@ -23,14 +22,12 @@ export default function ConfirmReceiptModal({
   onConfirm,
   isPending,
   lineItems,
-  isFinalDeliveryDefault,
 }: {
   open: boolean;
   onClose: () => void;
-  onConfirm: (payload: ConfirmReceiptPayload, finalizeBilling: boolean) => void;
+  onConfirm: (payload: ConfirmReceiptPayload) => void;
   isPending: boolean;
   lineItems: any[];
-  isFinalDeliveryDefault?: boolean;
 }) {
   const [receivedAt, setReceivedAt] = useState<Date | undefined>(new Date());
   const [notes, setNotes] = useState("");
@@ -41,21 +38,6 @@ export default function ConfirmReceiptModal({
       li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1
     ]))
   );
-  const [finalizeBilling, setFinalizeBilling] = useState(isFinalDeliveryDefault ?? false);
-
-  useEffect(() => {
-    if (!open) return;
-    setReceivedAt(new Date());
-    setNotes("");
-    setQuantities(Object.fromEntries((lineItems || []).map((li: any) => [
-      li.vendorDeliveryNoticeLineItemId,
-      li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1,
-    ])));
-    setReceiptReference(typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `RCV-${Date.now()}`);
-    setFinalizeBilling(isFinalDeliveryDefault ?? false);
-  }, [open, lineItems, isFinalDeliveryDefault]);
 
   useEffect(() => {
     if (!open) return;
@@ -88,7 +70,7 @@ export default function ConfirmReceiptModal({
       receivedAt: receivedAt.toISOString(),
       notes: notes || undefined,
       lineItems: itemsToSubmit,
-    }, finalizeBilling);
+    });
   };
 
   const totalQuantityToReceive = lineItems.reduce((acc: number, li: any) => {
@@ -180,28 +162,6 @@ export default function ConfirmReceiptModal({
             />
           </div>
           
-          {/* Finalize Billing Checkbox */}
-          <div className="pt-4 border-t border-black/[0.06]">
-            <label className="flex items-start gap-3 cursor-pointer group" htmlFor="finalize-billing">
-              <div className="flex items-start h-5">
-                <Checkbox
-                  id="finalize-billing"
-                  checked={finalizeBilling}
-                  onCheckedChange={(checked) => setFinalizeBilling(checked as boolean)}
-                  disabled={isPending}
-                  className="mt-0.5 data-[state=checked]:bg-[#087f70] data-[state=checked]:border-[#087f70]"
-                />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold text-[#0b100e] group-hover:text-[#087f70] transition-colors">
-                  Finalize Billing
-                </span>
-                <span className="text-xs text-[#68726d] mt-0.5">
-                  Check this to finalize the order so the vendor can submit the invoice for this PO.
-                </span>
-              </div>
-            </label>
-          </div>
         </div>
 
         <DialogFooter className="p-6 pt-0 sm:justify-start flex-row-reverse gap-3">

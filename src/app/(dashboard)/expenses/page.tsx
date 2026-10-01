@@ -119,27 +119,27 @@ function Reimbursements() {
     isLoading: isLoadingPersonalExpenses,
     error: personalExpensesError,
     refetch: refetchPersonalExpenses,
-  } = usePersonalExpenses(page, limit);
+  } = usePersonalExpenses(page, limit, undefined, undefined, undefined, true, { refetchInterval: 60_000 });
 
   const {
     data: draftExpensesData,
     isLoading: isLoadingDrafts,
     refetch: refetchDraftExpenses,
-  } = useDraftExpenses(page, limit);
+  } = useDraftExpenses(page, limit, undefined, undefined, { refetchInterval: 60_000 });
 
   const {
     data: companyExpensesData,
     isLoading: isLoadingCompanyExpenses,
     error: companyExpensesError,
     refetch: refetchCompanyExpenses,
-  } = useCompanyExpenses(page, limit, "company", undefined, undefined, hasCompanyScope);
+  } = useCompanyExpenses(page, limit, "company", undefined, undefined, hasCompanyScope, { refetchInterval: 60_000 });
 
   const {
     data: teamExpensesData,
     isLoading: isLoadingTeamExpenses,
     error: teamExpensesError,
     refetch: refetchTeamExpenses,
-  } = useCompanyExpenses(page, limit, "team", undefined, undefined, hasTeamScope);
+  } = useCompanyExpenses(page, limit, "team", undefined, undefined, hasTeamScope, { refetchInterval: 60_000 });
 
   const isLoadingCompany = isLoadingCompanyExpenses && hasCompanyScope;
   const isLoadingTeam    = isLoadingTeamExpenses    && hasTeamScope;

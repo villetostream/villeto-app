@@ -8,10 +8,11 @@ import { useAuthorizationPolicies } from "@/features/auth/use-authorization-poli
 import {
   Search, Eye, Download, Loader2, ChevronLeft, ChevronRight,
   MoreHorizontal, CheckCircle, XCircle, X, AlertCircle, Send,
+  ArrowUp, ArrowDown, ChevronsUpDown
 } from "lucide-react";
 import { buildPODetailUrl } from "@/lib/permissions/purchase-order-permissions";
 import { Pagination } from "@/components/ui/custom-pagination";
-import { usePurchaseOrders, usePurchaseOrderApprovalDecision, useIssuePurchaseOrder } from "@/queries/procurement/purchase-orders";
+import { usePurchaseOrders, usePurchaseOrderApprovalDecision, useIssuePurchaseOrder, type PurchaseOrderRecord } from "@/queries/procurement/purchase-orders";
 import { useGetVendors } from "@/queries/procurement/purchase-requests";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -30,7 +31,7 @@ import { ProcurementPageHeader } from "@/components/procurement/ProcurementWorks
 function ActionBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#d33d44] text-white text-[10px] font-bold leading-none">
+    <span className="ml-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#d33d44] text-white text-[10px] font-bold" style={{ paddingTop: '1px' }}>
       {count > 99 ? "99+" : count}
     </span>
   );
@@ -203,6 +204,35 @@ function buildAllPOTabs(canApprove: boolean) {
   return tabs;
 }
 
+// ── Helper ───────────────────────────────────────────────────────────────────
+
+function SortableHeader({ title, sortKey, currentSort, onSort, className }: { title: string, sortKey: string, currentSort: { key: string, direction: 'asc'|'desc' } | null, onSort: (key: string) => void, className?: string }) {
+  const isSorted = currentSort?.key === sortKey;
+  
+  // Exclude Action column from being sortable
+  if (sortKey === "action") {
+    return <th className={`px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest bg-[#f9faf9] ${className || ""}`}>{title}</th>;
+  }
+
+  return (
+    <th 
+      className={`px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest bg-[#f9faf9] cursor-pointer hover:bg-black/[0.02] transition-colors select-none ${className || ""}`}
+      onClick={() => onSort(sortKey)}
+    >
+      <div className="flex items-center gap-1.5">
+        <span className={isSorted ? "text-[#0b100e]" : ""}>{title}</span>
+        {isSorted ? (
+          currentSort.direction === 'asc' 
+            ? <ArrowUp className="w-3.5 h-3.5 text-[#087f70]" /> 
+            : <ArrowDown className="w-3.5 h-3.5 text-[#087f70]" />
+        ) : (
+          <ChevronsUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+        )}
+      </div>
+    </th>
+  );
+}
+
 // ── PO Table ──────────────────────────────────────────────────────────────────
 
 function POTable({
@@ -234,6 +264,7 @@ function POTable({
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
   const [approvingId, setApprovingId]   = useState<string | null>(null);
   const [issuingId, setIssuingId]       = useState<string | null>(null);
+  const [sortConfig, setSortConfig]     = useState<{ key: string, direction: 'asc'|'desc' } | null>({ key: "date", direction: "desc" });
 
   const scrollRef        = useRef<HTMLDivElement>(null);
   const [canScrollLeft,  setCanScrollLeft]  = useState(false);
@@ -275,14 +306,18 @@ function POTable({
     vendorFilter !== "all" ? vendorFilter : undefined,
     debouncedSearch || undefined,
     scope,
+    { refetchInterval: 60_000 },
   );
 
   // Badge count for "Awaiting Approval" tab (only for All POs / elevated scope)
+  const isExplicitPOManager = policies.purchaseOrders.canReadDepartment;
+  const showPOApprovalCount = canApprove && isExplicitPOManager;
+
   const { data: approvalCountData } = usePurchaseOrders(
     1, 1, "pending_approval", undefined, undefined, scope,
-    { enabled: canApprove && scope !== "company", select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: showPOApprovalCount, select: (d) => d.meta?.totalCount ?? 0 }
   );
-  const awaitingCount = scope === "company" ? 0 : ((approvalCountData as unknown as number) ?? 0);
+  const awaitingCount = showPOApprovalCount ? ((approvalCountData as unknown as number) ?? 0) : 0;
 
   // Filter out drafts from All POs view — drafts are private to the creator and
   // only belong in the My POs tab. The backend doesn't support an exclude-status
@@ -291,7 +326,45 @@ function POTable({
   const purchaseOrders = isMyScope
     ? rawPurchaseOrders
     : rawPurchaseOrders.filter(po => String(po.status || "").toLowerCase() !== "draft");
+    
+  const sortedPurchaseOrders = useMemo(() => {
+    if (!sortConfig) return purchaseOrders;
+    return [...purchaseOrders].sort((a: PurchaseOrderRecord, b: PurchaseOrderRecord) => {
+      let valA: any, valB: any;
+      if (sortConfig.key === "poNumber") { valA = a.poNumber; valB = b.poNumber; }
+      else if (sortConfig.key === "requester") {
+        const cbA = a.createdBy && typeof a.createdBy === "object" ? (a.createdBy as Record<string, unknown>) : null;
+        const cbB = b.createdBy && typeof b.createdBy === "object" ? (b.createdBy as Record<string, unknown>) : null;
+        valA = cbA ? `${cbA.firstName ?? ""} ${cbA.lastName ?? ""}`.trim() : (a.requesterName ?? "");
+        valB = cbB ? `${cbB.firstName ?? ""} ${cbB.lastName ?? ""}`.trim() : (b.requesterName ?? "");
+      }
+      else if (sortConfig.key === "vendor") { valA = a.vendor?.legalName || a.vendor?.displayName; valB = b.vendor?.legalName || b.vendor?.displayName; }
+      else if (sortConfig.key === "department") { valA = a.departmentName; valB = b.departmentName; }
+      else if (sortConfig.key === "date") { valA = new Date(a.createdAt ?? a.issueDate ?? 0).getTime(); valB = new Date(b.createdAt ?? b.issueDate ?? 0).getTime(); }
+      else if (sortConfig.key === "amount") { valA = Number(a.totalAmount); valB = Number(b.totalAmount); }
+      else if (sortConfig.key === "status") { valA = a.status; valB = b.status; }
+      
+      if (valA === undefined || valA === null) valA = "";
+      if (valB === undefined || valB === null) valB = "";
+
+      if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [purchaseOrders, sortConfig]);
+  
   const meta = data?.meta || { totalCount: 0, totalPages: 1, currentPage: 1, limit: perPage };
+
+  const handleSort = (key: string) => {
+    if (key === "action") return;
+    setSortConfig(current => {
+      if (current?.key === key) {
+        if (current.direction === 'asc') return { key, direction: 'desc' };
+        return null;
+      }
+      return { key, direction: 'asc' };
+    });
+  };
 
   // Mutations
   const approvalDecision = usePurchaseOrderApprovalDecision();
@@ -424,9 +497,14 @@ function POTable({
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-[#f9faf9] shadow-[0_1px_0_rgba(0,0,0,0.06)]">
               <tr className="border-b border-black/[0.06]">
-                {["PO Number", ...(showRequester ? ["Requester"] : []), "Vendor", "Department", "Date", "Total Amount", "Status", "Action"].map(h => (
-                  <th key={h} className="px-5 py-3.5 text-left text-[11px] font-semibold text-[#84908a] uppercase tracking-widest bg-[#f9faf9]">{h}</th>
-                ))}
+                <SortableHeader title="PO Number" sortKey="poNumber" currentSort={sortConfig} onSort={handleSort} />
+                {showRequester && <SortableHeader title="Requester" sortKey="requester" currentSort={sortConfig} onSort={handleSort} />}
+                <SortableHeader title="Vendor" sortKey="vendor" currentSort={sortConfig} onSort={handleSort} />
+                <SortableHeader title="Department" sortKey="department" currentSort={sortConfig} onSort={handleSort} />
+                <SortableHeader title="Created On" sortKey="date" currentSort={sortConfig} onSort={handleSort} />
+                <SortableHeader title="Total Amount" sortKey="amount" currentSort={sortConfig} onSort={handleSort} />
+                <SortableHeader title="Status" sortKey="status" currentSort={sortConfig} onSort={handleSort} />
+                <SortableHeader title="Action" sortKey="action" currentSort={sortConfig} onSort={handleSort} className="text-right" />
               </tr>
             </thead>
             <tbody>
@@ -454,7 +532,7 @@ function POTable({
                     </div>
                   </td>
                 </tr>
-              ) : purchaseOrders.map((po: any) => {
+              ) : sortedPurchaseOrders.map((po: any) => {
                 const id = po.purchaseOrderId || po.id;
                 const requester = po.createdBy ? `${po.createdBy.firstName} ${po.createdBy.lastName}`.trim() : po.requesterName;
                 const vendorLabel = po.vendor?.legalName || po.vendor?.displayName || "N/A";

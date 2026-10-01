@@ -4,6 +4,7 @@ import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { PurchaseOrderRecord } from "@/lib/types/purchase-request-helpers";
+export type { PurchaseOrderRecord };
 
 // ── Response Types ──────────────────────────────────────────────────────────
 

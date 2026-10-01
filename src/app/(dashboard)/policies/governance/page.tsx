@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Switch } from "@/components/ui/switch";
-import { Search, Loader2, Save, X } from "lucide-react";
+import { Search, Loader2, Save, X, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -769,7 +770,9 @@ function SpendProgramPanel({ onStateChange, onRegisterActions }: any) {
 // ─── Main Page ─────────────────────────────────────────────────────────────
 
 function PolicyGovernancePage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"expense_policy" | "procurement_policy">("expense_policy");
+  const [pendingNav, setPendingNav] = useState<{ type: "link" | "tab", target: string } | null>(null);
   
   const [panelState, setPanelState] = useState({
     isDirty: false,
@@ -782,6 +785,35 @@ function PolicyGovernancePage() {
   const handlePanelState = useCallback((state: any) => {
     setPanelState(state);
   }, []);
+
+  useEffect(() => {
+    if (!panelState.isDirty) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = (e.target as Element).closest("a");
+      if (!target) return;
+      
+      const href = target.getAttribute("href");
+      if (href && !href.startsWith("#") && !href.startsWith("javascript")) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPendingNav({ type: "link", target: href });
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("click", handleLinkClick, { capture: true });
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleLinkClick, { capture: true });
+    };
+  }, [panelState.isDirty]);
 
   return (
     <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 pt-0 sm:pt-0 lg:pt-0 pb-32 min-h-0">
@@ -842,13 +874,25 @@ function PolicyGovernancePage() {
       <div className="flex flex-1 min-h-0 gap-8">
         <div className="w-48 shrink-0 flex flex-col gap-4 sticky top-20 self-start">
           <button
-            onClick={() => setActiveTab("expense_policy")}
+            onClick={() => {
+              if (panelState.isDirty && activeTab !== "expense_policy") {
+                setPendingNav({ type: "tab", target: "expense_policy" });
+              } else {
+                setActiveTab("expense_policy");
+              }
+            }}
             className={cn("text-left text-[14px] font-medium transition-colors hover:text-[#087f70]", activeTab === "expense_policy" ? "text-[#087f70] font-semibold" : "text-[#68726d]")}
           >
             Expense policy
           </button>
           <button
-            onClick={() => setActiveTab("procurement_policy")}
+            onClick={() => {
+              if (panelState.isDirty && activeTab !== "procurement_policy") {
+                setPendingNav({ type: "tab", target: "procurement_policy" });
+              } else {
+                setActiveTab("procurement_policy");
+              }
+            }}
             className={cn("text-left text-[14px] font-medium transition-colors hover:text-[#087f70]", activeTab === "procurement_policy" ? "text-[#087f70] font-semibold" : "text-[#68726d]")}
           >
             Procurement policy
@@ -871,6 +915,47 @@ function PolicyGovernancePage() {
           )}
         </div>
       </div>
+      <Dialog open={!!pendingNav} onOpenChange={(open) => !open && setPendingNav(null)}>
+        <DialogContent className="max-w-[420px] p-0 overflow-hidden bg-white border-0 rounded-2xl shadow-xl">
+          <div className="p-6">
+            <DialogTitle className="text-[17px] font-bold text-[#10231d] mb-2 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+              </div>
+              Unsaved Changes
+            </DialogTitle>
+            <p className="text-[14px] text-[#68726d] mt-2 leading-relaxed pl-10">
+              You have unsaved changes on this page. If you leave now, all your recent changes will be lost. Are you sure you want to discard them?
+            </p>
+          </div>
+          <div className="p-4 bg-[#f9faf9] border-t border-black/[0.06] flex justify-end gap-3">
+            <button
+              onClick={() => setPendingNav(null)}
+              className="h-9 px-6 rounded-[8px] border border-black/[0.1] bg-white text-[13px] font-semibold text-[#52605b] hover:bg-[#f4f7f5] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                const nav = pendingNav;
+                setPendingNav(null);
+                setPanelState(prev => ({ ...prev, isDirty: false })); // prevent beforeunload on route change
+                
+                setTimeout(() => {
+                  if (nav?.type === "tab") {
+                    setActiveTab(nav.target as any);
+                  } else if (nav?.type === "link") {
+                    router.push(nav.target);
+                  }
+                }, 0);
+              }}
+              className="h-9 px-6 rounded-[8px] bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition-colors"
+            >
+              Discard & Leave
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

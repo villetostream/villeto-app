@@ -117,7 +117,6 @@ export const useGetPoliciesApi = (
       return fetchAllPoliciesLoop(axiosInstance, params);
     },
     staleTime: STALE_TIMES.SLOW,
-    refetchInterval: 3000,
     ...options,
   });
 };

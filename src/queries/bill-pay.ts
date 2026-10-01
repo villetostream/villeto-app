@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 
 export interface FundingAccount { fundingAccountId: string; name: string; maskedIdentifier: string; currency: string; isActive: boolean; accountType?: string; }
@@ -98,7 +98,10 @@ export interface GetBillPayIntakesParams {
   source?: string;
 }
 
-export function useGetBillPayIntakes(params: GetBillPayIntakesParams = {}) {
+export function useGetBillPayIntakes(
+  params: GetBillPayIntakesParams = {},
+  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">
+) {
   const axios = useAxios();
   return useQuery({
     queryKey: ["bill-pay", "intakes", params],
@@ -112,7 +115,8 @@ export function useGetBillPayIntakes(params: GetBillPayIntakesParams = {}) {
       
       const res = await axios.get(`/bill-pay/intakes?${searchParams.toString()}`);
       return res.data.data as { data: BillPayIntake[]; meta: { totalCount: number; totalPages: number; currentPage: number; limit: number; } };
-    }
+    },
+    ...options,
   });
 }
 
@@ -670,7 +674,8 @@ export interface BillPayDashboardSummary {
 export function useGetBillPayDashboardSummary(
   legalEntityId: string,
   periodStart?: string,
-  periodEnd?: string
+  periodEnd?: string,
+  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">
 ) {
   const axios = useAxios();
   return useQuery({
@@ -685,6 +690,7 @@ export function useGetBillPayDashboardSummary(
       return res.data.data as BillPayDashboardSummary;
     },
     enabled: !!legalEntityId,
+    ...options,
   });
 }
 
@@ -718,7 +724,10 @@ export interface GetBillPayInvoicesParams {
   search?: string;
 }
 
-export function useGetBillPayInvoices(params: GetBillPayInvoicesParams = {}) {
+export function useGetBillPayInvoices(
+  params: GetBillPayInvoicesParams = {},
+  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">
+) {
   const axios = useAxios();
   return useQuery({
     queryKey: ["bill-pay", "invoices", params],
@@ -741,7 +750,8 @@ export function useGetBillPayInvoices(params: GetBillPayInvoicesParams = {}) {
       
       const res = await axios.get(`/bill-pay/invoices?${searchParams.toString()}`);
       return res.data as { data: { data: BillPayInvoice[]; meta: { totalCount: number; totalPages: number; currentPage: number; limit: number } } };
-    }
+    },
+    ...options,
   });
 }
 

@@ -27,7 +27,7 @@ export function OtherSourcesTable() {
   const { data, isLoading } = useGetBillPayIntakes({
     page: tableprops.page,
     limit: tableprops.pageSize,
-  });
+  }, { refetchInterval: 60_000 });
 
   useEffect(() => {
     if (data?.meta?.totalCount !== undefined) {
@@ -135,7 +135,7 @@ export function OtherSourcesTable() {
     let result = data?.data || [];
     if (tableprops.globalSearch) {
       const s = tableprops.globalSearch.toLowerCase();
-      result = result.filter(r => 
+      result = result.filter((r: BillPayIntake) => 
         r.invoiceIntakeId.toLowerCase().includes(s) ||
         r.source.toLowerCase().includes(s) ||
         (r.vendorName || "").toLowerCase().includes(s) ||

@@ -1,7 +1,7 @@
 import { logger } from "@/lib/logger";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import { API_KEYS } from "@/lib/constants/apis";
 import { useAxios } from "@/hooks/useAxios";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -191,16 +191,12 @@ export const usePersonalExpenses = (
   sortBy?: string,
   sortOrder?: "asc" | "desc",
   enabled: boolean = true,
+  options?: Omit<UseQueryOptions<PersonalExpensesResponse, Error>, "queryKey" | "queryFn">
 ) => {
   const axios = useAxios();
   const authReady = useAuthStore((state) => !state.isLoading);
   const accessToken = useAuthStore((state) => state.accessToken);
 
-  // Previously the page only destructured `data` and `isLoading` from
-  // this hook's return value, so a fetch failure rendered the exact
-  // same UI as a genuinely empty list ("No expense has been added").
-  // Returning `error`/`refetch` here lets the caller show a real
-  // error state with a retry action instead of a misleading empty one.
   return useQuery({
     queryKey: [...QUERY_KEYS.expenses.reports("own"), page, limit, status, sortBy, sortOrder],
     enabled: enabled && authReady && !!accessToken,
@@ -222,6 +218,7 @@ export const usePersonalExpenses = (
       } as PersonalExpensesResponse;
     },
     staleTime: STALE_TIMES.NORMAL,
+    ...options,
   });
 };
 
@@ -230,7 +227,8 @@ export const useDraftExpenses = (
   page: number = 1,
   limit: number = 10,
   sortBy?: string,
-  sortOrder?: "asc" | "desc"
+  sortOrder?: "asc" | "desc",
+  options?: Omit<UseQueryOptions<PersonalExpensesResponse, Error>, "queryKey" | "queryFn">
 ) => {
   const axios = useAxios();
   const authReady = useAuthStore((state) => !state.isLoading);
@@ -276,6 +274,7 @@ export const useDraftExpenses = (
       } as PersonalExpensesResponse;
     },
     staleTime: STALE_TIMES.NORMAL,
+    ...options,
   });
 };
 
@@ -290,7 +289,8 @@ export const useCompanyExpenses = (
   scope: "team" | "company" = "company",
   sortBy?: string,
   sortOrder?: "asc" | "desc",
-  enabled: boolean = true
+  enabled: boolean = true,
+  options?: Omit<UseQueryOptions<CompanyExpensesResponse, Error>, "queryKey" | "queryFn">
 ) => {
   const axios = useAxios();
   const authReady = useAuthStore((state) => !state.isLoading);
@@ -316,6 +316,7 @@ export const useCompanyExpenses = (
       } as CompanyExpensesResponse;
     },
     staleTime: STALE_TIMES.NORMAL,
+    ...options,
   });
 };
 
