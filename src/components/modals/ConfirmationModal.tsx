@@ -36,7 +36,9 @@ export default function ConfirmationModal({
       <AlertDialogContent className="rounded-[14px] p-6 max-w-[400px]">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-[18px] font-bold text-[#0b100e]">{title}</AlertDialogTitle>
-          <AlertDialogDescription className="text-[13px] text-[#68726d] leading-relaxed mt-2">{description}</AlertDialogDescription>
+          <AlertDialogDescription asChild>
+            <div className="mt-2 text-[13px] leading-relaxed text-[#68726d]">{description}</div>
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="mt-6 flex gap-3 sm:justify-end">
           <AlertDialogCancel 
