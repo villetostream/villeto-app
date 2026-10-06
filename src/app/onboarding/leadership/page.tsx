@@ -218,6 +218,7 @@ export default function Leadership() {
     const [editingSelf, setEditingSelf] = useState(false);
     const newPersonIdRef = useRef(0);
     const [editingPerson, setEditingPerson] = useState<{ id: string } | null>(null);
+    const [isDirty, setIsDirty] = useState(false);
 
     // businessOwners: only people explicitly added (not the self-owner)
     const businessOwners = userProfiles.filter(
@@ -288,6 +289,7 @@ export default function Leadership() {
         setIsModalOpen(false);
         setEditingPerson(null);
         setEditingSelf(false);
+        setIsDirty(true);
     };
 
     const handleEditPerson = (id: string) => {
@@ -319,6 +321,7 @@ export default function Leadership() {
         if (remainingBusinessOwners.length === 0 && !remainingSelfOwner) {
             setIsOwnershipCapped(null);
         }
+        setIsDirty(true);
     };
 
     const transformDataForPayload = (): LeaderShipPayload => {
@@ -350,6 +353,11 @@ export default function Leadership() {
         // Validation: total ownership must not exceed 100%
         if (totalOwnership > 100) {
             toast.error(`Total ownership (${totalOwnership}%) exceeds 100%. Please adjust the percentages.`);
+            return;
+        }
+
+        if (!isDirty) {
+            router.push("/onboarding/financial");
             return;
         }
 

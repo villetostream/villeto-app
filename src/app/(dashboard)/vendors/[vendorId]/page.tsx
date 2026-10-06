@@ -16,6 +16,12 @@ import {
   useGetBeneficiaries, 
   useCreateBeneficiary,
 } from "@/queries/bill-pay";
+import { 
+  useVendorNetworkDetail,
+  useVendorReview,
+  useVendorStatusUpdate,
+  useVendorPaymentStatusUpdate
+} from "@/queries/vendors/vendor-network";
 import { useLegalEntities } from "@/queries/legal-entities";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -34,13 +40,11 @@ function VendorDetailsPage() {
     state.can("vendor.entity_configuration", "manage"),
   );
 
-  const [vendor, setVendor] = useState<Record<string, unknown> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestInfoModalOpen, setRequestInfoModalOpen] = useState(false);
   const [infoMessage, setInfoMessage] = useState("");
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
   const [previewDocName, setPreviewDocName] = useState<string | null>(null);
 
@@ -50,49 +54,11 @@ function VendorDetailsPage() {
   const { data: beneficiariesData } = useGetBeneficiaries(legalEntityId);
   const beneficiaries = ((beneficiariesData as any)?.data || []);
 
-  const [addBeneficiaryModalOpen, setAddBeneficiaryModalOpen] = useState(false);
-  const [beneficiaryName, setBeneficiaryName] = useState("");
-  const [beneficiaryAccount, setBeneficiaryAccount] = useState("");
-  const createBeneficiaryMutation = useCreateBeneficiary();
 
-  const handleCreateBeneficiary = async () => {
-    try {
-      await createBeneficiaryMutation.mutateAsync({
-        legalEntityId,
-        vendorId,
-        name: beneficiaryName,
-        maskedIdentifier: beneficiaryAccount,
-        externalReference: "",
-        currency: "NGN",
-      });
-      toast.success("Payment method added successfully");
-      setAddBeneficiaryModalOpen(false);
-      setBeneficiaryName("");
-      setBeneficiaryAccount("");
-    } catch (e) {
-      toast.error("Failed to add payment method");
-    }
-  };
 
-  const fetchVendor = async () => {
-    setIsLoading(true);
-    try {
-      const res = await axiosInstance.get(`/vendors/${vendorId}`);
-      setVendor(res.data.data);
-    } catch (err) {
-      logger.error("Error fetching vendor details:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!vendorId) return;
-    queueMicrotask(() => {
-      void fetchVendor();
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorId]);
+  const { data: vendorResponse, isLoading: isVendorLoading, refetch: refetchVendor } = useVendorNetworkDetail(vendorId);
+  const vendor = vendorResponse?.data || null;
+  const isLoading = isVendorLoading;
 
   // Lock body scroll when preview modal is open
   useEffect(() => {
@@ -104,49 +70,52 @@ function VendorDetailsPage() {
     return () => { document.body.style.overflow = ""; };
   }, [previewDocUrl]);
 
+  const reviewMutation = useVendorReview(vendorId);
+  const statusMutation = useVendorStatusUpdate(vendorId);
+  const paymentMutation = useVendorPaymentStatusUpdate(vendorId);
+  
+  const isSubmitting = reviewMutation.isPending || statusMutation.isPending || paymentMutation.isPending;
+
   const handleDecision = async (decision: "approved" | "rejected", customNote?: string) => {
     if (!vendor) return;
-    setIsSubmitting(true);
     const note = customNote || (decision === "approved" ? "KYC and banking details reviewed." : `Vendor ${decision} by admin.`);
     try {
-      await axiosInstance.patch(`/vendors/${vendorId}/review`, { decision, decisionNote: note });
-      fetchVendor();
-      queryClient.invalidateQueries({ queryKey: ["vendors"] });
+      await reviewMutation.mutateAsync({ decision, note });
       if (decision === "rejected") { setRejectModalOpen(false); setRejectReason(""); }
       toast.success(decision === "approved" ? "Vendor approved successfully" : "Vendor rejected");
     } catch (err) {
       logger.error(`Failed to ${decision} vendor`, err);
       toast.error(`Failed to ${decision} vendor. Please try again.`);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleStatusUpdate = async (statusPayload: "Active" | "Inactive") => {
-    setIsSubmitting(true);
     try {
-      await axiosInstance.patch(`/vendors/${vendorId}/status`, { status: statusPayload });
-      fetchVendor();
-      queryClient.invalidateQueries({ queryKey: ["vendors"] });
+      await statusMutation.mutateAsync({ status: statusPayload });
       toast.success(`Vendor ${statusPayload === "Active" ? "activated" : "deactivated"} successfully`);
     } catch (err) {
       logger.error(`Failed to update vendor status to ${statusPayload}`, err);
       toast.error(`Failed to ${statusPayload === "Active" ? "activate" : "deactivate"} vendor. Please try again.`);
-    } finally {
-      setIsSubmitting(false);
+    }
+  };
+
+  const handlePaymentStatusUpdate = async (enabled: boolean) => {
+    try {
+      await paymentMutation.mutateAsync({ enabled });
+      toast.success(`Vendor payments ${enabled ? "enabled" : "disabled"} successfully`);
+    } catch (err) {
+      logger.error(`Failed to update vendor payment status`, err);
+      toast.error(`Failed to update payment status. Please try again.`);
     }
   };
 
   const handleResendInvitation = async () => {
-    setIsSubmitting(true);
     try {
       await axiosInstance.post(`/vendors/${vendorId}/invitations/resend`);
       toast.success("Invitation resent successfully");
     } catch (err) {
       logger.error(`Failed to resend invitation`, err);
       toast.error("Failed to resend invitation. Please try again.");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -174,18 +143,23 @@ function VendorDetailsPage() {
   }
 
   const profile = asRecord(vendor.profile);
+  const banking = asRecord(vendor.bankingDetails);
+  const business = asRecord(vendor.businessDetails);
+
   const status = getString(vendor.status);
   const onboardingStatus = getString(vendor.onboardingStatus);
   const approvalStatus = getString(vendor.approvalStatus);
   const deactivatedAt = vendor.deactivatedAt;
-  const bankName = getString(vendor.bankName) || getString(profile.bankName);
-  const bankAccountNumber = getString(vendor.bankAccountNumber) || getString(profile.bankAccountNumber);
-  const legalName = getString(vendor.legalName) || getString(profile.legalName);
-  const displayName = getString(vendor.displayName) || getString(profile.displayName);
-  const email = getString(vendor.email) || getString(profile.email);
-  const taxId = getString(vendor.taxId) || getString(profile.taxId);
-  const country = getString(vendor.country) || getString(profile.country);
-  const address = getString(vendor.address) || getString(profile.address);
+
+  const bankName = getString(banking.bankName) || getString(vendor.bankName) || getString(profile.bankName);
+  const bankAccountNumber = getString(banking.maskedAccountNumber) || getString(banking.accountNumber) || getString(vendor.bankAccountNumber) || getString(profile.bankAccountNumber);
+  const accountName = getString(banking.accountName) || getString(vendor.accountName) || getString(profile.accountName);
+  const legalName = getString(business.legalName) || getString(vendor.legalName) || getString(profile.legalName);
+  const displayName = getString(business.displayName) || getString(vendor.displayName) || getString(profile.displayName);
+  const email = getString(business.email) || getString(vendor.email) || getString(profile.email);
+  const taxId = getString(business.registrationNumber) || getString(business.tin) || getString(vendor.taxId) || getString(profile.taxId);
+  const country = getString(business.country) || getString(vendor.country) || getString(profile.country);
+  const address = getString(business.businessAddress) || getString(vendor.address) || getString(profile.address);
   const contactFirstName = getString(vendor.contactFirstName) || getString(profile.contactFirstName);
   const contactLastName = getString(vendor.contactLastName) || getString(profile.contactLastName);
   const decisionNote = getString(vendor.decisionNote);
@@ -198,6 +172,7 @@ function VendorDetailsPage() {
   const approvedByName = `${pickString(approvedBy, "firstName")} ${pickString(approvedBy, "lastName")}`.trim();
 
   const rawStatus = status.toLowerCase();
+  const isPaymentEnabled = vendor.isPaymentEnabled === true;
 
   const isInvited     = approvalStatus === "pending" && (!onboardingStatus || onboardingStatus === "invited");
   const isOnboarding  = approvalStatus === "pending" && !["invited", "submitted", ""].includes(onboardingStatus);
@@ -242,21 +217,32 @@ function VendorDetailsPage() {
           {isUnderReview && policies.vendors.canApprove && (
             <button disabled={isSubmitting} onClick={() => handleDecision("approved")}
               className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm">
-              {isSubmitting ? "Processing..." : "Approve vendor"}
+              {reviewMutation.isPending ? "Processing..." : "Approve vendor"}
             </button>
           )}
           {/* Activate */}
           {(isApprovedPhase4 || isDeactivated) && policies.vendors.canActivate && (
             <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Active")}
               className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm">
-              {isSubmitting ? "Processing..." : isDeactivated ? "Reactivate vendor" : "Activate vendor"}
+              {statusMutation.isPending ? "Processing..." : isDeactivated ? "Reactivate vendor" : "Activate vendor"}
             </button>
           )}
           {/* Deactivate */}
           {isActive && policies.vendors.canDeactivate && (
             <button disabled={isSubmitting} onClick={() => handleStatusUpdate("Inactive")}
               className="px-4 h-9 rounded-[8px] border border-[#d33d44] text-[#d33d44] font-semibold text-[13px] hover:bg-[#fdf2f2] transition-colors disabled:opacity-50">
-              {isSubmitting ? "Processing..." : "Deactivate vendor"}
+              {statusMutation.isPending ? "Processing..." : "Deactivate vendor"}
+            </button>
+          )}
+          {/* Enable / Disable Payment */}
+          {isActive && (
+            <button disabled={isSubmitting} onClick={() => handlePaymentStatusUpdate(!isPaymentEnabled)}
+              className={`px-4 h-9 rounded-[8px] border font-semibold text-[13px] transition-colors disabled:opacity-50 ${
+                isPaymentEnabled 
+                  ? "border-black/[0.15] text-[#303834] hover:bg-[#f5f7f6]" // Neutral styling for Disable
+                  : "border-[#087f70] text-[#087f70] hover:bg-[#f0faf8]" // Teal outline for Enable
+              }`}>
+              {paymentMutation.isPending ? "Processing..." : isPaymentEnabled ? "Disable payments" : "Enable payments"}
             </button>
           )}
           {/* Resend Invitation */}
@@ -300,19 +286,7 @@ function VendorDetailsPage() {
                 </div>
               </div>
 
-              {/* Row 2 */}
-              <div className="border border-black/[0.06] rounded-[10px] p-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[13px] font-medium text-[#68726d] mb-0.5">Bank</p>
-                    <p className="text-[13px] font-semibold text-[#0b100e]">{bankName || "N/A"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[13px] font-medium text-[#68726d] mb-0.5">Account</p>
-                    <p className="text-[13px] font-semibold text-[#0b100e]">{bankAccountNumber || "N/A"}</p>
-                  </div>
-                </div>
-              </div>
+
 
               {/* Row 3 */}
               <div className="border border-black/[0.06] rounded-[10px] p-4">
@@ -353,6 +327,26 @@ function VendorDetailsPage() {
           </div>
 
           <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
+            <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em] mb-4">COMPANY BANK ACCOUNT</h2>
+            <div className="border border-black/[0.06] rounded-[10px] p-4 bg-[#f9faf9]/50">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-[13px] font-medium text-[#68726d] mb-0.5">Bank Name</p>
+                  <p className="text-[13px] font-semibold text-[#0b100e]">{bankName || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-[13px] font-medium text-[#68726d] mb-0.5">Account Name</p>
+                  <p className="text-[13px] font-semibold text-[#0b100e]">{accountName || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-[13px] font-medium text-[#68726d] mb-0.5">Account Number</p>
+                  <p className="text-[13px] font-semibold text-[#0b100e]">{bankAccountNumber || "N/A"}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
             <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em] mb-4">VERIFICATION DOCUMENTS</h2>
             {documents.length > 0 ? (
               <div className="space-y-3">
@@ -374,8 +368,12 @@ function VendorDetailsPage() {
                       </div>
                     </div>
                     <button onClick={() => {
-                        setPreviewDocUrl(fileUrl);
-                        setPreviewDocName(originalName);
+                        if (fileUrl.split('?')[0].match(/\.pdf$/i)) {
+                          window.open(fileUrl, '_blank');
+                        } else {
+                          setPreviewDocUrl(fileUrl);
+                          setPreviewDocName(originalName);
+                        }
                       }}
                       className="px-4 py-1.5 rounded-[6px] border border-[#087f70] text-[#087f70] text-[12px] font-semibold hover:bg-[#f0faf8] transition-colors">
                       View
@@ -391,13 +389,6 @@ function VendorDetailsPage() {
           <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em]">PAYMENT METHODS</h2>
-              <button
-                onClick={() => setAddBeneficiaryModalOpen(true)}
-                className="px-3 h-8 rounded-[6px] bg-[#087f70] text-white text-[12px] font-bold hover:bg-[#076b5e] transition-colors flex items-center gap-2"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add Method
-              </button>
             </div>
             
             {beneficiaries.length > 0 ? (
@@ -614,6 +605,22 @@ function VendorDetailsPage() {
                       className="max-w-full max-h-full object-contain" 
                     />
                   </div>
+                ) : previewDocUrl.split('?')[0].match(/\.pdf$/i) ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-white">
+                    <div className="w-16 h-16 rounded-full bg-[#f0faf8] flex items-center justify-center mb-4">
+                      <svg className="w-8 h-8 text-[#087f70]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-[16px] font-bold text-[#0b100e] mb-2">PDF Document</h3>
+                    <p className="text-[13px] text-[#68726d] mb-6 max-w-sm mx-auto leading-relaxed">
+                      For security reasons, this document cannot be previewed directly inside the browser. Please open it in a new tab to view its contents.
+                    </p>
+                    <a href={previewDocUrl} target="_blank" rel="noreferrer" download
+                       className="px-6 py-2.5 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors shadow-sm">
+                      Open PDF in New Tab
+                    </a>
+                  </div>
                 ) : (
                   <iframe 
                     src={
@@ -631,43 +638,7 @@ function VendorDetailsPage() {
         </div>
       )}
 
-      {/* ── Add Beneficiary Modal ── */}
-      <Dialog open={addBeneficiaryModalOpen} onOpenChange={setAddBeneficiaryModalOpen}>
-        <DialogContent className="sm:max-w-[425px] rounded-[16px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-[#10231d]">Add Payment Method</DialogTitle>
-            <DialogDescription className="text-sm text-[#68726d]">Add a new beneficiary account for this vendor.</DialogDescription>
-          </DialogHeader>
 
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label>Beneficiary Name</Label>
-              <Input 
-                value={beneficiaryName} 
-                onChange={(e) => setBeneficiaryName(e.target.value)} 
-                placeholder="e.g. John Doe / Business Name"
-                className="rounded-[8px]"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Account Number</Label>
-              <Input 
-                value={beneficiaryAccount} 
-                onChange={(e) => setBeneficiaryAccount(e.target.value)} 
-                placeholder="e.g. 1234567890"
-                className="rounded-[8px]"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddBeneficiaryModalOpen(false)} className="rounded-[8px]">Cancel</Button>
-            <Button onClick={handleCreateBeneficiary} disabled={createBeneficiaryMutation.isPending || !beneficiaryName || !beneficiaryAccount} className="bg-[#087f70] text-white hover:bg-[#076b5e] rounded-[8px]">
-              Add Method
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -205,7 +205,7 @@ function ShortCloseModal({
 function FinalBillingModal({ open, onClose, onConfirm, isPending }: { open: boolean; onClose: () => void; onConfirm: (reason: string) => void; isPending: boolean; }) {
   const [reason, setReason] = useState("");
   if (!open) return null;
-  return <div className="fixed inset-0 z-50 flex items-center justify-center"><div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} /><div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-md mx-4 p-6 space-y-5"><button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9]"><X className="w-4 h-4 text-[#68726d]" /></button><div><h3 className="text-base font-bold text-[#0b100e]">Confirm final billing</h3><p className="text-sm text-[#68726d] mt-1">Confirm that all invoices are resolved and no further vendor billing is expected. New vendor invoices will be blocked.</p></div><div className="space-y-1.5"><label className="text-xs font-semibold text-[#0b100e]">Confirmation note <span className="text-[#d33d44]">*</span></label><textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} placeholder="e.g. Final invoice paid; no further billing expected." className="w-full rounded-[12px] border border-black/[0.06] px-3.5 py-2.5 text-sm resize-none" /></div><div className="flex gap-3"><button onClick={onClose} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium">Cancel</button><button onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())} disabled={reason.trim().length < 10 || isPending} className="flex-1 h-10 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Billing Complete"}</button></div></div></div>;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center"><div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} /><div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-md mx-4 p-6 space-y-5"><button onClick={onClose} className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#f9faf9]"><X className="w-4 h-4 text-[#68726d]" /></button><div><h3 className="text-base font-bold text-[#0b100e]">Finalize billing</h3><p className="text-sm text-[#68726d] mt-1">Confirm that all invoices are resolved and no further vendor billing is expected. New vendor invoices will be blocked.</p></div><div className="space-y-1.5"><label className="text-xs font-semibold text-[#0b100e]">Confirmation note <span className="text-[#d33d44]">*</span></label><textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} placeholder="e.g. Final invoice paid; no further billing expected." className="w-full rounded-[12px] border border-black/[0.06] px-3.5 py-2.5 text-sm resize-none" /></div><div className="flex gap-3"><button onClick={onClose} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium">Cancel</button><button onClick={() => reason.trim().length >= 10 && onConfirm(reason.trim())} disabled={reason.trim().length < 10 || isPending} className="flex-1 h-10 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Billing Complete"}</button></div></div></div>;
 }
 
 // ── Simple Confirm Modal ──────────────────────────────────────────────────────
@@ -896,7 +896,7 @@ function PODetailPage() {
 
               {canConfirmFinalBilling && (
                 <button onClick={() => setModal("final_billing")} className="h-9 px-4 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-                  Confirm Final Billing
+                  Finalize Billing
                 </button>
               )}
               {showClose && (
@@ -1157,7 +1157,7 @@ function PODetailPage() {
             <div className="bg-[#1C2B36] rounded-t-2xl px-5 py-4">
               <h3 className="text-base font-bold text-white">Workflow Progress</h3>
             </div>
-            <div className="px-5 py-4">
+            <div className="px-5 py-4 max-h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-black/[0.08] hover:scrollbar-thumb-black/[0.15] scrollbar-track-transparent">
               <WorkflowProgress steps={workflowSteps.map(s => ({
                 label: s.label,
                 person: s.person || undefined,

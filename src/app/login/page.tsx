@@ -68,7 +68,9 @@ export default function LoginPage() {
       // Set an auth cookie so Next.js middleware knows we are authenticated
       document.cookie = `villeto_auth=true; path=/; max-age=${Math.floor(expiresInMs / 1000)}`;
       
-      router.push("/dashboard");
+      // Hard-navigate to dashboard so the browser sends the freshly-set cookies 
+      // to Next.js middleware, preventing it from redirecting back to /login.
+      window.location.href = "/dashboard";
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, "Invalid email or password"));
     }
