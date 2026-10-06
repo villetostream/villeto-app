@@ -86,7 +86,6 @@ export function useTenantMailboxConnections(legalEntityId?: string) {
 
 export function useStartGoogleMailboxAuthorization() {
   const axios = useAxios();
-  const client = useQueryClient();
   return useMutation({
     mutationFn: async ({ legalEntityId }: { legalEntityId: string }) =>
       unwrap<{
@@ -96,7 +95,6 @@ export function useStartGoogleMailboxAuthorization() {
       }>(
         (await axios.post("bill-pay/mailbox-connections/google/authorize", { legalEntityId })).data,
       ),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["bill-pay", "mailboxes"] }),
   });
 }
 

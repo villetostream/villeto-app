@@ -20,6 +20,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import { getApiErrorMessage } from "@/lib/types/api-error";
 import { useEligibleLegalEntities } from "@/queries/legal-entities";
 import {
   MailboxMessageSummary,
@@ -111,9 +112,13 @@ function MailboxPage() {
     }
     try {
       const result = await startAuthorization.mutateAsync({ legalEntityId: effectiveEntityId });
+      if (!result?.authorizationUrl || typeof result.authorizationUrl !== "string") {
+        toast.error("Google authorization could not be started. Please try again.");
+        return;
+      }
       window.location.assign(result.authorizationUrl);
-    } catch {
-      toast.error("Could not start Gmail authorization");
+    } catch (cause) {
+      toast.error(getApiErrorMessage(cause, "Could not start Gmail authorization"));
     }
   };
 
