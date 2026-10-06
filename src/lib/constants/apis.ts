@@ -76,6 +76,7 @@ export const API_KEYS = {
   },
   LEGAL_ENTITY: {
     LIST: "legal-entities",
+    ELIGIBLE: (action: string) => `legal-entities/eligible?action=${encodeURIComponent(action)}` as const,
     DETAIL: (id: string) => `legal-entities/${id}` as const,
     DEFAULT: (id: string) => `legal-entities/${id}/default` as const,
     STATUS: (id: string) => `legal-entities/${id}/status` as const,

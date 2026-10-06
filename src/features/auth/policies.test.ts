@@ -66,6 +66,23 @@ describe("authorization policies", () => {
     expect(policies.billPay.canViewSensitivePayment).toBe(false);
   });
 
+  it("keeps mailbox connection management separate from email viewing", () => {
+    const manager = buildAuthorizationPolicies(snapshot([
+      "bill_pay.mailbox_connection.manage",
+    ]));
+    const viewer = buildAuthorizationPolicies(snapshot([
+      "bill_pay.mailbox_connection.view",
+      "bill_pay.mailbox_email.view",
+    ]));
+
+    expect(manager.billPay.canViewMailboxConnections).toBe(true);
+    expect(manager.billPay.canManageMailboxConnections).toBe(true);
+    expect(manager.billPay.canViewMailboxEmail).toBe(false);
+    expect(viewer.billPay.canViewMailboxConnections).toBe(true);
+    expect(viewer.billPay.canManageMailboxConnections).toBe(false);
+    expect(viewer.billPay.canViewMailboxEmail).toBe(true);
+  });
+
   it("centralizes legal-entity and vendor-invoice decisions", () => {
     const policies = buildAuthorizationPolicies(snapshot([
       "legal_entity.manage",

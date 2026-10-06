@@ -38,6 +38,64 @@ const readinessLabel: Record<string, string> = {
   payment_workflow_ready: "Payment workflow ready",
 };
 
+type WorkflowState = "ready" | "not_ready";
+
+function workflowState(
+  entity: { status: string; readinessStatus: string },
+  workflow: "procurement" | "accounting" | "payment",
+): WorkflowState {
+  if (entity.status !== "active") return "not_ready";
+  if (workflow === "procurement") {
+    return entity.readinessStatus === "provisional" ? "not_ready" : "ready";
+  }
+  if (workflow === "accounting") {
+    return entity.readinessStatus === "accounting_ready" ||
+      entity.readinessStatus === "payment_workflow_ready"
+      ? "ready"
+      : "not_ready";
+  }
+  return entity.readinessStatus === "payment_workflow_ready"
+    ? "ready"
+    : "not_ready";
+}
+
+function WorkflowAvailability({ entity }: { entity: { status: string; readinessStatus: string } }) {
+  const workflows = [
+    { key: "procurement" as const, label: "Procurement" },
+    { key: "accounting" as const, label: "Accounting & mailbox" },
+    { key: "payment" as const, label: "Payment workflow" },
+  ];
+  const paymentReady = workflowState(entity, "payment") === "ready";
+
+  return (
+    <div className="mb-4 rounded-[10px] border border-black/[0.04] bg-[#fafcfb] p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#68726d]">Workflow availability</p>
+        <p className="text-[10px] text-[#84908a]">Based on this entity&apos;s readiness</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {workflows.map((workflow) => {
+          const state = workflowState(entity, workflow.key);
+          return (
+            <div key={workflow.key} className="rounded-[8px] border border-black/[0.04] bg-white px-2.5 py-2">
+              <p className="text-[10px] font-medium text-[#68726d]">{workflow.label}</p>
+              <div className={cn("mt-1 flex items-center gap-1.5 text-[11px] font-semibold", state === "ready" ? "text-[#087f70]" : "text-[#84908a]")}>
+                {state === "ready" ? <CheckCircle2 className="size-3.5" /> : <CircleAlert className="size-3.5" />}
+                {state === "ready" ? "Ready" : "Not configured"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {!paymentReady && entity.status === "active" && entity.readinessStatus !== "provisional" && (
+        <p className="mt-2 text-[11px] leading-4 text-[#68726d]">
+          Payment workflow requires an active masked funding account and an active maker-checker approval rule. It is not required for mailbox access.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function LegalEntitiesPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<LegalEntityInput>(emptyForm);
@@ -154,6 +212,8 @@ function LegalEntitiesPage() {
                 </span>
               </div>
 
+              <WorkflowAvailability entity={entity} />
+
               <div className="mt-auto pt-4 border-t border-black/[0.04]">
                 <p className="text-[12px] text-[#68726d] mb-4 min-h-[36px]">{entity.registeredAddress}</p>
                 <div className="flex flex-wrap gap-2">
@@ -244,4 +304,3 @@ function LegalEntitiesPage() {
 export default withPermissions(LegalEntitiesPage, [
   { resource: "legal_entity", action: "view" },
 ]);
-
