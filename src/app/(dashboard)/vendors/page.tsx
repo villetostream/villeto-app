@@ -246,10 +246,6 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
     
     if (!legalName.trim()) e.legalName = "Required";
     
-    if (sponsorVerification) {
-      if (!identifier.trim()) e.identifier = "Required";
-    }
-    
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -261,7 +257,7 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
       email,
       legalName,
       verificationRequested: sponsorVerification,
-      ...(sponsorVerification ? { method, identifier } : {}),
+      ...(sponsorVerification && identifier.trim() ? { method, identifier: identifier.trim() } : {}),
       // If vendor already verified in the past based on lookup
       ...(lookupResult?.data?.vendor?.verificationId ? { verificationId: lookupResult.data.vendor.verificationId } : {})
     };
@@ -280,6 +276,7 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
       }
     }
   };
+  const isFormValid = email.trim() && legalName.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   if (!open) return null;
 
@@ -444,7 +441,7 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
 
             <button
               onClick={handleSubmit}
-              disabled={inviteMutation.isPending}
+              disabled={inviteMutation.isPending || !isFormValid}
               className="mt-6 w-full h-10 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
             >
               {inviteMutation.isPending ? (
