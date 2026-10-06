@@ -93,6 +93,15 @@ function VendorDetailsPage() {
     try {
       await statusMutation.mutateAsync({ status: statusPayload });
       toast.success(`Vendor ${statusPayload === "Active" ? "activated" : "deactivated"} successfully`);
+      
+      const enablePayment = statusPayload === "Active";
+      try {
+        await paymentMutation.mutateAsync({ enabled: enablePayment });
+        toast.success(`Vendor payments ${enablePayment ? "enabled" : "disabled"} automatically`);
+      } catch (paymentErr) {
+        logger.error(`Failed to auto-update vendor payment status`, paymentErr);
+        toast.error(`Failed to automatically ${enablePayment ? "enable" : "disable"} payments. Please update it manually.`);
+      }
     } catch (err) {
       logger.error(`Failed to update vendor status to ${statusPayload}`, err);
       toast.error(`Failed to ${statusPayload === "Active" ? "activate" : "deactivate"} vendor. Please try again.`);
@@ -234,8 +243,8 @@ function VendorDetailsPage() {
               {statusMutation.isPending ? "Processing..." : "Deactivate vendor"}
             </button>
           )}
-          {/* Enable / Disable Payment */}
-          {isActive && (
+          {/* Enable / Disable Payment - Commented out as handled by Activate/Deactivate */}
+          {/* {isActive && (
             <button disabled={isSubmitting} onClick={() => handlePaymentStatusUpdate(!isPaymentEnabled)}
               className={`px-4 h-9 rounded-[8px] border font-semibold text-[13px] transition-colors disabled:opacity-50 ${
                 isPaymentEnabled 
@@ -244,7 +253,7 @@ function VendorDetailsPage() {
               }`}>
               {paymentMutation.isPending ? "Processing..." : isPaymentEnabled ? "Disable payments" : "Enable payments"}
             </button>
-          )}
+          )} */}
           {/* Resend Invitation */}
           {(isInvited || isOnboarding) && policies.vendors.canInvite && (
             <button disabled={isSubmitting} onClick={handleResendInvitation}
