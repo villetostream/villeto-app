@@ -12,7 +12,7 @@ import { useAxios } from "@/hooks/useAxios";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
-import { useGetAllVendors } from "@/queries/vendors/get-all-vendors";
+import { useVendorNetworkList, useVendorLookup, useInviteVendorV2 } from "@/queries/vendors/vendor-network";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   MoreHorizontal,
@@ -27,6 +27,7 @@ import {
   BadgeCheck,
   Search,
   SlidersHorizontal,
+  CheckCircle2,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -192,105 +193,91 @@ interface InviteModalProps {
 }
 
 function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
-  const [legalName, setLegalName] = useState("");
   const [email, setEmail] = useState("");
-  const [country, setCountry] = useState("Nigeria");
-  const [phone, setPhone] = useState("+234");
-  const [description, setDescription] = useState("");
-  const [contactFirstName, setContactFirstName] = useState("");
-  const [contactLastName, setContactLastName] = useState("");
-
-  const [countryOpen, setCountryOpen] = useState(false);
+  const [legalName, setLegalName] = useState("");
+  const [sponsorVerification, setSponsorVerification] = useState(false);
+  const [method, setMethod] = useState("cac");
+  const [identifier, setIdentifier] = useState("");
+  const [methodOpen, setMethodOpen] = useState(false);
+  const methodRef = useRef<HTMLDivElement>(null);
+  
   const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const axiosInstance = useAxios();
-  const countryRef = useRef<HTMLDivElement>(null);
-
-  const SUPPORTED_COUNTRIES = useMemo(() => [
-    { name: "Nigeria", code: "+234" },
-    { name: "Ghana", code: "+233" },
-    { name: "South africa", code: "+27" },
-    { name: "Kenya", code: "+254" }
-  ], []);
-
-  useEffect(() => {
-    if (!open) return;
-    queueMicrotask(() => {
-      setLegalName(""); setEmail(""); setCountry("Nigeria"); setPhone("+234");
-      setDescription(""); setContactFirstName(""); setContactLastName("");
-      setErrors({}); setSuccess(false); setLoading(false);
-      setCountryOpen(false);
-    });
-  }, [open]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (countryRef.current && !countryRef.current.contains(e.target as Node)) setCountryOpen(false);
+      if (methodRef.current && !methodRef.current.contains(e.target as Node)) setMethodOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+  
+  // Lookup
+  const [debouncedEmail, setDebouncedEmail] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedEmail(email), 500);
+    return () => clearTimeout(timer);
+  }, [email]);
 
-  const handleCountryChange = (c: { name: string, code: string }) => {
-    const oldCode = SUPPORTED_COUNTRIES.find(sc => sc.name === country)?.code || "+234";
-    setCountry(c.name);
-    setCountryOpen(false);
-    setPhone(prev => {
-      if (prev.startsWith(oldCode)) {
-        return c.code + prev.slice(oldCode.length);
-      } else if (!prev.startsWith("+")) {
-        return c.code + prev.replace(/^0+/, '');
-      }
-      return c.code;
+  const { data: lookupResult, isFetching: isLookingUp } = useVendorLookup("email", debouncedEmail, !!debouncedEmail && debouncedEmail.includes("@"));
+
+  const inviteMutation = useInviteVendorV2();
+
+  useEffect(() => {
+    if (!open) return;
+    queueMicrotask(() => {
+      setEmail(""); setLegalName(""); setSponsorVerification(false);
+      setMethod("cac"); setIdentifier(""); setMethodOpen(false);
+      setErrors({}); setSuccess(false); setDebouncedEmail("");
     });
-    setErrors(e => ({ ...e, country: "" }));
-  };
+  }, [open]);
+
+  // Pre-fill from lookup
+  useEffect(() => {
+    if (lookupResult?.data?.found && lookupResult.data.vendor) {
+      setLegalName(lookupResult.data.vendor.legalName || "");
+    }
+  }, [lookupResult]);
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!legalName.trim()) e.legalName = "Required";
     if (!email.trim()) e.email = "Required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Invalid email";
-    if (!phone.trim()) e.phone = "Required";
-    if (!contactFirstName.trim()) e.contactFirstName = "Required";
-    if (!contactLastName.trim()) e.contactLastName = "Required";
+    
+    if (!legalName.trim()) e.legalName = "Required";
+    
+    if (sponsorVerification) {
+      if (!identifier.trim()) e.identifier = "Required";
+    }
+    
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async () => {
     if (!validate()) return;
-    setLoading(true);
     
     const payload = {
-      legalName,
-      displayName: legalName,
       email,
-      phone,
-      description,
-      contactFirstName,
-      contactLastName,
+      legalName,
+      verificationRequested: sponsorVerification,
+      ...(sponsorVerification ? { method, identifier } : {}),
+      // If vendor already verified in the past based on lookup
+      ...(lookupResult?.data?.vendor?.verificationId ? { verificationId: lookupResult.data.vendor.verificationId } : {})
     };
 
     try {
-      await axiosInstance.post("/vendors", payload);
+      await inviteMutation.mutateAsync(payload);
       setSuccess(true);
       if (onSuccess) onSuccess();
     } catch (err: unknown) {
       logger.error("Invite vendor error", err);
-      
       const msg = getApiErrorMessage(err, "Failed to invite vendor");
-      
-      // If the backend mentions the email already exists, show it inline on the email field
       if (msg.toLowerCase().includes("already exists") && msg.toLowerCase().includes(email.toLowerCase())) {
         setErrors(prev => ({ ...prev, email: msg }));
       } else {
         toast.error(msg);
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -300,17 +287,13 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
       <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[480px] border border-black/[0.08]">
         {success ? (
-          /* ── Success state ── */
           <div className="p-10 flex flex-col items-center text-center">
             <div className="relative mb-6">
-              {/* Confetti dots */}
               {["top-0 left-4 bg-orange-400","top-2 right-6 bg-blue-500","bottom-4 left-2 bg-primary","bottom-0 right-4 bg-amber-400"].map((cls, i) => (
                 <span key={i} className={`absolute w-2 h-2 rounded-full ${cls}`} />
               ))}
               <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <CheckCircle2 className="w-8 h-8 text-white" />
               </div>
             </div>
             <h2 className="text-[18px] font-bold text-[#0b100e] mb-2">Vendor Invite Sent</h2>
@@ -325,12 +308,11 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
             </button>
           </div>
         ) : (
-          /* ── Form state ── */
           <div className="p-6">
             <div className="flex items-start justify-between mb-1">
               <div>
                 <h2 className="text-[18px] font-bold text-[#0b100e]">Invite Vendor</h2>
-                <p className="text-[13px] text-[#68726d] mt-0.5">Provide basic vendor information and invite them.</p>
+                <p className="text-[13px] text-[#68726d] mt-0.5">Invite a vendor to join your network.</p>
               </div>
               <button
                 onClick={onClose}
@@ -342,7 +324,35 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
 
             <div className="w-full h-px bg-black/[0.08] my-5" />
 
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 pb-2">
+            <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2 pb-2">
+              {/* Email */}
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-[#0b100e]">Email address</label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setErrors(err => ({ ...err, email: "" })); }}
+                    placeholder="e.g. vendor@acme.com"
+                    className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
+                      errors.email ? "border-[#d33d44]" : "border-black/[0.08]"
+                    }`}
+                  />
+                  {isLookingUp && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-[#087f70]/30 border-t-[#087f70] animate-spin" />}
+                </div>
+                {errors.email && <p className="text-[11px] text-[#d33d44]">{errors.email}</p>}
+                
+                {lookupResult?.data?.found && (
+                  <div className="mt-2 p-2.5 rounded-lg border border-[#e7f6f2] bg-[#f0faf8] flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#087f70] mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-[12px] font-medium text-[#087f70]">Vendor found on Villeto Network</p>
+                      <p className="text-[11px] text-[#087f70]/80 mt-0.5">{lookupResult.data.vendor.legalName} • {lookupResult.data.vendor.country || "Nigeria"}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Legal Name */}
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0b100e]">Legal Name</label>
@@ -358,116 +368,86 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
                 {errors.legalName && <p className="text-[11px] text-[#d33d44]">{errors.legalName}</p>}
               </div>
 
-              {/* Email */}
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0b100e]">Email address</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); setErrors(err => ({ ...err, email: "" })); }}
-                  placeholder="e.g. vendor@acme.com"
-                  className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
-                    errors.email ? "border-[#d33d44]" : "border-black/[0.08]"
-                  }`}
-                />
-                {errors.email && <p className="text-[11px] text-[#d33d44]">{errors.email}</p>}
-              </div>
+              <div className="w-full h-px bg-black/[0.04]" />
 
-              <div className="grid grid-cols-2 gap-4">
-                {/* First Name */}
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0b100e]">First Name</label>
-                  <input
-                    type="text"
-                    value={contactFirstName}
-                    onChange={(e) => { setContactFirstName(e.target.value); setErrors(err => ({ ...err, contactFirstName: "" })); }}
-                    placeholder="e.g. Jane"
-                    className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
-                      errors.contactFirstName ? "border-[#d33d44]" : "border-black/[0.08]"
-                    }`}
-                  />
-                  {errors.contactFirstName && <p className="text-[11px] text-[#d33d44]">{errors.contactFirstName}</p>}
-                </div>
-
-                {/* Last Name */}
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0b100e]">Last Name</label>
-                  <input
-                    type="text"
-                    value={contactLastName}
-                    onChange={(e) => { setContactLastName(e.target.value); setErrors(err => ({ ...err, contactLastName: "" })); }}
-                    placeholder="e.g. Doe"
-                    className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
-                      errors.contactLastName ? "border-[#d33d44]" : "border-black/[0.08]"
-                    }`}
-                  />
-                  {errors.contactLastName && <p className="text-[11px] text-[#d33d44]">{errors.contactLastName}</p>}
-                </div>
-              </div>
-
-              {/* Country */}
-              <div className="space-y-1.5" ref={countryRef}>
-                <label className="text-[13px] font-semibold text-[#0b100e]">Country</label>
-                <div className="relative">
+              {/* Verification Toggle */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="pr-4">
+                    <label className="text-[13px] font-semibold text-[#0b100e]">Do you want the vendor to require a verification?</label>
+                    <p className="text-[11px] text-[#68726d] mt-0.5">Sponsor a verification check using a business registration or tax identifier.</p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setCountryOpen(v => !v)}
-                    className={`w-full h-10 px-3 rounded-[8px] border text-[13px] text-left flex items-center justify-between transition-colors border-black/[0.08] hover:border-black/[0.12] text-[#0b100e] bg-white`}
+                    onClick={() => setSponsorVerification(!sponsorVerification)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${sponsorVerification ? 'bg-[#087f70]' : 'bg-gray-200'}`}
                   >
-                    {country}
-                    <ChevronDown className={`w-4 h-4 text-[#84908a] transition-transform ${countryOpen ? "rotate-180" : ""}`} />
+                    <span className="sr-only">Toggle verification</span>
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none absolute left-0.5 inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${sponsorVerification ? 'translate-x-4' : 'translate-x-0'}`}
+                    />
                   </button>
-                  {countryOpen && (
-                    <div className="absolute left-0 right-0 top-11 z-50 bg-white border border-black/[0.08] rounded-[10px] shadow-lg overflow-y-auto max-h-64 mt-1 p-1">
-                      {SUPPORTED_COUNTRIES.map((c) => (
-                        <button
-                          key={c.name}
-                          type="button"
-                          onClick={() => handleCountryChange(c)}
-                          className="w-full text-left px-3 py-2 text-[13px] text-[#0b100e] hover:bg-[#f5f7f6] rounded-[6px] transition-colors"
-                        >
-                          {c.name} ({c.code})
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              </div>
 
-              {/* Phone */}
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0b100e]">Phone Number</label>
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => { setPhone(e.target.value); setErrors(err => ({ ...err, phone: "" })); }}
-                  placeholder="e.g. +2348000000000"
-                  className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
-                    errors.phone ? "border-[#d33d44]" : "border-black/[0.08]"
-                  }`}
-                />
-                {errors.phone && <p className="text-[11px] text-[#d33d44]">{errors.phone}</p>}
-              </div>
-
-              {/* Description */}
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0b100e]">Description (Optional)</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="e.g. Primary stationery vendor"
-                  rows={3}
-                  className="w-full p-3 rounded-[8px] border border-black/[0.08] text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors resize-none"
-                />
+                {sponsorVerification && (
+                  <div className="grid grid-cols-[130px_1fr] gap-3 mt-3 animate-in slide-in-from-top-2 fade-in duration-200">
+                    <div className="space-y-1.5" ref={methodRef}>
+                      <label className="text-[12px] font-semibold text-[#0b100e]">Method</label>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setMethodOpen(v => !v)}
+                          className="w-full h-10 px-3 rounded-[8px] border text-[13px] text-left flex items-center justify-between transition-colors border-black/[0.08] hover:border-black/[0.12] text-[#0b100e] bg-white focus:outline-none focus:border-[#087f70]"
+                        >
+                          {method === "cac" ? "Business Reg." : "Tax ID"}
+                          <ChevronDown className={`w-4 h-4 text-[#84908a] transition-transform ${methodOpen ? "rotate-180" : ""}`} />
+                        </button>
+                        {methodOpen && (
+                          <div className="absolute left-0 right-0 bottom-full mb-1 z-50 bg-white border border-black/[0.08] rounded-[10px] shadow-lg overflow-hidden p-1 animate-in fade-in zoom-in-95 duration-100">
+                            {[
+                              { value: "cac", label: "Business Reg." },
+                              { value: "tin", label: "Tax ID" }
+                            ].map((opt) => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => { setMethod(opt.value); setMethodOpen(false); }}
+                                className={`w-full text-left px-3 py-2 text-[13px] rounded-[6px] transition-colors ${
+                                  method === opt.value ? "bg-[#f0faf8] text-[#087f70] font-medium" : "text-[#0b100e] hover:bg-[#f5f7f6]"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[12px] font-semibold text-[#0b100e]">Identifier</label>
+                      <input
+                        type="text"
+                        value={identifier}
+                        onChange={(e) => { setIdentifier(e.target.value); setErrors(err => ({ ...err, identifier: "" })); }}
+                        placeholder={method === "cac" ? "e.g. Registration number" : "e.g. Tax identifier"}
+                        className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
+                          errors.identifier ? "border-[#d33d44]" : "border-black/[0.08]"
+                        }`}
+                      />
+                      {errors.identifier && <p className="text-[11px] text-[#d33d44]">{errors.identifier}</p>}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             <button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={inviteMutation.isPending}
               className="mt-6 w-full h-10 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
             >
-              {loading ? (
+              {inviteMutation.isPending ? (
                 <>
                   <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -641,14 +621,14 @@ function VendorPage() {
   const [_selectedVendorId, _setSelectedVendorId] = useState<string | null>(null);
 
   const axiosInstance = useAxios();
-  const vendorsApi = useGetAllVendors({}, { refetchInterval: 60_000 });
+  const vendorsApi = useVendorNetworkList({});
   const isLoading = vendorsApi.isLoading;
 
   const vendors = useMemo(() => {
     const json = vendorsApi.data;
     if (!json) return [];
     
-    return (json.data || []).map((raw: unknown) => {
+    return (json.data?.data || []).map((raw: unknown) => {
       const v = asRecord(raw);
       let computedStatus: VendorStatus = "invited";
       
@@ -682,7 +662,7 @@ function VendorPage() {
       return {
         id: getString(v.vendorId),
         vendorName: pickString(v, "legalName", "displayName") || "Unknown",
-        regNo: getString(v.taxId) || "N/A",
+        regNo: getString(v.registrationNumber) || getString(v.tin) || "N/A",
         email: getString(v.email),
         invitedOn: v.invitationSentAt ? new Date(getString(v.invitationSentAt)).toLocaleDateString() : "N/A",
         status: computedStatus,

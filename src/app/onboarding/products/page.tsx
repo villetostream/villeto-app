@@ -1,4 +1,5 @@
 "use client"
+import { useState } from 'react';
 
 import { useOnboardingStore } from '@/stores/useVilletoStore';
 import { Button } from '@/components/ui/button';
@@ -58,11 +59,16 @@ const products = [
 export default function ChooseProducts() {
     const { villetoProducts, toggleProduct } = useOnboardingStore();
     useHydrateOnboardingData();
+    const [isDirty, setIsDirty] = useState(false);
     const updateOnboarding = useUpdateOnboardingProductsApi()
     const router = useRouter()
     const loading = updateOnboarding.isPending;
 
     const handleContinue = async () => {
+        if (!isDirty) {
+            router.push("/onboarding/review");
+            return;
+        }
         try {
             const payload = villetoProducts.filter((product) => product.selected).map((product) => product.value);
             await updateOnboarding.mutateAsync(payload);
@@ -106,7 +112,7 @@ export default function ChooseProducts() {
                                     ? 'border-[#0ea894]/40 bg-[#f0faf8] shadow-[0_4px_16px_rgba(14,168,148,0.08)]'
                                     : 'border-black/[0.08] bg-white shadow-[0_4px_16px_rgba(14,28,23,0.04)] hover:border-[#0ea894]/30'
                             }`}
-                            onClick={() => toggleProduct(product.id)}
+                            onClick={() => { setIsDirty(true); toggleProduct(product.id); }}
                         >
                             <div className="flex items-center gap-4">
                                 <div className={`flex size-10 shrink-0 items-center justify-center rounded-[8px] ${

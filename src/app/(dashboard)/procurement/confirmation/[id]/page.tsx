@@ -563,27 +563,28 @@ function ConfirmationDetailPage() {
         pending: stage === "issued",
       },
       ...((po.deliveryNotices && po.deliveryNotices.length > 0)
-        ? po.deliveryNotices.map((notice: any, idx: number) => ({
-            label: `Shipment #${idx + 1} Ready`,
-            person: getPerson(timelineByAction["ready_for_delivery"], po.vendor ? (po.vendor.displayName || po.vendor.legalName) : "Vendor"),
-            badge: notice.declaration === "full" ? "Full Delivery" : "Partial Delivery",
-            badgeColor: notice.declaration === "full" ? "text-[#087f70] bg-[#f0faf8]" : "text-amber-600 bg-amber-50",
-            timestamp: notice.readyAt,
-            done: true,
-            pending: false,
-          }))
-        : [
-            {
-              label: "Delivery Status",
-              person: getPerson(timelineByAction["partially_delivered"] || timelineByAction["delivered"] || timelineByAction["ready_for_delivery"], isDelivered ? "Vendor" : undefined),
-              badge: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "Partial" : stage === "delivered" || timelineByAction["delivered"] ? "Full Delivery" : timelineByAction["ready_for_delivery"] ? "Ready for Delivery" : undefined,
-              badgeColor: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "text-amber-600 bg-amber-50" : "text-[#087f70] bg-[#f0faf8]",
-              timestamp: timelineByAction["delivered"]?.timestamp || timelineByAction["partially_delivered"]?.timestamp || timelineByAction["ready_for_delivery"]?.timestamp || po.deliveredAt,
-              done: !!timelineByAction["delivered"] || !!timelineByAction["partially_delivered"] || isDelivered,
-              pending: stage === "acknowledged" || stage === "ready_for_delivery",
-            }
-          ]
-      ),
+        ? po.deliveryNotices.map((notice: any, idx: number) => {
+            const isDigital = notice.fulfillmentMethod === "digital";
+            return {
+              label: `${isDigital ? "Digital Delivery" : "Shipment"} #${idx + 1} Ready`,
+              person: getPerson(timelineByAction["ready_for_delivery"], po.vendor ? (po.vendor.displayName || po.vendor.legalName) : "Vendor"),
+              badge: notice.declaration === "full" ? "Full Delivery" : "Partial Delivery",
+              badgeColor: notice.declaration === "full" ? "text-[#087f70] bg-[#f0faf8]" : "text-amber-600 bg-amber-50",
+              timestamp: notice.readyAt,
+              done: true,
+              pending: false,
+            };
+          })
+        : []),
+      {
+        label: stage === "delivered" ? "Delivery Confirmed" : stage === "partially_delivered" ? "Partially Confirmed" : "Awaiting Confirmation",
+        person: getPerson(timelineByAction["delivered"] || timelineByAction["partially_delivered"]),
+        badge: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "Partially Confirmed" : stage === "delivered" || timelineByAction["delivered"] ? "Fully Confirmed" : undefined,
+        badgeColor: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "text-amber-600 bg-amber-50" : "text-[#087f70] bg-[#f0faf8]",
+        timestamp: timelineByAction["delivered"]?.timestamp || timelineByAction["partially_delivered"]?.timestamp || po.deliveredAt,
+        done: !!timelineByAction["delivered"] || !!timelineByAction["partially_delivered"] || isDelivered,
+        pending: stage === "acknowledged" || stage === "ready_for_delivery" || stage === "partially_delivered",
+      },
       {
         label: "Closed",
         person: getPerson(timelineByAction["closed"], po.closedAt ? "System" : undefined),
@@ -620,7 +621,7 @@ function ConfirmationDetailPage() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowFinalBillingModal(false)} />
           <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
             <div>
-              <h3 className="text-base font-bold text-[#0b100e]">Confirm Final Billing</h3>
+              <h3 className="text-base font-bold text-[#0b100e]">Finalize billing</h3>
               <p className="text-sm text-[#68726d] mt-1">Confirm that all invoices have been generated and no further vendor billing is expected. This unlocks the ability to close the PO.</p>
             </div>
             <div className="flex gap-3 pt-1">
@@ -686,7 +687,7 @@ function ConfirmationDetailPage() {
                 onClick={() => setShowFinalBillingModal(true)}
                 className="h-9 px-4 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
               >
-                Confirm Final Billing
+                Finalize Billing
               </button>
             )}
           </div>
@@ -800,7 +801,7 @@ function ConfirmationDetailPage() {
           {/* Fulfillment History Section */}
           {(po.deliveryNotices && po.deliveryNotices.length > 0) && (
             <div className="space-y-4">
-              <h2 className="text-base font-semibold text-[#0b100e]">Shipment History</h2>
+              <h2 className="text-base font-semibold text-[#0b100e]">Fulfillments</h2>
               <div className="flex flex-col gap-4">
                 {fulfillmentHistory.map((notice: any, idx: number) => (
                   <FulfillmentHistoryCard
@@ -825,7 +826,7 @@ function ConfirmationDetailPage() {
                 <div className="bg-[#1C2B36] rounded-t-[14px] px-5 py-4">
                   <h3 className="text-base font-bold text-white">Workflow Progress</h3>
                 </div>
-                <div className="px-5 py-4 space-y-0 pt-1 pl-1">
+                <div className="px-5 py-4 space-y-0 pt-3 pl-1 max-h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-black/[0.08] hover:scrollbar-thumb-black/[0.15] scrollbar-track-transparent">
                   {workflowSteps.map((step, i) => {
                     const isLast = i === workflowSteps.length - 1;
                     return (

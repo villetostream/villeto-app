@@ -78,7 +78,7 @@ export default function Business() {
     },
   });
 
-  const { isValid } = form.formState;
+  const { isValid, isDirty } = form.formState;
 
   useEffect(() => {
     // Filter out auto-generated business names (e.g. "user@email.com Group")
@@ -134,6 +134,10 @@ export default function Business() {
   }, [watchedCountry, form]);
 
     async function onSubmit(data: z.infer<typeof onboardingBusinessSchema>) {
+    if (!isDirty) {
+      router.push("/onboarding/leadership");
+      return;
+    }
     try {
       const payload = {
         ...data,

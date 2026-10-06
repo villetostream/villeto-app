@@ -549,7 +549,7 @@ function PRTable({
   const columns = [
     "Request No.", "Title",
     ...(showRequester ? ["Requester", "Department"] : ["Department"]),
-    "Priority", "Need by Date", "Status", "Action",
+    "Priority", "Due Date", "Status", "Action",
   ];
 
   return (
@@ -685,7 +685,7 @@ function PRTable({
                   {showRequester && <SortableHeader title="Requester" sortKey="requester" currentSort={sortConfig} onSort={handleSort} />}
                   <SortableHeader title="Department" sortKey="department" currentSort={sortConfig} onSort={handleSort} />
                   <SortableHeader title="Priority" sortKey="priority" currentSort={sortConfig} onSort={handleSort} />
-                  <SortableHeader title="Need by Date" sortKey="date" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="Due Date" sortKey="date" currentSort={sortConfig} onSort={handleSort} />
                   <SortableHeader title="Status" sortKey="status" currentSort={sortConfig} onSort={handleSort} />
                   <SortableHeader title="Action" sortKey="action" currentSort={sortConfig} onSort={handleSort} className="text-center w-16" />
                 </tr>

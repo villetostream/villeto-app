@@ -586,7 +586,7 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Need by Date</label>
+              <label className="text-sm font-medium text-[#0b100e]">Due Date</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <button type="button" className={`w-full h-10 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}>
