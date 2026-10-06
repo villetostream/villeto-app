@@ -63,7 +63,7 @@ function MailboxPage() {
   const searchParams = useSearchParams();
   const policies = useAuthorizationPolicies();
   const entitiesQuery = useEligibleLegalEntities("finance");
-  const entities = entitiesQuery.data?.data || [];
+  const entities = entitiesQuery.data || [];
   const [selectedEntityId, setSelectedEntityId] = useState("");
   const [selectedConnectionId, setSelectedConnectionId] = useState("");
   const [selectedMessageId, setSelectedMessageId] = useState("");
