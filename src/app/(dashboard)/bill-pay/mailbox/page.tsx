@@ -62,7 +62,11 @@ function MailboxPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const policies = useAuthorizationPolicies();
-  const entitiesQuery = useEligibleLegalEntities("finance");
+  // Mailbox access supports invoice review and manual Bill Pay intake; it does
+  // not initiate or authorize money movement. Accounting readiness is the
+  // appropriate gate, while payment-workflow readiness remains reserved for
+  // payment-request submission and authorization.
+  const entitiesQuery = useEligibleLegalEntities("accounting");
   const entities = entitiesQuery.data || [];
   const [selectedEntityId, setSelectedEntityId] = useState("");
   const [selectedConnectionId, setSelectedConnectionId] = useState("");
@@ -179,7 +183,7 @@ function MailboxPage() {
       </section>
 
       {!entitiesQuery.isLoading && entities.length === 0 ? (
-        <EmptyState title="No finance-ready legal entity is available" detail="Activate and complete payment-workflow readiness for a legal entity before connecting a Bill Pay mailbox." />
+        <EmptyState title="No accounting-ready legal entity is available" detail="Activate and complete accounting readiness for a legal entity before connecting a Bill Pay mailbox." />
       ) : !effectiveEntityId ? (
         <EmptyState title="Select a legal entity" detail="Choose the legal entity that owns the mailbox and will own the invoices you create from it." />
       ) : (
