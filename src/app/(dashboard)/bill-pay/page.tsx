@@ -7,7 +7,6 @@ import { useGetBillPayDashboardSummary } from "@/queries/bill-pay";
 import { BillPayTabs } from "@/components/bill-pay/BillPayTabs";
 import { Receipt2, ClipboardText, Cards, TickCircle } from "iconsax-reactjs";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
-import { ConfigureEmailModal } from "@/components/bill-pay/ConfigureEmailModal";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
@@ -21,7 +20,6 @@ function BillPayPage() {
   const setAction = useHeaderActionStore((state) => state.setAction);
   const clearAction = useHeaderActionStore((state) => state.clearAction);
   const policies = useAuthorizationPolicies();
-  const [showConfigureEmail, setShowConfigureEmail] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
       return sessionStorage.getItem("billPayActiveTab") || "recurring";
@@ -98,15 +96,15 @@ function BillPayPage() {
           onClick: () => router.push("/bill-pay/add-recurring"),
         },
       ],
-      ...(activeTab === "other" && policies.billPay.canManageConfiguration && {
+      ...(policies.billPay.canViewMailboxConnections && {
         secondaryAction: {
-          label: "Configure Email",
-          onClick: () => setShowConfigureEmail(true),
+          label: "Manage mailboxes",
+          onClick: () => router.push("/bill-pay/mailbox"),
         },
       }),
     });
     return () => clearAction();
-  }, [router, setAction, clearAction, activeTab, policies.billPay.canCreateIntake, policies.billPay.canCreateInvoice, policies.billPay.canManageConfiguration]);
+  }, [router, setAction, clearAction, activeTab, policies.billPay.canCreateIntake, policies.billPay.canCreateInvoice, policies.billPay.canViewMailboxConnections]);
 
   // Format the total bills amount
   const baseCurrency = summaryData?.legalEntity?.baseCurrency || "NGN";
@@ -211,7 +209,6 @@ function BillPayPage() {
         {/* Tabs Section */}
         <BillPayTabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {policies.billPay.canManageConfiguration && <ConfigureEmailModal open={showConfigureEmail} onOpenChange={setShowConfigureEmail} />}
       </div>
     </div>
   );

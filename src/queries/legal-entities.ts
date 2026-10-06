@@ -79,6 +79,19 @@ export function useLegalEntities(options?: { enabled?: boolean }) {
   });
 }
 
+export function useEligibleLegalEntities(
+  action: "requester" | "approver" | "procurement" | "finance" | "accounting" | "administrator" | "vendor_administration",
+  options?: { enabled?: boolean },
+) {
+  const axios = useAxios();
+  return useQuery<{ data: LegalEntity[] }>({
+    queryKey: ["eligible-legal-entities", action],
+    queryFn: async () =>
+      (await axios.get(API_KEYS.LEGAL_ENTITY.ELIGIBLE(action))).data,
+    enabled: options?.enabled,
+  });
+}
+
 export function useCurrencies() {
   const axios = useAxios();
   return useQuery<{ data: Currency[] }>({

@@ -127,6 +127,9 @@ export const PERMISSIONS = {
     reconciliationManage: "bill_pay.reconciliation.manage",
     configurationView: "bill_pay.configuration.view",
     configurationManage: "bill_pay.configuration.manage",
+    mailboxConnectionView: "bill_pay.mailbox_connection.view",
+    mailboxConnectionManage: "bill_pay.mailbox_connection.manage",
+    mailboxEmailView: "bill_pay.mailbox_email.view",
   },
   accounting: {
     accountView: "accounting.account.view",
@@ -281,6 +284,9 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
       canManageReconciliation: has(permissionSet, PERMISSIONS.billPay.reconciliationManage),
       canViewConfiguration: hasAny(permissionSet, [PERMISSIONS.billPay.configurationView, PERMISSIONS.billPay.configurationManage]),
       canManageConfiguration: has(permissionSet, PERMISSIONS.billPay.configurationManage),
+      canViewMailboxConnections: hasAny(permissionSet, [PERMISSIONS.billPay.mailboxConnectionView, PERMISSIONS.billPay.mailboxConnectionManage]),
+      canManageMailboxConnections: has(permissionSet, PERMISSIONS.billPay.mailboxConnectionManage),
+      canViewMailboxEmail: has(permissionSet, PERMISSIONS.billPay.mailboxEmailView),
     },
     accounting: {
       canView: hasAny(permissionSet, [PERMISSIONS.accounting.accountView, PERMISSIONS.accounting.journalView, PERMISSIONS.accounting.trialBalanceView]),
