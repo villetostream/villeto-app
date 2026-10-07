@@ -28,6 +28,9 @@ import {
   Search,
   SlidersHorizontal,
   CheckCircle2,
+  ArrowUp,
+  ArrowDown,
+  ChevronsUpDown,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -465,6 +468,32 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
 
 // ─── Vendor Table ─────────────────────────────────────────────────────────────
 
+function SortableHeader({ title, sortKey, currentSort, onSort, className }: { title: string, sortKey: string, currentSort: { key: string, direction: 'asc'|'desc' } | null, onSort: (key: string) => void, className?: string }) {
+  const isSorted = currentSort?.key === sortKey;
+  
+  if (sortKey === "action") {
+    return <th className={`px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap bg-[#f9faf9] ${className || ""}`}>{title}</th>;
+  }
+
+  return (
+    <th 
+      className={`px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap bg-[#f9faf9] cursor-pointer hover:bg-black/[0.02] transition-colors select-none ${className || ""}`}
+      onClick={() => onSort(sortKey)}
+    >
+      <div className="flex items-center gap-1.5">
+        <span className={isSorted ? "text-[#0b100e]" : ""}>{title}</span>
+        {isSorted ? (
+          currentSort.direction === 'asc' 
+            ? <ArrowUp className="w-3.5 h-3.5 text-[#087f70]" /> 
+            : <ArrowDown className="w-3.5 h-3.5 text-[#087f70]" />
+        ) : (
+          <ChevronsUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+        )}
+      </div>
+    </th>
+  );
+}
+
 function VendorTable({
   vendors,
   isLoading,
@@ -479,18 +508,50 @@ function VendorTable({
   onPageChange: (page: number) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Vendor | string; direction: 'asc' | 'desc' } | null>(null);
   const itemsPerPage = 10;
 
+  const handleSort = (key: string) => {
+    if (sortConfig?.key === key) {
+      setSortConfig(sortConfig.direction === 'asc' ? { key, direction: 'desc' } : null);
+    } else {
+      setSortConfig({ key, direction: 'asc' });
+    }
+  };
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return vendors;
-    const q = search.toLowerCase();
-    return vendors.filter(
-      (v) =>
-        v.vendorName.toLowerCase().includes(q) ||
-        v.email.toLowerCase().includes(q) ||
-        v.regNo.toLowerCase().includes(q),
-    );
-  }, [vendors, search]);
+    let result = vendors;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (v) =>
+          v.vendorName.toLowerCase().includes(q) ||
+          v.email.toLowerCase().includes(q) ||
+          v.regNo.toLowerCase().includes(q),
+      );
+    }
+
+    if (sortConfig) {
+      result = [...result].sort((a, b) => {
+        let valA = a[sortConfig.key as keyof Vendor] as string;
+        let valB = b[sortConfig.key as keyof Vendor] as string;
+        
+        if (!valA) valA = "";
+        if (!valB) valB = "";
+        
+        if (sortConfig.key === "invitedOn" || sortConfig.key === "lastUpdated") {
+          const dateA = valA === "N/A" ? 0 : new Date(valA).getTime();
+          const dateB = valB === "N/A" ? 0 : new Date(valB).getTime();
+          return sortConfig.direction === "asc" ? dateA - dateB : dateB - dateA;
+        }
+
+        return sortConfig.direction === 'asc' 
+          ? valA.localeCompare(valB) 
+          : valB.localeCompare(valA);
+      });
+    }
+    return result;
+  }, [vendors, search, sortConfig]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const paginatedData = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -542,12 +603,14 @@ function VendorTable({
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-[#f9faf9] shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                 <tr className="border-b border-black/[0.08]">
-                  {["VENDOR NAME", "REG NO.", "EMAIL", "INVITED ON", "STATUS", "LAST UPDATED", "ACTION"].map((h) => (
-                    <th key={h} className="px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap bg-[#f9faf9]">
-                    {h}
-                  </th>
-                ))}
-              </tr>
+                  <SortableHeader title="VENDOR NAME" sortKey="vendorName" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="REG NO." sortKey="regNo" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="EMAIL" sortKey="email" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="INVITED ON" sortKey="invitedOn" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="STATUS" sortKey="status" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="LAST UPDATED" sortKey="lastUpdated" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader title="ACTION" sortKey="action" currentSort={sortConfig} onSort={handleSort} />
+                </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.06]">
               {paginatedData.map((v) => (
@@ -661,7 +724,7 @@ function VendorPage() {
         vendorName: pickString(v, "legalName", "displayName") || "Unknown",
         regNo: getString(v.registrationNumber) || getString(v.tin) || "N/A",
         email: getString(v.email),
-        invitedOn: v.invitationSentAt ? new Date(getString(v.invitationSentAt)).toLocaleDateString() : "N/A",
+        invitedOn: v.invitedAt ? new Date(getString(v.invitedAt)).toLocaleDateString() : "N/A",
         status: computedStatus,
         lastUpdated: v.updatedAt ? new Date(getString(v.updatedAt)).toLocaleDateString() : "N/A"
       };

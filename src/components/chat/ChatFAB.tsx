@@ -9,22 +9,33 @@
  * ─────────────────────────────────────────────────────────────
  */
 
+import { useState } from "react";
 import { useChatStore } from "@/stores/useChatStore";
 import { MessageText } from "iconsax-reactjs";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function ChatFAB() {
   const { toggleChat, isOpen, totalUnread } = useChatStore();
+  const [isDragging, setIsDragging] = useState(false);
 
   return (
     <motion.button
-      onClick={toggleChat}
+      drag
+      dragMomentum={false}
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={() => {
+        // Delay resetting isDragging to prevent firing the onClick handler immediately after a drag
+        setTimeout(() => setIsDragging(false), 150);
+      }}
+      onClick={() => {
+        if (!isDragging) toggleChat();
+      }}
       aria-label="Open messages"
       className={[
         "fixed bottom-6 right-6 z-50",
         "w-12 h-12 rounded-full shadow-[0_8px_24px_rgba(14,168,148,0.35)]",
         "flex items-center justify-center",
-        "transition-all duration-200",
+        "transition-all duration-200 cursor-grab active:cursor-grabbing",
         isOpen
           ? "bg-[#0ea894] text-white"
           : "bg-[#0ea894] text-white hover:bg-[#0c9785]",

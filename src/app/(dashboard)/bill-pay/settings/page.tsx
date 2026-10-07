@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Plus, MoreHorizontal, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -9,6 +9,7 @@ import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MailboxConnectionsSettings } from "@/components/bill-pay/MailboxConnectionsSettings";
 import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
@@ -33,8 +34,15 @@ const approvalRuleColumnHelper = createColumnHelper<ApprovalRule>();
 
 function BillPaySettingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const policies = useAuthorizationPolicies();
-  const [activeTab, setActiveTab] = useState("funding");
+  
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabQuery = searchParams.get("tab");
+    if (tabQuery === "mailboxes" && policies.billPay.canViewMailboxConnections) return "mailboxes";
+    if (tabQuery === "rules") return "rules";
+    return "funding";
+  });
 
   const { data: legalEntitiesData } = useLegalEntities();
   const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "a3c0738f-a024-497a-9cbf-a488dba29bf4";
@@ -212,7 +220,7 @@ function BillPaySettingsPage() {
   }, [rulesData]);
 
   return (
-    <div className="flex flex-col h-full pb-2 overflow-y-auto">
+    <div className="flex flex-col h-full pb-2 min-h-0 overflow-hidden">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[#10231d]">Bill Pay Settings</h1>
@@ -220,11 +228,11 @@ function BillPaySettingsPage() {
         </div>
       </div>
 
-      <div className="space-y-6 flex-1 flex flex-col min-h-[600px]">
+      <div className="space-y-6 flex-1 flex flex-col min-h-0">
         {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-[500px]">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-            <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
+            <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0 border border-black/[0.05]">
               <TabsTrigger 
                 value="funding" 
                 className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center"
@@ -237,6 +245,14 @@ function BillPaySettingsPage() {
               >
                 Approval Rules
               </TabsTrigger>
+              {policies.billPay.canViewMailboxConnections && (
+                <TabsTrigger 
+                  value="mailboxes" 
+                  className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center"
+                >
+                  Mailbox Connections
+                </TabsTrigger>
+              )}
             </TabsList>
             
             {activeTab === "funding" && (
@@ -313,6 +329,12 @@ function BillPaySettingsPage() {
               />
             </div>
           </TabsContent>
+
+          {policies.billPay.canViewMailboxConnections && (
+            <TabsContent value="mailboxes" className="flex-1 flex flex-col min-h-0 mt-4 border-none outline-none">
+              <MailboxConnectionsSettings legalEntityId={legalEntityId} />
+            </TabsContent>
+          )}
 
         </Tabs>
       </div>

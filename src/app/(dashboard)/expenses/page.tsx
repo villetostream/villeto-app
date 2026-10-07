@@ -267,8 +267,8 @@ function Reimbursements() {
           <ErrorState error={error} onRetry={refetch} />
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-              <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
+            <div className="flex flex-wrap items-center justify-between gap-4 shrink-0">
+              <TabsList className="bg-[#f9faf9] p-1 h-10 rounded-[8px] border border-black/[0.06] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
                 <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">All</TabsTrigger>
                 <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">
                   Awaiting Approval
@@ -334,8 +334,8 @@ function Reimbursements() {
         <ErrorState error={personalExpensesError} onRetry={refetchPersonalExpenses} />
       ) : (
         <Tabs value={personalActiveTab} onValueChange={setPersonalActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-            <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-4 shrink-0">
+            <TabsList className="bg-[#f9faf9] p-1 h-10 rounded-[8px] border border-black/[0.06] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
               <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">All</TabsTrigger>
               <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Pending Review</TabsTrigger>
               <TabsTrigger value="approved" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Approved</TabsTrigger>
@@ -390,8 +390,8 @@ function Reimbursements() {
         </div>
       ) : (
         <Tabs value={outerTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 shrink-0">
-            <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex">
+          <div className="flex flex-wrap items-center justify-between mb-6 gap-4 shrink-0">
+            <TabsList className="bg-[#f9faf9] p-1 h-10 rounded-[8px] border border-black/[0.06] inline-flex">
               {outerTabs.map(t => (
                 <TabsTrigger key={t.key} value={t.key} className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full cursor-pointer">
                   {t.label}

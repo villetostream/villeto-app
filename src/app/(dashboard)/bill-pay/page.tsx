@@ -7,6 +7,8 @@ import { useGetBillPayDashboardSummary } from "@/queries/bill-pay";
 import { BillPayTabs } from "@/components/bill-pay/BillPayTabs";
 import { Receipt2, ClipboardText, Cards, TickCircle } from "iconsax-reactjs";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
+// TODO: Uncomment when backend delivers email-configuration endpoints
+// import { ConfigureEmailModal } from "@/components/bill-pay/ConfigureEmailModal";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
@@ -20,12 +22,9 @@ function BillPayPage() {
   const setAction = useHeaderActionStore((state) => state.setAction);
   const clearAction = useHeaderActionStore((state) => state.clearAction);
   const policies = useAuthorizationPolicies();
-  const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window !== "undefined") {
-      return sessionStorage.getItem("billPayActiveTab") || "recurring";
-    }
-    return "recurring";
-  });
+  // TODO: Uncomment when backend delivers email-configuration endpoints
+  // const [showConfigureEmail, setShowConfigureEmail] = useState(false);
+  const [activeTab, setActiveTab] = useState("recurring");
   
   const [period, setPeriod] = useState("this_month");
   const [customStartDate, setCustomStartDate] = useState<Date>();
@@ -74,10 +73,6 @@ function BillPayPage() {
   );
 
   useEffect(() => {
-    sessionStorage.setItem("billPayActiveTab", activeTab);
-  }, [activeTab]);
-
-  useEffect(() => {
     if (!policies.billPay.canCreateIntake && !policies.billPay.canCreateInvoice) {
       clearAction();
       return () => clearAction();
@@ -99,12 +94,12 @@ function BillPayPage() {
       ...(policies.billPay.canViewMailboxConnections && {
         secondaryAction: {
           label: "Manage mailboxes",
-          onClick: () => router.push("/bill-pay/mailbox"),
+          onClick: () => router.push("/bill-pay/settings?tab=mailboxes"),
         },
       }),
     });
     return () => clearAction();
-  }, [router, setAction, clearAction, activeTab, policies.billPay.canCreateIntake, policies.billPay.canCreateInvoice, policies.billPay.canViewMailboxConnections]);
+  }, [router, setAction, clearAction, policies.billPay.canCreateIntake, policies.billPay.canCreateInvoice, policies.billPay.canViewMailboxConnections]);
 
   // Format the total bills amount
   const baseCurrency = summaryData?.legalEntity?.baseCurrency || "NGN";
@@ -209,6 +204,8 @@ function BillPayPage() {
         {/* Tabs Section */}
         <BillPayTabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
+        {/* TODO: Uncomment when backend delivers email-configuration endpoints */}
+        {/* {policies.billPay.canManageConfiguration && <ConfigureEmailModal open={showConfigureEmail} onOpenChange={setShowConfigureEmail} />} */}
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ export interface ProcurementInvoice {
   legalEntity: { legalEntityId: string; legalName: string; baseCurrency: string; readinessStatus: string };
   purchaseOrderId?: string | null;
   poNumber?: string | null;
+  deliveryDate?: string | null;
 }
 
 interface InvoiceListResponse {
@@ -55,5 +56,17 @@ export function useInvoicePaymentAction() {
       client.removeQueries({ queryKey: ["procurement-invoices"], type: "inactive" });
       return client.invalidateQueries({ queryKey: ["procurement-invoices"] });
     },
+  });
+}
+
+export function useGetProcurementInvoiceById(invoiceId: string) {
+  const axios = useAxios();
+  return useQuery({
+    queryKey: ["procurement-invoices", invoiceId],
+    queryFn: async () => {
+      const response = await axios.get(`procurement/invoices/${invoiceId}`);
+      return response.data;
+    },
+    enabled: !!invoiceId,
   });
 }

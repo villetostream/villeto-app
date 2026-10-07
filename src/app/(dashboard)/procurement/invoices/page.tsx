@@ -1,47 +1,110 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertCircle, ArrowRight, CheckCircle2, FileCheck2, Loader2, ReceiptText, Search, XCircle, CreditCard } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileCheck2, Loader2, ReceiptText, Search, XCircle, CreditCard, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { useInvoiceAction, useInvoicePaymentAction, useProcurementInvoices } from "@/queries/procurement/invoices";
+import { useProcurementInvoices } from "@/queries/procurement/invoices";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
 const money = (value: number, code: string) => new Intl.NumberFormat("en-NG", { style: "currency", currency: code }).format(value);
 
+import { useRouter } from "next/navigation";
+
+type SortKey = "invoiceNumber" | "amount" | "date" | "status" | "accounting";
+type SortDir = "asc" | "desc";
+
+function ColHeader({
+  label,
+  sortKey,
+  current,
+  onSort,
+  className = "",
+}: {
+  label: string;
+  sortKey: SortKey;
+  current: { key: SortKey; dir: SortDir } | null;
+  onSort: (k: SortKey) => void;
+  className?: string;
+}) {
+  const active = current?.key === sortKey;
+  return (
+    <button
+      onClick={() => onSort(sortKey)}
+      className={`flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider select-none transition-colors ${
+        active ? "text-[#0b100e]" : "text-[#89918d] hover:text-[#34413b]"
+      } ${className}`}
+    >
+      {label}
+      {active
+        ? current!.dir === "asc"
+          ? <ArrowUp className="w-3 h-3 text-[#087f70] shrink-0" />
+          : <ArrowDown className="w-3 h-3 text-[#087f70] shrink-0" />
+        : <ChevronsUpDown className="w-3 h-3 opacity-35 shrink-0" />
+      }
+    </button>
+  );
+}
+
 function ProcurementInvoicesPage() {
+  const router = useRouter();
   const policies = useAuthorizationPolicies();
   const { data, isPending, isError, refetch } = useProcurementInvoices(undefined, { refetchInterval: 60_000 });
-  const paymentAction = useInvoicePaymentAction();
-  const action = useInvoiceAction();
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
+  const [sortState, setSortState] = useState<{ key: SortKey; dir: SortDir } | null>({ key: "date", dir: "desc" });
   const invoices = useMemo(() => data?.data || [], [data?.data]);
-  const filtered = useMemo(() => invoices.filter((invoice) => (tab === "all" || invoice.status === tab) && `${invoice.invoiceNumber} ${invoice.vendor?.displayName || ""} ${invoice.vendor?.legalName || ""} ${invoice.poNumber || ""}`.toLowerCase().includes(search.toLowerCase())), [invoices, search, tab]);
+  
+  const filtered = useMemo(() => {
+    let result = invoices.filter((invoice) => 
+      (tab === "all" || invoice.status === tab) && 
+      `${invoice.invoiceNumber} ${invoice.vendor?.displayName || ""} ${invoice.vendor?.legalName || ""} ${invoice.poNumber || ""}`.toLowerCase().includes(search.toLowerCase())
+    );
+
+    if (sortState) {
+      result = [...result].sort((a, b) => {
+        let valA: any = "";
+        let valB: any = "";
+
+        if (sortState.key === "invoiceNumber") {
+          valA = a.invoiceNumber || "";
+          valB = b.invoiceNumber || "";
+        } else if (sortState.key === "amount") {
+          valA = Number(a.totalAmount || 0);
+          valB = Number(b.totalAmount || 0);
+        } else if (sortState.key === "date") {
+          valA = new Date(a.invoiceDate || 0).getTime();
+          valB = new Date(b.invoiceDate || 0).getTime();
+        } else if (sortState.key === "status") {
+          valA = a.status || "";
+          valB = b.status || "";
+        } else if (sortState.key === "accounting") {
+          valA = a.accountingSyncStatus || "";
+          valB = b.accountingSyncStatus || "";
+        }
+
+        if (valA < valB) return sortState.dir === "asc" ? -1 : 1;
+        if (valA > valB) return sortState.dir === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [invoices, search, tab, sortState]);
+
+  const handleSort = (key: SortKey) => {
+    setSortState((prev) => {
+      if (prev?.key === key) {
+        return { key, dir: prev.dir === "asc" ? "desc" : "asc" };
+      }
+      return { key, dir: "asc" };
+    });
+  };
   const underReview = invoices.filter((item) => item.status === "under_review").length;
   const awaiting = invoices.filter((item) => item.status === "submitted").length;
   const approvedValue = invoices.filter((item) => ["approved", "paid"].includes(item.status)).reduce((sum, item) => sum + Number(item.totalAmount), 0);
   const currency = invoices[0]?.currency || "USD";
-
-  const run = async (invoiceId: string, next: "under-review" | "approve" | "reject") => {
-    try { 
-      await action.mutateAsync({ invoiceId, action: next }); 
-      toast.success(next === "approve" ? "Invoice approved and posted" : next === "under-review" ? "Invoice moved into review" : "Invoice rejected"); 
-    } catch { 
-      toast.error("Invoice action could not be completed"); 
-    }
-  };
-
-  const recordPayment = async (invoiceId: string) => {
-    try {
-      await paymentAction.mutateAsync({ invoiceId, paymentStatus: "paid" });
-      toast.success("Payment recorded successfully");
-    } catch {
-      toast.error("Failed to record payment");
-    }
-  };
 
   return <div className="space-y-5 pb-8 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
     <ProcurementPageHeader title="Vendor invoices" description="Review supplier invoices against the legal entity, PO, receiving evidence, and accounting controls before they become payable." />
@@ -58,44 +121,46 @@ function ProcurementInvoicesPage() {
           <button onClick={() => refetch()} className="mt-3 text-[13px] font-semibold text-[#087f70]">Try again</button>
         </div>
       ) : filtered.length ? (
-        <div className="divide-y divide-black/[0.055] overflow-auto flex-1 min-h-0">
+        <div className="overflow-y-auto flex-1 min-h-0">
+          <div className="hidden lg:grid lg:grid-cols-[1.5fr_1fr_1fr_140px_120px] gap-3 px-5 py-3 border-b border-black/[0.055] bg-[#f9faf9] sticky top-0 z-10">
+            <ColHeader label="Invoice Details" sortKey="invoiceNumber" current={sortState} onSort={handleSort} />
+            <ColHeader label="Entity & Amount" sortKey="amount" current={sortState} onSort={handleSort} />
+            <ColHeader label="Dates" sortKey="date" current={sortState} onSort={handleSort} />
+            <ColHeader label="Status" sortKey="status" current={sortState} onSort={handleSort} />
+            <ColHeader label="Accounting" sortKey="accounting" current={sortState} onSort={handleSort} />
+          </div>
+          <div className="divide-y divide-black/[0.055]">
           {filtered.map((invoice) => (
-            <div key={invoice.vendorInvoiceId} className="grid gap-3 px-5 py-4 transition hover:bg-[#f8fbfa] lg:grid-cols-[1fr_1fr_auto_auto_auto] lg:items-center">
+             <div 
+              key={invoice.vendorInvoiceId} 
+              onClick={() => router.push(`/procurement/invoices/${invoice.vendorInvoiceId}`)}
+              className="group grid gap-3 px-5 py-4 transition hover:bg-[#f8fbfa] lg:grid-cols-[1.5fr_1fr_1fr_140px_120px] lg:items-center cursor-pointer"
+            >
               <div>
-                <p className="text-[13px] font-semibold text-[#17211d]">{invoice.invoiceNumber}</p>
-                <p className="mt-1 text-[11px] text-[#89918d]">{invoice.vendor?.displayName || invoice.vendor?.legalName || "Vendor"} · {invoice.poNumber || "Non-PO invoice"}</p>
+                <p className="text-[12px] font-semibold text-[#17211d]">{invoice.invoiceNumber || "Invoice"}</p>
+                <p className="mt-0.5 text-[10px] text-[#89918d]">{invoice.vendor?.displayName || invoice.vendor?.legalName || "Vendor pending"} · {invoice.poNumber || "Non-PO invoice"}</p>
               </div>
-              <div>
-                <p className="text-[11px] text-[#89918d]">{invoice.legalEntity.legalName}</p>
-                <p className="mt-1 text-[13px] font-semibold text-[#17211d]">{money(invoice.totalAmount, invoice.currency)}</p>
+              <div className="hidden lg:block">
+                <p className="text-[11px] font-medium text-[#34413b]">{money(invoice.totalAmount, invoice.currency)}</p>
+                <p className="mt-0.5 text-[10px] text-[#89918d]">{invoice.legalEntity.legalName}</p>
               </div>
-              <StatusBadge status={invoice.status} label={invoice.status.replaceAll("_", " ")} />
-              <span className="text-[10px] font-semibold capitalize text-[#89918d]">Accounting: {invoice.accountingSyncStatus.replaceAll("_", " ")}</span>
-              <div className="flex items-center justify-end gap-2">
-                {invoice.status === "submitted" && policies.vendorInvoices.canReview && (
-                  <button onClick={() => run(invoice.vendorInvoiceId, "under-review")} className="rounded-[8px] border border-black/[0.08] px-3 py-2 text-[12px] font-semibold">
-                    Review
-                  </button>
-                )}
-                {invoice.status === "under_review" && policies.vendorInvoices.canApprove && (
-                  <>
-                    <button onClick={() => run(invoice.vendorInvoiceId, "reject")} className="rounded-[8px] border border-red-200 text-[#d33d44] hover:bg-[#fff5f5] px-3 py-2 text-[12px] font-semibold flex items-center gap-1">
-                      <XCircle className="size-3.5" /> Reject
-                    </button>
-                    <button onClick={() => run(invoice.vendorInvoiceId, "approve")} className="inline-flex items-center gap-1 rounded-[8px] bg-[#087f70] px-3 py-2 text-[12px] font-semibold text-white hover:opacity-90">
-                      <CheckCircle2 className="size-3.5" /> Approve
-                    </button>
-                  </>
-                )}
-                {invoice.status === "approved" && (
-                  <button onClick={() => recordPayment(invoice.vendorInvoiceId)} className="inline-flex items-center gap-1 rounded-[8px] bg-[#2563eb] px-3 py-2 text-[12px] font-semibold text-white hover:opacity-90">
-                    <CreditCard className="size-3.5" /> Record Payment
-                  </button>
-                )}
-                <ArrowRight className="size-3.5 text-[#a6adaa]" />
+              <div className="hidden lg:block">
+                <p className="text-[11px] font-medium text-[#34413b]">
+                  {invoice.invoiceDate ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(invoice.invoiceDate)) : "—"}
+                </p>
+                <p className="mt-0.5 text-[10px] text-[#89918d]">
+                  Due: {invoice.deliveryDate ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(invoice.deliveryDate)) : "—"}
+                </p>
+              </div>
+              <div className="hidden lg:flex lg:items-center">
+                <StatusBadge status={invoice.status} label={invoice.status.replaceAll("_", " ")} />
+              </div>
+              <div className="hidden lg:flex lg:items-center">
+                <StatusBadge status={invoice.accountingSyncStatus} label={invoice.accountingSyncStatus.replaceAll("_", " ")} className="bg-[#f0faf8] text-[#087f70] border-[#087f70]/10 capitalize" />
               </div>
             </div>
           ))}
+          </div>
         </div>
       ) : (
         <div className="py-16 text-center text-[13px] text-[#89918d]">No invoices match this view.</div>

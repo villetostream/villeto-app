@@ -29,6 +29,10 @@ import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { Rnd } from "react-rnd";
+import dynamic from "next/dynamic";
+
+const PdfViewer = dynamic(() => import("@/components/ui/pdf-viewer"), { ssr: false });
 
 function VendorDetailsPage() {
   const { vendorId } = useParams() as { vendorId: string };
@@ -377,12 +381,8 @@ function VendorDetailsPage() {
                       </div>
                     </div>
                     <button onClick={() => {
-                        if (fileUrl.split('?')[0].match(/\.pdf$/i)) {
-                          window.open(fileUrl, '_blank');
-                        } else {
-                          setPreviewDocUrl(fileUrl);
-                          setPreviewDocName(originalName);
-                        }
+                        setPreviewDocUrl(fileUrl);
+                        setPreviewDocName(originalName);
                       }}
                       className="px-4 py-1.5 rounded-[6px] border border-[#087f70] text-[#087f70] text-[12px] font-semibold hover:bg-[#f0faf8] transition-colors">
                       View
@@ -579,33 +579,37 @@ function VendorDetailsPage() {
 
       {/* ── Document Preview Modal ── */}
       {previewDocUrl && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-[2px] p-4 animate-in fade-in">
-          <div className="bg-white rounded-[14px] shadow-xl w-full max-w-5xl h-[90vh] flex flex-col relative overflow-hidden border border-black/[0.08]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.08] bg-[#f9faf9]">
-              <h2 className="text-[16px] font-bold text-[#0b100e] truncate pr-4">{previewDocName || "Document Preview"}</h2>
-              <div className="flex items-center gap-3">
-                <a href={previewDocUrl} target="_blank" rel="noreferrer" download
-                   className="px-4 py-2 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors">
-                  Download
-                </a>
-                <button onClick={() => { setPreviewDocUrl(null); setPreviewDocName(null); }}
-                  className="w-9 h-9 rounded-[8px] bg-[#f5f7f6] hover:bg-[#ebeeed] flex items-center justify-center transition-colors">
-                  <X className="w-5 h-5 text-[#0b100e]" />
-                </button>
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-[2px] animate-in fade-in">
+          <Rnd
+            default={{
+              x: typeof window !== 'undefined' ? (window.innerWidth - 800) / 2 : 100,
+              y: typeof window !== 'undefined' ? (window.innerHeight - 700) / 2 : 100,
+              width: 800,
+              height: 700,
+            }}
+            minWidth={400}
+            minHeight={400}
+            bounds="window"
+            dragHandleClassName="modal-drag-handle"
+            className="z-[101]"
+          >
+            <div className="bg-white rounded-[14px] shadow-2xl w-full h-full flex flex-col relative overflow-hidden border border-black/[0.08]">
+              <div className="modal-drag-handle flex items-center justify-between px-6 py-4 border-b border-black/[0.08] bg-[#f9faf9] cursor-move select-none">
+                <h2 className="text-[16px] font-bold text-[#0b100e] truncate pr-4">{previewDocName || "Document Preview"}</h2>
+                <div className="flex items-center gap-3" onPointerDown={(e) => e.stopPropagation()}>
+                  <a href={previewDocUrl} target="_blank" rel="noreferrer" download
+                     className="px-4 py-2 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors">
+                    Download
+                  </a>
+                  <button onClick={() => { setPreviewDocUrl(null); setPreviewDocName(null); }}
+                    className="w-9 h-9 rounded-[8px] bg-[#f5f7f6] hover:bg-[#ebeeed] flex items-center justify-center transition-colors">
+                    <X className="w-5 h-5 text-[#0b100e]" />
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="flex-1 bg-[#f5f7f6] p-4 flex flex-col gap-4 relative overflow-hidden">
-              <div className="w-full shrink-0 bg-[#f0f6ff] border border-[#d6e7ff] rounded-[10px] p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
-                <p className="text-[13px] text-[#0066cc]">
-                  <span className="font-semibold">Having trouble viewing the document?</span> Your browser may not support inline viewing for this file type.
-                </p>
-                <a href={previewDocUrl} target="_blank" rel="noreferrer" download
-                   className="shrink-0 px-4 py-1.5 rounded-[6px] bg-[#0066cc] text-white text-[12px] font-semibold hover:bg-[#0052a3] transition-colors">
-                  Open / Download File
-                </a>
-              </div>
-              
-              <div className="flex-1 bg-white rounded-[10px] border border-black/[0.08] shadow-sm relative overflow-hidden">
+              <div className="flex-1 bg-[#f5f7f6] p-4 flex flex-col gap-4 relative overflow-hidden">
+                
+                <div className="flex-1 bg-white rounded-[10px] border border-black/[0.08] shadow-sm relative overflow-hidden">
                 {previewDocUrl.split('?')[0].match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
                   <div className="w-full h-full flex items-center justify-center p-4">
                     <img 
@@ -615,21 +619,7 @@ function VendorDetailsPage() {
                     />
                   </div>
                 ) : previewDocUrl.split('?')[0].match(/\.pdf$/i) ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-white">
-                    <div className="w-16 h-16 rounded-full bg-[#f0faf8] flex items-center justify-center mb-4">
-                      <svg className="w-8 h-8 text-[#087f70]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-[16px] font-bold text-[#0b100e] mb-2">PDF Document</h3>
-                    <p className="text-[13px] text-[#68726d] mb-6 max-w-sm mx-auto leading-relaxed">
-                      For security reasons, this document cannot be previewed directly inside the browser. Please open it in a new tab to view its contents.
-                    </p>
-                    <a href={previewDocUrl} target="_blank" rel="noreferrer" download
-                       className="px-6 py-2.5 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors shadow-sm">
-                      Open PDF in New Tab
-                    </a>
-                  </div>
+                  <PdfViewer url={previewDocUrl} />
                 ) : (
                   <iframe 
                     src={
@@ -644,6 +634,7 @@ function VendorDetailsPage() {
               </div>
             </div>
           </div>
+          </Rnd>
         </div>
       )}
 

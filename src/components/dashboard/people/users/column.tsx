@@ -36,6 +36,7 @@ export const columns = (
     columnHelper.display({
         id: "idNo",
         header: "S/N",
+        enableSorting: false,
         cell: (info) => {
             const rowNum = String(info.row.index + 1).padStart(2, '0');
             return <p className="text-sm">{rowNum}</p>;
@@ -176,6 +177,7 @@ export const columns = (
         id: "actions",
         header: "ACTION",
         enableHiding: false,
+        enableSorting: false,
         cell: (data) => {
             const status = data.row.original.status;
             const isActive = status?.toLowerCase() === "active";

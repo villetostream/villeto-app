@@ -74,7 +74,6 @@ describe("authorization policies", () => {
       "bill_pay.mailbox_connection.view",
       "bill_pay.mailbox_email.view",
     ]));
-
     expect(manager.billPay.canViewMailboxConnections).toBe(true);
     expect(manager.billPay.canManageMailboxConnections).toBe(true);
     expect(manager.billPay.canViewMailboxEmail).toBe(false);

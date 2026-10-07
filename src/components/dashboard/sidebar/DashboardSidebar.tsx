@@ -173,6 +173,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
     if (basePath === "/bill-pay") {
       if (
         location.startsWith("/bill-pay/payments") ||
+        location.startsWith("/bill-pay/mailbox") ||
         location.startsWith("/bill-pay/settings")
       ) return false;
       return location.startsWith(basePath);

@@ -154,7 +154,7 @@ export function useDownloadTenantMailboxAttachment() {
       attachmentId: string;
     }) => {
       const response = await axios.get<Blob>(
-        `bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}/attachments/${attachmentId}/download`,
+        `bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}/attachments/${encodeURIComponent(attachmentId)}/download`,
         { responseType: "blob" },
       );
       const url = URL.createObjectURL(response.data);
@@ -168,3 +168,30 @@ export function useDownloadTenantMailboxAttachment() {
     },
   });
 }
+
+/** Returns a blob URL for inline viewing instead of triggering a download. */
+export function useViewTenantMailboxAttachment() {
+  const axios = useAxios();
+  return useMutation({
+    mutationFn: async ({
+      tenantMailboxConnectionId,
+      messageId,
+      attachmentId,
+    }: {
+      tenantMailboxConnectionId: string;
+      messageId: string;
+      attachmentId: string;
+    }): Promise<{ url: string; filename: string; mimeType: string }> => {
+      const response = await axios.get<Blob>(
+        `bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}/attachments/${encodeURIComponent(attachmentId)}/download`,
+        { responseType: "blob" },
+      );
+      const url = URL.createObjectURL(response.data);
+      const filename = filenameFromDisposition(response.headers["content-disposition"]);
+      const mimeType = response.data.type || "application/octet-stream";
+      return { url, filename, mimeType };
+    },
+  });
+}
+
+
