@@ -57,6 +57,7 @@ import {
   TableCell,
 } from "../ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 
 const PAGE_SIZE_OPTIONS = [
   { label: "5", value: "5" },
@@ -356,14 +357,27 @@ function DataTable<Data extends object, Value = unknown>(
                   return (
                     <th
                       key={header.id}
-                      className="px-4 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider select-none whitespace-nowrap"
+                      className={`px-4 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider whitespace-nowrap ${
+                        header.column.getCanSort()
+                          ? 'cursor-pointer select-none hover:bg-black/[0.02] transition-colors'
+                          : 'select-none'
+                      }`}
+                      onClick={header.column.getToggleSortingHandler()}
                     >
-                      <div className="flex items-center justify-start gap-1">
+                      <div className="flex items-center justify-start gap-1.5">
                         {header.id !== "select" &&
                           flexRender(
                             header.column.columnDef.header,
                             header.getContext()
                           )}
+                        {header.column.getCanSort() && header.column.getIsSorted() && (
+                            header.column.getIsSorted() === 'asc'
+                              ? <ArrowUp className="w-3.5 h-3.5 text-[#087f70]" />
+                              : <ArrowDown className="w-3.5 h-3.5 text-[#087f70]" />
+                        )}
+                        {header.column.getCanSort() && !header.column.getIsSorted() && (
+                            <ChevronsUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                        )}
                       </div>
                     </th>
                   );

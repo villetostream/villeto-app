@@ -202,10 +202,19 @@ export const navigationItems: NavItem[] = [
         ],
       },
       {
+        label: "Mailbox",
+        href: "/bill-pay/mailbox",
+        permissions: [
+          { resource: "bill_pay.mailbox_connection", action: "view" },
+          { resource: "bill_pay.mailbox_email", action: "view" },
+        ],
+      },
+      {
         label: "Settings",
         href: "/bill-pay/settings",
         permissions: [
-          { resource: "bill_pay.configuration", action: "manage" }
+          { resource: "bill_pay.configuration", action: "manage" },
+          { resource: "bill_pay.mailbox_connection", action: "manage" },
         ],
       },
     ],

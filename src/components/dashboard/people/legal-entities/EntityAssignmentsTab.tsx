@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DatePicker } from "@/components/ui/date-picker";
 import { AppUser } from "@/queries/departments/get-all-departments";
 import {
   EmployeeLegalEntityAssignment,
@@ -72,7 +73,7 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
 
   const [selected, setSelected] = useState<AssignmentRow | null>(null);
   const [legalEntityId, setLegalEntityId] = useState("");
-  const [effectiveFrom, setEffectiveFrom] = useState(() => new Date().toISOString().slice(0, 10));
+  const [effectiveFrom, setEffectiveFrom] = useState<Date | undefined>(new Date());
   const [reason, setReason] = useState("");
 
   const rows = useMemo<AssignmentRow[]>(
@@ -115,7 +116,7 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
   const openAssignment = (row: AssignmentRow) => {
     setSelected(row);
     setLegalEntityId(row.assignment?.legalEntity?.legalEntityId ?? "");
-    setEffectiveFrom(new Date().toISOString().slice(0, 10));
+    setEffectiveFrom(new Date());
     setReason("");
   };
 
@@ -134,7 +135,7 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
       await assignMutation.mutateAsync({
         userId: selected.user.userId,
         legalEntityId,
-        effectiveFrom: new Date(`${effectiveFrom}T00:00:00.000Z`).toISOString(),
+        effectiveFrom: effectiveFrom.toISOString(),
         reason: reason.trim() || undefined,
       });
       toast.success("Primary legal entity assigned.");
@@ -307,12 +308,10 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="effective-from" className="text-[#0b100e]">Effective from</Label>
-              <Input 
-                id="effective-from" 
-                type="date" 
-                value={effectiveFrom} 
-                onChange={(event) => setEffectiveFrom(event.target.value)} 
-                className="h-10 border-black/[0.1] rounded-[9px]"
+              <DatePicker 
+                date={effectiveFrom} 
+                setDate={setEffectiveFrom} 
+                className="w-full h-10 border-black/[0.1] rounded-[9px]"
               />
             </div>
             <div className="space-y-2">
