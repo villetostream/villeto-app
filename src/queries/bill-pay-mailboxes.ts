@@ -178,7 +178,7 @@ export function useViewTenantMailboxAttachment() {
       attachmentId: string;
       filename: string;
       mimeType: string;
-    }): Promise<{ url: string; filename: string; mimeType: string }> => {
+    }): Promise<{ url: string; filename: string; mimeType: string; data: Blob }> => {
       const response = await axios.get<Blob>(
         `bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}/attachments/${encodeURIComponent(attachmentId)}/download`,
         { responseType: "blob" },
@@ -187,7 +187,7 @@ export function useViewTenantMailboxAttachment() {
         type: mimeType || response.data.type || "application/octet-stream",
       });
       const url = URL.createObjectURL(blob);
-      return { url, filename, mimeType };
+      return { url, filename, mimeType, data: blob };
     },
   });
 }

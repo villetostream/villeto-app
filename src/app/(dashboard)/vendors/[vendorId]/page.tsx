@@ -619,7 +619,7 @@ function VendorDetailsPage() {
                     />
                   </div>
                 ) : previewDocUrl.split('?')[0].match(/\.pdf$/i) ? (
-                  <PdfViewer url={previewDocUrl} />
+                  <PdfViewer file={previewDocUrl} />
                 ) : (
                   <iframe 
                     src={
