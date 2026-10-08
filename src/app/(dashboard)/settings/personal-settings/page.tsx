@@ -432,6 +432,14 @@ function MyProfileTab() {
               <p className="text-[13px] font-semibold text-[#0b100e] capitalize">{user?.employmentType?.replaceAll("_", " ").toLowerCase() || "—"}</p>
             </div>
             <div className="space-y-1">
+              <p className="text-[11px] font-medium text-[#84908a]">Reports to</p>
+              <p className="text-[13px] font-semibold text-[#0b100e]">
+                {typeof user?.manager === 'object' && user.manager !== null 
+                  ? ((user.manager as any).name || [(user.manager as any).firstName, (user.manager as any).lastName].filter(Boolean).join(" ")) || "—"
+                  : typeof user?.manager === 'string' ? user.manager : "—"}
+              </p>
+            </div>
+            <div className="space-y-1">
               <p className="text-[11px] font-medium text-[#84908a]">Last Active</p>
               <p className="text-[13px] font-semibold text-[#0b100e]">{user?.lastLoginAt ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(user.lastLoginAt)) : "—"}</p>
             </div>

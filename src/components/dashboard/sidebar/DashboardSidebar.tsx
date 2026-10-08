@@ -82,6 +82,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
       if (p.startsWith("/procurement")) return ["Procurement"];
       if (p.startsWith("/settings"))    return ["Settings"];
       if (p.startsWith("/policies"))    return ["Policies"];
+      if (p.startsWith("/bill-pay"))    return ["Bill Pay"];
     }
     return [];
   });
@@ -106,13 +107,15 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   if (location !== syncedLocation) {
     setSyncedLocation(location);
     if (location.startsWith("/expenses"))
-      setExpandedMenus(prev => prev.includes("Expenses") ? prev : [...prev, "Expenses"]);
-    if (location.startsWith("/procurement"))
-      setExpandedMenus(prev => prev.includes("Procurement") ? prev : [...prev, "Procurement"]);
-    if (location.startsWith("/settings"))
-      setExpandedMenus(prev => prev.includes("Settings") ? prev : [...prev, "Settings"]);
-    if (location.startsWith("/policies"))
-      setExpandedMenus(prev => prev.includes("Policies") ? prev : [...prev, "Policies"]);
+      setExpandedMenus(["Expenses"]);
+    else if (location.startsWith("/procurement"))
+      setExpandedMenus(["Procurement"]);
+    else if (location.startsWith("/settings"))
+      setExpandedMenus(["Settings"]);
+    else if (location.startsWith("/policies"))
+      setExpandedMenus(["Policies"]);
+    else if (location.startsWith("/bill-pay"))
+      setExpandedMenus(["Bill Pay"]);
   }
 
   const { data: companyData, isLoading: isQueryLoading } = useQuery({
@@ -146,7 +149,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
 
   const toggleMenu = (label: string) => {
     setExpandedMenus((prev) =>
-      prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label]
+      prev.includes(label) ? [] : [label]
     );
   };
 

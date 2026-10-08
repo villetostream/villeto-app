@@ -202,7 +202,9 @@ function MailboxPage() {
   const viewAttachment = useViewTenantMailboxAttachment();
 
   /* ---------- floating attachment viewer ---------- */
-  const [attachmentViewer, setAttachmentViewer] = useState<{ url: string; filename: string; mimeType: string } | null>(null);
+  const [attachmentViewer, setAttachmentViewer] = useState<{ url: string; filename: string; mimeType: string; data?: Blob } | null>(null);
+  const [showEmailBody, setShowEmailBody] = useState(false);
+  const autoOpenedMessageId = useRef<string | null>(null);
 
   const openAttachmentViewer = async (attachmentId: string, filename: string, mimeType: string) => {
     if (!selectedConnection || !selectedMessageId) return;
@@ -214,7 +216,12 @@ function MailboxPage() {
         messageId: selectedMessageId,
         attachmentId,
       });
-      setAttachmentViewer(result);
+      setAttachmentViewer({
+        url: result.url,
+        filename: filename || result.filename,
+        mimeType: mimeType || result.mimeType,
+        data: result.data,
+      });
     } catch {
       toast.error("Could not open this attachment");
     }
@@ -224,6 +231,14 @@ function MailboxPage() {
     if (attachmentViewer?.url) URL.revokeObjectURL(attachmentViewer.url);
     setAttachmentViewer(null);
   }, [attachmentViewer]);
+
+  useEffect(() => {
+    if (selectedMessage.data && selectedMessage.data.attachments.length === 1 && autoOpenedMessageId.current !== selectedMessage.data.messageId) {
+       autoOpenedMessageId.current = selectedMessage.data.messageId;
+       const att = selectedMessage.data.attachments[0];
+       openAttachmentViewer(att.attachmentId, att.filename, att.mimeType);
+    }
+  }, [selectedMessage.data]);
 
   /* ---------- inline bill creation state ---------- */
   const [billPanelOpen, setBillPanelOpen] = useState(false);
@@ -277,6 +292,13 @@ function MailboxPage() {
       setDescription(selectedMessage.data.subject || "");
       if (selectedMessage.data.receivedAt) {
         setInvoiceDate(new Date(selectedMessage.data.receivedAt));
+      }
+      
+      // Auto-attach if there is exactly 1 attachment
+      if (selectedMessage.data.attachments?.length === 1) {
+        const att = selectedMessage.data.attachments[0];
+        const placeholderFile = new File([], att.filename, { type: att.mimeType });
+        setAttachment(placeholderFile);
       }
     }
     setBillPanelOpen(true);
@@ -486,7 +508,7 @@ function MailboxPage() {
                       <button
                         key={msg.messageId}
                         type="button"
-                        onClick={() => { setSelectedMessageId(msg.messageId); closeBillPanel(); closeAttachmentViewer(); }}
+                        onClick={() => { setSelectedMessageId(msg.messageId); closeBillPanel(); closeAttachmentViewer(); setShowEmailBody(false); }}
                         className={`block w-full border-b border-black/[0.05] px-3 py-3 text-left transition-colors ${
                           selectedMessageId === msg.messageId ? "bg-[#f0faf8]" : "hover:bg-[#f8faf9]"
                         }`}
@@ -526,93 +548,186 @@ function MailboxPage() {
                   </div>
                 ) : selectedMessage.data ? (
                   <div className="flex flex-1 flex-col min-h-0">
-                    {/* email header */}
-                    <div className="shrink-0 border-b border-black/[0.07] bg-white px-5 py-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h2 className="text-[16px] font-semibold text-[#10231d]">{selectedMessage.data.subject || "No subject"}</h2>
-                          <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-[#718079]">
-                            <div><dt className="inline font-semibold text-[#53635c]">From:</dt> <dd className="inline">{selectedMessage.data.from || "Unknown"}</dd></div>
-                            <div><dt className="inline font-semibold text-[#53635c]">Received:</dt> <dd className="inline">{dateTime(selectedMessage.data.receivedAt)}</dd></div>
-                            {selectedMessage.data.to && <div><dt className="inline font-semibold text-[#53635c]">To:</dt> <dd className="inline">{selectedMessage.data.to}</dd></div>}
-                          </dl>
+                    {attachmentViewer ? (
+                      <>
+                        {/* Inline viewer header */}
+                        <div className="shrink-0 flex items-center justify-between px-5 py-3 border-b border-black/[0.07] bg-white">
+                          <div className="flex items-center gap-3">
+                            <Button variant="ghost" size="icon" onClick={closeAttachmentViewer} className="size-8 text-[#68726d] -ml-2 hover:bg-[#f5f8f7]">
+                              <ArrowLeft className="size-4" />
+                            </Button>
+                            <FileText className="size-4 text-[#087f70]" />
+                            <div className="flex flex-col min-w-0">
+                              <span className="truncate text-[13px] font-semibold text-[#10231d]">{attachmentViewer.filename}</span>
+                              <span className="text-[11px] text-[#718079]">From: {selectedMessage.data.from}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="icon" className="size-8 text-[#64716c] hover:text-[#087f70]" onClick={() => window.open(attachmentViewer.url, "_blank")} title="Open in new tab">
+                              <ExternalLink className="size-4" />
+                            </Button>
+                            <Button 
+                              onClick={() => {
+                                if (!billPanelOpen) openBillPanel();
+                                const placeholderFile = new File([], attachmentViewer.filename, { type: attachmentViewer.mimeType });
+                                setAttachment(placeholderFile);
+                                toast.success(`"${attachmentViewer.filename}" attached to bill`);
+                              }}
+                              className={`h-8 rounded-[8px] px-3 text-[11px] font-semibold shadow-none ml-2 ${
+                                billPanelOpen 
+                                  ? "border border-[#087f70] text-[#087f70] bg-white hover:bg-[#f0faf8]" 
+                                  : "bg-[#087f70] hover:bg-[#076b5e] text-white"
+                              }`}
+                            >
+                              <Plus className="size-3.5 mr-1" /> {billPanelOpen ? "Attach to bill" : "Create bill"}
+                            </Button>
+                          </div>
                         </div>
-                        {!billPanelOpen && (
-                          <Button onClick={openBillPanel} className="shrink-0 h-8 rounded-[8px] px-3 text-[11px] font-semibold shadow-none bg-[#087f70] hover:bg-[#076b5e] text-white">
-                            <Plus className="size-3.5" /> Create bill
+
+                        {/* Viewer content */}
+                        <div className="flex-1 bg-[#f5f7f6] overflow-hidden relative border-b border-black/[0.07]">
+                          {attachmentViewer.mimeType === "application/pdf" || attachmentViewer.filename.toLowerCase().endsWith(".pdf") ? (
+                            <PdfViewer file={attachmentViewer.data || attachmentViewer.url} />
+                          ) : attachmentViewer.mimeType.startsWith("image/") || attachmentViewer.filename.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                            <div className="flex items-center justify-center p-4 h-full">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={attachmentViewer.url} alt={attachmentViewer.filename} className="max-w-full max-h-full object-contain rounded-[6px] shadow-sm" />
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
+                              <FileText className="size-10 text-[#b0bbb5]" />
+                              <p className="text-[13px] font-medium text-[#10231d]">{attachmentViewer.filename}</p>
+                              <p className="text-[12px] text-[#718079]">This file type can't be previewed inline.</p>
+                              <Button variant="outline" size="sm" onClick={() => window.open(attachmentViewer.url, "_blank")} className="mt-2 text-[12px]">
+                                <ExternalLink className="size-3.5 mr-1.5" /> Open in new tab
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Email context toggle at bottom */}
+                        <div className="shrink-0 bg-white p-4">
+                          <Button onClick={() => setShowEmailBody(!showEmailBody)} variant="outline" className="h-8 rounded-[8px] px-3 text-[11px] font-semibold shadow-none border-black/[0.08] text-[#64716c] bg-white">
+                            {showEmailBody ? <ChevronUp className="size-3.5 mr-1" /> : <ChevronDown className="size-3.5 mr-1" />}
+                            {showEmailBody ? "Hide email" : "Show email"}
                           </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* email body */}
-                    <div className="flex-1 overflow-y-auto px-5 py-4">
-                      <div className="whitespace-pre-wrap text-[13px] leading-6 text-[#34443c]">
-                        {selectedMessage.data.body || "This message has no readable text body."}
-                      </div>
-                    </div>
-
-                    {/* attachments bar */}
-                    <div className="shrink-0 border-t border-black/[0.07] bg-white px-5 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <Paperclip className="size-3.5 text-[#84908a]" />
-                          <span className="text-[11px] font-semibold text-[#10231d]">
-                            {selectedMessage.data.attachments.length} attachment{selectedMessage.data.attachments.length !== 1 ? "s" : ""}
-                          </span>
+                          {showEmailBody && (
+                            <div className="mt-4 p-5 bg-[#f9faf9] rounded-[10px] border border-black/[0.06] whitespace-pre-wrap text-[13px] leading-6 text-[#34443c] max-h-[300px] overflow-y-auto">
+                              {selectedMessage.data.body || "This message has no readable text body."}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      {selectedMessage.data.attachments.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {selectedMessage.data.attachments.map((att) => (
-                            <div key={att.attachmentId} className="flex items-center gap-1.5 rounded-[8px] border border-black/[0.06] bg-[#f9faf9] px-2.5 py-1.5">
-                              <FileText className="size-3.5 text-[#087f70]" />
-                              <span className="max-w-[140px] truncate text-[11px] font-medium text-[#10231d]">{att.filename}</span>
-                              <div className="flex items-center gap-0.5">
-                                {/* View inline */}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-6 text-[#087f70] hover:bg-[#f0faf8]"
-                                  disabled={viewAttachment.isPending}
-                                  onClick={() => openAttachmentViewer(att.attachmentId, att.filename, att.mimeType)}
-                                  title="View"
-                                >
-                                  <Eye className="size-3" />
-                                </Button>
-                                {/* Download */}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-6 text-[#64716c] hover:text-[#087f70]"
-                                  disabled={downloadAttachment.isPending}
-                                  onClick={() => handleDownloadAttachment(att.attachmentId)}
-                                  title="Download"
-                                >
-                                  <Download className="size-3" />
-                                </Button>
-                                {/* Attach to bill */}
-                                {billPanelOpen && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="size-6 text-[#087f70] hover:bg-[#f0faf8]"
-                                    onClick={() => {
-                                      const placeholderFile = new File([], att.filename, { type: att.mimeType });
-                                      setAttachment(placeholderFile);
-                                      toast.success(`"${att.filename}" attached to bill`);
-                                    }}
-                                    title="Attach to bill"
-                                  >
-                                    <Plus className="size-3" />
-                                  </Button>
-                                )}
+                      </>
+                    ) : (
+                      <>
+                        {/* email header (Metadata) */}
+                        <div className="shrink-0 border-b border-black/[0.07] bg-white px-6 py-5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h2 className="text-[18px] font-bold text-[#10231d]">{selectedMessage.data.subject || "No subject"}</h2>
+                              <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[#718079]">
+                                <div><dt className="inline font-semibold text-[#53635c]">From:</dt> <dd className="inline text-[#10231d]">{selectedMessage.data.from || "Unknown"}</dd></div>
+                                <div><dt className="inline font-semibold text-[#53635c]">Received:</dt> <dd className="inline">{dateTime(selectedMessage.data.receivedAt)}</dd></div>
+                              </dl>
+                            </div>
+                            {!billPanelOpen && (
+                              <Button onClick={openBillPanel} className="shrink-0 h-9 rounded-[8px] px-4 text-[12px] font-semibold shadow-none bg-[#087f70] hover:bg-[#076b5e] text-white">
+                                <Plus className="size-3.5 mr-1.5" /> Create bill
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Attachments Area (PRIMARY) */}
+                        <div className="flex-1 overflow-y-auto p-6 bg-[#f4f7f5]">
+                          {selectedMessage.data.attachments.length > 0 ? (
+                            <div className="mb-8">
+                              <h3 className="text-[14px] font-bold text-[#10231d] mb-4">Attachments ({selectedMessage.data.attachments.length})</h3>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {selectedMessage.data.attachments.map((att) => {
+                                  const isInvoice = isLikelyBillEmail(selectedMessage.data) && att.filename.toLowerCase().includes('invoice');
+                                  const isPo = att.filename.toLowerCase().includes('po') || att.filename.toLowerCase().includes('purchase');
+                                  
+                                  return (
+                                    <div key={att.attachmentId} onClick={() => openAttachmentViewer(att.attachmentId, att.filename, att.mimeType)} className="group cursor-pointer flex items-center justify-between gap-3 rounded-[10px] border border-black/[0.08] bg-white p-4 hover:border-[#087f70]/40 hover:shadow-sm transition-all">
+                                      <div className="flex items-start gap-3 min-w-0">
+                                        <div className="mt-0.5">
+                                          <FileText className="size-5 text-[#087f70]" />
+                                        </div>
+                                        <div className="flex flex-col min-w-0">
+                                          <span className="truncate text-[13px] font-semibold text-[#10231d]">{att.filename}</span>
+                                          <span className="text-[11px] text-[#718079] mt-0.5">
+                                            {isInvoice ? 'Invoice' : isPo ? 'Purchase Order' : 'Document'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1 transition-opacity">
+                                        <div className="relative group/btn flex items-center justify-center">
+                                          <Button variant="ghost" size="icon" className="size-7 text-[#68726d] hover:text-[#087f70] hover:bg-[#f5f8f7]" onClick={(e) => { e.stopPropagation(); openAttachmentViewer(att.attachmentId, att.filename, att.mimeType); }}>
+                                            <Eye className="size-3.5"/>
+                                          </Button>
+                                          <div className="absolute -top-8 rounded-[6px] bg-[#10231d] px-2.5 py-1 text-[10px] font-semibold text-white opacity-0 transition-all duration-200 group-hover/btn:opacity-100 pointer-events-none whitespace-nowrap shadow-md z-10 scale-95 group-hover/btn:scale-100">
+                                            View document
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="relative group/btn flex items-center justify-center">
+                                          <Button variant="ghost" size="icon" className="size-7 text-[#68726d] hover:text-[#087f70] hover:bg-[#f5f8f7]" onClick={(e) => { e.stopPropagation(); handleDownloadAttachment(att.attachmentId); }}>
+                                            <Download className="size-3.5"/>
+                                          </Button>
+                                          <div className="absolute -top-8 rounded-[6px] bg-[#10231d] px-2.5 py-1 text-[10px] font-semibold text-white opacity-0 transition-all duration-200 group-hover/btn:opacity-100 pointer-events-none whitespace-nowrap shadow-md z-10 scale-95 group-hover/btn:scale-100">
+                                            Download
+                                          </div>
+                                        </div>
+
+                                        <div className="relative group/btn flex items-center justify-center">
+                                          <Button variant="ghost" size="icon" className="size-7 text-[#087f70] hover:bg-[#f0faf8]" onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            if (!billPanelOpen) openBillPanel();
+                                            const placeholderFile = new File([], att.filename, { type: att.mimeType });
+                                            setAttachment(placeholderFile);
+                                            toast.success(`"${att.filename}" attached to bill`);
+                                          }}>
+                                            <Plus className="size-3.5"/>
+                                          </Button>
+                                          <div className="absolute -top-8 rounded-[6px] bg-[#087f70] px-2.5 py-1 text-[10px] font-bold text-white opacity-0 transition-all duration-200 group-hover/btn:opacity-100 pointer-events-none whitespace-nowrap shadow-md z-10 scale-95 group-hover/btn:scale-100">
+                                            Attach to bill
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
-                          ))}
+                          ) : (
+                            <div className="mb-8 p-6 rounded-[10px] border border-black/[0.06] bg-white text-center shadow-sm">
+                              <div className="flex size-10 items-center justify-center rounded-full bg-[#f5f8f7] mx-auto mb-3">
+                                <Paperclip className="size-5 text-[#9aaba3]" />
+                              </div>
+                              <p className="text-[13px] font-bold text-[#10231d]">No attachments</p>
+                              <p className="mt-1 text-[12px] text-[#718079] max-w-sm mx-auto">This message doesn't have any attached files. You can still create a bill manually from the email details.</p>
+                            </div>
+                          )}
+
+                          {/* Email Body Area (SECONDARY) */}
+                          <div className="border-t border-black/[0.06] pt-6">
+                            <div className="flex items-center gap-3 mb-4">
+                              <Button onClick={() => setShowEmailBody(!showEmailBody)} variant="outline" className="h-8 rounded-[8px] px-3 text-[11px] font-semibold shadow-none border-black/[0.08] text-[#64716c] bg-white hover:bg-[#f9faf9]">
+                                {showEmailBody ? <ChevronUp className="size-3.5 mr-1" /> : <ChevronDown className="size-3.5 mr-1" />}
+                                {showEmailBody ? "Hide email" : "Show email"}
+                              </Button>
+                            </div>
+                            
+                            {showEmailBody && (
+                              <div className="p-5 bg-white rounded-[10px] border border-black/[0.06] shadow-sm whitespace-pre-wrap text-[13px] leading-6 text-[#34443c]">
+                                {selectedMessage.data.body || "This message has no readable text body."}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-1 items-center justify-center p-5 text-[12px] text-[#b6373e]">
@@ -639,9 +754,8 @@ function MailboxPage() {
                   <div className="flex shrink-0 items-center justify-between border-b border-black/[0.07] px-5 py-4">
                     <div>
                       <h3 className="text-[18px] font-bold text-[#10231d]">
-                        {billStep === 1 ? "Billing Information" : billStep === 2 ? "Line Items" : "Payment Details"}
+                        Create bill from email
                       </h3>
-                      <p className="mt-0.5 text-[12px] text-[#68726d]">From email — step {billStep} of 3</p>
                     </div>
                     <Button variant="ghost" size="icon" onClick={closeBillPanel} className="size-8 rounded-[8px] text-[#68726d] hover:text-[#10231d]">
                       <X className="size-4" />
@@ -686,23 +800,23 @@ function MailboxPage() {
                           )}
 
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Invoice Date</label>
+                            <label className="text-[13px] font-medium text-[#10231d]">Invoice Date <span className="text-[#b6373e]">*</span></label>
                             <DatePicker date={invoiceDate} setDate={setInvoiceDate} className="rounded-[8px] border-black/[0.08] text-[13px]" />
                           </div>
 
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Vendor Name</label>
+                            <label className="text-[13px] font-medium text-[#10231d]">Vendor Name <span className="text-[#b6373e]">*</span></label>
                             <Input placeholder="e.g. Acme Corp" value={vendorName} onChange={(e) => setVendorName(e.target.value)} className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" />
                           </div>
 
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Purchase Description</label>
+                            <label className="text-[13px] font-medium text-[#10231d]">Purchase Description <span className="text-[#b6373e]">*</span></label>
                             <Input placeholder="e.g. Office supplies" value={description} onChange={(e) => setDescription(e.target.value)} className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" />
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                              <label className="text-[13px] font-medium text-[#10231d]">Amount</label>
+                              <label className="text-[13px] font-medium text-[#10231d]">Amount <span className="text-[#b6373e]">*</span></label>
                               <div className="flex h-10 rounded-[8px] border border-black/[0.08] focus-within:border-black/[0.16] focus-within:ring-1 focus-within:ring-black/[0.08] overflow-hidden bg-white shadow-sm transition-shadow">
                                 <Select value={currency} onValueChange={setCurrency}>
                                   <SelectTrigger className="h-full w-[85px] border-0 rounded-none shadow-none focus:ring-0 text-[13px] font-medium bg-[#f9faf9] border-r border-black/[0.08]">
@@ -715,11 +829,11 @@ function MailboxPage() {
                                     <SelectItem value="EUR">EUR</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                <Input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-full border-0 rounded-none shadow-none focus-visible:ring-0 text-[13px] flex-1 bg-transparent" />
+                                <Input type="number" placeholder="Enter amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-full border-0 rounded-none shadow-none focus-visible:ring-0 text-[13px] flex-1 bg-transparent" />
                               </div>
                             </div>
                             <div className="space-y-1.5">
-                              <label className="text-[13px] font-medium text-[#10231d]">Due Date</label>
+                              <label className="text-[13px] font-medium text-[#10231d]">Due Date <span className="text-[#b6373e]">*</span></label>
                               <DatePicker date={dueDate} setDate={setDueDate} className="rounded-[8px] border-black/[0.08] text-[13px]" />
                             </div>
                           </div>
@@ -871,7 +985,7 @@ function MailboxPage() {
                         <Button variant="outline" onClick={closeBillPanel} className="w-28 h-10 text-[#52605b] border-black/[0.08] rounded-[8px] font-semibold text-[13px] hover:bg-[#f9faf9]">Cancel</Button>
                       )}
                       {billStep < 3 ? (
-                        <Button onClick={() => setBillStep((s) => s + 1)} disabled={billStep === 1 && (!vendorName.trim() || !description.trim())} className="w-28 h-10 bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] font-semibold text-[13px]">Continue</Button>
+                        <Button onClick={() => setBillStep((s) => s + 1)} disabled={billStep === 1 && (!vendorName.trim() || !description.trim() || !amount.trim() || !invoiceDate || !dueDate)} className="w-28 h-10 bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] font-semibold text-[13px]">Continue</Button>
                       ) : (
                         <Button onClick={handleSubmitBill} disabled={!beneficiaryName.trim() || !accountNumber.trim() || createIntake.isPending} className="w-40 h-10 bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] font-semibold text-[13px]">
                           {createIntake.isPending ? "Submitting…" : "Submit for Approval"}
@@ -882,87 +996,7 @@ function MailboxPage() {
                 </div>
               )}
 
-              {/* ─── Floating attachment viewer (react-rnd) ─── */}
-              {attachmentViewer && (
-                <Rnd
-                  default={{
-                    x: 100,
-                    y: 60,
-                    width: 520,
-                    height: 500,
-                  }}
-                  minWidth={320}
-                  minHeight={240}
-                  bounds="parent"
-                  dragHandleClassName="rnd-drag-handle"
-                  style={{ zIndex: 50 }}
-                  className="absolute"
-                >
-                  <div className="flex flex-col h-full w-full rounded-[12px] border border-black/[0.1] bg-white shadow-xl overflow-hidden">
-                    {/* viewer header — this is the drag handle */}
-                    <div className="rnd-drag-handle flex shrink-0 items-center justify-between border-b border-black/[0.07] bg-[#f9faf9] px-4 py-2.5 cursor-move select-none">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Move className="size-3.5 text-[#84908a] shrink-0" />
-                        <FileText className="size-3.5 text-[#087f70] shrink-0" />
-                        <span className="truncate text-[12px] font-semibold text-[#10231d]">{attachmentViewer.filename}</span>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0 ml-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-6 text-[#64716c] hover:text-[#087f70]"
-                          onClick={() => {
-                            // Open in new tab
-                            window.open(attachmentViewer.url, "_blank");
-                          }}
-                          title="Open in new tab"
-                        >
-                          <ExternalLink className="size-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-6 text-[#64716c] hover:text-[#b6373e]"
-                          onClick={closeAttachmentViewer}
-                          title="Close"
-                        >
-                          <X className="size-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* viewer content */}
-                    <div className="flex-1 overflow-auto bg-[#f5f7f6]">
-                      {attachmentViewer.mimeType === "application/pdf" || attachmentViewer.filename.toLowerCase().endsWith(".pdf") ? (
-                        <PdfViewer url={attachmentViewer.url} />
-                      ) : attachmentViewer.mimeType.startsWith("image/") || attachmentViewer.filename.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                        <div className="flex items-center justify-center p-4 h-full">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={attachmentViewer.url}
-                            alt={attachmentViewer.filename}
-                            className="max-w-full max-h-full object-contain rounded-[6px] shadow-sm"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
-                          <FileText className="size-10 text-[#b0bbb5]" />
-                          <p className="text-[13px] font-medium text-[#10231d]">{attachmentViewer.filename}</p>
-                          <p className="text-[12px] text-[#718079]">This file type can't be previewed inline.</p>
-                          <Button variant="outline" size="sm" onClick={() => window.open(attachmentViewer.url, "_blank")} className="mt-2 text-[12px]">
-                            <ExternalLink className="size-3.5 mr-1.5" /> Open in new tab
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* resize hint */}
-                    <div className="shrink-0 flex items-center justify-center py-1 bg-[#f9faf9] border-t border-black/[0.05]">
-                      <span className="text-[9px] text-[#b0bbb5]">Drag corners to resize • Drag header to move</span>
-                    </div>
-                  </div>
-                </Rnd>
-              )}
+              {/* ─── Removed Floating attachment viewer (react-rnd) ─── */}
             </div>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
