@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
+import { saveMailboxAttachment } from "@/lib/mailbox-attachment-download";
 
 export type TenantMailboxConnectionStatus =
   | "pending_authorization"
@@ -63,11 +64,6 @@ function unwrap<T>(response: ApiEnvelope<T> | T): T {
   return response && typeof response === "object" && "data" in response
     ? (response as ApiEnvelope<T>).data
     : response as T;
-}
-
-function filenameFromDisposition(value: string | undefined) {
-  const match = value?.match(/filename="?([^";]+)"?/i);
-  return match?.[1] || "attachment";
 }
 
 export function useTenantMailboxConnections(legalEntityId?: string) {
@@ -148,23 +144,20 @@ export function useDownloadTenantMailboxAttachment() {
       tenantMailboxConnectionId,
       messageId,
       attachmentId,
+      filename,
+      mimeType,
     }: {
       tenantMailboxConnectionId: string;
       messageId: string;
       attachmentId: string;
+      filename: string;
+      mimeType: string;
     }) => {
       const response = await axios.get<Blob>(
         `bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}/attachments/${encodeURIComponent(attachmentId)}/download`,
         { responseType: "blob" },
       );
-      const url = URL.createObjectURL(response.data);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filenameFromDisposition(response.headers["content-disposition"]);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      saveMailboxAttachment(response.data, { filename, mimeType });
     },
   });
 }
@@ -177,21 +170,25 @@ export function useViewTenantMailboxAttachment() {
       tenantMailboxConnectionId,
       messageId,
       attachmentId,
+      filename,
+      mimeType,
     }: {
       tenantMailboxConnectionId: string;
       messageId: string;
       attachmentId: string;
+      filename: string;
+      mimeType: string;
     }): Promise<{ url: string; filename: string; mimeType: string }> => {
       const response = await axios.get<Blob>(
         `bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}/attachments/${encodeURIComponent(attachmentId)}/download`,
         { responseType: "blob" },
       );
-      const url = URL.createObjectURL(response.data);
-      const filename = filenameFromDisposition(response.headers["content-disposition"]);
-      const mimeType = response.data.type || "application/octet-stream";
+      const blob = new Blob([response.data], {
+        type: mimeType || response.data.type || "application/octet-stream",
+      });
+      const url = URL.createObjectURL(blob);
       return { url, filename, mimeType };
     },
   });
 }
-
 

@@ -213,6 +213,8 @@ function MailboxPage() {
         tenantMailboxConnectionId: selectedConnection.tenantMailboxConnectionId,
         messageId: selectedMessageId,
         attachmentId,
+        filename,
+        mimeType,
       });
       setAttachmentViewer(result);
     } catch {
@@ -307,12 +309,16 @@ function MailboxPage() {
 
 
   const handleDownloadAttachment = async (attachmentId: string) => {
-    if (!selectedConnection || !selectedMessageId) return;
+    const message = selectedMessage.data;
+    const attachment = message?.attachments.find((item) => item.attachmentId === attachmentId);
+    if (!selectedConnection || !message || !attachment) return;
     try {
       await downloadAttachment.mutateAsync({
         tenantMailboxConnectionId: selectedConnection.tenantMailboxConnectionId,
-        messageId: selectedMessageId,
-        attachmentId,
+        messageId: message.messageId,
+        attachmentId: attachment.attachmentId,
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
       });
       toast.success("Attachment downloaded");
     } catch {
