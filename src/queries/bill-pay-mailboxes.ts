@@ -114,7 +114,7 @@ export function useTenantMailboxMessages(tenantMailboxConnectionId?: string) {
     queryFn: async ({ pageParam }) =>
       unwrap<{ messages: MailboxMessageSummary[]; nextPageToken: string | null }>(
         (await axios.get(`bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages`, {
-          params: { limit: 20, ...(pageParam ? { pageToken: pageParam } : {}) },
+          params: { limit: 50, ...(pageParam ? { pageToken: pageParam } : {}) },
         })).data,
       ),
     getNextPageParam: (lastPage) => lastPage.nextPageToken || undefined,

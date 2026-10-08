@@ -456,7 +456,11 @@ function MailboxPage() {
       </header>
 
       {/* ── entity guards ── */}
-      {!entitiesQuery.isLoading && entities.length === 0 ? (
+      {entitiesQuery.isLoading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="size-6 animate-spin text-[#9aaba3]" />
+        </div>
+      ) : entities.length === 0 ? (
         <EmptyState title="No accounting-ready entity" detail="Activate accounting readiness for a legal entity before connecting a mailbox." />
       ) : !effectiveEntityId ? (
         <EmptyState title="Select a legal entity" detail="Choose the entity that owns the mailbox." />
@@ -546,7 +550,11 @@ function MailboxPage() {
 
               {/* ─── Middle: email viewer ─── */}
               <div className="flex min-w-0 flex-1 flex-col bg-[#f4f7f5]">
-                {!selectedMessageId ? (
+                {messagesQuery.isLoading ? (
+                  <div className="flex flex-1 items-center justify-center">
+                    <Loader2 className="size-6 animate-spin text-[#9aaba3]" />
+                  </div>
+                ) : !selectedMessageId ? (
                   <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
                     <div className="flex size-14 items-center justify-center rounded-full bg-[#eef2f0]">
                       <Eye className="size-6 text-[#9aaba3]" />
@@ -1011,6 +1019,10 @@ function MailboxPage() {
               )}
 
               {/* ─── Removed Floating attachment viewer (react-rnd) ─── */}
+            </div>
+          ) : connectionsQuery.isLoading ? (
+            <div className="flex flex-1 items-center justify-center">
+              <Loader2 className="size-6 animate-spin text-[#9aaba3]" />
             </div>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
