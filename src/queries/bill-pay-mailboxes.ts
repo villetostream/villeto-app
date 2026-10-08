@@ -160,11 +160,13 @@ export function useDownloadTenantMailboxAttachment() {
       const url = URL.createObjectURL(response.data);
       const link = document.createElement("a");
       link.href = url;
-      link.download = filenameFromDisposition(response.headers["content-disposition"]);
+      const rawFilename = filenameFromDisposition(response.headers["content-disposition"]);
+      link.download = rawFilename.replace(/[\\/\u0000-\u001f\u007f]/g, "_").trim() || "attachment";
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
+      // Allow the browser to consume the URL before releasing its backing bytes.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     },
   });
 }
@@ -187,7 +189,8 @@ export function useViewTenantMailboxAttachment() {
         { responseType: "blob" },
       );
       const url = URL.createObjectURL(response.data);
-      const filename = filenameFromDisposition(response.headers["content-disposition"]);
+      const rawFilename = filenameFromDisposition(response.headers["content-disposition"]);
+      const filename = rawFilename.replace(/[\\/\u0000-\u001f\u007f]/g, "_").trim() || "attachment";
       const mimeType = response.data.type || "application/octet-stream";
       return { url, filename, mimeType, data: response.data };
     },

@@ -233,6 +233,14 @@ function MailboxPage() {
   }, [attachmentViewer]);
 
   useEffect(() => {
+    return () => {
+      if (attachmentViewer?.url) {
+        URL.revokeObjectURL(attachmentViewer.url);
+      }
+    };
+  }, [attachmentViewer?.url]);
+
+  useEffect(() => {
     if (selectedMessage.data && selectedMessage.data.attachments.length === 1 && autoOpenedMessageId.current !== selectedMessage.data.messageId) {
        autoOpenedMessageId.current = selectedMessage.data.messageId;
        const att = selectedMessage.data.attachments[0];
