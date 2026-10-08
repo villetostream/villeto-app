@@ -151,6 +151,10 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
     setExpandedMenus((prev) =>
       prev.includes(label) ? [] : [label]
     );
+    
+    a
+    a
+    a
   };
 
   const isActive = (href: string) => {
