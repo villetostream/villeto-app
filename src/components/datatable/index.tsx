@@ -350,16 +350,16 @@ function DataTable<Data extends object, Value = unknown>(
       />
       <div className="rounded-[12px] overflow-hidden border border-black/[0.06] bg-white flex-1 min-h-0 flex flex-col">
         <Table wrapperClassName="flex-1 overflow-auto" className="min-w-full divide-y divide-gray-200">
-          <TableHead className="bg-gray-50 sticky top-0 z-10">
+          <TableHead className="bg-gray-50">
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} className="bg-gray-50">
+              <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
                     <th
                       key={header.id}
-                      className={`px-4 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider whitespace-nowrap ${
+                      className={`sticky top-0 z-10 bg-gray-50 px-4 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider whitespace-nowrap ${
                         header.column.getCanSort()
-                          ? 'cursor-pointer select-none hover:bg-black/[0.02] transition-colors'
+                          ? 'cursor-pointer select-none hover:bg-gray-100 transition-colors'
                           : 'select-none'
                       }`}
                       onClick={header.column.getToggleSortingHandler()}
