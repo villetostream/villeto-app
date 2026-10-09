@@ -41,7 +41,6 @@ import { useAuthorizationPolicies } from "@/features/auth/use-authorization-poli
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { useEligibleLegalEntities, useLegalEntities } from "@/queries/legal-entities";
 import { useCreateBillPayIntake } from "@/queries/bill-pay";
-import BillLineItemBatchModal from "@/components/bill-pay/BillLineItemBatchModal";
 import {
   MailboxMessageSummary,
   TenantMailboxConnection,
@@ -919,17 +918,8 @@ function MailboxPage() {
                             <div className="text-[13px] font-medium text-[#68726d]">Total: <span className="font-bold text-[#10231d]">₦{lineItems.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0).toLocaleString()}</span></div>
                           </div>
 
-                          <BillLineItemBatchModal
-                            open={isLineItemModalOpen}
-                            onClose={() => setIsLineItemModalOpen(false)}
-                            onSaveAll={async (items) => { setLineItems((prev) => [...prev, ...items]); setIsLineItemModalOpen(false); }}
-                            saving={false}
-                            currency="NGN"
-                            persistKey="mailbox_bill_draft"
-                          />
-
                           <div className="border border-black/[0.08] rounded-[10px] bg-white overflow-hidden">
-                            {lineItems.length === 0 ? (
+                            {lineItems.length === 0 && !isLineItemModalOpen ? (
                               <div className="text-center py-10 bg-[#f9faf9]">
                                 <p className="text-[13px] text-[#68726d] mb-4">You have no line items.</p>
                                 <Button onClick={() => setIsLineItemModalOpen(true)} className="bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-9 text-[13px] font-semibold">
@@ -938,27 +928,52 @@ function MailboxPage() {
                               </div>
                             ) : (
                               <div className="p-5">
-                                <div className="flex items-center justify-between mb-4">
-                                  <div className="flex items-center gap-2">
-                                    <h3 className="text-[14px] font-bold text-[#10231d]">Items</h3>
-                                    <span className="flex items-center justify-center bg-[#f9faf9] border border-black/[0.08] text-[#10231d] text-[11px] font-bold rounded-full w-5 h-5">{lineItems.length}</span>
-                                  </div>
-                                  <button onClick={() => setIsLineItemModalOpen(true)} className="flex items-center gap-1.5 text-[13px] font-semibold text-[#087f70] hover:text-[#076b5e] transition-colors">
-                                    <Plus className="w-3.5 h-3.5" /> Add Item(s)
-                                  </button>
-                                </div>
-                                <div className="space-y-1">
-                                  {lineItems.map((item, idx) => (
-                                    <div key={idx} className="flex items-center px-3 py-3 border-b border-black/[0.04] last:border-0 hover:bg-[#f9faf9]/50 transition-colors rounded-[6px]">
-                                      <div className="flex-1 text-[13px] font-bold text-[#10231d]">{item.description}</div>
-                                      <div className="w-16 text-[13px] font-semibold text-[#10231d]">{item.quantity}</div>
-                                      <div className="w-24 text-[13px] font-medium text-[#68726d]">{item.unitPrice?.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })}</div>
-                                      <button onClick={() => setLineItems((prev) => prev.filter((_, i) => i !== idx))} className="text-[#d33d44] hover:text-red-700 transition-colors p-1 ml-2">
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
+                                {lineItems.length > 0 && (
+                                  <>
+                                    <div className="flex items-center justify-between mb-4">
+                                      <div className="flex items-center gap-2">
+                                        <h3 className="text-[14px] font-bold text-[#10231d]">Items</h3>
+                                        <span className="flex items-center justify-center bg-[#f9faf9] border border-black/[0.08] text-[#10231d] text-[11px] font-bold rounded-full w-5 h-5">{lineItems.length}</span>
+                                      </div>
+                                      {!isLineItemModalOpen && (
+                                        <button onClick={() => setIsLineItemModalOpen(true)} className="flex items-center gap-1.5 text-[13px] font-semibold text-[#087f70] hover:text-[#076b5e] transition-colors">
+                                          <Plus className="w-3.5 h-3.5" /> Add Item(s)
+                                        </button>
+                                      )}
                                     </div>
-                                  ))}
-                                </div>
+                                    <div className="space-y-1 mb-4">
+                                      {/* Header Row */}
+                                      <div className="flex items-center px-3 py-2 border-b border-black/[0.08] bg-[#f9faf9] rounded-t-[6px]">
+                                        <div className="flex-1 text-[11px] font-bold uppercase tracking-wider text-[#68726d]">Description</div>
+                                        <div className="w-16 text-[11px] font-bold uppercase tracking-wider text-[#68726d]">Qty</div>
+                                        <div className="w-24 text-[11px] font-bold uppercase tracking-wider text-[#68726d]">Unit Price</div>
+                                        <div className="w-6 ml-2"></div> {/* Placeholder for trash icon */}
+                                      </div>
+                                      {lineItems.map((item, idx) => (
+                                        <div key={idx} className="flex items-center px-3 py-3 border-b border-black/[0.04] last:border-0 hover:bg-[#f9faf9]/50 transition-colors rounded-[6px]">
+                                          <div className="flex-1 text-[13px] font-bold text-[#10231d]">{item.description}</div>
+                                          <div className="w-16 text-[13px] font-semibold text-[#10231d]">{item.quantity}</div>
+                                          <div className="w-24 text-[13px] font-medium text-[#68726d]">{item.unitPrice?.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })}</div>
+                                          <button onClick={() => setLineItems((prev) => prev.filter((_, i) => i !== idx))} className="text-[#d33d44] hover:text-red-700 transition-colors p-1 ml-2">
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                                
+                                {isLineItemModalOpen && (
+                                  <div className={lineItems.length > 0 ? "pt-2 border-t border-black/[0.08]" : ""}>
+                                    <InlineLineItemForm 
+                                      onSave={(item) => {
+                                        setLineItems((prev) => [...prev, item]);
+                                        setIsLineItemModalOpen(false);
+                                      }}
+                                      onCancel={() => setIsLineItemModalOpen(false)}
+                                    />
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -1061,6 +1076,50 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
       </div>
       <h2 className="mt-4 text-[14px] font-semibold text-[#10231d]">{title}</h2>
       <p className="mt-1.5 max-w-sm text-[12px] leading-4 text-[#718079]">{detail}</p>
+    </div>
+  );
+}
+
+function InlineLineItemForm({ onSave, onCancel }: { onSave: (item: any) => void; onCancel: () => void }) {
+  const [description, setDescription] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [unitPrice, setUnitPrice] = useState("");
+
+  const handleSave = () => {
+    if (!description.trim() || !quantity) return;
+    onSave({
+      description,
+      quantity: parseFloat(quantity) || 0,
+      unitPrice: parseFloat(unitPrice) || 0,
+    });
+    setDescription("");
+    setQuantity("");
+    setUnitPrice("");
+  };
+
+  return (
+    <div className="border border-black/[0.08] rounded-[10px] bg-white p-4 space-y-4">
+      <h3 className="text-[14px] font-bold text-[#10231d] border-b border-black/[0.06] pb-3">Add Line Item</h3>
+      <div className="space-y-1.5">
+        <label className="text-[13px] font-medium text-[#10231d]">Description <span className="text-[#d33d44]">*</span></label>
+        <Input placeholder="e.g. Dell XPS Laptop" value={description} onChange={(e) => setDescription(e.target.value)} className="h-9 rounded-[8px] border-black/[0.08] text-[13px] shadow-none focus-visible:ring-1 focus-visible:ring-[#087f70]" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-medium text-[#10231d]">Quantity <span className="text-[#d33d44]">*</span></label>
+          <Input type="number" placeholder="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="h-9 rounded-[8px] border-black/[0.08] text-[13px] shadow-none focus-visible:ring-1 focus-visible:ring-[#087f70]" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-medium text-[#10231d]">Unit Price</label>
+          <Input type="number" placeholder="0.00" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className="h-9 rounded-[8px] border-black/[0.08] text-[13px] shadow-none focus-visible:ring-1 focus-visible:ring-[#087f70]" />
+        </div>
+      </div>
+      <div className="flex items-center gap-3 pt-2">
+        <Button variant="outline" onClick={onCancel} className="flex-1 h-9 rounded-[8px] text-[13px] font-semibold text-[#52605b] border-black/[0.08] hover:bg-[#f9faf9] shadow-none">Cancel</Button>
+        <Button onClick={handleSave} disabled={!description.trim() || !quantity} className="flex-1 h-9 rounded-[8px] bg-[#087f70] hover:bg-[#076b5e] text-white text-[13px] font-semibold shadow-none">
+          Add Item
+        </Button>
+      </div>
     </div>
   );
 }
