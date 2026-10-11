@@ -1,3 +1,5 @@
+import { workspaceFetch } from "@/features/entity-workspace/fetch";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { useEffect, useRef, useCallback } from "react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { create } from "zustand";
@@ -12,8 +14,10 @@ interface NotificationCountState {
 
 export const useNotificationCountStore = create<NotificationCountState>((set) => ({
   unreadCount: 0,
-  setUnreadCount: (count) =>
-    deferStateUpdate(() => set({ unreadCount: count })),
+  setUnreadCount: (count) => {
+    const generation = useEntityWorkspaceStore.getState().generation;
+    deferStateUpdate(() => { if (generation === useEntityWorkspaceStore.getState().generation) set({ unreadCount: count }); });
+  },
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,6 +29,7 @@ function apiUrl(path: string) {
 }
 
 export function useNotificationCountHook() {
+  const generation = useEntityWorkspaceStore(state => state.generation);
   const accessToken = useAuthStore((s) => s.accessToken);
   const { setUnreadCount } = useNotificationCountStore();
   const sseAbortRef = useRef<AbortController | null>(null);
@@ -33,7 +38,7 @@ export function useNotificationCountHook() {
   const fetchCount = useCallback(async () => {
     if (!accessToken) return;
     try {
-      const res = await fetch(apiUrl("events/notifications/unread-count"), {
+      const res = await workspaceFetch(apiUrl("events/notifications/unread-count"), {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
@@ -53,15 +58,16 @@ export function useNotificationCountHook() {
       else if (typeof json?.unreadCount === "number") count = json.unreadCount;
       
       logger.log("[fetchCount] Extracted count:", count);
-      setUnreadCount(Number(count));
+      if (generation === useEntityWorkspaceStore.getState().generation) setUnreadCount(Number(count));
     } catch (err) {
       logger.error("[fetchCount] Error:", err);
       // Silently fail — badge stays at previous value
     }
-  }, [accessToken, setUnreadCount]);
+  }, [accessToken, setUnreadCount, generation]);
 
   // Initial fetch on mount / when token changes + Polling Fallback
   useEffect(() => {
+    setUnreadCount(0);
     fetchCount();
     // Bulletproof fallback: Poll every 15 seconds so changes are ALWAYS
     // picked up automatically, even if SSE drops or network stutters.
@@ -80,7 +86,7 @@ export function useNotificationCountHook() {
 
     (async () => {
       try {
-        const res = await fetch(apiUrl("events/notifications"), {
+        const res = await workspaceFetch(apiUrl("events/notifications"), {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             Accept: "text/event-stream",
@@ -139,7 +145,7 @@ export function useNotificationCountHook() {
     return () => {
       controller.abort();
     };
-  }, [accessToken, fetchCount]);
+  }, [accessToken, fetchCount, generation]);
 }
 
 /** 

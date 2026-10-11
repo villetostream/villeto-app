@@ -1,4 +1,6 @@
 "use client";
+import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
+
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -39,7 +41,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { getApiErrorMessage } from "@/lib/types/api-error";
-import { useEligibleLegalEntities, useLegalEntities } from "@/queries/legal-entities";
+import { useEligibleLegalEntities } from "@/queries/legal-entities";
 import { useCreateBillPayIntake } from "@/queries/bill-pay";
 import {
   MailboxMessageSummary,
@@ -270,7 +272,7 @@ function MailboxPage() {
   const [sortCode, setSortCode] = useState("");
 
   const createIntake = useCreateBillPayIntake();
-  const { data: legalEntitiesData } = useLegalEntities();
+  const { data: legalEntitiesData } = useTransactionLegalEntities("finance");
   const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
 
   /* ---------- resizable bill panel ---------- */

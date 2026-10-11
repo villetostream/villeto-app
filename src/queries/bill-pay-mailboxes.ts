@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { saveMailboxAttachment } from "@/lib/mailbox-attachment-download";
@@ -69,7 +71,7 @@ function unwrap<T>(response: ApiEnvelope<T> | T): T {
 export function useTenantMailboxConnections(legalEntityId?: string) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "mailboxes", legalEntityId],
+    queryKey: workspaceQueryKey(["bill-pay", "mailboxes", legalEntityId]),
     queryFn: async () =>
       unwrap<Paginated<TenantMailboxConnection>>(
         (await axios.get("bill-pay/mailbox-connections", {
@@ -102,14 +104,14 @@ export function useDisconnectTenantMailbox() {
       unwrap<TenantMailboxConnection>(
         (await axios.delete(`bill-pay/mailbox-connections/${tenantMailboxConnectionId}`)).data,
       ),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["bill-pay", "mailboxes"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "mailboxes"]) }),
   });
 }
 
 export function useTenantMailboxMessages(tenantMailboxConnectionId?: string) {
   const axios = useAxios();
   return useInfiniteQuery({
-    queryKey: ["bill-pay", "mailboxes", tenantMailboxConnectionId, "messages"],
+    queryKey: workspaceQueryKey(["bill-pay", "mailboxes", tenantMailboxConnectionId, "messages"]),
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
       unwrap<{ messages: MailboxMessageSummary[]; nextPageToken: string | null }>(
@@ -128,7 +130,7 @@ export function useTenantMailboxMessage(
 ) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "mailboxes", tenantMailboxConnectionId, "message", messageId],
+    queryKey: workspaceQueryKey(["bill-pay", "mailboxes", tenantMailboxConnectionId, "message", messageId]),
     queryFn: async () =>
       unwrap<MailboxMessage>(
         (await axios.get(`bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}`)).data,

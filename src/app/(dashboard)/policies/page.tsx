@@ -1,4 +1,6 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -1061,7 +1063,7 @@ function PoliciesPage() {
 
   /* handlers */
   const handleCreated = (_data: CreatedPolicyData) => {
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+    queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies) });
     notifySetupGuide("policy");
     switchTab("policies");
   };
@@ -1082,7 +1084,7 @@ function PoliciesPage() {
     try {
       await axios.patch(API_KEYS.EXPENSE.POLICY_ACTION(policy.id, action));
       toast.success(`Policy ${action === "approve" ? "approved" : "rejected"} successfully`);
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies) });
       setReviewPolicy(null);
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, `Failed to ${action === "approve" ? "approve" : "reject"} policy`));
@@ -1158,7 +1160,7 @@ function PoliciesPage() {
         // Close the modal we just opened — user is no longer an approver
         setReviewPolicy(null);
         toast.error("You are no longer an approver for this policy.");
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies) });
         return;
       }
 

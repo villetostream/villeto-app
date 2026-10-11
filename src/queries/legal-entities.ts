@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -73,7 +75,7 @@ const key = ["legal-entities"] as const;
 export function useLegalEntities(options?: { enabled?: boolean }) {
   const axios = useAxios();
   return useQuery<{ data: LegalEntity[] }>({
-    queryKey: key,
+    queryKey: workspaceQueryKey(key),
     queryFn: async () => (await axios.get(API_KEYS.LEGAL_ENTITY.LIST)).data,
     enabled: options?.enabled,
   });
@@ -85,7 +87,7 @@ export function useEligibleLegalEntities(
 ) {
   const axios = useAxios();
   return useQuery<LegalEntity[]>({
-    queryKey: ["eligible-legal-entities", action],
+    queryKey: workspaceQueryKey(["eligible-legal-entities", action]),
     queryFn: async () => {
       const response = (await axios.get(API_KEYS.LEGAL_ENTITY.ELIGIBLE(action))).data as {
         data?: { entities?: LegalEntity[] };
@@ -101,7 +103,7 @@ export function useEligibleLegalEntities(
 export function useCurrencies() {
   const axios = useAxios();
   return useQuery<{ data: Currency[] }>({
-    queryKey: ["reference-currencies"],
+    queryKey: workspaceQueryKey(["reference-currencies"]),
     queryFn: async () =>
       (await axios.get(API_KEYS.LEGAL_ENTITY.CURRENCIES)).data,
     staleTime: 24 * 60 * 60 * 1000,
@@ -114,7 +116,7 @@ export function useCreateLegalEntity() {
   return useMutation({
     mutationFn: async (input: LegalEntityInput) =>
       (await axios.post(API_KEYS.LEGAL_ENTITY.LIST, input)).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: key }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
   });
 }
 
@@ -124,7 +126,7 @@ export function useUpdateLegalEntity(id: string) {
   return useMutation({
     mutationFn: async (input: Partial<LegalEntityInput>) =>
       (await axios.patch(API_KEYS.LEGAL_ENTITY.DETAIL(id), input)).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: key }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
   });
 }
 
@@ -134,7 +136,7 @@ export function useSetDefaultLegalEntity() {
   return useMutation({
     mutationFn: async (id: string) =>
       (await axios.patch(API_KEYS.LEGAL_ENTITY.DEFAULT(id))).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: key }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
   });
 }
 
@@ -144,7 +146,7 @@ export function useSetLegalEntityStatus() {
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: LegalEntityStatus }) =>
       (await axios.patch(API_KEYS.LEGAL_ENTITY.STATUS(id), { status })).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: key }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
   });
 }
 
@@ -155,7 +157,7 @@ export function useEmployeeLegalEntityAssignments(
   const axios = useAxios();
   return useQueries({
     queries: userIds.map((userId) => ({
-      queryKey: ["employee-legal-entity-assignments", userId],
+      queryKey: workspaceQueryKey(["employee-legal-entity-assignments", userId]),
       queryFn: async () =>
         (await axios.get(API_KEYS.LEGAL_ENTITY.USER_ASSIGNMENTS(userId))).data as {
           data: EmployeeLegalEntityAssignment[];
@@ -178,7 +180,7 @@ export function useAssignEmployeeLegalEntity() {
       ).data,
     onSuccess: (_data, variables) =>
       client.invalidateQueries({
-        queryKey: ["employee-legal-entity-assignments", variables.userId],
+        queryKey: workspaceQueryKey(["employee-legal-entity-assignments", variables.userId]),
       }),
   });
 }

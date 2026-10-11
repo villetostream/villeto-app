@@ -1,4 +1,6 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+
 
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
@@ -62,7 +64,7 @@ export default function SimpleAddExpenseCategoryDialog({
         ],
       });
       // Refresh the expense categories list wherever it is consumed
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.categories });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.categories) });
       toast.success("Category added!");
       reset();
       onSuccess?.();

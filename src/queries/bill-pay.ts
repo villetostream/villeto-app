@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 
@@ -15,11 +17,11 @@ export function useBillPayData(legalEntityId?: string) {
   const enabled = Boolean(legalEntityId);
   const get = async <T,>(path: string) => unwrap<T>((await axios.get(path, { params: { legalEntityId } })).data);
   return {
-    requests: useQuery({ queryKey: ["bill-pay", "requests", legalEntityId], queryFn: () => get<PaymentRequest[]>("bill-pay/payment-requests"), enabled }),
-    payments: useQuery({ queryKey: ["bill-pay", "payments", legalEntityId], queryFn: () => get<Payment[]>("bill-pay/payments"), enabled }),
-    funding: useQuery({ queryKey: ["bill-pay", "funding", legalEntityId], queryFn: () => get<FundingAccount[]>("bill-pay/funding-accounts"), enabled }),
-    beneficiaries: useQuery({ queryKey: ["bill-pay", "beneficiaries", legalEntityId], queryFn: () => get<Beneficiary[]>("bill-pay/beneficiaries"), enabled }),
-    bankTransactions: useQuery({ queryKey: ["bill-pay", "bank", legalEntityId], queryFn: () => get<BankTransaction[]>("bill-pay/bank-transactions"), enabled }),
+    requests: useQuery({ queryKey: workspaceQueryKey(["bill-pay", "requests", legalEntityId]), queryFn: () => get<PaymentRequest[]>("bill-pay/payment-requests"), enabled }),
+    payments: useQuery({ queryKey: workspaceQueryKey(["bill-pay", "payments", legalEntityId]), queryFn: () => get<Payment[]>("bill-pay/payments"), enabled }),
+    funding: useQuery({ queryKey: workspaceQueryKey(["bill-pay", "funding", legalEntityId]), queryFn: () => get<FundingAccount[]>("bill-pay/funding-accounts"), enabled }),
+    beneficiaries: useQuery({ queryKey: workspaceQueryKey(["bill-pay", "beneficiaries", legalEntityId]), queryFn: () => get<Beneficiary[]>("bill-pay/beneficiaries"), enabled }),
+    bankTransactions: useQuery({ queryKey: workspaceQueryKey(["bill-pay", "bank", legalEntityId]), queryFn: () => get<BankTransaction[]>("bill-pay/bank-transactions"), enabled }),
   };
 }
 
@@ -28,7 +30,7 @@ export function useBillPayAction() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async ({ path, body = {} }: { path: string; body?: Record<string, unknown> }) => (await axios.post(path, body)).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: ["bill-pay"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay"]) }),
   });
 }
 
@@ -61,7 +63,7 @@ export function useCreateBillPayIntake() {
       });
       return res.data;
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: ["bill-pay"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay"]) }),
   });
 }
 
@@ -104,7 +106,7 @@ export function useGetBillPayIntakes(
 ) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "intakes", params],
+    queryKey: workspaceQueryKey(["bill-pay", "intakes", params]),
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       if (params.page) searchParams.append("page", params.page.toString());
@@ -148,7 +150,7 @@ export interface BillPayIntakeDetail extends BillPayIntake {
 export function useGetBillPayIntakeById(id: string, options?: { enabled?: boolean }) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "intakes", id],
+    queryKey: workspaceQueryKey(["bill-pay", "intakes", id]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/intakes/${id}`);
       return res.data as { data: BillPayIntakeDetail };
@@ -166,8 +168,8 @@ export function useSubmitBillPayIntake() {
       return res.data;
     },
     onSuccess: (_, id) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "intakes"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "intakes", id] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "intakes"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "intakes", id]) });
     },
   });
 }
@@ -181,8 +183,8 @@ export function useRetryBillPayIntake() {
       return res.data;
     },
     onSuccess: (_, id) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "intakes"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "intakes", id] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "intakes"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "intakes", id]) });
     },
   });
 }
@@ -196,8 +198,8 @@ export function useCancelBillPayIntake() {
       return res.data;
     },
     onSuccess: (_, id) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "intakes"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "intakes", id] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "intakes"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "intakes", id]) });
     },
   });
 }
@@ -211,8 +213,8 @@ export function useUpdateBillPayIntake() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "intakes"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "intakes", id] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "intakes"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "intakes", id]) });
     },
   });
 }
@@ -230,7 +232,7 @@ export function useUploadBillPayIntake() {
       return res.data;
     },
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "intakes"] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "intakes"]) });
     },
   });
 }
@@ -253,14 +255,14 @@ export function useCreateFundingAccount() {
       const res = await axios.post(`/bill-pay/funding-accounts`, payload);
       return res.data;
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: ["bill-pay", "funding"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "funding"]) }),
   });
 }
 
 export function useGetFundingAccounts(legalEntityId: string, page = 1, limit = 20) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "funding", legalEntityId, page, limit],
+    queryKey: workspaceQueryKey(["bill-pay", "funding", legalEntityId, page, limit]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/funding-accounts?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`);
       return res.data.data as { data: FundingAccount[]; meta: any };
@@ -287,14 +289,14 @@ export function useCreateBeneficiary() {
       const res = await axios.post(`/bill-pay/beneficiaries`, payload);
       return res.data;
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: ["bill-pay", "beneficiaries"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "beneficiaries"]) }),
   });
 }
 
 export function useGetBeneficiaries(legalEntityId: string, page = 1, limit = 20) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "beneficiaries", legalEntityId, page, limit],
+    queryKey: workspaceQueryKey(["bill-pay", "beneficiaries", legalEntityId, page, limit]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/beneficiaries?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`);
       return res.data.data as { data: Beneficiary[]; meta: any };
@@ -331,14 +333,14 @@ export function useCreateApprovalRule() {
       const res = await axios.post(`/bill-pay/approval-rules`, payload);
       return res.data;
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: ["bill-pay", "approval-rules"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "approval-rules"]) }),
   });
 }
 
 export function useGetApprovalRules(legalEntityId: string, page = 1, limit = 20) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "approval-rules", legalEntityId, page, limit],
+    queryKey: workspaceQueryKey(["bill-pay", "approval-rules", legalEntityId, page, limit]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/approval-rules?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`);
       return res.data.data as { data: ApprovalRule[]; meta: any };
@@ -376,14 +378,14 @@ export function useCreatePaymentRequest() {
       });
       return res.data;
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: ["bill-pay", "requests"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests"]) }),
   });
 }
 
 export function useGetPaymentRequests(legalEntityId: string, page = 1, limit = 20) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "requests", "paginated", legalEntityId, page, limit],
+    queryKey: workspaceQueryKey(["bill-pay", "requests", "paginated", legalEntityId, page, limit]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/payment-requests?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`);
       return res.data.data as { data: PaymentRequest[]; meta: any };
@@ -395,7 +397,7 @@ export function useGetPaymentRequests(legalEntityId: string, page = 1, limit = 2
 export function useGetPaymentRequestById(paymentRequestId: string) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "requests", paymentRequestId],
+    queryKey: workspaceQueryKey(["bill-pay", "requests", paymentRequestId]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/payment-requests/${paymentRequestId}`);
       return res.data as { data: PaymentRequest };
@@ -415,8 +417,8 @@ export function useSubmitPaymentRequest() {
       return res.data;
     },
     onSuccess: (_, id) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests", id] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests", id]) });
     },
   });
 }
@@ -430,8 +432,8 @@ export function useAuthorizePaymentRequest() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests", id] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests", id]) });
     },
   });
 }
@@ -445,8 +447,8 @@ export function useRejectPaymentRequest() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests", id] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests", id]) });
     },
   });
 }
@@ -460,8 +462,8 @@ export function useSchedulePaymentRequest() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests", id] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests", id]) });
     },
   });
 }
@@ -484,8 +486,8 @@ export function useRecordExternalPayment() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests", id] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests", id]) });
     },
   });
 }
@@ -499,8 +501,8 @@ export function useInitiatePaymentRequest() {
       return res.data;
     },
     onSuccess: (_, id) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "requests", id] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "requests", id]) });
     },
   });
 }
@@ -510,7 +512,7 @@ export function useInitiatePaymentRequest() {
 export function useGetPayments(legalEntityId: string, page = 1, limit = 20) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "payments", "paginated", legalEntityId, page, limit],
+    queryKey: workspaceQueryKey(["bill-pay", "payments", "paginated", legalEntityId, page, limit]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/payments?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`);
       return res.data.data as { data: Payment[]; meta: any };
@@ -522,7 +524,7 @@ export function useGetPayments(legalEntityId: string, page = 1, limit = 20) {
 export function useGetPaymentById(paymentId: string) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "payments", paymentId],
+    queryKey: workspaceQueryKey(["bill-pay", "payments", paymentId]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/payments/${paymentId}`);
       return res.data as { data: Payment };
@@ -540,9 +542,9 @@ export function useReconcilePayment() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "payments"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "payments", id] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "bank"] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "payments"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "payments", id]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "bank"]) });
     },
   });
 }
@@ -556,9 +558,9 @@ export function useReversePaymentReconciliation() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "payments"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "payments", id] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "bank"] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "payments"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "payments", id]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "bank"]) });
     },
   });
 }
@@ -568,7 +570,7 @@ export function useReversePaymentReconciliation() {
 export function useGetBankTransactions(legalEntityId: string, page = 1, limit = 20) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "bank", "paginated", legalEntityId, page, limit],
+    queryKey: workspaceQueryKey(["bill-pay", "bank", "paginated", legalEntityId, page, limit]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/bank-transactions?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`);
       return res.data.data as { data: BankTransaction[]; meta: any };
@@ -580,7 +582,7 @@ export function useGetBankTransactions(legalEntityId: string, page = 1, limit = 
 export function useGetBankTransactionById(bankTransactionId: string) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "bank", bankTransactionId],
+    queryKey: workspaceQueryKey(["bill-pay", "bank", bankTransactionId]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/bank-transactions/${bankTransactionId}`);
       return res.data as { data: BankTransaction };
@@ -603,7 +605,7 @@ export function useImportBankTransactions() {
       const res = await axios.post(`/bill-pay/bank-transactions/import`, payload);
       return res.data;
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: ["bill-pay", "bank"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "bank"]) }),
   });
 }
 
@@ -616,14 +618,18 @@ export function useMatchBankTransaction() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
-      client.invalidateQueries({ queryKey: ["bill-pay", "bank"] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "bank", id] });
-      client.invalidateQueries({ queryKey: ["bill-pay", "payments"] });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "bank"]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "bank", id]) });
+      client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "payments"]) });
     },
   });
 }
 
 export interface BillPayDashboardSummary {
+  scope?: "all";
+  readOnly?: boolean;
+  entityBreakdowns?: BillPayDashboardSummary[];
+  totalsByCurrency?: { currency: string; metrics: Record<string, { count: number; amount: string; previousCount: number; previousAmount: string }> }[];
   legalEntity: {
     legalEntityId: string;
     code: string;
@@ -679,7 +685,7 @@ export function useGetBillPayDashboardSummary(
 ) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "dashboard", "summary", legalEntityId, periodStart, periodEnd],
+    queryKey: workspaceQueryKey(["bill-pay", "dashboard", "summary", legalEntityId, periodStart, periodEnd]),
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       if (legalEntityId) searchParams.append("legalEntityId", legalEntityId);
@@ -730,7 +736,7 @@ export function useGetBillPayInvoices(
 ) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "invoices", params],
+    queryKey: workspaceQueryKey(["bill-pay", "invoices", params]),
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       if (params.page) searchParams.append("page", params.page.toString());
@@ -774,7 +780,7 @@ export interface BillPayInvoiceDetail extends BillPayInvoice {
 export function useGetBillPayInvoiceById(vendorInvoiceId: string) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "invoices", vendorInvoiceId],
+    queryKey: workspaceQueryKey(["bill-pay", "invoices", vendorInvoiceId]),
     queryFn: async () => {
       const res = await axios.get(`/bill-pay/invoices/${vendorInvoiceId}`);
       return res.data as { data: BillPayInvoiceDetail };

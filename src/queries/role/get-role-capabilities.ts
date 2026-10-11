@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -16,7 +18,7 @@ export const useGetRoleCapabilitiesApi = (
 ): UseQueryResult<Response, Error> => {
     const axiosInstance = useAxios();
     return useQuery<Response, Error>({
-        queryKey: ["role-capabilities", module],
+        queryKey: workspaceQueryKey(["role-capabilities", module]),
         queryFn: async () => {
             const response = await axiosInstance.get(API_KEYS.ROLE.ROLES_CAPABILITIES(module));
             return response.data;
@@ -35,7 +37,7 @@ export const useGetAllRoleCapabilitiesApi = (
 ) => {
     const axiosInstance = useAxios();
     return useQuery<CapabilityGroup[], Error>({
-        queryKey: ["role-capabilities-all"],
+        queryKey: workspaceQueryKey(["role-capabilities-all"]),
         queryFn: async () => {
             const response = await axiosInstance.get<Response>(API_KEYS.ROLE.ROLES_CAPABILITY_CATALOG);
             return (response.data.data as CapabilityGroup[]) ?? [];

@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -12,7 +14,7 @@ export const useGetPolicyDetailsApi = (
   const axiosInstance = useAxios();
 
   return useQuery<{ data: Policy }, Error>({
-    queryKey: policyId ? QUERY_KEYS.expenses.policy(policyId) : [],
+    queryKey: workspaceQueryKey(policyId ? QUERY_KEYS.expenses.policy(policyId) : []),
     queryFn: async () => {
       const response = await axiosInstance.get(`${API_KEYS.EXPENSE.POLICIES}/${policyId}`);
       return response.data;

@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -48,7 +50,7 @@ export const useCreateDepartmentApi = () => {
             return res.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.departments });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.departments) });
         }
     });
 };

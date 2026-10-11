@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
@@ -13,7 +15,7 @@ export function useApproveProcurementPolicy() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.policies) });
     },
   });
 }
@@ -28,7 +30,7 @@ export function useRejectProcurementPolicy() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.policies) });
     },
   });
 }

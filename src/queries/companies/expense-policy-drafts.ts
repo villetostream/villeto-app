@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -58,8 +60,8 @@ export const useCreateExpensePolicyDraft = () => {
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policyDrafts });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDrafts) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies) });
     },
   });
 };
@@ -74,7 +76,7 @@ export const useGetExpensePolicyDraft = (
   const axios = useAxios();
 
   return useQuery<DraftResponse, Error>({
-    queryKey: draftId ? QUERY_KEYS.expenses.policyDraft(draftId) : [],
+    queryKey: workspaceQueryKey(draftId ? QUERY_KEYS.expenses.policyDraft(draftId) : []),
     queryFn: async () => {
       const res = await axios.get(API_KEYS.EXPENSE.POLICY_DRAFT_BY_ID(draftId!));
       return res.data;
@@ -94,7 +96,7 @@ export const useGetExpensePolicyDrafts = (
   const axios = useAxios();
 
   return useQuery<DraftListResponse, Error>({
-    queryKey: QUERY_KEYS.expenses.policyDrafts,
+    queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDrafts),
     queryFn: async () => {
       const res = await axios.get(API_KEYS.EXPENSE.POLICY_DRAFTS);
       return res.data;
@@ -124,9 +126,9 @@ export const useUpdateExpensePolicyDraft = () => {
       return res.data;
     },
     onSuccess: (_data, { draftId }) => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policyDraft(draftId) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policyDrafts });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDraft(draftId)) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDrafts) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies) });
     },
   });
 };
@@ -145,9 +147,9 @@ export const useDeleteExpensePolicyDraft = () => {
       return res.data;
     },
     onSuccess: (_data, draftId) => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policyDrafts });
-      qc.removeQueries({ queryKey: QUERY_KEYS.expenses.policyDraft(draftId) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDrafts) });
+      qc.removeQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDraft(draftId)) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies) });
     },
   });
 };

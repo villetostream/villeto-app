@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 
@@ -14,11 +16,11 @@ export function useAccountingData(legalEntityId?: string) {
   const enabled = Boolean(legalEntityId);
   const get = async <T,>(path: string) => unwrap<T>((await axios.get(path, { params: { legalEntityId } })).data);
   return {
-    accounts: useQuery({ queryKey: ["accounting", "accounts", legalEntityId], queryFn: () => get<LedgerAccount[]>("accounting/accounts"), enabled }),
-    periods: useQuery({ queryKey: ["accounting", "periods", legalEntityId], queryFn: () => get<FiscalPeriod[]>("accounting/fiscal-periods"), enabled }),
-    journals: useQuery({ queryKey: ["accounting", "journals", legalEntityId], queryFn: () => get<Journal[]>("accounting/journals"), enabled }),
-    obligations: useQuery({ queryKey: ["accounting", "obligations", legalEntityId], queryFn: () => get<Obligation[]>("accounting/obligations"), enabled }),
-    trialBalance: useQuery({ queryKey: ["accounting", "trial-balance", legalEntityId], queryFn: () => get<Array<{ ledgerAccountId: string; code: string; name: string; debitTotal: string; creditTotal: string }>>("accounting/trial-balance"), enabled }),
+    accounts: useQuery({ queryKey: workspaceQueryKey(["accounting", "accounts", legalEntityId]), queryFn: () => get<LedgerAccount[]>("accounting/accounts"), enabled }),
+    periods: useQuery({ queryKey: workspaceQueryKey(["accounting", "periods", legalEntityId]), queryFn: () => get<FiscalPeriod[]>("accounting/fiscal-periods"), enabled }),
+    journals: useQuery({ queryKey: workspaceQueryKey(["accounting", "journals", legalEntityId]), queryFn: () => get<Journal[]>("accounting/journals"), enabled }),
+    obligations: useQuery({ queryKey: workspaceQueryKey(["accounting", "obligations", legalEntityId]), queryFn: () => get<Obligation[]>("accounting/obligations"), enabled }),
+    trialBalance: useQuery({ queryKey: workspaceQueryKey(["accounting", "trial-balance", legalEntityId]), queryFn: () => get<Array<{ ledgerAccountId: string; code: string; name: string; debitTotal: string; creditTotal: string }>>("accounting/trial-balance"), enabled }),
   };
 }
 
@@ -27,6 +29,6 @@ export function useProvisionAccounting() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async (legalEntityId: string) => (await axios.post("accounting/configuration/provision", { legalEntityId })).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: ["accounting"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(["accounting"]) }),
   });
 }

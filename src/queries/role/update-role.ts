@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -21,8 +23,8 @@ export const useUpdateRoleApi = () => {
             return res.data;
         },
         onSuccess: (_data, variables) => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.role(variables.id) });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.roles });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.role(variables.id)) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.roles) });
             invalidateAuthorization();
         },
     });

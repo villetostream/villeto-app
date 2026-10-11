@@ -1,4 +1,6 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+
 
 import Image from "next/image";
 import { useState, useEffect, useMemo, type ChangeEvent } from "react";
@@ -973,7 +975,7 @@ export function ManualExpenseForm({
         // Invalidate React Query cache to refetch personal expenses and report details
         invalidatePersonalExpenseQueries(queryClient);
         queryClient.invalidateQueries({
-          queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES, reportId],
+          queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES, reportId]),
         });
         
         // Refetch report details if callback is provided
@@ -1577,7 +1579,7 @@ export function ManualExpenseForm({
                           // Invalidate React Query cache to refetch report details
                           invalidatePersonalExpenseQueries(queryClient);
                           queryClient.invalidateQueries({
-                            queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES, reportId],
+                            queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES, reportId]),
                           });
                           
                           if (onUpdateSuccess) {

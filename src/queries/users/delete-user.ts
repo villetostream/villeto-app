@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -19,10 +21,10 @@ export const useDeleteUserApi = () => {
             return res.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.users() });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.directoryUsers });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.invitedUsers });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.uninvitedUsers });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.users()) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.directoryUsers) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.invitedUsers) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.uninvitedUsers) });
         },
     });
 };

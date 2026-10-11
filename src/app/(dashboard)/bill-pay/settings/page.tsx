@@ -1,4 +1,6 @@
 "use client";
+import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
+
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -13,7 +15,7 @@ import { MailboxConnectionsSettings } from "@/components/bill-pay/MailboxConnect
 import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
-import { useLegalEntities } from "@/queries/legal-entities";
+
 import { 
   useGetFundingAccounts, 
   useCreateFundingAccount,
@@ -44,8 +46,8 @@ function BillPaySettingsPage() {
     return "funding";
   });
 
-  const { data: legalEntitiesData } = useLegalEntities();
-  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "a3c0738f-a024-497a-9cbf-a488dba29bf4";
+  const { data: legalEntitiesData } = useTransactionLegalEntities("finance");
+  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
 
   // Modals state
   const [showAddFunding, setShowAddFunding] = useState(false);

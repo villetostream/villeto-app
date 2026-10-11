@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useQuery, UseQueryOptions, UseQueryResult } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
@@ -30,7 +32,7 @@ export const useGetAllVendors = (
   const axiosInstance = useAxios();
   
   return useQuery({
-    queryKey: ["vendors", params],
+    queryKey: workspaceQueryKey(["vendors", params]),
     queryFn: async () => {
       const query = new URLSearchParams();
       if (params.page) query.set("page", params.page.toString());

@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
@@ -40,7 +42,7 @@ export const useVendorNetworkList = (params: VendorNetworkListParams) => {
   const axiosInstance = useAxios();
   
   return useQuery({
-    queryKey: ["vendor-network", "list", params],
+    queryKey: workspaceQueryKey(["vendor-network", "list", params]),
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       if (params.status) queryParams.set("status", params.status);
@@ -68,7 +70,7 @@ export const useVendorLookup = (type: "email" | "cac" | "tin", value: string, en
   const axiosInstance = useAxios();
 
   return useQuery({
-    queryKey: ["vendor-network", "lookup", type, value],
+    queryKey: workspaceQueryKey(["vendor-network", "lookup", type, value]),
     queryFn: async () => {
       if (!value) return null;
       const response = await axiosInstance.get(
@@ -102,7 +104,7 @@ export const useInviteVendorV2 = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vendor-network", "list"] });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "list"]) });
     },
   });
 };
@@ -114,7 +116,7 @@ export const useVendorNetworkDetail = (vendorId: string) => {
   const axiosInstance = useAxios();
 
   return useQuery({
-    queryKey: ["vendor-network", "detail", vendorId],
+    queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]),
     queryFn: async () => {
       if (!vendorId) return null;
       const response = await axiosInstance.get(`/vendor-network/vendors/${vendorId}`);
@@ -138,8 +140,8 @@ export const useVendorReview = (vendorId: string) => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vendor-network", "detail", vendorId] });
-      queryClient.invalidateQueries({ queryKey: ["vendor-network", "list"] });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]) });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "list"]) });
     },
   });
 };
@@ -157,8 +159,8 @@ export const useVendorStatusUpdate = (vendorId: string) => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vendor-network", "detail", vendorId] });
-      queryClient.invalidateQueries({ queryKey: ["vendor-network", "list"] });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]) });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "list"]) });
     },
   });
 };
@@ -176,8 +178,8 @@ export const useVendorPaymentStatusUpdate = (vendorId: string) => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vendor-network", "detail", vendorId] });
-      queryClient.invalidateQueries({ queryKey: ["vendor-network", "list"] });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]) });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "list"]) });
     },
   });
 };

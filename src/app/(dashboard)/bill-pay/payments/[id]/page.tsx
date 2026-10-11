@@ -1,4 +1,6 @@
 "use client";
+import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
+
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -25,7 +27,7 @@ import {
   useRecordExternalPayment,
   useGetFundingAccounts,
 } from "@/queries/bill-pay";
-import { useLegalEntities } from "@/queries/legal-entities";
+
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
@@ -39,8 +41,8 @@ function PaymentSetupPage() {
   const { data: requestData, isLoading } = useGetPaymentRequestById(paymentRequestId);
   const payment = requestData?.data;
 
-  const { data: legalEntitiesData } = useLegalEntities();
-  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "a3c0738f-a024-497a-9cbf-a488dba29bf4";
+  const { data: legalEntitiesData } = useTransactionLegalEntities("finance");
+  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
 
   const { data: fundingData } = useGetFundingAccounts(legalEntityId);
   const fundingAccounts = (fundingData as any)?.data || [];

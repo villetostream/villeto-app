@@ -1,4 +1,6 @@
 
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+
 import { useQuery } from "@tanstack/react-query";
 import { useAxios } from "../useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -59,7 +61,7 @@ export const useGetPersonalExpense = (props: IProps) => {
   };
 
   return useQuery({
-    queryKey: ["personal-expenses", page, pageSize, sort, filter],
+    queryKey: workspaceQueryKey(["personal-expenses", page, pageSize, sort, filter]),
     queryFn: getPersonalExpenses,
   });
 };

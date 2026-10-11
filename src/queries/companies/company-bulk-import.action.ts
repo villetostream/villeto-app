@@ -1,4 +1,6 @@
 
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+
 import { type UseMutationResult, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useAxios } from "@/hooks/useAxios";
@@ -37,10 +39,10 @@ export const useCompanyBulkImportApi = (): UseMutationResult<Response, Error, pa
             return res.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.users() });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.directoryUsers });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.invitedUsers });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.uninvitedUsers });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.users()) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.directoryUsers) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.invitedUsers) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.uninvitedUsers) });
         },
     });
 };

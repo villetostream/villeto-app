@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
@@ -19,8 +21,8 @@ export const useDeleteCategoryApi = () => {
             return res.data;
         },
         onSuccess: () => {
-            qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.categories });
-            qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.categories });
+            qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.categories) });
+            qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.categories) });
         },
     });
 };

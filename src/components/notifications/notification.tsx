@@ -1,4 +1,7 @@
 "use client";
+import { workspaceFetch } from "@/features/entity-workspace/fetch";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
+
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
@@ -115,7 +118,7 @@ async function resolveMessageIds(
 
     for (const endpoint of fetchEndpoints) {
       try {
-        const res = await fetch(endpoint, {
+        const res = await workspaceFetch(endpoint, {
           headers: {
             ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
             "Content-Type": "application/json",
@@ -157,11 +160,15 @@ async function resolveMessageIds(
 
 import { useNotificationCountStore } from "@/hooks/useNotificationCount";
 
-let cachedNotifications: NotificationItem[] | null = null;
+const notificationCache = new Map<string, NotificationItem[]>();
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Notification({ onClose, onUnreadChange }: NotificationProps) {
+  const generation = useEntityWorkspaceStore(state => state.generation);
+  const workspace = useEntityWorkspaceStore.getState();
+  const cacheKey = `${workspace.identity}:${workspace.selection || 'legacy'}`;
+  const cachedNotifications = notificationCache.get(cacheKey) || null;
   const accessToken = useAuthStore.getState().accessToken;
   const router = useRouter();
   const setGlobalUnreadCount = useNotificationCountStore((s) => s.setUnreadCount);
@@ -190,13 +197,13 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
     const h: Record<string, string> = { "Content-Type": "application/json" };
     if (accessToken) h["Authorization"] = `Bearer ${accessToken}`;
     return h;
-  }, [accessToken]);
+  }, [accessToken, generation]);
 
   // ── Fetch + resolve messages ──────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     if (!cachedNotifications) setLoading(true);
     try {
-      const res = await fetch(apiUrl("events/notifications/all"), {
+      const res = await workspaceFetch(apiUrl("events/notifications/all"), {
         headers: authHeaders(),
         credentials: "include",
       });
@@ -212,7 +219,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
       
       // Immediately display raw while resolving IDs
       setNotifications(raw);
-      cachedNotifications = raw;
+      notificationCache.set(cacheKey, raw);
 
       // Resolve IDs in messages asynchronously after initial render
       const resolved = await Promise.all(
@@ -228,7 +235,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
         })
       );
       setNotifications(resolved);
-      cachedNotifications = resolved;
+      notificationCache.set(cacheKey, resolved);
     } catch (err) {
       console.error("[Notification] fetchAll error:", err);
     } finally {
@@ -253,7 +260,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
 
     (async () => {
       try {
-        const res = await fetch(apiUrl("events/notifications"), {
+        const res = await workspaceFetch(apiUrl("events/notifications"), {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             Accept: "text/event-stream",
@@ -304,7 +311,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
                 } else {
                   copy = [updated, ...prev];
                 }
-                cachedNotifications = copy;
+                notificationCache.set(cacheKey, copy);
                 return copy;
               });
             } catch {
@@ -318,7 +325,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
     })();
 
     return () => controller.abort();
-  }, [accessToken]);
+  }, [accessToken, generation]);
 
   // ── Mark single read ─────────────────────────────────────────────────────────
   const markRead = useCallback(
@@ -327,11 +334,11 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
       setMarkingId(id);
       setNotifications((prev) => {
         const copy = prev.map((n) => (n.id === id ? { ...n, isRead: true } : n));
-        cachedNotifications = copy;
+        notificationCache.set(cacheKey, copy);
         return copy;
       });
       try {
-        await fetch(apiUrl(`events/notifications/mark-read/${id}`), {
+        await workspaceFetch(apiUrl(`events/notifications/mark-read/${id}`), {
           headers: authHeaders(),
           credentials: "include",
         });
@@ -350,11 +357,11 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
     setMarkingAllRead(true);
     setNotifications((prev) => {
       const copy = prev.map((n) => ({ ...n, isRead: true }));
-      cachedNotifications = copy;
+      notificationCache.set(cacheKey, copy);
       return copy;
     });
     try {
-      await fetch(apiUrl("events/notifications/mark-all-read"), {
+      await workspaceFetch(apiUrl("events/notifications/mark-all-read"), {
         headers: authHeaders(),
         credentials: "include",
       });

@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
@@ -119,7 +121,7 @@ export interface SpendProgramSettings {
 export const useGetSpendProgramRuleDefinitions = (group?: SpendProgramGroup) => {
   const axios = useAxios();
   return useQuery<{ data: RuleDefinition[] }, Error>({
-    queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(group),
+    queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgramRuleDefs(group)),
     queryFn: async () => {
       const url = group 
         ? `${PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS}?group=${group}&includeInactive=false`
@@ -151,7 +153,7 @@ export const useUpdateSpendProgramRuleDefinition = () => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(), refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgramRuleDefs()), refetchType: "all" });
     },
   });
 };
@@ -165,7 +167,7 @@ export const useDeleteSpendProgramRuleDefinition = () => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(), refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgramRuleDefs()), refetchType: "all" });
     },
   });
 };
@@ -179,7 +181,7 @@ export const useSeedDefaultRuleDefinitions = () => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(), refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgramRuleDefs()), refetchType: "all" });
     },
   });
 };
@@ -187,7 +189,7 @@ export const useSeedDefaultRuleDefinitions = () => {
 export const useGetSpendProgramSettings = (options?: { enabled?: boolean }) => {
   const axios = useAxios();
   return useQuery<{ data: SpendProgramSettings }, Error>({
-    queryKey: QUERY_KEYS.procurement.spendProgramSettings,
+    queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgramSettings),
     queryFn: async () => {
       const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS);
       return res.data;
@@ -207,7 +209,7 @@ export const useUpdateSpendProgramSettings = () => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramSettings, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgramSettings), refetchType: "all" });
     },
   });
 };
@@ -223,7 +225,7 @@ export interface SpendProgramSettingsCategory {
 export const useGetSpendProgramSettingsCategories = (inSettings?: boolean) => {
   const axios = useAxios();
   return useQuery<{ data: { enabled: boolean; coverageMode: string; categories: SpendProgramSettingsCategory[] } }, Error>({
-    queryKey: [...QUERY_KEYS.procurement.spendProgramCategories, { inSettings }],
+    queryKey: workspaceQueryKey([...QUERY_KEYS.procurement.spendProgramCategories, { inSettings }]),
     queryFn: async () => {
       const url = inSettings !== undefined 
         ? `${PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS_CATEGORIES}?inSettings=${inSettings}`
@@ -238,7 +240,7 @@ export const useGetSpendProgramSettingsCategories = (inSettings?: boolean) => {
 export const useGetSpendProgramEligibleRoles = () => {
   const axios = useAxios();
   return useQuery<{ data: any[] }, Error>({
-    queryKey: QUERY_KEYS.procurement.spendProgramEligibleRoles,
+    queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgramEligibleRoles),
     queryFn: async () => {
       const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM_ELIGIBLE_ROLES);
       return res.data;
@@ -396,7 +398,7 @@ export const useGetSpendPrograms = (
 ) => {
   const axios = useAxios();
   return useQuery<any, Error>({
-    queryKey: [...QUERY_KEYS.procurement.spendPrograms, { page, limit, group, status }],
+    queryKey: workspaceQueryKey([...QUERY_KEYS.procurement.spendPrograms, { page, limit, group, status }]),
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -420,7 +422,7 @@ export const useGetSpendProgramById = (
 ) => {
   const axios = useAxios();
   return useQuery<any, Error>({
-    queryKey: QUERY_KEYS.procurement.spendProgram(id),
+    queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
     queryFn: async () => {
       const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM(id));
       return res.data;
@@ -446,7 +448,7 @@ export const useCreateSpendProgram = () => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms), refetchType: "all" });
     },
   });
 };
@@ -462,8 +464,8 @@ export const useUpdateSpendProgram = (id: string) => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgram(id), refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms), refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)), refetchType: "all" });
     },
   });
 };
@@ -477,8 +479,8 @@ export const useDeleteSpendProgram = () => {
       return res.data;
     },
     onSuccess: async (_, id) => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
-      qc.removeQueries({ queryKey: QUERY_KEYS.procurement.spendProgram(id) });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms), refetchType: "all" });
+      qc.removeQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)) });
     },
   });
 };
@@ -492,7 +494,7 @@ export const useApproveSpendProgram = () => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms), refetchType: "all" });
     },
   });
 };
@@ -506,7 +508,7 @@ export const useRejectSpendProgram = () => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms), refetchType: "all" });
     },
   });
 };
@@ -517,7 +519,7 @@ export const useGetSpendProgramDraftById = (
 ) => {
   const axios = useAxios();
   return useQuery<any, Error>({
-    queryKey: [...QUERY_KEYS.procurement.spendProgram(draftId), "draft"],
+    queryKey: workspaceQueryKey([...QUERY_KEYS.procurement.spendProgram(draftId), "draft"]),
     queryFn: async () => {
       const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM(draftId));
       return res.data;
@@ -571,7 +573,7 @@ export const useToggleSpendProgramRuleStatus = () => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms), refetchType: "all" });
     },
   });
 };
@@ -585,8 +587,8 @@ export const useDeleteSpendProgramDraft = () => {
       return res.data;
     },
     onSuccess: async (_, draftId) => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
-      qc.removeQueries({ queryKey: [...QUERY_KEYS.procurement.spendProgram(draftId), "draft"] });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms), refetchType: "all" });
+      qc.removeQueries({ queryKey: workspaceQueryKey([...QUERY_KEYS.procurement.spendProgram(draftId), "draft"]) });
     },
   });
 };

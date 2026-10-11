@@ -1,4 +1,6 @@
 "use client";
+import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
+
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -34,7 +36,6 @@ import { toast } from "sonner";
 import { isPRPriority } from "@/lib/types/purchase-request-helpers";
 import {
   isProcurementReadyLegalEntity,
-  useLegalEntities,
 } from "@/queries/legal-entities";
 import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
 import { 
@@ -237,7 +238,7 @@ function NewPurchaseOrderPage() {
 
   const { data: catData } = useGetProcurementCategories();
   const { data: vendorData } = useGetVendors();
-  const { data: legalEntityData } = useLegalEntities();
+  const { data: legalEntityData } = useTransactionLegalEntities("procurement");
 
   const rawCategories = catData?.data || [];
   const categories = rawCategories.flatMap(c => [c, ...(c.children || [])]);

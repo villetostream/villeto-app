@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -53,7 +55,7 @@ export const useGetExpenseCategoriesApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: QUERY_KEYS.expenses.categories,
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.categories),
         queryFn: async () => {
             const response = await axiosInstance.get(API_KEYS.EXPENSE.CATEGORIES);
             return response.data;
@@ -68,7 +70,7 @@ export const useGetExpenseCategoriesWithPoliciesApi = (
 ): UseQueryResult<Response, Error> => {
     const axiosInstance = useAxios();
     return useQuery<Response, Error>({
-        queryKey: [...QUERY_KEYS.expenses.categories, "with-policies"],
+        queryKey: workspaceQueryKey([...QUERY_KEYS.expenses.categories, "with-policies"]),
         queryFn: async () => {
             const response = await axiosInstance.get(API_KEYS.EXPENSE.CATEGORIES_WITH_POLICIES);
             return response.data;
@@ -88,7 +90,7 @@ export const useGetExpenseCategoryCoverageAllApi = (
 ): UseQueryResult<Response, Error> => {
     const axiosInstance = useAxios();
     return useQuery<Response, Error>({
-        queryKey: [...QUERY_KEYS.expenses.categories, "coverage-admin"],
+        queryKey: workspaceQueryKey([...QUERY_KEYS.expenses.categories, "coverage-admin"]),
         queryFn: async () => {
             const response = await axiosInstance.get(API_KEYS.EXPENSE.CATEGORIES_POLICY_COVERAGE_ADMIN);
             return response.data;

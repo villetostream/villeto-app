@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useQuery, type UseQueryOptions, type UseQueryResult } from '@tanstack/react-query';
 import { useAxios } from '@/shared/hooks/useAxios';
 import { API_KEYS } from '@/lib/constants/apis';
@@ -18,7 +20,7 @@ type UserListOptions = Omit<UseQueryOptions<PaginatedResponse<AppUser>, Error>, 
 export const useGetAllUsersApi = (options?: UserListOptions): UserListResponse => {
     const axios = useAxios();
     return useQuery({
-        queryKey: QUERY_KEYS.people.users(),
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.users()),
         queryFn: async () => {
             const res = await axios.get(API_KEYS.USER.USERS);
             return res.data;
@@ -32,7 +34,7 @@ export const useGetAllUsersApi = (options?: UserListOptions): UserListResponse =
 export const useGetInvitedUsersApi = (options?: UserListOptions): UserListResponse => {
     const axios = useAxios();
     return useQuery({
-        queryKey: QUERY_KEYS.people.invitedUsers,
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.invitedUsers),
         queryFn: async () => {
             const res = await axios.get(API_KEYS.USER.INVITED_USERS);
             return res.data;
@@ -46,7 +48,7 @@ export const useGetInvitedUsersApi = (options?: UserListOptions): UserListRespon
 export const useGetDirectoryUsersApi = (options?: UserListOptions): UserListResponse => {
     const axios = useAxios();
     return useQuery({
-        queryKey: QUERY_KEYS.people.directoryUsers,
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.directoryUsers),
         queryFn: async () => {
             const res = await axios.get(API_KEYS.USER.DIRECTORY_USERS);
             return res.data;
@@ -60,7 +62,7 @@ export const useGetDirectoryUsersApi = (options?: UserListOptions): UserListResp
 export const useGetUninvitedUsersApi = (options?: UserListOptions): UserListResponse => {
     const axios = useAxios();
     return useQuery({
-        queryKey: QUERY_KEYS.people.uninvitedUsers,
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.uninvitedUsers),
         queryFn: async () => {
             const res = await axios.get(API_KEYS.USER.UNINVITED_USERS);
             return res.data;

@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useQuery, type UseQueryOptions, type UseQueryResult } from '@tanstack/react-query';
 import { useAxios } from '@/shared/hooks/useAxios';
 import { API_KEYS } from '@/lib/constants/apis';
@@ -11,7 +13,7 @@ export const useGetAllPermissionsApi = (
 ): UseQueryResult<ApiResponse<Permission[]>, Error> => {
     const axios = useAxios();
     return useQuery({
-        queryKey: QUERY_KEYS.auth.permissions,
+        queryKey: workspaceQueryKey(QUERY_KEYS.auth.permissions),
         queryFn: async () => {
             const res = await axios.get(API_KEYS.AUTH.PERMISSIONS);
             return res.data;

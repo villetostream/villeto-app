@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 
@@ -27,7 +29,7 @@ interface InvoiceListResponse {
 export function useProcurementInvoices(status?: string, options?: { refetchInterval?: number }) {
   const axios = useAxios();
   return useQuery<InvoiceListResponse>({
-    queryKey: ["procurement-invoices", status],
+    queryKey: workspaceQueryKey(["procurement-invoices", status]),
     queryFn: async () => (await axios.get("procurement/invoices", { params: { page: 1, limit: 100, ...(status ? { status } : {}) } })).data,
     ...options,
   });
@@ -40,8 +42,8 @@ export function useInvoiceAction() {
     mutationFn: async ({ invoiceId, action, reason }: { invoiceId: string; action: "under-review" | "approve" | "reject"; reason?: string }) =>
       (await axios.patch(`procurement/invoices/${invoiceId}/${action}`, action === "reject" ? { reason: reason || "Rejected during invoice review" } : {})).data,
     onSuccess: () => {
-      client.removeQueries({ queryKey: ["procurement-invoices"], type: "inactive" });
-      return client.invalidateQueries({ queryKey: ["procurement-invoices"] });
+      client.removeQueries({ queryKey: workspaceQueryKey(["procurement-invoices"]), type: "inactive" });
+      return client.invalidateQueries({ queryKey: workspaceQueryKey(["procurement-invoices"]) });
     },
   });
 }
@@ -53,8 +55,8 @@ export function useInvoicePaymentAction() {
     mutationFn: async ({ invoiceId, paymentStatus, reference }: { invoiceId: string; paymentStatus: string; reference?: string }) =>
       (await axios.patch(`procurement/invoices/${invoiceId}/payment-status`, { paymentStatus, reference })).data,
     onSuccess: () => {
-      client.removeQueries({ queryKey: ["procurement-invoices"], type: "inactive" });
-      return client.invalidateQueries({ queryKey: ["procurement-invoices"] });
+      client.removeQueries({ queryKey: workspaceQueryKey(["procurement-invoices"]), type: "inactive" });
+      return client.invalidateQueries({ queryKey: workspaceQueryKey(["procurement-invoices"]) });
     },
   });
 }
@@ -62,7 +64,7 @@ export function useInvoicePaymentAction() {
 export function useGetProcurementInvoiceById(invoiceId: string) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["procurement-invoices", invoiceId],
+    queryKey: workspaceQueryKey(["procurement-invoices", invoiceId]),
     queryFn: async () => {
       const response = await axios.get(`procurement/invoices/${invoiceId}`);
       return response.data;

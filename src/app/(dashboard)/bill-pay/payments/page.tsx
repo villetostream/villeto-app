@@ -1,4 +1,6 @@
 "use client";
+import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
+
 
 import { useMemo, useState } from "react";
 import Image from "next/image";
@@ -15,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
-import { useLegalEntities } from "@/queries/legal-entities";
+
 import { useGetPayments, useGetBankTransactions } from "@/queries/bill-pay";
 import { format } from "date-fns";
 
@@ -58,8 +60,8 @@ function PaymentsDashboard() {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
   const [showAccountDetails, setShowAccountDetails] = useState(true);
 
-  const { data: legalEntitiesData } = useLegalEntities();
-  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "a3c0738f-a024-497a-9cbf-a488dba29bf4";
+  const { data: legalEntitiesData } = useTransactionLegalEntities("finance");
+  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
 
   // Data Tables Props
   const paymentTableProps = useDataTable({

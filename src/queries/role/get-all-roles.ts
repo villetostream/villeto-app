@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import type { AxiosInstance } from "axios";
 import { useAxios } from "@/hooks/useAxios";
@@ -170,7 +172,7 @@ export const useGetAllRolesApi = (
     const axiosInstance = useAxios();
 
     return useQuery<PaginatedRolesResponse, Error>({
-        queryKey: [...QUERY_KEYS.people.roles, { page, limit }],
+        queryKey: workspaceQueryKey([...QUERY_KEYS.people.roles, { page, limit }]),
         queryFn: async () => {
             return fetchAllRolesLoop(axiosInstance, API_KEYS.ROLE.ROLES_LIST(page, limit), page, limit);
         },
@@ -193,7 +195,7 @@ export const useGetCompanyRolesApi = (
     const axiosInstance = useAxios();
 
     return useQuery<PaginatedRolesResponse, Error>({
-        queryKey: [...QUERY_KEYS.people.roles, { page, limit }],
+        queryKey: workspaceQueryKey([...QUERY_KEYS.people.roles, { page, limit }]),
         queryFn: async () => {
             const response = await axiosInstance.get(API_KEYS.ROLE.ROLES_COMPANY(page, limit));
             return response.data;

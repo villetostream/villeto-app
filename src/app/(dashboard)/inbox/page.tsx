@@ -1,4 +1,7 @@
 "use client";
+import { workspaceFetch } from "@/features/entity-workspace/fetch";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
+
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
@@ -106,7 +109,7 @@ async function resolveMessageIds(message: string, accessToken: string | null): P
     let name: string | null = null;
     for (const endpoint of endpoints) {
       try {
-        const res = await fetch(endpoint, {
+        const res = await workspaceFetch(endpoint, {
           headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), "Content-Type": "application/json" },
           credentials: "include",
         });
@@ -164,6 +167,7 @@ import { useNotificationCountStore } from "@/hooks/useNotificationCount";
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
+  const generation = useEntityWorkspaceStore(state => state.generation);
   const accessToken = useAuthStore.getState().accessToken;
   const setGlobalUnreadCount = useNotificationCountStore((s) => s.setUnreadCount);
 
@@ -183,13 +187,13 @@ export default function InboxPage() {
     const h: Record<string, string> = { "Content-Type": "application/json" };
     if (accessToken) h["Authorization"] = `Bearer ${accessToken}`;
     return h;
-  }, [accessToken]);
+  }, [accessToken, generation]);
 
   // ── Fetch all ────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true); else setRefreshing(true);
     try {
-      const res = await fetch(apiUrl("events/notifications/all"), { headers: authHeaders(), credentials: "include" });
+      const res = await workspaceFetch(apiUrl("events/notifications/all"), { headers: authHeaders(), credentials: "include" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: unknown = await res.json();
       const jsonRecord = asRecord(json);
@@ -230,7 +234,7 @@ export default function InboxPage() {
 
     (async () => {
       try {
-        const res = await fetch(apiUrl("events/notifications"), {
+        const res = await workspaceFetch(apiUrl("events/notifications"), {
           headers: { Authorization: `Bearer ${accessToken}`, Accept: "text/event-stream", "Cache-Control": "no-cache" },
           credentials: "include",
           signal: controller.signal,
@@ -278,7 +282,7 @@ export default function InboxPage() {
       }
     })();
     return () => controller.abort();
-  }, [accessToken]);
+  }, [accessToken, generation]);
 
   // ── Mark single read ─────────────────────────────────────────────────────────
   const markRead = useCallback(async (id: string) => {
@@ -286,7 +290,7 @@ export default function InboxPage() {
     setMarkingId(id);
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
     try {
-      await fetch(apiUrl(`events/notifications/mark-read/${id}`), { headers: authHeaders(), credentials: "include" });
+      await workspaceFetch(apiUrl(`events/notifications/mark-read/${id}`), { headers: authHeaders(), credentials: "include" });
     } catch { /* optimistic stays */ } finally { setMarkingId(null); }
   }, [authHeaders, markingId]);
 
@@ -296,7 +300,7 @@ export default function InboxPage() {
     setMarkingAllRead(true);
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     try {
-      await fetch(apiUrl("events/notifications/mark-all-read"), { headers: authHeaders(), credentials: "include" });
+      await workspaceFetch(apiUrl("events/notifications/mark-all-read"), { headers: authHeaders(), credentials: "include" });
     } catch { fetchAll(true); } finally { setMarkingAllRead(false); }
   }, [authHeaders, markingAllRead, fetchAll]);
 

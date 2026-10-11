@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -50,7 +52,7 @@ export const useGetExpenseCategoryDetailApi = (categoryId: string) => {
     const axiosInstance = useAxios();
 
     return useQuery<GetExpenseCategoryDetailResponse>({
-        queryKey: QUERY_KEYS.expenses.category(categoryId),
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.category(categoryId)),
         queryFn: async () => {
             const res = await axiosInstance.get(API_KEYS.EXPENSE.CATEGORY_DETAIL(categoryId));
             return res.data;

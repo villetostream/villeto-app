@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -27,7 +29,7 @@ export const useGetAUsersApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: QUERY_KEYS.people.user(payload as string),
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.user(payload as string)),
         queryFn: async () => {
             const apiUrl = `${API_KEYS.USER.USERS}${payload}`;
             const response = await axiosInstance.get(apiUrl);

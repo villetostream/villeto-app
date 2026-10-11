@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -56,10 +58,10 @@ export const useSubmitManualEmployee = () => {
             return res.data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.users() });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.directoryUsers });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.invitedUsers });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.uninvitedUsers });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.users()) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.directoryUsers) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.invitedUsers) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.uninvitedUsers) });
         },
     });
 };
@@ -68,7 +70,7 @@ export const useImportReferences = (type: "job_grades" | "management_levels", en
     const axiosInstance = useAxios();
 
     return useQuery<{ data: any }>({
-        queryKey: ["import-references", type],
+        queryKey: workspaceQueryKey(["import-references", type]),
         queryFn: async () => {
             const res = await axiosInstance.get(API_KEYS.COMPANY.IMPORT_REFERENCES(type));
             return res.data;

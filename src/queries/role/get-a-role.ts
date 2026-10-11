@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -26,7 +28,7 @@ export const useGetARoleApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: QUERY_KEYS.people.role(payload as string),
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.role(payload as string)),
         queryFn: async () => {
             const apiUrl = API_KEYS.ROLE.ROLE_DETAIL(payload.toString());
             const response = await axiosInstance.get(apiUrl);

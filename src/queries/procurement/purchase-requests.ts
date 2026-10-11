@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import {
   useQuery,
   useMutation,
@@ -150,7 +152,7 @@ export const useCreatePurchaseRequest = (): UseMutationResult<
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests) });
     },
   });
 };
@@ -176,7 +178,7 @@ export const useGetPurchaseRequests = <TData = ApiResponse<PurchaseRequest[]>>(
 ): UseQueryResult<TData, Error> => {
   const axiosInstance = useAxios();
   return useQuery<ApiResponse<PurchaseRequest[]>, Error, TData>({
-    queryKey: [...QUERY_KEYS.procurement.purchaseRequests, params],
+    queryKey: workspaceQueryKey([...QUERY_KEYS.procurement.purchaseRequests, params]),
     queryFn: async () => {
       const query = new URLSearchParams();
       if (params.scope) query.set("scope", params.scope);
@@ -207,7 +209,7 @@ export const useGetPurchaseRequestById = (
 ): UseQueryResult<ApiResponse<PurchaseRequest>, Error> => {
   const axiosInstance = useAxios();
   return useQuery({
-    queryKey: QUERY_KEYS.procurement.purchaseRequest(id),
+    queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)),
     queryFn: async () => {
       const res = await axiosInstance.get(PROCUREMENT_KEYS.PURCHASE_REQUEST(id));
       return res.data;
@@ -231,8 +233,8 @@ export const useUpdatePurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests) });
     },
   });
 };
@@ -250,7 +252,7 @@ export const useDeletePurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests) });
     },
   });
 };
@@ -290,7 +292,7 @@ export const useAddLineItem = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId)) });
     },
   });
 };
@@ -312,7 +314,7 @@ export const useUpdateLineItem = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId)) });
     },
   });
 };
@@ -332,7 +334,7 @@ export const useDeleteLineItem = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId)) });
     },
   });
 };
@@ -352,8 +354,8 @@ export const useSubmitPurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests) });
     },
   });
 };
@@ -371,8 +373,8 @@ export const useCancelPurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests) });
     },
   });
 };
@@ -414,9 +416,9 @@ export const useConvertToPO = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrders) });
     },
   });
 };
@@ -451,7 +453,7 @@ export const useGetProcurementCategories = (
 ): UseQueryResult<ApiResponse<ProcurementCategory[]>, Error> => {
   const axiosInstance = useAxios();
   return useQuery({
-    queryKey: QUERY_KEYS.procurement.categories,
+    queryKey: workspaceQueryKey(QUERY_KEYS.procurement.categories),
     queryFn: async () => {
       const res = await axiosInstance.get(PROCUREMENT_KEYS.CATEGORIES);
       return res.data;
@@ -489,7 +491,7 @@ export const useCreateProcurementCategory = (): UseMutationResult<
       return responseData;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.categories });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.categories) });
     },
   });
 };
@@ -506,8 +508,8 @@ export const useApprovePurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests) });
     },
   });
 };
@@ -525,8 +527,8 @@ export const useRejectPurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests) });
     },
   });
 };
@@ -544,8 +546,8 @@ export const useWithdrawPurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)) });
+      qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests) });
     },
   });
 };
@@ -569,7 +571,7 @@ export const useGetVendors = (
 ): UseQueryResult<ApiResponse<Vendor[]>, Error> => {
   const axiosInstance = useAxios();
   return useQuery({
-    queryKey: QUERY_KEYS.vendors.approved,
+    queryKey: workspaceQueryKey(QUERY_KEYS.vendors.approved),
     queryFn: async () => {
       // Procurement selection only needs safe lookup fields. The full /vendors
       // endpoint intentionally requires sensitive-vendor access.

@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -18,7 +20,7 @@ export const useRejectPolicy = () => {
     },
     onSuccess: () => {
       // Invalidate the policies query to instantly refresh the table
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies) });
     },
   });
 };

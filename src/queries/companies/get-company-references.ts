@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useQuery, UseQueryOptions, UseQueryResult } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -36,7 +38,7 @@ export const useGetJobGradesApi = (
   const axiosInstance = useAxios();
 
   return useQuery<ReferenceResponse, Error>({
-    queryKey: ["companies", "job-grades"],
+    queryKey: workspaceQueryKey(["companies", "job-grades"]),
     queryFn: async () => {
       const response = await axiosInstance.get(API_KEYS.COMPANY.IMPORT_REFERENCES("job_grades"));
       return response.data;
@@ -52,7 +54,7 @@ export const useGetManagementLevelsApi = (
   const axiosInstance = useAxios();
 
   return useQuery<ReferenceResponse, Error>({
-    queryKey: ["companies", "management-levels"],
+    queryKey: workspaceQueryKey(["companies", "management-levels"]),
     queryFn: async () => {
       const response = await axiosInstance.get(API_KEYS.COMPANY.IMPORT_REFERENCES("management_levels"));
       return response.data;

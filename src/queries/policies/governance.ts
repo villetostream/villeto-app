@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { POLICY_GOVERNANCE_KEYS } from "@/lib/constants/apis";
@@ -37,7 +39,7 @@ export interface UpdateApprovalSettingPayload {
 export const useGetAllApprovalSettings = () => {
   const axios = useAxios();
   return useQuery<{ message: string; status: number; data: ApprovalSetting[] }, Error>({
-    queryKey: QUERY_KEYS.policyGovernance.all,
+    queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.all),
     queryFn: async () => {
       const res = await axios.get(POLICY_GOVERNANCE_KEYS.APPROVAL_SETTINGS);
       return res.data;
@@ -51,7 +53,7 @@ export const useGetAllApprovalSettings = () => {
 export const useGetApprovalSettingByTarget = (target: PolicyTarget) => {
   const axios = useAxios();
   return useQuery<{ message: string; status: number; data: ApprovalSetting }, Error>({
-    queryKey: QUERY_KEYS.policyGovernance.byTarget(target),
+    queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.byTarget(target)),
     queryFn: async () => {
       const res = await axios.get(POLICY_GOVERNANCE_KEYS.APPROVAL_SETTINGS_TARGET(target));
       return res.data;
@@ -65,7 +67,7 @@ export const useGetApprovalSettingByTarget = (target: PolicyTarget) => {
 export const useGetEligibleRoles = (target: PolicyTarget) => {
   const axios = useAxios();
   return useQuery<{ message: string; status: number; data: ApproverRole[] }, Error>({
-    queryKey: QUERY_KEYS.policyGovernance.eligibleRoles(target),
+    queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.eligibleRoles(target)),
     queryFn: async () => {
       const res = await axios.get(POLICY_GOVERNANCE_KEYS.ELIGIBLE_ROLES(target));
       return res.data;
@@ -85,8 +87,8 @@ export const useUpdateApprovalSettings = (target: PolicyTarget) => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.policyGovernance.all, refetchType: "all" });
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.policyGovernance.byTarget(target), refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.all), refetchType: "all" });
+      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.byTarget(target)), refetchType: "all" });
     },
   });
 };

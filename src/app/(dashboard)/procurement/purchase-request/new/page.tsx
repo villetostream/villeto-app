@@ -1,4 +1,6 @@
 "use client";
+import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
+
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -36,7 +38,6 @@ import { getApiErrorMessage, isProcurementPolicyViolationError, getProcurementPo
 import { isPRPriority, toApiLineItemPayload } from "@/lib/types/purchase-request-helpers";
 import {
   isProcurementReadyLegalEntity,
-  useLegalEntities,
 } from "@/queries/legal-entities";
 
 function cleanLineItemPayload(payload: LineItemPayload): LineItemPayload {
@@ -483,7 +484,7 @@ function NewPurchaseRequestPage() {
   // an unnecessary request to an endpoint they have no use for.
   const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
   const { data: catData } = useGetProcurementCategories();
-  const { data: legalEntityData } = useLegalEntities();
+  const { data: legalEntityData } = useTransactionLegalEntities("requester");
   const addLineItem = useAddLineItem(purchaseRequestId || "");
   const targetItemId = editingItem?.item.purchaseRequestLineItemId || (editingItem?.item as any)?.id || selectedDetailItem?.purchaseRequestLineItemId || selectedDetailItem?.id || "";
   const updateLineItem = useUpdateLineItem(purchaseRequestId || "", targetItemId);

@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useQuery, type UseQueryOptions, type UseQueryResult } from '@tanstack/react-query';
 import { useAxios } from '@/shared/hooks/useAxios';
 import { API_KEYS } from '@/lib/constants/apis';
@@ -16,7 +18,7 @@ type DeptListOptions = Omit<UseQueryOptions<PaginatedResponse<Department>, Error
 export const useGetAllDepartmentsApi = (options?: DeptListOptions): DeptListResponse => {
     const axios = useAxios();
     return useQuery({
-        queryKey: QUERY_KEYS.people.departments,
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.departments),
         queryFn: async () => {
             const res = await axios.get(API_KEYS.DEPARTMENT.DEPARTMENTS);
             return res.data;

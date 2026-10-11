@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { logger } from "@/lib/logger";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
@@ -14,8 +16,8 @@ import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
 /** Invalidate all personal expense list queries (submitted + drafts). */
 export function invalidatePersonalExpenseQueries(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.reports("own") });
-  queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.drafts });
+  queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.reports("own")) });
+  queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.drafts) });
 }
 
 // Define the payload type for submitting/saving expenses
@@ -198,7 +200,7 @@ export const usePersonalExpenses = (
   const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
-    queryKey: [...QUERY_KEYS.expenses.reports("own"), page, limit, status, sortBy, sortOrder],
+    queryKey: workspaceQueryKey([...QUERY_KEYS.expenses.reports("own"), page, limit, status, sortBy, sortOrder]),
     enabled: enabled && authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -235,7 +237,7 @@ export const useDraftExpenses = (
   const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
-    queryKey: [...QUERY_KEYS.expenses.drafts, page, limit, sortBy, sortOrder],
+    queryKey: workspaceQueryKey([...QUERY_KEYS.expenses.drafts, page, limit, sortBy, sortOrder]),
     enabled: authReady && !!accessToken,
     queryFn: async () => {
       // Ensure we don't send scope/status to the drafts endpoint if it expects them as path/intrinsic
@@ -297,7 +299,7 @@ export const useCompanyExpenses = (
   const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
-    queryKey: [...QUERY_KEYS.expenses.reports(scope), page, limit, sortBy, sortOrder],
+    queryKey: workspaceQueryKey([...QUERY_KEYS.expenses.reports(scope), page, limit, sortBy, sortOrder]),
     enabled: !!scope && enabled && authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -325,7 +327,7 @@ export const usePersonalExpenseDetail = (reportId: string) => {
   const axios = useAxios();
 
   return useQuery({
-    queryKey: QUERY_KEYS.expenses.report(reportId),
+    queryKey: workspaceQueryKey(QUERY_KEYS.expenses.report(reportId)),
     queryFn: async () => {
       const response = await axios.get<PersonalExpenseDetailApiResponse>(
         `${API_KEYS.EXPENSE.PERSONAL_EXPENSES}/${reportId}`
@@ -403,7 +405,7 @@ export const useCompanyExpenseDetail = (reportId: string) => {
   const axios = useAxios();
 
   return useQuery({
-    queryKey: QUERY_KEYS.expenses.companyReport(reportId),
+    queryKey: workspaceQueryKey(QUERY_KEYS.expenses.companyReport(reportId)),
     queryFn: async () => {
       const response = await axios.get<PersonalExpenseDetailApiResponse>(
         `reports/${reportId}`
@@ -448,9 +450,9 @@ export const useUpdateCompanyExpenseStatus = () => {
       const statusLabel = variables.status === "approved" ? "Approved" : "Rejected";
       toast.success(`Report ${statusLabel.toLowerCase()} successfully.`);
       // Invalidate queries to refetch updated data
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.companyReports });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.companyReports) });
       queryClient.invalidateQueries({ 
-        queryKey: QUERY_KEYS.expenses.companyReport(variables.reportId) 
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.companyReport(variables.reportId)) 
       });
     },
     onError: (error: unknown) => {

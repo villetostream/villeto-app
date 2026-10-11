@@ -1,8 +1,11 @@
 "use client";
+import type { BillPayDashboardSummary } from "@/queries/bill-pay";
+import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
+
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useLegalEntities } from "@/queries/legal-entities";
+
 import { useGetBillPayDashboardSummary } from "@/queries/bill-pay";
 import { BillPayTabs } from "@/components/bill-pay/BillPayTabs";
 import { Receipt2, ClipboardText, Cards, TickCircle } from "iconsax-reactjs";
@@ -62,7 +65,7 @@ function BillPayPage() {
     return { start: undefined, end: undefined };
   }, [period, customStartDate, customEndDate]);
 
-  const { data: legalEntitiesData } = useLegalEntities();
+  const { data: legalEntitiesData } = useTransactionLegalEntities("finance");
   const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
   
   const { data: summaryData, isLoading: isSummaryLoading } = useGetBillPayDashboardSummary(
@@ -162,7 +165,22 @@ function BillPayPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
+        {summaryData?.scope === 'all' ? <div className="space-y-3" aria-label="Bills by currency">
+          <p className="text-sm text-[#68726d]">All legal entities · Read-only</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {summaryData.totalsByCurrency?.map((group: NonNullable<BillPayDashboardSummary["totalsByCurrency"]>[number]) => <div key={group.currency} className="rounded-xl border bg-white p-4">
+              <p className="text-sm font-semibold">{group.currency}</p>
+              <p className="mt-2 text-xl font-semibold">{new Intl.NumberFormat(undefined, { style: 'currency', currency: group.currency }).format(Number(group.metrics.totalBills.amount))}</p>
+              <p className="text-xs text-[#68726d]">{group.metrics.totalBills.count} bills</p>
+            </div>)}
+          </div>
+          <div className="divide-y rounded-xl border bg-white">
+            {summaryData.entityBreakdowns?.map((row: BillPayDashboardSummary) => <div key={row.legalEntity.legalEntityId} className="flex justify-between gap-3 p-3 text-sm">
+              <span>{row.legalEntity.code} · {row.legalEntity.legalName}</span>
+              <span>{new Intl.NumberFormat(undefined, { style: 'currency', currency: row.legalEntity.baseCurrency }).format(Number(row.metrics.totalBills.amount))}</span>
+            </div>)}
+          </div>
+        </div> : <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
           <StatsCard
             title="Total Bills This Period"
             value={totalBills.amount}
@@ -200,6 +218,8 @@ function BillPayPage() {
             accentColor="#10b981"
           />
         </div>
+
+        }
 
         {/* Tabs Section */}
         <BillPayTabs activeTab={activeTab} setActiveTab={setActiveTab} />

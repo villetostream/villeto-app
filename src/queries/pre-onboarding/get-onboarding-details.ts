@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import {
     useQuery,
     UseQueryOptions,
@@ -108,7 +110,7 @@ export const useGetOnboardingDetailsApi = (
     const axiosInstance = useAxios();
 
     return useQuery<Response, Error>({
-        queryKey: QUERY_KEYS.onboarding.details(payload),
+        queryKey: workspaceQueryKey(QUERY_KEYS.onboarding.details(payload)),
         queryFn: async () => {
             const apiUrl = `${API_KEYS.ONBOARDING.ONBOARDING}/${payload}`;
             const response = await axiosInstance.get(apiUrl);

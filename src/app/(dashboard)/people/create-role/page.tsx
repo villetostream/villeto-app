@@ -1,4 +1,6 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+
 
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Loader2, Plus, ShieldAlert } from "lucide-react";
@@ -114,9 +116,9 @@ function RoleEditorForm({
 
   const handleSuccessClose = () => {
     setShowSuccessModal(false);
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.roles });
+    queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.roles) });
     if (roleId) {
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.role(roleId) });
+        queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.role(roleId)) });
     }
     
     if (!isEditMode) {

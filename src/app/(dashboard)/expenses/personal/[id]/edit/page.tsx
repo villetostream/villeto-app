@@ -1,4 +1,6 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+
 
 import withPermissions from "@/components/permissions/permission-protected-routes";
 
@@ -373,7 +375,7 @@ function EditReportPage() {
           setIsDeletingReport(true);
           await axios.delete(`reports/drafts/${reportId}`);
           toast.success("Report deleted successfully");
-          queryClient.invalidateQueries({ queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES] });
+          queryClient.invalidateQueries({ queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES]) });
           router.push("/expenses?tab=personal-expenses");
       } catch (error) {
           logger.error("Error deleting report:", error);
@@ -604,9 +606,9 @@ function EditReportPage() {
       );
 
       queryClient.invalidateQueries({
-        queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES],
+        queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES]),
       });
-      queryClient.invalidateQueries({ queryKey: ["expense-drafts"] });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["expense-drafts"]) });
 
       if (status === "draft") {
         // Stay on the page — just reset dirty state so user knows it saved

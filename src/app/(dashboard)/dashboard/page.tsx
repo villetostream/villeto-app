@@ -1,4 +1,6 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -124,7 +126,7 @@ export default function DashboardPage() {
   // Users (Team)
   const canViewUsers = policies.people.canManageUsers;
   const { data: usersData, isLoading: usersLoading } = useQuery({
-    queryKey: ["dashboard_users"],
+    queryKey: workspaceQueryKey(["dashboard_users"]),
     queryFn: async () => {
       const res = await axios.get(API_KEYS.USER.USERS, { params: { status: "all" } });
       return res.data;
@@ -137,7 +139,7 @@ export default function DashboardPage() {
   // Vendors
   const canViewVendors = policies.vendors.canViewSensitive;
   const { data: vendorsData, isLoading: vendorsLoading } = useQuery({
-    queryKey: ["dashboard_vendors", "active"],
+    queryKey: workspaceQueryKey(["dashboard_vendors", "active"]),
     queryFn: async () => {
       const res = await axios.get(PROCUREMENT_KEYS.ACTIVE_VENDORS);
       return res.data;

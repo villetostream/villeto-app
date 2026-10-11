@@ -1,4 +1,6 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
@@ -119,7 +121,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   }
 
   const { data: companyData, isLoading: isQueryLoading } = useQuery({
-    queryKey: ["company", user?.companyId, user?.userId],
+    queryKey: workspaceQueryKey(["company", user?.companyId, user?.userId]),
     queryFn: async () => {
       if (!user?.userId) return null;
       if (user.companyId) {

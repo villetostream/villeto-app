@@ -1,4 +1,6 @@
 "use client";
+import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
+
 
 import { useState, useEffect } from "react";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
@@ -12,7 +14,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import BillLineItemBatchModal from "@/components/bill-pay/BillLineItemBatchModal";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useCreateBillPayIntake } from "@/queries/bill-pay";
-import { useLegalEntities } from "@/queries/legal-entities";
+
 import { toast } from "sonner";
 
 function AddBillPage() {
@@ -67,8 +69,8 @@ function AddBillPage() {
   };
 
   const createIntake = useCreateBillPayIntake();
-  const { data: legalEntitiesData } = useLegalEntities();
-  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "a3c0738f-a024-497a-9cbf-a488dba29bf4";
+  const { data: legalEntitiesData } = useTransactionLegalEntities("finance");
+  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
 
   const handleSubmit = async () => {
     try {

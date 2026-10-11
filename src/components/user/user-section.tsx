@@ -33,6 +33,7 @@ import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useNotificationCount } from "@/hooks/useNotificationCount";
 import { useAuthStore } from "@/stores/auth-stores";
 import NewExpenseHeaderAction from "@/components/expenses/NewExpenseHeaderAction";
+import { EntityWorkspaceSwitcher } from "@/features/entity-workspace/EntityWorkspaceSwitcher";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
@@ -728,6 +729,7 @@ export function UserSection() {
 
       {/* ── Right ── */}
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <EntityWorkspaceSwitcher />
         {/* Date range picker — expenses list & procurement list pages */}
         {(isExpensesListPage || isProcurementListPage) && (
           <DateRangePicker

@@ -9,7 +9,7 @@ import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
 
-import { useLegalEntities } from "@/queries/legal-entities";
+import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
 import { useGetBillPayInvoices, BillPayInvoice } from "@/queries/bill-pay";
 import { format } from "date-fns";
 
@@ -18,7 +18,7 @@ const columnHelper = createColumnHelper<BillPayInvoice>();
 export function RegisteredVendorsTable() {
   const router = useRouter();
   
-  const { data: legalEntitiesData } = useLegalEntities();
+  const { data: legalEntitiesData } = useTransactionLegalEntities("finance");
   const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
 
   const tableprops = useDataTable({

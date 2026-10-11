@@ -1,3 +1,5 @@
+
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -56,11 +58,11 @@ export const useUpdateUserApi = () => {
         },
         onSuccess: (_data, variables) => {
             // Refresh the individual user record and all list views
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.user(variables.id) });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.invitedUsers });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.directoryUsers });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.uninvitedUsers });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.users() });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.user(variables.id)) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.invitedUsers) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.directoryUsers) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.uninvitedUsers) });
+            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.users()) });
         },
     });
 };

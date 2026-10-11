@@ -30,6 +30,9 @@ import {
   AUTHORIZATION_INVALIDATED_EVENT,
   parseAuthorizationSnapshot,
 } from "@/features/auth/authorization";
+import { EntityWorkspaceContent } from "@/features/entity-workspace/EntityWorkspaceContent";
+import { EntityWorkspaceProvider } from "@/features/entity-workspace/EntityWorkspaceProvider";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { logoutAndRedirect } from "@/lib/logout";
 import { useGetSpendProgramSettings } from "@/queries/procurement/policies";
 
@@ -55,6 +58,7 @@ export default function DashboardLayoutContent({
   defaultOpen = false,
 }: DashboardLayoutProps) {
   const isMounted = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
+  const workspaceGeneration = useEntityWorkspaceStore(state => state.generation);
   const axios = useAxios();
   const { login, logout, user, isLoading } = useAuthStore();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -201,6 +205,7 @@ export default function DashboardLayoutContent({
     <div className="flex h-screen overflow-hidden bg-[#f4f7f5]" suppressHydrationWarning>
       {/* Silent token refresh — mounted always so it re-runs on each hard refresh */}
       <SilentRefreshGate onDone={() => setSilentRefreshDone(true)} />
+      <EntityWorkspaceProvider>
       <SidebarProvider defaultOpen={defaultOpen}>
         <DashboardSidebar isProfileLoading={!profileFetched} />
         <div className="flex flex-col flex-1 h-full overflow-hidden">
@@ -209,14 +214,15 @@ export default function DashboardLayoutContent({
             {!isTourActive && (
               <SidebarTrigger className="md:hidden shrink-0 rounded-[9px] border border-black/[0.06] bg-[#f4f8f6] text-[#53615c] hover:bg-[#eaf3ef] hover:text-[#087f70]" />
             )}
-            <UserSection />
+            <UserSection key={workspaceGeneration} />
           </header>
 
-          <main className="flex-1 overflow-y-auto bg-[#f4f7f5] p-3 sm:p-5 lg:p-6 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
-            {children}
+          <main key={workspaceGeneration} className="flex-1 overflow-y-auto bg-[#f4f7f5] p-3 sm:p-5 lg:p-6 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
+            <EntityWorkspaceContent>{children}</EntityWorkspaceContent>
           </main>
         </div>
       </SidebarProvider>
+      </EntityWorkspaceProvider>
 
       {/* Idle timeout manager */}
       <IdleSessionManager />
