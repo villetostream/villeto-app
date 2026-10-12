@@ -1,6 +1,6 @@
-# Module delivery stage 04: procurement
+# Module delivery stage 05: invoice-intake-ap
 
-Delivered source stages: foundation, people-administration, vendors-policies, procurement.
+Delivered source stages: foundation, people-administration, vendors-policies, procurement, invoice-intake-ap.
 
 The paired backend/frontend branches use the same stage name. Stage 01 targets
 backend develop and frontend main; each later stage targets its previous branch.

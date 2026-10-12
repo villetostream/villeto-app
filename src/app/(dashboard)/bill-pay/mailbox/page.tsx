@@ -1,4 +1,8 @@
 "use client";
+import {
+  useTransactionLegalEntities,
+  useWorkspaceUnsavedChanges,
+} from "@/features/entity-workspace/hooks";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -36,10 +40,16 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { getApiErrorMessage } from "@/lib/types/api-error";
-import { useEligibleLegalEntities, useLegalEntities } from "@/queries/legal-entities";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { useCreateBillPayIntake } from "@/queries/bill-pay";
 import {
   MailboxMessageSummary,
@@ -52,7 +62,9 @@ import {
 } from "@/queries/bill-pay-mailboxes";
 
 // Dynamically import the PDF viewer so pdfjs is only loaded when needed
-const PdfViewer = dynamic(() => import("@/components/ui/pdf-viewer"), { ssr: false });
+const PdfViewer = dynamic(() => import("@/components/ui/pdf-viewer"), {
+  ssr: false,
+});
 
 /* ───────────────────────── helpers ───────────────────────── */
 
@@ -78,7 +90,8 @@ const statusLabel: Record<TenantMailboxConnection["status"], string> = {
 const statusVariant = (status: TenantMailboxConnection["status"]) => {
   if (status === "connected") return "active";
   if (status === "pending_authorization") return "pending";
-  if (status === "error" || status === "requires_reauthorization") return "rejected";
+  if (status === "error" || status === "requires_reauthorization")
+    return "rejected";
   return "inactive";
 };
 
@@ -89,9 +102,22 @@ function senderDisplayName(from: string | null) {
 }
 
 const BILL_KEYWORDS = [
-  "invoice", "payment", "receipt", "bill", "statement", "remittance",
-  "purchase order", "po ", "amount due", "overdue", "balance",
-  "quotation", "quote", "proforma", "debit note", "credit note",
+  "invoice",
+  "payment",
+  "receipt",
+  "bill",
+  "statement",
+  "remittance",
+  "purchase order",
+  "po ",
+  "amount due",
+  "overdue",
+  "balance",
+  "quotation",
+  "quote",
+  "proforma",
+  "debit note",
+  "credit note",
 ];
 
 function isLikelyBillEmail(msg: MailboxMessageSummary): boolean {
@@ -101,38 +127,48 @@ function isLikelyBillEmail(msg: MailboxMessageSummary): boolean {
 
 /* ───────────────────────── resizable divider hook ───────────────────────── */
 
-function useResizableDivider(initialWidth: number, minWidth: number, maxWidth: number) {
+function useResizableDivider(
+  initialWidth: number,
+  minWidth: number,
+  maxWidth: number,
+) {
   const [width, setWidth] = useState(initialWidth);
   const isDragging = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(0);
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    isDragging.current = true;
-    startX.current = e.clientX;
-    startWidth.current = width;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      isDragging.current = true;
+      startX.current = e.clientX;
+      startWidth.current = width;
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
 
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!isDragging.current) return;
-      // Dragging left = make the bill panel wider (since it's on the right)
-      const delta = startX.current - ev.clientX;
-      const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth.current + delta));
-      setWidth(newWidth);
-    };
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!isDragging.current) return;
+        // Dragging left = make the bill panel wider (since it's on the right)
+        const delta = startX.current - ev.clientX;
+        const newWidth = Math.min(
+          maxWidth,
+          Math.max(minWidth, startWidth.current + delta),
+        );
+        setWidth(newWidth);
+      };
 
-    const onMouseUp = () => {
-      isDragging.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    };
+      const onMouseUp = () => {
+        isDragging.current = false;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+      };
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  }, [width, minWidth, maxWidth]);
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    },
+    [width, minWidth, maxWidth],
+  );
 
   return { width, onMouseDown };
 }
@@ -145,10 +181,15 @@ function MailboxPage() {
   const policies = useAuthorizationPolicies();
 
   /* ---------- entity + connection selection ---------- */
-  const entitiesQuery = useEligibleLegalEntities("accounting");
-  const entities = entitiesQuery.data || [];
+  const entitiesQuery = useTransactionLegalEntities("finance");
+  const entities = entitiesQuery.data.data;
+  const workspaceSelection = useEntityWorkspaceStore(
+    (state) => state.selection,
+  );
   const [selectedEntityId, setSelectedEntityId] = useState("");
-  const [selectedConnectionId, setSelectedConnectionId] = useState("");
+  const [selectedConnectionId, setSelectedConnectionId] = useState(
+    searchParams.get("connection") || "",
+  );
   const [selectedMessageId, setSelectedMessageId] = useState("");
 
   /* ---------- filtering ---------- */
@@ -156,21 +197,28 @@ function MailboxPage() {
   const [filterBillsOnly, setFilterBillsOnly] = useState(false);
 
   const effectiveEntityId =
-    selectedEntityId ||
+    (entitiesQuery.workspaceEnabled ? workspaceSelection : selectedEntityId) ||
     entities.find((e) => e.isDefault)?.legalEntityId ||
     (entities.length === 1 ? entities[0].legalEntityId : "");
 
   /* ---------- connections ---------- */
-  const connectionsQuery = useTenantMailboxConnections(effectiveEntityId || undefined);
+  const connectionsQuery = useTenantMailboxConnections(
+    effectiveEntityId || undefined,
+  );
   const connections = connectionsQuery.data?.data || [];
   const selectedConnection =
-    connections.find((c) => c.tenantMailboxConnectionId === selectedConnectionId) ||
-    connections.find((c) => c.status === "connected") ||
-    null;
+    entitiesQuery.workspaceEnabled && workspaceSelection === "all"
+      ? null
+      : connections.find(
+          (c) => c.tenantMailboxConnectionId === selectedConnectionId,
+        ) ||
+        connections.find((c) => c.status === "connected") ||
+        null;
 
   /* ---------- messages ---------- */
   const messagesQuery = useTenantMailboxMessages(
-    policies.billPay.canViewMailboxEmail && selectedConnection?.status === "connected"
+    policies.billPay.canViewMailboxEmail &&
+      selectedConnection?.status === "connected"
       ? selectedConnection.tenantMailboxConnectionId
       : undefined,
   );
@@ -185,7 +233,9 @@ function MailboxPage() {
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
       filtered = filtered.filter(
-        (m) => (m.subject || "").toLowerCase().includes(q) || (m.from || "").toLowerCase().includes(q),
+        (m) =>
+          (m.subject || "").toLowerCase().includes(q) ||
+          (m.from || "").toLowerCase().includes(q),
       );
     }
     return filtered;
@@ -201,11 +251,20 @@ function MailboxPage() {
   const viewAttachment = useViewTenantMailboxAttachment();
 
   /* ---------- floating attachment viewer ---------- */
-  const [attachmentViewer, setAttachmentViewer] = useState<{ url: string; filename: string; mimeType: string; data?: Blob } | null>(null);
+  const [attachmentViewer, setAttachmentViewer] = useState<{
+    url: string;
+    filename: string;
+    mimeType: string;
+    data?: Blob;
+  } | null>(null);
   const [showEmailBody, setShowEmailBody] = useState(false);
   const autoOpenedMessageId = useRef<string | null>(null);
 
-  const openAttachmentViewer = async (attachmentId: string, filename: string, mimeType: string) => {
+  const openAttachmentViewer = async (
+    attachmentId: string,
+    filename: string,
+    mimeType: string,
+  ) => {
     if (!selectedConnection || !selectedMessageId) return;
     // Revoke old URL if still open
     if (attachmentViewer?.url) URL.revokeObjectURL(attachmentViewer.url);
@@ -242,10 +301,14 @@ function MailboxPage() {
   }, [attachmentViewer?.url]);
 
   useEffect(() => {
-    if (selectedMessage.data && selectedMessage.data.attachments.length === 1 && autoOpenedMessageId.current !== selectedMessage.data.messageId) {
-       autoOpenedMessageId.current = selectedMessage.data.messageId;
-       const att = selectedMessage.data.attachments[0];
-       openAttachmentViewer(att.attachmentId, att.filename, att.mimeType);
+    if (
+      selectedMessage.data &&
+      selectedMessage.data.attachments.length === 1 &&
+      autoOpenedMessageId.current !== selectedMessage.data.messageId
+    ) {
+      autoOpenedMessageId.current = selectedMessage.data.messageId;
+      const att = selectedMessage.data.attachments[0];
+      openAttachmentViewer(att.attachmentId, att.filename, att.mimeType);
     }
   }, [selectedMessage.data]);
 
@@ -270,7 +333,16 @@ function MailboxPage() {
   const [sortCode, setSortCode] = useState("");
 
   const createIntake = useCreateBillPayIntake();
-  const { data: legalEntitiesData } = useLegalEntities();
+  const legalEntitiesData = entitiesQuery.data;
+  useWorkspaceUnsavedChanges(
+    billPanelOpen &&
+      Boolean(
+        vendorName || description || amount || lineItems.length || attachment,
+      ),
+  );
+  useEffect(() => {
+    if (entities[0]?.baseCurrency) setCurrency(entities[0].baseCurrency);
+  }, [entities[0]?.baseCurrency]);
   const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
 
   /* ---------- resizable bill panel ---------- */
@@ -302,11 +374,13 @@ function MailboxPage() {
       if (selectedMessage.data.receivedAt) {
         setInvoiceDate(new Date(selectedMessage.data.receivedAt));
       }
-      
+
       // Auto-attach if there is exactly 1 attachment
       if (selectedMessage.data.attachments?.length === 1) {
         const att = selectedMessage.data.attachments[0];
-        const placeholderFile = new File([], att.filename, { type: att.mimeType });
+        const placeholderFile = new File([], att.filename, {
+          type: att.mimeType,
+        });
         setAttachment(placeholderFile);
       }
     }
@@ -318,12 +392,19 @@ function MailboxPage() {
   }, []);
 
   /* ---------- drag-and-drop for attachment ---------- */
-  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files?.length > 0) setAttachment(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files?.length > 0)
+      setAttachment(e.dataTransfer.files[0]);
   };
 
   /* ---------- OAuth callback handling ---------- */
@@ -335,11 +416,11 @@ function MailboxPage() {
     router.replace("/bill-pay/mailbox");
   }, [router, searchParams]);
 
-
-
   const handleDownloadAttachment = async (attachmentId: string) => {
     const message = selectedMessage.data;
-    const attachment = message?.attachments.find((item) => item.attachmentId === attachmentId);
+    const attachment = message?.attachments.find(
+      (item) => item.attachmentId === attachmentId,
+    );
     if (!selectedConnection || !message || !attachment) return;
     try {
       await downloadAttachment.mutateAsync({
@@ -380,10 +461,12 @@ function MailboxPage() {
           sortCode,
           invoiceDate,
           dueDate,
-          ...(selectedMessageId && selectedConnection && {
-            sourceMailboxConnectionId: selectedConnection.tenantMailboxConnectionId,
-            sourceMessageId: selectedMessageId,
-          }),
+          ...(selectedMessageId &&
+            selectedConnection && {
+              sourceMailboxConnectionId:
+                selectedConnection.tenantMailboxConnectionId,
+              sourceMessageId: selectedMessageId,
+            }),
         },
       });
       toast.success("Bill submitted successfully");
@@ -398,55 +481,112 @@ function MailboxPage() {
   const showMessagePane = selectedConnection?.status === "connected";
 
   return (
-    <div className="-m-3 sm:-m-5 lg:-m-6 flex flex-col" style={{ height: "calc(100vh - 72px)" }}>
+    <div
+      className="-m-3 sm:-m-5 lg:-m-6 flex flex-col"
+      style={{ height: "calc(100vh - 72px)" }}
+    >
       {/* ── top bar ── */}
       <header className="flex shrink-0 flex-col gap-3 border-b border-black/[0.07] bg-white/80 backdrop-blur-sm px-4 pb-4 pt-4 lg:flex-row lg:items-center lg:justify-between sm:px-6">
         <div className="flex items-center gap-3">
-
           <div>
-            <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-[#10231d] md:text-[22px]">Mailbox</h1>
-            <p className="text-[12px] text-[#718079]">Read vendor emails on demand and create bills from them.</p>
+            <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-[#10231d] md:text-[22px]">
+              Mailbox
+            </h1>
+            <p className="text-[12px] text-[#718079]">
+              Read vendor emails on demand and create bills from them.
+            </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={effectiveEntityId} onValueChange={setSelectedEntityId}>
-            <SelectTrigger className="h-9 w-full rounded-[9px] border-black/[0.08] bg-white px-3 text-[12px] shadow-none sm:w-56">
-              <SelectValue placeholder="Select entity" />
-            </SelectTrigger>
-            <SelectContent className="rounded-[10px] border-black/[0.08]">
-              {entities.map((entity) => (
-                <SelectItem key={entity.legalEntityId} value={entity.legalEntityId} className="rounded-[7px] text-[12px]">
-                  {entity.legalName} · {entity.baseCurrency}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!entitiesQuery.workspaceEnabled && (
+            <Select
+              value={effectiveEntityId}
+              onValueChange={setSelectedEntityId}
+            >
+              <SelectTrigger className="h-9 w-full rounded-[9px] border-black/[0.08] bg-white px-3 text-[12px] shadow-none sm:w-56">
+                <SelectValue placeholder="Select entity" />
+              </SelectTrigger>
+              <SelectContent className="rounded-[10px] border-black/[0.08]">
+                {entities.map((entity) => (
+                  <SelectItem
+                    key={entity.legalEntityId}
+                    value={entity.legalEntityId}
+                    className="rounded-[7px] text-[12px]"
+                  >
+                    {entity.legalName} · {entity.baseCurrency}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {/* Connection Selector */}
-          <Select value={selectedConnectionId} onValueChange={(val) => {
-            setSelectedConnectionId(val);
-            setSelectedMessageId("");
-            closeBillPanel();
-          }}>
-            <SelectTrigger className="h-9 w-full rounded-[9px] border-black/[0.08] bg-white px-3 text-[12px] shadow-none sm:w-56" disabled={connections.length === 0}>
+          <Select
+            value={selectedConnectionId}
+            onValueChange={(val) => {
+              if (
+                entitiesQuery.workspaceEnabled &&
+                workspaceSelection === "all"
+              ) {
+                const connection = connections.find(
+                  (item) => item.tenantMailboxConnectionId === val,
+                );
+                if (connection) {
+                  router.replace(
+                    `/bill-pay/mailbox?connection=${encodeURIComponent(val)}`,
+                  );
+                  useEntityWorkspaceStore
+                    .getState()
+                    .select(connection.legalEntity.legalEntityId);
+                }
+                return;
+              }
+              setSelectedConnectionId(val);
+              setSelectedMessageId("");
+              closeBillPanel();
+            }}
+          >
+            <SelectTrigger
+              className="h-9 w-full rounded-[9px] border-black/[0.08] bg-white px-3 text-[12px] shadow-none sm:w-56"
+              disabled={connections.length === 0}
+            >
               <SelectValue placeholder="Select mailbox" />
             </SelectTrigger>
             <SelectContent className="rounded-[10px] border-black/[0.08]">
               {connections.map((conn) => (
-                <SelectItem key={conn.tenantMailboxConnectionId} value={conn.tenantMailboxConnectionId} className="rounded-[7px] text-[12px]">
+                <SelectItem
+                  key={conn.tenantMailboxConnectionId}
+                  value={conn.tenantMailboxConnectionId}
+                  className="rounded-[7px] text-[12px]"
+                >
                   {conn.maskedMailboxAddress}
+                  {workspaceSelection === "all"
+                    ? ` · ${conn.legalEntity.legalName}`
+                    : ""}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          <Button variant="outline" size="icon" onClick={() => connectionsQuery.refetch()} disabled={!effectiveEntityId || connectionsQuery.isFetching} className="size-9 rounded-[9px] border-black/[0.08] bg-white text-[#64716c] shadow-none hover:bg-[#f3f8f6] hover:text-[#087f70]">
-            <RefreshCcw className={`size-3.5 ${connectionsQuery.isFetching ? "animate-spin" : ""}`} />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => connectionsQuery.refetch()}
+            disabled={!effectiveEntityId || connectionsQuery.isFetching}
+            className="size-9 rounded-[9px] border-black/[0.08] bg-white text-[#64716c] shadow-none hover:bg-[#f3f8f6] hover:text-[#087f70]"
+          >
+            <RefreshCcw
+              className={`size-3.5 ${connectionsQuery.isFetching ? "animate-spin" : ""}`}
+            />
           </Button>
 
           {policies.billPay.canManageMailboxConnections && (
-            <Button onClick={() => router.push("/bill-pay/settings?tab=mailboxes")} variant="outline" className="h-9 rounded-[9px] px-3.5 text-[11px] font-semibold shadow-none border-black/[0.08] text-[#64716c]">
+            <Button
+              onClick={() => router.push("/bill-pay/settings?tab=mailboxes")}
+              variant="outline"
+              className="h-9 rounded-[9px] px-3.5 text-[11px] font-semibold shadow-none border-black/[0.08] text-[#64716c]"
+            >
               <ShieldCheck className="size-3.5 mr-2" />
               Manage Settings
             </Button>
@@ -460,28 +600,42 @@ function MailboxPage() {
           <Loader2 className="size-6 animate-spin text-[#9aaba3]" />
         </div>
       ) : entities.length === 0 ? (
-        <EmptyState title="No accounting-ready entity" detail="Activate accounting readiness for a legal entity before connecting a mailbox." />
+        <EmptyState
+          title="No accounting-ready entity"
+          detail="Activate accounting readiness for a legal entity before connecting a mailbox."
+        />
       ) : !effectiveEntityId ? (
-        <EmptyState title="Select a legal entity" detail="Choose the entity that owns the mailbox." />
+        <EmptyState
+          title="Select a legal entity"
+          detail="Choose the entity that owns the mailbox."
+        />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-
-
           {/* ── 3-pane area ── */}
           {showMessagePane ? (
             <div className="flex min-h-0 flex-1 relative">
               {/* ─── Left: message list ─── */}
-              <div className={`flex shrink-0 flex-col border-r border-black/[0.07] bg-white transition-all ${billPanelOpen ? "w-[220px]" : "w-[280px] lg:w-[320px]"}`}>
+              <div
+                className={`flex shrink-0 flex-col border-r border-black/[0.07] bg-white transition-all ${billPanelOpen ? "w-[220px]" : "w-[280px] lg:w-[320px]"}`}
+              >
                 <div className="shrink-0 border-b border-black/[0.07] px-3 py-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-[13px] font-semibold text-[#10231d]">Messages</h2>
-                      <p className="mt-0.5 truncate text-[10px] text-[#718079]">{selectedConnection?.maskedMailboxAddress}</p>
+                      <h2 className="text-[13px] font-semibold text-[#10231d]">
+                        Messages
+                      </h2>
+                      <p className="mt-0.5 truncate text-[10px] text-[#718079]">
+                        {selectedConnection?.maskedMailboxAddress}
+                      </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setFilterBillsOnly((v) => !v)}
-                      title={filterBillsOnly ? "Showing bill-related only — click to show all" : "Click to show bill-related emails only"}
+                      title={
+                        filterBillsOnly
+                          ? "Showing bill-related only — click to show all"
+                          : "Click to show bill-related emails only"
+                      }
                       className={`flex items-center gap-1 rounded-[6px] px-2 py-1 text-[10px] font-semibold transition-colors ${
                         filterBillsOnly
                           ? "bg-[#087f70] text-white"
@@ -504,17 +658,30 @@ function MailboxPage() {
                 </div>
 
                 {!policies.billPay.canViewMailboxEmail ? (
-                  <div className="p-4 text-[12px] text-[#718079]">You don't have permission to view email content.</div>
+                  <div className="p-4 text-[12px] text-[#718079]">
+                    You don't have permission to view email content.
+                  </div>
                 ) : messagesQuery.isLoading ? (
-                  <div className="flex items-center gap-2 p-4 text-[12px] text-[#718079]"><Loader2 className="size-3.5 animate-spin" /> Loading…</div>
+                  <div className="flex items-center gap-2 p-4 text-[12px] text-[#718079]">
+                    <Loader2 className="size-3.5 animate-spin" /> Loading…
+                  </div>
                 ) : messageSummaries.length === 0 ? (
                   <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
                     <Search className="size-5 text-[#b0bbb5] mb-2" />
                     <p className="text-[12px] text-[#718079]">
-                      {allMessages.length > 0 && (searchTerm || filterBillsOnly) ? "No emails match your filter." : "No messages returned."}
+                      {allMessages.length > 0 && (searchTerm || filterBillsOnly)
+                        ? "No emails match your filter."
+                        : "No messages returned."}
                     </p>
                     {(searchTerm || filterBillsOnly) && (
-                      <button type="button" onClick={() => { setSearchTerm(""); setFilterBillsOnly(false); }} className="mt-2 text-[11px] font-semibold text-[#087f70] hover:text-[#076b5e]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchTerm("");
+                          setFilterBillsOnly(false);
+                        }}
+                        className="mt-2 text-[11px] font-semibold text-[#087f70] hover:text-[#076b5e]"
+                      >
                         Clear filters
                       </button>
                     )}
@@ -525,20 +692,41 @@ function MailboxPage() {
                       <button
                         key={msg.messageId}
                         type="button"
-                        onClick={() => { setSelectedMessageId(msg.messageId); closeBillPanel(); closeAttachmentViewer(); setShowEmailBody(false); }}
+                        onClick={() => {
+                          setSelectedMessageId(msg.messageId);
+                          closeBillPanel();
+                          closeAttachmentViewer();
+                          setShowEmailBody(false);
+                        }}
                         className={`block w-full border-b border-black/[0.05] px-3 py-3 text-left transition-colors ${
-                          selectedMessageId === msg.messageId ? "bg-[#f0faf8]" : "hover:bg-[#f8faf9]"
+                          selectedMessageId === msg.messageId
+                            ? "bg-[#f0faf8]"
+                            : "hover:bg-[#f8faf9]"
                         }`}
                       >
-                        <p className="truncate text-[11px] font-semibold text-[#52605b]">{msg.from || "Unknown"}</p>
-                        <p className="mt-0.5 truncate text-[12px] font-semibold text-[#10231d]">{msg.subject || "No subject"}</p>
-                        <p className="mt-0.5 text-[10px] text-[#84908a]">{dateTime(msg.receivedAt)}</p>
+                        <p className="truncate text-[11px] font-semibold text-[#52605b]">
+                          {msg.from || "Unknown"}
+                        </p>
+                        <p className="mt-0.5 truncate text-[12px] font-semibold text-[#10231d]">
+                          {msg.subject || "No subject"}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-[#84908a]">
+                          {dateTime(msg.receivedAt)}
+                        </p>
                       </button>
                     ))}
                     {messagesQuery.hasNextPage && (
                       <div className="p-2">
-                        <Button variant="outline" size="sm" className="w-full rounded-[8px] text-[11px]" disabled={messagesQuery.isFetchingNextPage} onClick={() => messagesQuery.fetchNextPage()}>
-                          {messagesQuery.isFetchingNextPage ? <Loader2 className="size-3 animate-spin" /> : null}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full rounded-[8px] text-[11px]"
+                          disabled={messagesQuery.isFetchingNextPage}
+                          onClick={() => messagesQuery.fetchNextPage()}
+                        >
+                          {messagesQuery.isFetchingNextPage ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : null}
                           Load more
                         </Button>
                       </div>
@@ -558,9 +746,12 @@ function MailboxPage() {
                     <div className="flex size-14 items-center justify-center rounded-full bg-[#eef2f0]">
                       <Eye className="size-6 text-[#9aaba3]" />
                     </div>
-                    <h3 className="mt-4 text-[13px] font-semibold text-[#10231d]">Select a message</h3>
+                    <h3 className="mt-4 text-[13px] font-semibold text-[#10231d]">
+                      Select a message
+                    </h3>
                     <p className="mt-1.5 max-w-xs text-[12px] leading-4 text-[#718079]">
-                      Click an email on the left to view its contents. You can then create a bill directly from it.
+                      Click an email on the left to view its contents. You can
+                      then create a bill directly from it.
                     </p>
                   </div>
                 ) : selectedMessage.isLoading ? (
@@ -574,53 +765,103 @@ function MailboxPage() {
                         {/* Inline viewer header */}
                         <div className="shrink-0 flex items-center justify-between px-5 py-3 border-b border-black/[0.07] bg-white">
                           <div className="flex items-center gap-3">
-                            <Button variant="ghost" size="icon" onClick={closeAttachmentViewer} className="size-8 text-[#68726d] -ml-2 hover:bg-[#f5f8f7]">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={closeAttachmentViewer}
+                              className="size-8 text-[#68726d] -ml-2 hover:bg-[#f5f8f7]"
+                            >
                               <ArrowLeft className="size-4" />
                             </Button>
                             <FileText className="size-4 text-[#087f70]" />
                             <div className="flex flex-col min-w-0">
-                              <span className="truncate text-[13px] font-semibold text-[#10231d]">{attachmentViewer.filename}</span>
-                              <span className="text-[11px] text-[#718079]">From: {selectedMessage.data.from}</span>
+                              <span className="truncate text-[13px] font-semibold text-[#10231d]">
+                                {attachmentViewer.filename}
+                              </span>
+                              <span className="text-[11px] text-[#718079]">
+                                From: {selectedMessage.data.from}
+                              </span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="icon" className="size-8 text-[#64716c] hover:text-[#087f70]" onClick={() => window.open(attachmentViewer.url, "_blank")} title="Open in new tab">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-[#64716c] hover:text-[#087f70]"
+                              onClick={() =>
+                                window.open(attachmentViewer.url, "_blank")
+                              }
+                              title="Open in new tab"
+                            >
                               <ExternalLink className="size-4" />
                             </Button>
-                            <Button 
+                            <Button
                               onClick={() => {
                                 if (!billPanelOpen) openBillPanel();
-                                const placeholderFile = new File([], attachmentViewer.filename, { type: attachmentViewer.mimeType });
+                                const placeholderFile = new File(
+                                  [],
+                                  attachmentViewer.filename,
+                                  { type: attachmentViewer.mimeType },
+                                );
                                 setAttachment(placeholderFile);
-                                toast.success(`"${attachmentViewer.filename}" attached to bill`);
+                                toast.success(
+                                  `"${attachmentViewer.filename}" attached to bill`,
+                                );
                               }}
                               className={`h-8 rounded-[8px] px-3 text-[11px] font-semibold shadow-none ml-2 ${
-                                billPanelOpen 
-                                  ? "border border-[#087f70] text-[#087f70] bg-white hover:bg-[#f0faf8]" 
+                                billPanelOpen
+                                  ? "border border-[#087f70] text-[#087f70] bg-white hover:bg-[#f0faf8]"
                                   : "bg-[#087f70] hover:bg-[#076b5e] text-white"
                               }`}
                             >
-                              <Plus className="size-3.5 mr-1" /> {billPanelOpen ? "Attach to bill" : "Create bill"}
+                              <Plus className="size-3.5 mr-1" />{" "}
+                              {billPanelOpen ? "Attach to bill" : "Create bill"}
                             </Button>
                           </div>
                         </div>
 
                         {/* Viewer content */}
                         <div className="flex-1 bg-[#f5f7f6] overflow-hidden relative border-b border-black/[0.07]">
-                          {attachmentViewer.mimeType === "application/pdf" || attachmentViewer.filename.toLowerCase().endsWith(".pdf") ? (
-                            <PdfViewer file={attachmentViewer.data || attachmentViewer.url} />
-                          ) : attachmentViewer.mimeType.startsWith("image/") || attachmentViewer.filename.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                          {attachmentViewer.mimeType === "application/pdf" ||
+                          attachmentViewer.filename
+                            .toLowerCase()
+                            .endsWith(".pdf") ? (
+                            <PdfViewer
+                              file={
+                                attachmentViewer.data || attachmentViewer.url
+                              }
+                            />
+                          ) : attachmentViewer.mimeType.startsWith("image/") ||
+                            attachmentViewer.filename
+                              .toLowerCase()
+                              .match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
                             <div className="flex items-center justify-center p-4 h-full">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={attachmentViewer.url} alt={attachmentViewer.filename} className="max-w-full max-h-full object-contain rounded-[6px] shadow-sm" />
+                              <img
+                                src={attachmentViewer.url}
+                                alt={attachmentViewer.filename}
+                                className="max-w-full max-h-full object-contain rounded-[6px] shadow-sm"
+                              />
                             </div>
                           ) : (
                             <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
                               <FileText className="size-10 text-[#b0bbb5]" />
-                              <p className="text-[13px] font-medium text-[#10231d]">{attachmentViewer.filename}</p>
-                              <p className="text-[12px] text-[#718079]">This file type can't be previewed inline.</p>
-                              <Button variant="outline" size="sm" onClick={() => window.open(attachmentViewer.url, "_blank")} className="mt-2 text-[12px]">
-                                <ExternalLink className="size-3.5 mr-1.5" /> Open in new tab
+                              <p className="text-[13px] font-medium text-[#10231d]">
+                                {attachmentViewer.filename}
+                              </p>
+                              <p className="text-[12px] text-[#718079]">
+                                This file type can't be previewed inline.
+                              </p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  window.open(attachmentViewer.url, "_blank")
+                                }
+                                className="mt-2 text-[12px]"
+                              >
+                                <ExternalLink className="size-3.5 mr-1.5" />{" "}
+                                Open in new tab
                               </Button>
                             </div>
                           )}
@@ -628,13 +869,22 @@ function MailboxPage() {
 
                         {/* Email context toggle at bottom */}
                         <div className="shrink-0 bg-white p-4">
-                          <Button onClick={() => setShowEmailBody(!showEmailBody)} variant="outline" className="h-8 rounded-[8px] px-3 text-[11px] font-semibold shadow-none border-black/[0.08] text-[#64716c] bg-white">
-                            {showEmailBody ? <ChevronUp className="size-3.5 mr-1" /> : <ChevronDown className="size-3.5 mr-1" />}
+                          <Button
+                            onClick={() => setShowEmailBody(!showEmailBody)}
+                            variant="outline"
+                            className="h-8 rounded-[8px] px-3 text-[11px] font-semibold shadow-none border-black/[0.08] text-[#64716c] bg-white"
+                          >
+                            {showEmailBody ? (
+                              <ChevronUp className="size-3.5 mr-1" />
+                            ) : (
+                              <ChevronDown className="size-3.5 mr-1" />
+                            )}
                             {showEmailBody ? "Hide email" : "Show email"}
                           </Button>
                           {showEmailBody && (
                             <div className="mt-4 p-5 bg-[#f9faf9] rounded-[10px] border border-black/[0.06] whitespace-pre-wrap text-[13px] leading-6 text-[#34443c] max-h-[300px] overflow-y-auto">
-                              {selectedMessage.data.body || "This message has no readable text body."}
+                              {selectedMessage.data.body ||
+                                "This message has no readable text body."}
                             </div>
                           )}
                         </div>
@@ -645,14 +895,33 @@ function MailboxPage() {
                         <div className="shrink-0 border-b border-black/[0.07] bg-white px-6 py-5">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <h2 className="text-[18px] font-bold text-[#10231d]">{selectedMessage.data.subject || "No subject"}</h2>
+                              <h2 className="text-[18px] font-bold text-[#10231d]">
+                                {selectedMessage.data.subject || "No subject"}
+                              </h2>
                               <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[#718079]">
-                                <div><dt className="inline font-semibold text-[#53635c]">From:</dt> <dd className="inline text-[#10231d]">{selectedMessage.data.from || "Unknown"}</dd></div>
-                                <div><dt className="inline font-semibold text-[#53635c]">Received:</dt> <dd className="inline">{dateTime(selectedMessage.data.receivedAt)}</dd></div>
+                                <div>
+                                  <dt className="inline font-semibold text-[#53635c]">
+                                    From:
+                                  </dt>{" "}
+                                  <dd className="inline text-[#10231d]">
+                                    {selectedMessage.data.from || "Unknown"}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="inline font-semibold text-[#53635c]">
+                                    Received:
+                                  </dt>{" "}
+                                  <dd className="inline">
+                                    {dateTime(selectedMessage.data.receivedAt)}
+                                  </dd>
+                                </div>
                               </dl>
                             </div>
                             {!billPanelOpen && (
-                              <Button onClick={openBillPanel} className="shrink-0 h-9 rounded-[8px] px-4 text-[12px] font-semibold shadow-none bg-[#087f70] hover:bg-[#076b5e] text-white">
+                              <Button
+                                onClick={openBillPanel}
+                                className="shrink-0 h-9 rounded-[8px] px-4 text-[12px] font-semibold shadow-none bg-[#087f70] hover:bg-[#076b5e] text-white"
+                              >
                                 <Plus className="size-3.5 mr-1.5" /> Create bill
                               </Button>
                             )}
@@ -663,38 +932,87 @@ function MailboxPage() {
                         <div className="flex-1 overflow-y-auto p-6 bg-[#f4f7f5]">
                           {selectedMessage.data.attachments.length > 0 ? (
                             <div className="mb-8">
-                              <h3 className="text-[14px] font-bold text-[#10231d] mb-4">Attachments ({selectedMessage.data.attachments.length})</h3>
+                              <h3 className="text-[14px] font-bold text-[#10231d] mb-4">
+                                Attachments (
+                                {selectedMessage.data.attachments.length})
+                              </h3>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {selectedMessage.data.attachments.map((att) => {
-                                  const isInvoice = isLikelyBillEmail(selectedMessage.data) && att.filename.toLowerCase().includes('invoice');
-                                  const isPo = att.filename.toLowerCase().includes('po') || att.filename.toLowerCase().includes('purchase');
-                                  
+                                  const isInvoice =
+                                    isLikelyBillEmail(selectedMessage.data) &&
+                                    att.filename
+                                      .toLowerCase()
+                                      .includes("invoice");
+                                  const isPo =
+                                    att.filename.toLowerCase().includes("po") ||
+                                    att.filename
+                                      .toLowerCase()
+                                      .includes("purchase");
+
                                   return (
-                                    <div key={att.attachmentId} onClick={() => openAttachmentViewer(att.attachmentId, att.filename, att.mimeType)} className="group cursor-pointer flex items-center justify-between gap-3 rounded-[10px] border border-black/[0.08] bg-white p-4 hover:border-[#087f70]/40 hover:shadow-sm transition-all">
+                                    <div
+                                      key={att.attachmentId}
+                                      onClick={() =>
+                                        openAttachmentViewer(
+                                          att.attachmentId,
+                                          att.filename,
+                                          att.mimeType,
+                                        )
+                                      }
+                                      className="group cursor-pointer flex items-center justify-between gap-3 rounded-[10px] border border-black/[0.08] bg-white p-4 hover:border-[#087f70]/40 hover:shadow-sm transition-all"
+                                    >
                                       <div className="flex items-start gap-3 min-w-0">
                                         <div className="mt-0.5">
                                           <FileText className="size-5 text-[#087f70]" />
                                         </div>
                                         <div className="flex flex-col min-w-0">
-                                          <span className="truncate text-[13px] font-semibold text-[#10231d]">{att.filename}</span>
+                                          <span className="truncate text-[13px] font-semibold text-[#10231d]">
+                                            {att.filename}
+                                          </span>
                                           <span className="text-[11px] text-[#718079] mt-0.5">
-                                            {isInvoice ? 'Invoice' : isPo ? 'Purchase Order' : 'Document'}
+                                            {isInvoice
+                                              ? "Invoice"
+                                              : isPo
+                                                ? "Purchase Order"
+                                                : "Document"}
                                           </span>
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-1 transition-opacity">
                                         <div className="relative group/btn flex items-center justify-center">
-                                          <Button variant="ghost" size="icon" className="size-7 text-[#68726d] hover:text-[#087f70] hover:bg-[#f5f8f7]" onClick={(e) => { e.stopPropagation(); openAttachmentViewer(att.attachmentId, att.filename, att.mimeType); }}>
-                                            <Eye className="size-3.5"/>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="size-7 text-[#68726d] hover:text-[#087f70] hover:bg-[#f5f8f7]"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openAttachmentViewer(
+                                                att.attachmentId,
+                                                att.filename,
+                                                att.mimeType,
+                                              );
+                                            }}
+                                          >
+                                            <Eye className="size-3.5" />
                                           </Button>
                                           <div className="absolute -top-8 rounded-[6px] bg-[#10231d] px-2.5 py-1 text-[10px] font-semibold text-white opacity-0 transition-all duration-200 group-hover/btn:opacity-100 pointer-events-none whitespace-nowrap shadow-md z-10 scale-95 group-hover/btn:scale-100">
                                             View document
                                           </div>
                                         </div>
-                                        
+
                                         <div className="relative group/btn flex items-center justify-center">
-                                          <Button variant="ghost" size="icon" className="size-7 text-[#68726d] hover:text-[#087f70] hover:bg-[#f5f8f7]" onClick={(e) => { e.stopPropagation(); handleDownloadAttachment(att.attachmentId); }}>
-                                            <Download className="size-3.5"/>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="size-7 text-[#68726d] hover:text-[#087f70] hover:bg-[#f5f8f7]"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDownloadAttachment(
+                                                att.attachmentId,
+                                              );
+                                            }}
+                                          >
+                                            <Download className="size-3.5" />
                                           </Button>
                                           <div className="absolute -top-8 rounded-[6px] bg-[#10231d] px-2.5 py-1 text-[10px] font-semibold text-white opacity-0 transition-all duration-200 group-hover/btn:opacity-100 pointer-events-none whitespace-nowrap shadow-md z-10 scale-95 group-hover/btn:scale-100">
                                             Download
@@ -702,14 +1020,26 @@ function MailboxPage() {
                                         </div>
 
                                         <div className="relative group/btn flex items-center justify-center">
-                                          <Button variant="ghost" size="icon" className="size-7 text-[#087f70] hover:bg-[#f0faf8]" onClick={(e) => { 
-                                            e.stopPropagation(); 
-                                            if (!billPanelOpen) openBillPanel();
-                                            const placeholderFile = new File([], att.filename, { type: att.mimeType });
-                                            setAttachment(placeholderFile);
-                                            toast.success(`"${att.filename}" attached to bill`);
-                                          }}>
-                                            <Plus className="size-3.5"/>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="size-7 text-[#087f70] hover:bg-[#f0faf8]"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (!billPanelOpen)
+                                                openBillPanel();
+                                              const placeholderFile = new File(
+                                                [],
+                                                att.filename,
+                                                { type: att.mimeType },
+                                              );
+                                              setAttachment(placeholderFile);
+                                              toast.success(
+                                                `"${att.filename}" attached to bill`,
+                                              );
+                                            }}
+                                          >
+                                            <Plus className="size-3.5" />
                                           </Button>
                                           <div className="absolute -top-8 rounded-[6px] bg-[#087f70] px-2.5 py-1 text-[10px] font-bold text-white opacity-0 transition-all duration-200 group-hover/btn:opacity-100 pointer-events-none whitespace-nowrap shadow-md z-10 scale-95 group-hover/btn:scale-100">
                                             Attach to bill
@@ -726,23 +1056,38 @@ function MailboxPage() {
                               <div className="flex size-10 items-center justify-center rounded-full bg-[#f5f8f7] mx-auto mb-3">
                                 <Paperclip className="size-5 text-[#9aaba3]" />
                               </div>
-                              <p className="text-[13px] font-bold text-[#10231d]">No attachments</p>
-                              <p className="mt-1 text-[12px] text-[#718079] max-w-sm mx-auto">This message doesn't have any attached files. You can still create a bill manually from the email details.</p>
+                              <p className="text-[13px] font-bold text-[#10231d]">
+                                No attachments
+                              </p>
+                              <p className="mt-1 text-[12px] text-[#718079] max-w-sm mx-auto">
+                                This message doesn't have any attached files.
+                                You can still create a bill manually from the
+                                email details.
+                              </p>
                             </div>
                           )}
 
                           {/* Email Body Area (SECONDARY) */}
                           <div className="border-t border-black/[0.06] pt-6">
                             <div className="flex items-center gap-3 mb-4">
-                              <Button onClick={() => setShowEmailBody(!showEmailBody)} variant="outline" className="h-8 rounded-[8px] px-3 text-[11px] font-semibold shadow-none border-black/[0.08] text-[#64716c] bg-white hover:bg-[#f9faf9]">
-                                {showEmailBody ? <ChevronUp className="size-3.5 mr-1" /> : <ChevronDown className="size-3.5 mr-1" />}
+                              <Button
+                                onClick={() => setShowEmailBody(!showEmailBody)}
+                                variant="outline"
+                                className="h-8 rounded-[8px] px-3 text-[11px] font-semibold shadow-none border-black/[0.08] text-[#64716c] bg-white hover:bg-[#f9faf9]"
+                              >
+                                {showEmailBody ? (
+                                  <ChevronUp className="size-3.5 mr-1" />
+                                ) : (
+                                  <ChevronDown className="size-3.5 mr-1" />
+                                )}
                                 {showEmailBody ? "Hide email" : "Show email"}
                               </Button>
                             </div>
-                            
+
                             {showEmailBody && (
                               <div className="p-5 bg-white rounded-[10px] border border-black/[0.06] shadow-sm whitespace-pre-wrap text-[13px] leading-6 text-[#34443c]">
-                                {selectedMessage.data.body || "This message has no readable text body."}
+                                {selectedMessage.data.body ||
+                                  "This message has no readable text body."}
                               </div>
                             )}
                           </div>
@@ -770,7 +1115,10 @@ function MailboxPage() {
 
               {/* ─── Right: inline Add Bill panel (resizable) ─── */}
               {billPanelOpen && (
-                <div className="flex shrink-0 flex-col border-l border-black/[0.07] bg-white" style={{ width: billPanelResize.width }}>
+                <div
+                  className="flex shrink-0 flex-col border-l border-black/[0.07] bg-white"
+                  style={{ width: billPanelResize.width }}
+                >
                   {/* panel header */}
                   <div className="flex shrink-0 items-center justify-between border-b border-black/[0.07] px-5 py-4">
                     <div>
@@ -778,7 +1126,12 @@ function MailboxPage() {
                         Create bill from email
                       </h3>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={closeBillPanel} className="size-8 rounded-[8px] text-[#68726d] hover:text-[#10231d]">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={closeBillPanel}
+                      className="size-8 rounded-[8px] text-[#68726d] hover:text-[#10231d]"
+                    >
                       <X className="size-4" />
                     </Button>
                   </div>
@@ -791,12 +1144,20 @@ function MailboxPage() {
                       { n: 3, label: "Payment Details" },
                     ].map(({ n, label }) => (
                       <div key={n} className="flex items-center gap-2">
-                        <div className={`flex size-6 items-center justify-center rounded-full text-xs font-medium ${
-                          billStep === n ? "bg-[#087f70] text-white" : billStep > n ? "bg-[#e8f8f5] text-[#087f70]" : "bg-black/[0.06] text-[#68726d]"
-                        }`}>
+                        <div
+                          className={`flex size-6 items-center justify-center rounded-full text-xs font-medium ${
+                            billStep === n
+                              ? "bg-[#087f70] text-white"
+                              : billStep > n
+                                ? "bg-[#e8f8f5] text-[#087f70]"
+                                : "bg-black/[0.06] text-[#68726d]"
+                          }`}
+                        >
                           {n}
                         </div>
-                        <span className={`text-[12px] ${billStep === n ? "text-[#0b100e] font-medium" : "text-[#68726d]"}`}>
+                        <span
+                          className={`text-[12px] ${billStep === n ? "text-[#0b100e] font-medium" : "text-[#68726d]"}`}
+                        >
                           {label}
                         </span>
                         {n < 3 && <div className="h-px w-6 bg-black/[0.06]" />}
@@ -813,33 +1174,67 @@ function MailboxPage() {
                           {attachment && (
                             <div className="flex items-center gap-2 rounded-[8px] border border-[#087f70]/20 bg-[#f0faf8] px-3 py-2.5">
                               <FileText className="size-4 text-[#087f70]" />
-                              <span className="flex-1 truncate text-[13px] font-medium text-[#10231d]">{attachment.name}</span>
-                              <button type="button" onClick={() => setAttachment(null)} className="text-[#84908a] hover:text-[#b6373e]">
+                              <span className="flex-1 truncate text-[13px] font-medium text-[#10231d]">
+                                {attachment.name}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setAttachment(null)}
+                                className="text-[#84908a] hover:text-[#b6373e]"
+                              >
                                 <X className="size-3.5" />
                               </button>
                             </div>
                           )}
 
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Invoice Date <span className="text-[#b6373e]">*</span></label>
-                            <DatePicker date={invoiceDate} setDate={setInvoiceDate} className="rounded-[8px] border-black/[0.08] text-[13px]" />
+                            <label className="text-[13px] font-medium text-[#10231d]">
+                              Invoice Date{" "}
+                              <span className="text-[#b6373e]">*</span>
+                            </label>
+                            <DatePicker
+                              date={invoiceDate}
+                              setDate={setInvoiceDate}
+                              className="rounded-[8px] border-black/[0.08] text-[13px]"
+                            />
                           </div>
 
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Vendor Name <span className="text-[#b6373e]">*</span></label>
-                            <Input placeholder="e.g. Acme Corp" value={vendorName} onChange={(e) => setVendorName(e.target.value)} className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" />
+                            <label className="text-[13px] font-medium text-[#10231d]">
+                              Vendor Name{" "}
+                              <span className="text-[#b6373e]">*</span>
+                            </label>
+                            <Input
+                              placeholder="e.g. Acme Corp"
+                              value={vendorName}
+                              onChange={(e) => setVendorName(e.target.value)}
+                              className="h-10 rounded-[8px] border-black/[0.08] text-[13px]"
+                            />
                           </div>
 
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Purchase Description <span className="text-[#b6373e]">*</span></label>
-                            <Input placeholder="e.g. Office supplies" value={description} onChange={(e) => setDescription(e.target.value)} className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" />
+                            <label className="text-[13px] font-medium text-[#10231d]">
+                              Purchase Description{" "}
+                              <span className="text-[#b6373e]">*</span>
+                            </label>
+                            <Input
+                              placeholder="e.g. Office supplies"
+                              value={description}
+                              onChange={(e) => setDescription(e.target.value)}
+                              className="h-10 rounded-[8px] border-black/[0.08] text-[13px]"
+                            />
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                              <label className="text-[13px] font-medium text-[#10231d]">Amount <span className="text-[#b6373e]">*</span></label>
+                              <label className="text-[13px] font-medium text-[#10231d]">
+                                Amount <span className="text-[#b6373e]">*</span>
+                              </label>
                               <div className="flex h-10 rounded-[8px] border border-black/[0.08] focus-within:border-black/[0.16] focus-within:ring-1 focus-within:ring-black/[0.08] overflow-hidden bg-white shadow-sm transition-shadow">
-                                <Select value={currency} onValueChange={setCurrency}>
+                                <Select
+                                  value={currency}
+                                  onValueChange={setCurrency}
+                                >
                                   <SelectTrigger className="h-full w-[85px] border-0 rounded-none shadow-none focus:ring-0 text-[13px] font-medium bg-[#f9faf9] border-r border-black/[0.08]">
                                     <SelectValue />
                                   </SelectTrigger>
@@ -850,50 +1245,117 @@ function MailboxPage() {
                                     <SelectItem value="EUR">EUR</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                <Input type="number" placeholder="Enter amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-full border-0 rounded-none shadow-none focus-visible:ring-0 text-[13px] flex-1 bg-transparent" />
+                                <Input
+                                  type="number"
+                                  placeholder="Enter amount"
+                                  value={amount}
+                                  onChange={(e) => setAmount(e.target.value)}
+                                  className="h-full border-0 rounded-none shadow-none focus-visible:ring-0 text-[13px] flex-1 bg-transparent"
+                                />
                               </div>
                             </div>
                             <div className="space-y-1.5">
-                              <label className="text-[13px] font-medium text-[#10231d]">Due Date <span className="text-[#b6373e]">*</span></label>
-                              <DatePicker date={dueDate} setDate={setDueDate} className="rounded-[8px] border-black/[0.08] text-[13px]" />
+                              <label className="text-[13px] font-medium text-[#10231d]">
+                                Due Date{" "}
+                                <span className="text-[#b6373e]">*</span>
+                              </label>
+                              <DatePicker
+                                date={dueDate}
+                                setDate={setDueDate}
+                                className="rounded-[8px] border-black/[0.08] text-[13px]"
+                              />
                             </div>
                           </div>
 
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Purchase Order (Optional)</label>
-                            <Input placeholder="e.g. PO-1234" value={purchaseOrder} onChange={(e) => setPurchaseOrder(e.target.value)} className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" />
+                            <label className="text-[13px] font-medium text-[#10231d]">
+                              Purchase Order (Optional)
+                            </label>
+                            <Input
+                              placeholder="e.g. PO-1234"
+                              value={purchaseOrder}
+                              onChange={(e) => setPurchaseOrder(e.target.value)}
+                              className="h-10 rounded-[8px] border-black/[0.08] text-[13px]"
+                            />
                           </div>
 
                           {/* Drag-and-drop attachment area */}
                           <div className="space-y-1.5">
-                            <label htmlFor="bill-attachment-upload" className="text-[13px] font-medium text-[#10231d] cursor-pointer hover:text-[#087f70] transition-colors">Attachment (Optional)</label>
-                            <p className="text-[12px] text-[#68726d] mb-2">Attach a document, or use <strong className="text-[#087f70]">+</strong> on an email attachment above.</p>
+                            <label
+                              htmlFor="bill-attachment-upload"
+                              className="text-[13px] font-medium text-[#10231d] cursor-pointer hover:text-[#087f70] transition-colors"
+                            >
+                              Attachment (Optional)
+                            </label>
+                            <p className="text-[12px] text-[#68726d] mb-2">
+                              Attach a document, or use{" "}
+                              <strong className="text-[#087f70]">+</strong> on
+                              an email attachment above.
+                            </p>
 
-                            <input type="file" id="bill-attachment-upload" className="hidden" accept=".pdf,image/jpeg,image/png" onChange={(e) => { if (e.target.files?.[0]) setAttachment(e.target.files[0]); }} />
+                            <input
+                              type="file"
+                              id="bill-attachment-upload"
+                              className="hidden"
+                              accept=".pdf,image/jpeg,image/png"
+                              onChange={(e) => {
+                                if (e.target.files?.[0])
+                                  setAttachment(e.target.files[0]);
+                              }}
+                            />
 
                             <div
                               onDragOver={handleDragOver}
                               onDragLeave={handleDragLeave}
                               onDrop={handleDrop}
-                              onClick={() => document.getElementById("bill-attachment-upload")?.click()}
+                              onClick={() =>
+                                document
+                                  .getElementById("bill-attachment-upload")
+                                  ?.click()
+                              }
                               className={`border border-dashed rounded-[10px] p-6 flex items-center justify-between transition-colors cursor-pointer ${
-                                isDragging ? "border-[#087f70] bg-[#f0faf8]" : "border-black/[0.12] bg-[#f9faf9] hover:bg-[#f5f7f6]"
+                                isDragging
+                                  ? "border-[#087f70] bg-[#f0faf8]"
+                                  : "border-black/[0.12] bg-[#f9faf9] hover:bg-[#f5f7f6]"
                               }`}
                             >
                               <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 bg-white rounded-[8px] flex items-center justify-center border border-black/[0.08] text-[#84908a] shadow-sm">
-                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                  <svg
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                  </svg>
                                 </div>
                                 <div>
                                   {attachment ? (
                                     <>
-                                      <p className="text-[13px] font-medium text-[#10231d] truncate max-w-[180px]">{attachment.name}</p>
-                                      <p className="text-[12px] text-[#68726d]">{attachment.size ? `${(attachment.size / 1024 / 1024).toFixed(2)} MB` : "From email"}</p>
+                                      <p className="text-[13px] font-medium text-[#10231d] truncate max-w-[180px]">
+                                        {attachment.name}
+                                      </p>
+                                      <p className="text-[12px] text-[#68726d]">
+                                        {attachment.size
+                                          ? `${(attachment.size / 1024 / 1024).toFixed(2)} MB`
+                                          : "From email"}
+                                      </p>
                                     </>
                                   ) : (
                                     <>
-                                      <p className="text-[13px] font-medium text-[#10231d]">Upload or drag and drop files</p>
-                                      <p className="text-[12px] text-[#68726d]">PDF, JPG or PNG (max. 10MB)</p>
+                                      <p className="text-[13px] font-medium text-[#10231d]">
+                                        Upload or drag and drop files
+                                      </p>
+                                      <p className="text-[12px] text-[#68726d]">
+                                        PDF, JPG or PNG (max. 10MB)
+                                      </p>
                                     </>
                                   )}
                                 </div>
@@ -901,7 +1363,12 @@ function MailboxPage() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                onClick={(e) => { e.stopPropagation(); document.getElementById("bill-attachment-upload")?.click(); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  document
+                                    .getElementById("bill-attachment-upload")
+                                    ?.click();
+                                }}
                                 className="text-[#087f70] border-[#087f70]/30 h-8 text-xs font-medium bg-white hover:bg-[#f0faf8] hover:text-[#076b5e]"
                               >
                                 {attachment ? "Replace" : "Upload"}
@@ -914,15 +1381,34 @@ function MailboxPage() {
                       {billStep === 2 && (
                         <div className="space-y-6">
                           <div className="flex justify-between items-center">
-                            <h2 className="text-[16px] font-bold text-[#10231d]">Request Items</h2>
-                            <div className="text-[13px] font-medium text-[#68726d]">Total: <span className="font-bold text-[#10231d]">₦{lineItems.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0).toLocaleString()}</span></div>
+                            <h2 className="text-[16px] font-bold text-[#10231d]">
+                              Request Items
+                            </h2>
+                            <div className="text-[13px] font-medium text-[#68726d]">
+                              Total:{" "}
+                              <span className="font-bold text-[#10231d]">
+                                ₦
+                                {lineItems
+                                  .reduce(
+                                    (acc, item) =>
+                                      acc + item.quantity * item.unitPrice,
+                                    0,
+                                  )
+                                  .toLocaleString()}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="border border-black/[0.08] rounded-[10px] bg-white overflow-hidden">
                             {lineItems.length === 0 && !isLineItemModalOpen ? (
                               <div className="text-center py-10 bg-[#f9faf9]">
-                                <p className="text-[13px] text-[#68726d] mb-4">You have no line items.</p>
-                                <Button onClick={() => setIsLineItemModalOpen(true)} className="bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-9 text-[13px] font-semibold">
+                                <p className="text-[13px] text-[#68726d] mb-4">
+                                  You have no line items.
+                                </p>
+                                <Button
+                                  onClick={() => setIsLineItemModalOpen(true)}
+                                  className="bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-9 text-[13px] font-semibold"
+                                >
                                   Add Line Items
                                 </Button>
                               </div>
@@ -932,29 +1418,70 @@ function MailboxPage() {
                                   <>
                                     <div className="flex items-center justify-between mb-4">
                                       <div className="flex items-center gap-2">
-                                        <h3 className="text-[14px] font-bold text-[#10231d]">Items</h3>
-                                        <span className="flex items-center justify-center bg-[#f9faf9] border border-black/[0.08] text-[#10231d] text-[11px] font-bold rounded-full w-5 h-5">{lineItems.length}</span>
+                                        <h3 className="text-[14px] font-bold text-[#10231d]">
+                                          Items
+                                        </h3>
+                                        <span className="flex items-center justify-center bg-[#f9faf9] border border-black/[0.08] text-[#10231d] text-[11px] font-bold rounded-full w-5 h-5">
+                                          {lineItems.length}
+                                        </span>
                                       </div>
                                       {!isLineItemModalOpen && (
-                                        <button onClick={() => setIsLineItemModalOpen(true)} className="flex items-center gap-1.5 text-[13px] font-semibold text-[#087f70] hover:text-[#076b5e] transition-colors">
-                                          <Plus className="w-3.5 h-3.5" /> Add Item(s)
+                                        <button
+                                          onClick={() =>
+                                            setIsLineItemModalOpen(true)
+                                          }
+                                          className="flex items-center gap-1.5 text-[13px] font-semibold text-[#087f70] hover:text-[#076b5e] transition-colors"
+                                        >
+                                          <Plus className="w-3.5 h-3.5" /> Add
+                                          Item(s)
                                         </button>
                                       )}
                                     </div>
                                     <div className="space-y-1 mb-4">
                                       {/* Header Row */}
                                       <div className="flex items-center px-3 py-2 border-b border-black/[0.08] bg-[#f9faf9] rounded-t-[6px]">
-                                        <div className="flex-1 text-[11px] font-bold uppercase tracking-wider text-[#68726d]">Description</div>
-                                        <div className="w-16 text-[11px] font-bold uppercase tracking-wider text-[#68726d]">Qty</div>
-                                        <div className="w-24 text-[11px] font-bold uppercase tracking-wider text-[#68726d]">Unit Price</div>
-                                        <div className="w-6 ml-2"></div> {/* Placeholder for trash icon */}
+                                        <div className="flex-1 text-[11px] font-bold uppercase tracking-wider text-[#68726d]">
+                                          Description
+                                        </div>
+                                        <div className="w-16 text-[11px] font-bold uppercase tracking-wider text-[#68726d]">
+                                          Qty
+                                        </div>
+                                        <div className="w-24 text-[11px] font-bold uppercase tracking-wider text-[#68726d]">
+                                          Unit Price
+                                        </div>
+                                        <div className="w-6 ml-2"></div>{" "}
+                                        {/* Placeholder for trash icon */}
                                       </div>
                                       {lineItems.map((item, idx) => (
-                                        <div key={idx} className="flex items-center px-3 py-3 border-b border-black/[0.04] last:border-0 hover:bg-[#f9faf9]/50 transition-colors rounded-[6px]">
-                                          <div className="flex-1 text-[13px] font-bold text-[#10231d]">{item.description}</div>
-                                          <div className="w-16 text-[13px] font-semibold text-[#10231d]">{item.quantity}</div>
-                                          <div className="w-24 text-[13px] font-medium text-[#68726d]">{item.unitPrice?.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })}</div>
-                                          <button onClick={() => setLineItems((prev) => prev.filter((_, i) => i !== idx))} className="text-[#d33d44] hover:text-red-700 transition-colors p-1 ml-2">
+                                        <div
+                                          key={idx}
+                                          className="flex items-center px-3 py-3 border-b border-black/[0.04] last:border-0 hover:bg-[#f9faf9]/50 transition-colors rounded-[6px]"
+                                        >
+                                          <div className="flex-1 text-[13px] font-bold text-[#10231d]">
+                                            {item.description}
+                                          </div>
+                                          <div className="w-16 text-[13px] font-semibold text-[#10231d]">
+                                            {item.quantity}
+                                          </div>
+                                          <div className="w-24 text-[13px] font-medium text-[#68726d]">
+                                            {item.unitPrice?.toLocaleString(
+                                              undefined,
+                                              {
+                                                minimumFractionDigits: 1,
+                                                maximumFractionDigits: 2,
+                                              },
+                                            )}
+                                          </div>
+                                          <button
+                                            onClick={() =>
+                                              setLineItems((prev) =>
+                                                prev.filter(
+                                                  (_, i) => i !== idx,
+                                                ),
+                                              )
+                                            }
+                                            className="text-[#d33d44] hover:text-red-700 transition-colors p-1 ml-2"
+                                          >
                                             <Trash2 className="w-4 h-4" />
                                           </button>
                                         </div>
@@ -962,15 +1489,23 @@ function MailboxPage() {
                                     </div>
                                   </>
                                 )}
-                                
+
                                 {isLineItemModalOpen && (
-                                  <div className={lineItems.length > 0 ? "pt-2 border-t border-black/[0.08]" : ""}>
-                                    <InlineLineItemForm 
+                                  <div
+                                    className={
+                                      lineItems.length > 0
+                                        ? "pt-2 border-t border-black/[0.08]"
+                                        : ""
+                                    }
+                                  >
+                                    <InlineLineItemForm
                                       onSave={(item) => {
                                         setLineItems((prev) => [...prev, item]);
                                         setIsLineItemModalOpen(false);
                                       }}
-                                      onCancel={() => setIsLineItemModalOpen(false)}
+                                      onCancel={() =>
+                                        setIsLineItemModalOpen(false)
+                                      }
                                     />
                                   </div>
                                 )}
@@ -983,30 +1518,71 @@ function MailboxPage() {
                       {billStep === 3 && (
                         <div className="space-y-4">
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Payment Method</label>
-                            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                              <SelectTrigger className="h-10 rounded-[8px] border-black/[0.08] text-[13px]"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <label className="text-[13px] font-medium text-[#10231d]">
+                              Payment Method
+                            </label>
+                            <Select
+                              value={paymentMethod}
+                              onValueChange={setPaymentMethod}
+                            >
+                              <SelectTrigger className="h-10 rounded-[8px] border-black/[0.08] text-[13px]">
+                                <SelectValue placeholder="Select" />
+                              </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                                <SelectItem value="bank_transfer">
+                                  Bank Transfer
+                                </SelectItem>
                                 <SelectItem value="card">Card</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Beneficiary Name</label>
-                            <Input placeholder="Acme Corp" value={beneficiaryName} onChange={(e) => setBeneficiaryName(e.target.value)} className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" />
+                            <label className="text-[13px] font-medium text-[#10231d]">
+                              Beneficiary Name
+                            </label>
+                            <Input
+                              placeholder="Acme Corp"
+                              value={beneficiaryName}
+                              onChange={(e) =>
+                                setBeneficiaryName(e.target.value)
+                              }
+                              className="h-10 rounded-[8px] border-black/[0.08] text-[13px]"
+                            />
                           </div>
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Beneficiary Bank</label>
-                            <Input placeholder="Ocean bank" value={beneficiaryBank} onChange={(e) => setBeneficiaryBank(e.target.value)} className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" />
+                            <label className="text-[13px] font-medium text-[#10231d]">
+                              Beneficiary Bank
+                            </label>
+                            <Input
+                              placeholder="Ocean bank"
+                              value={beneficiaryBank}
+                              onChange={(e) =>
+                                setBeneficiaryBank(e.target.value)
+                              }
+                              className="h-10 rounded-[8px] border-black/[0.08] text-[13px]"
+                            />
                           </div>
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Account Number</label>
-                            <Input placeholder="123-43535-53523" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" />
+                            <label className="text-[13px] font-medium text-[#10231d]">
+                              Account Number
+                            </label>
+                            <Input
+                              placeholder="123-43535-53523"
+                              value={accountNumber}
+                              onChange={(e) => setAccountNumber(e.target.value)}
+                              className="h-10 rounded-[8px] border-black/[0.08] text-[13px]"
+                            />
                           </div>
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-[#10231d]">Sort Code (Optional)</label>
-                            <Input placeholder="e.g. 057-XXXXXX" value={sortCode} onChange={(e) => setSortCode(e.target.value)} className="h-10 rounded-[8px] border-black/[0.08] text-[13px]" />
+                            <label className="text-[13px] font-medium text-[#10231d]">
+                              Sort Code (Optional)
+                            </label>
+                            <Input
+                              placeholder="e.g. 057-XXXXXX"
+                              value={sortCode}
+                              onChange={(e) => setSortCode(e.target.value)}
+                              className="h-10 rounded-[8px] border-black/[0.08] text-[13px]"
+                            />
                           </div>
                         </div>
                       )}
@@ -1017,15 +1593,50 @@ function MailboxPage() {
                   <div className="shrink-0 border-t border-black/[0.06] px-5 py-4">
                     <div className="flex justify-end gap-3">
                       {billStep > 1 ? (
-                        <Button variant="outline" onClick={() => setBillStep((s) => s - 1)} className="w-28 h-10 text-[#52605b] border-black/[0.08] rounded-[8px] font-semibold text-[13px] hover:bg-[#f9faf9]">Back</Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setBillStep((s) => s - 1)}
+                          className="w-28 h-10 text-[#52605b] border-black/[0.08] rounded-[8px] font-semibold text-[13px] hover:bg-[#f9faf9]"
+                        >
+                          Back
+                        </Button>
                       ) : (
-                        <Button variant="outline" onClick={closeBillPanel} className="w-28 h-10 text-[#52605b] border-black/[0.08] rounded-[8px] font-semibold text-[13px] hover:bg-[#f9faf9]">Cancel</Button>
+                        <Button
+                          variant="outline"
+                          onClick={closeBillPanel}
+                          className="w-28 h-10 text-[#52605b] border-black/[0.08] rounded-[8px] font-semibold text-[13px] hover:bg-[#f9faf9]"
+                        >
+                          Cancel
+                        </Button>
                       )}
                       {billStep < 3 ? (
-                        <Button onClick={() => setBillStep((s) => s + 1)} disabled={billStep === 1 && (!vendorName.trim() || !description.trim() || !amount.trim() || !invoiceDate || !dueDate)} className="w-28 h-10 bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] font-semibold text-[13px]">Continue</Button>
+                        <Button
+                          onClick={() => setBillStep((s) => s + 1)}
+                          disabled={
+                            billStep === 1 &&
+                            (!vendorName.trim() ||
+                              !description.trim() ||
+                              !amount.trim() ||
+                              !invoiceDate ||
+                              !dueDate)
+                          }
+                          className="w-28 h-10 bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] font-semibold text-[13px]"
+                        >
+                          Continue
+                        </Button>
                       ) : (
-                        <Button onClick={handleSubmitBill} disabled={!beneficiaryName.trim() || !accountNumber.trim() || createIntake.isPending} className="w-40 h-10 bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] font-semibold text-[13px]">
-                          {createIntake.isPending ? "Submitting…" : "Submit for Approval"}
+                        <Button
+                          onClick={handleSubmitBill}
+                          disabled={
+                            !beneficiaryName.trim() ||
+                            !accountNumber.trim() ||
+                            createIntake.isPending
+                          }
+                          className="w-40 h-10 bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] font-semibold text-[13px]"
+                        >
+                          {createIntake.isPending
+                            ? "Submitting…"
+                            : "Submit for Approval"}
                         </Button>
                       )}
                     </div>
@@ -1045,15 +1656,22 @@ function MailboxPage() {
                 <Mail className="size-6 text-[#9aaba3]" />
               </div>
               <h3 className="mt-4 text-[13px] font-semibold text-[#10231d]">
-                {connections.length === 0 ? "No mailboxes connected" : "Select a mailbox"}
+                {connections.length === 0
+                  ? "No mailboxes connected"
+                  : "Select a mailbox"}
               </h3>
               <p className="mt-1.5 max-w-sm text-[12px] text-[#718079]">
-                {connections.length === 0 
+                {connections.length === 0
                   ? "Go to settings to connect an accounts-payable Gmail."
                   : "Select a mailbox from the top right dropdown to view its messages."}
               </p>
               {connections.length === 0 && (
-                <Button onClick={() => router.push("/bill-pay/settings?tab=mailboxes")} className="mt-4 bg-[#087f70] hover:bg-[#076b5e] text-white h-9 rounded-[8px] px-4 text-[12px] font-semibold shadow-none">
+                <Button
+                  onClick={() =>
+                    router.push("/bill-pay/settings?tab=mailboxes")
+                  }
+                  className="mt-4 bg-[#087f70] hover:bg-[#076b5e] text-white h-9 rounded-[8px] px-4 text-[12px] font-semibold shadow-none"
+                >
                   Go to Settings
                 </Button>
               )}
@@ -1061,7 +1679,6 @@ function MailboxPage() {
           )}
         </div>
       )}
-
     </div>
   );
 }
@@ -1075,12 +1692,20 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
         <Inbox className="size-6 text-[#9aaba3]" />
       </div>
       <h2 className="mt-4 text-[14px] font-semibold text-[#10231d]">{title}</h2>
-      <p className="mt-1.5 max-w-sm text-[12px] leading-4 text-[#718079]">{detail}</p>
+      <p className="mt-1.5 max-w-sm text-[12px] leading-4 text-[#718079]">
+        {detail}
+      </p>
     </div>
   );
 }
 
-function InlineLineItemForm({ onSave, onCancel }: { onSave: (item: any) => void; onCancel: () => void }) {
+function InlineLineItemForm({
+  onSave,
+  onCancel,
+}: {
+  onSave: (item: any) => void;
+  onCancel: () => void;
+}) {
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
@@ -1099,24 +1724,59 @@ function InlineLineItemForm({ onSave, onCancel }: { onSave: (item: any) => void;
 
   return (
     <div className="border border-black/[0.08] rounded-[10px] bg-white p-4 space-y-4">
-      <h3 className="text-[14px] font-bold text-[#10231d] border-b border-black/[0.06] pb-3">Add Line Item</h3>
+      <h3 className="text-[14px] font-bold text-[#10231d] border-b border-black/[0.06] pb-3">
+        Add Line Item
+      </h3>
       <div className="space-y-1.5">
-        <label className="text-[13px] font-medium text-[#10231d]">Description <span className="text-[#d33d44]">*</span></label>
-        <Input placeholder="e.g. Dell XPS Laptop" value={description} onChange={(e) => setDescription(e.target.value)} className="h-9 rounded-[8px] border-black/[0.08] text-[13px] shadow-none focus-visible:ring-1 focus-visible:ring-[#087f70]" />
+        <label className="text-[13px] font-medium text-[#10231d]">
+          Description <span className="text-[#d33d44]">*</span>
+        </label>
+        <Input
+          placeholder="e.g. Dell XPS Laptop"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="h-9 rounded-[8px] border-black/[0.08] text-[13px] shadow-none focus-visible:ring-1 focus-visible:ring-[#087f70]"
+        />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <label className="text-[13px] font-medium text-[#10231d]">Quantity <span className="text-[#d33d44]">*</span></label>
-          <Input type="number" placeholder="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="h-9 rounded-[8px] border-black/[0.08] text-[13px] shadow-none focus-visible:ring-1 focus-visible:ring-[#087f70]" />
+          <label className="text-[13px] font-medium text-[#10231d]">
+            Quantity <span className="text-[#d33d44]">*</span>
+          </label>
+          <Input
+            type="number"
+            placeholder="0"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            className="h-9 rounded-[8px] border-black/[0.08] text-[13px] shadow-none focus-visible:ring-1 focus-visible:ring-[#087f70]"
+          />
         </div>
         <div className="space-y-1.5">
-          <label className="text-[13px] font-medium text-[#10231d]">Unit Price</label>
-          <Input type="number" placeholder="0.00" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className="h-9 rounded-[8px] border-black/[0.08] text-[13px] shadow-none focus-visible:ring-1 focus-visible:ring-[#087f70]" />
+          <label className="text-[13px] font-medium text-[#10231d]">
+            Unit Price
+          </label>
+          <Input
+            type="number"
+            placeholder="0.00"
+            value={unitPrice}
+            onChange={(e) => setUnitPrice(e.target.value)}
+            className="h-9 rounded-[8px] border-black/[0.08] text-[13px] shadow-none focus-visible:ring-1 focus-visible:ring-[#087f70]"
+          />
         </div>
       </div>
       <div className="flex items-center gap-3 pt-2">
-        <Button variant="outline" onClick={onCancel} className="flex-1 h-9 rounded-[8px] text-[13px] font-semibold text-[#52605b] border-black/[0.08] hover:bg-[#f9faf9] shadow-none">Cancel</Button>
-        <Button onClick={handleSave} disabled={!description.trim() || !quantity} className="flex-1 h-9 rounded-[8px] bg-[#087f70] hover:bg-[#076b5e] text-white text-[13px] font-semibold shadow-none">
+        <Button
+          variant="outline"
+          onClick={onCancel}
+          className="flex-1 h-9 rounded-[8px] text-[13px] font-semibold text-[#52605b] border-black/[0.08] hover:bg-[#f9faf9] shadow-none"
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSave}
+          disabled={!description.trim() || !quantity}
+          className="flex-1 h-9 rounded-[8px] bg-[#087f70] hover:bg-[#076b5e] text-white text-[13px] font-semibold shadow-none"
+        >
           Add Item
         </Button>
       </div>
