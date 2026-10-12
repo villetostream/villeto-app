@@ -1,39 +1,43 @@
-import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  UseQueryOptions,
+  UseQueryResult,
+  useQuery,
+} from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { Department } from "./get-all-departments";
 
-
 interface Response {
-    data: Department
-    error: {
-        error: string;
-        message?: string;
-        success: boolean;
-    };
-    message: string;
-    status: number;
-    statusCode: number;
-    statusText: string;
+  data: Department;
+  error: {
+    error: string;
+    message?: string;
+    success: boolean;
+  };
+  message: string;
+  status: number;
+  statusCode: number;
+  statusText: string;
 }
 type Payload = number | string;
 
 export const useGetADepartmentApi = (
-    payload: Payload,
-    options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">
+  payload: Payload,
+  options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">,
 ): UseQueryResult<Response, Error> => {
-    const axiosInstance = useAxios();
+  const axiosInstance = useAxios();
 
-    return useQuery<Response, Error>({
-        queryKey: QUERY_KEYS.people.department(payload),
-        queryFn: async () => {
-            const apiUrl = `${API_KEYS.DEPARTMENT.DEPARTMENTS}${payload}`;
-            const response = await axiosInstance.get(apiUrl);
-            return response.data;
-        },
-        staleTime: STALE_TIMES.SLOW,
-        ...options,
-    });
+  return useQuery<Response, Error>({
+    queryKey: workspaceQueryKey(QUERY_KEYS.people.department(payload)),
+    queryFn: async () => {
+      const apiUrl = `${API_KEYS.DEPARTMENT.DEPARTMENTS}${payload}`;
+      const response = await axiosInstance.get(apiUrl);
+      return response.data;
+    },
+    staleTime: STALE_TIMES.SLOW,
+    ...options,
+  });
 };

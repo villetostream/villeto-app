@@ -1,4 +1,9 @@
-import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  UseQueryOptions,
+  UseQueryResult,
+  useQuery,
+} from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
@@ -92,27 +97,35 @@ export interface GetPoliciesParams {
 
 /* ─── Hook ───────────────────────────────────────────────────────────────── */
 
-async function fetchAllPoliciesLoop(axiosInstance: any, params?: GetPoliciesParams) {
+async function fetchAllPoliciesLoop(
+  axiosInstance: any,
+  params?: GetPoliciesParams,
+) {
   const searchParams = new URLSearchParams();
   if (params?.excludeDrafts !== undefined) {
     searchParams.append("excludeDrafts", params.excludeDrafts.toString());
   }
-  
+
   const queryString = searchParams.toString();
-  const url = queryString ? `${API_KEYS.EXPENSE.POLICIES}?${queryString}` : API_KEYS.EXPENSE.POLICIES;
-  
+  const url = queryString
+    ? `${API_KEYS.EXPENSE.POLICIES}?${queryString}`
+    : API_KEYS.EXPENSE.POLICIES;
+
   const response = await axiosInstance.get(url);
   return response.data;
 }
 
 export const useGetPoliciesApi = (
   params?: GetPoliciesParams,
-  options?: Omit<UseQueryOptions<GetPoliciesResponse, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<GetPoliciesResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<GetPoliciesResponse, Error> => {
   const axiosInstance = useAxios();
 
   return useQuery<GetPoliciesResponse, Error>({
-    queryKey: [...QUERY_KEYS.expenses.policies, params],
+    queryKey: workspaceQueryKey([...QUERY_KEYS.expenses.policies, params]),
     queryFn: async () => {
       return fetchAllPoliciesLoop(axiosInstance, params);
     },

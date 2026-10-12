@@ -1,4 +1,5 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 
 import Image from "next/image";
 import { useState, useEffect, useMemo, type ChangeEvent } from "react";
@@ -30,7 +31,10 @@ import FormFieldCalendar from "../form fields/FormFieldCalendar";
 import { logger } from "@/lib/logger";
 import useModal from "@/hooks/useModal";
 import SuccessModal from "../modals/SuccessModal";
-import { SplitExpense, type SplitExpenseFormValues } from "./split/SplitExpenseform";
+import {
+  SplitExpense,
+  type SplitExpenseFormValues,
+} from "./split/SplitExpenseform";
 import { splitExpenseSchema } from "./split/splitSchema";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAxios } from "@/hooks/useAxios";
@@ -38,13 +42,20 @@ import { API_KEYS } from "@/lib/constants/apis";
 import { Loader2, AlertCircle, Check, Eye, AlertTriangle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidatePersonalExpenseQueries } from "@/lib/react-query/expenses";
-import { getApiErrorMessage, isPolicyViolationError, isDuplicateReceiptError, getDuplicateReceipts, getPolicyErrorsByExpenseIndex, DuplicateReceiptItem } from "@/lib/types/api-error";
+import {
+  getApiErrorMessage,
+  isPolicyViolationError,
+  isDuplicateReceiptError,
+  getDuplicateReceipts,
+  getPolicyErrorsByExpenseIndex,
+  DuplicateReceiptItem,
+} from "@/lib/types/api-error";
 import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 import { CompanyExpenseItemModal } from "@/components/expenses/company/CompanyExpenseItemModal";
-import { PolicyJustificationDrawer, type PolicyRequiredAction } from "@/components/expenses/PolicyJustificationDrawer";
-
-
-
+import {
+  PolicyJustificationDrawer,
+  type PolicyRequiredAction,
+} from "@/components/expenses/PolicyJustificationDrawer";
 
 interface ExpenseCategory {
   categoryId: string;
@@ -175,15 +186,28 @@ export function ManualExpenseForm({
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [policyErrorsByIndex, setPolicyErrorsByIndex] = useState<Record<number, string>>({});
-  const [duplicateErrorsByIndex, setDuplicateErrorsByIndex] = useState<Record<number, DuplicateReceiptItem[]>>({});
-  const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateReceiptItem | null>(null);
+  const [policyErrorsByIndex, setPolicyErrorsByIndex] = useState<
+    Record<number, string>
+  >({});
+  const [duplicateErrorsByIndex, setDuplicateErrorsByIndex] = useState<
+    Record<number, DuplicateReceiptItem[]>
+  >({});
+  const [selectedDuplicate, setSelectedDuplicate] =
+    useState<DuplicateReceiptItem | null>(null);
   // ACTION_REQUIRED policy state
-  const [requiredActionsByIndex, setRequiredActionsByIndex] = useState<Record<number, PolicyRequiredAction>>({});
-  const [justificationsByIndex, setJustificationsByIndex] = useState<Record<number, string>>({});
-  const [drawerOpenForIndex, setDrawerOpenForIndex] = useState<number | null>(null);
+  const [requiredActionsByIndex, setRequiredActionsByIndex] = useState<
+    Record<number, PolicyRequiredAction>
+  >({});
+  const [justificationsByIndex, setJustificationsByIndex] = useState<
+    Record<number, string>
+  >({});
+  const [drawerOpenForIndex, setDrawerOpenForIndex] = useState<number | null>(
+    null,
+  );
   // Controlled accordion: start with first item open; auto-expand flagged items
-  const [openAccordionItems, setOpenAccordionItems] = useState<string[]>(["expense-0"]);
+  const [openAccordionItems, setOpenAccordionItems] = useState<string[]>([
+    "expense-0",
+  ]);
   const searchParams = useSearchParams();
   const reportName = isEditMode
     ? reportDetail?.reportTitle || ""
@@ -200,30 +224,30 @@ export function ManualExpenseForm({
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       const fetchCategories = async () => {
-      try {
-        setIsLoadingCategories(true);
-        const response = await axios.get<CategoryApiResponse>(
-          API_KEYS.EXPENSE.CATEGORIES,
-        );
-        logger.log(response.data);
-        if (response.data?.data && Array.isArray(response.data.data)) {
-          setCategories(response.data.data);
-        } else {
-          toast.error("Failed to load expense categories");
+        try {
+          setIsLoadingCategories(true);
+          const response = await axios.get<CategoryApiResponse>(
+            API_KEYS.EXPENSE.CATEGORIES,
+          );
+          logger.log(response.data);
+          if (response.data?.data && Array.isArray(response.data.data)) {
+            setCategories(response.data.data);
+          } else {
+            toast.error("Failed to load expense categories");
+          }
+        } catch (error: unknown) {
+          logger.error("Error fetching categories:", error);
+          const errorMessage =
+            (error as { response?: { data?: { message?: string } } })?.response
+              ?.data?.message ||
+            "Failed to load expense categories. Please try again.";
+          toast.error(errorMessage);
+        } finally {
+          setIsLoadingCategories(false);
         }
-      } catch (error: unknown) {
-        logger.error("Error fetching categories:", error);
-        const errorMessage =
-          (error as { response?: { data?: { message?: string } } })?.response
-            ?.data?.message ||
-          "Failed to load expense categories. Please try again.";
-        toast.error(errorMessage);
-      } finally {
-        setIsLoadingCategories(false);
-      }
-    };
+      };
 
-    fetchCategories();
+      fetchCategories();
     }, 0);
     return () => clearTimeout(timeoutId);
   }, [axios]);
@@ -260,46 +284,46 @@ export function ManualExpenseForm({
   // Load receipt images and initialize form fields
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-    if (isEditMode && reportDetail && reportDetail.expenses) {
-      // Load existing expenses for edit mode
-      const existingExpenses = reportDetail.expenses.map((expense) => ({
-        title: expense.title || "",
-        vendor: expense.merchantName || "",
-        amount: parseFloat(expense.amount) || 0,
-        transactionDate: new Date(expense.transactionDate),
-        category: expense.categoryName || "",
-        description: expense.description || "",
-        receipt: expense.receiptUrl || "",
-      }));
+      if (isEditMode && reportDetail && reportDetail.expenses) {
+        // Load existing expenses for edit mode
+        const existingExpenses = reportDetail.expenses.map((expense) => ({
+          title: expense.title || "",
+          vendor: expense.merchantName || "",
+          amount: parseFloat(expense.amount) || 0,
+          transactionDate: new Date(expense.transactionDate),
+          category: expense.categoryName || "",
+          description: expense.description || "",
+          receipt: expense.receiptUrl || "",
+        }));
 
-      // Load receipt images
-      const receiptImages = reportDetail.expenses
-        .map((expense) => expense.receiptUrl)
-        .filter((url): url is string => Boolean(url));
-      setFiles(receiptImages);
-      setOriginalFiles([...receiptImages]); // Store original for change detection
+        // Load receipt images
+        const receiptImages = reportDetail.expenses
+          .map((expense) => expense.receiptUrl)
+          .filter((url): url is string => Boolean(url));
+        setFiles(receiptImages);
+        setOriginalFiles([...receiptImages]); // Store original for change detection
 
-      form.reset({ expenses: existingExpenses });
-    } else {
-      const storedImages = sessionStorage.getItem("uploadedReceipts");
-      if (storedImages) {
-        const parsedImages = JSON.parse(storedImages);
-        setFiles(parsedImages);
-        setOriginalFiles([...parsedImages]);
+        form.reset({ expenses: existingExpenses });
+      } else {
+        const storedImages = sessionStorage.getItem("uploadedReceipts");
+        if (storedImages) {
+          const parsedImages = JSON.parse(storedImages);
+          setFiles(parsedImages);
+          setOriginalFiles([...parsedImages]);
 
-        const initialExpenses = parsedImages.map((receipt: string) => {
-          return {
-            ...defaultExpense,
-            title: "",
-            receipt,
-          };
-        });
+          const initialExpenses = parsedImages.map((receipt: string) => {
+            return {
+              ...defaultExpense,
+              title: "",
+              receipt,
+            };
+          });
 
-        if (initialExpenses.length > 0) {
-          form.reset({ expenses: initialExpenses });
+          if (initialExpenses.length > 0) {
+            form.reset({ expenses: initialExpenses });
+          }
         }
       }
-    }
     }, 0);
     return () => clearTimeout(timeoutId);
   }, [isEditMode, reportDetail, form, defaultExpense]);
@@ -322,14 +346,20 @@ export function ManualExpenseForm({
     .map(
       (_, index) => `expenses.${index}.receipt`,
     ) as Array<`expenses.${number}.receipt`>;
-  const receipts = useWatch({ control: form.control, name: receiptFieldsNames });
+  const receipts = useWatch({
+    control: form.control,
+    name: receiptFieldsNames,
+  });
 
   const pendingReceiptFieldsNames = Array(fields.length)
     .fill(null)
     .map(
       (_, index) => `expenses.${index}.pendingReceipt`,
     ) as Array<`expenses.${number}.pendingReceipt`>;
-  const pendingReceipts = useWatch({ control: form.control, name: pendingReceiptFieldsNames });
+  const pendingReceipts = useWatch({
+    control: form.control,
+    name: pendingReceiptFieldsNames,
+  });
 
   const confirmPendingReceipt = (expenseIndex: number) => {
     const pending = form.getValues(`expenses.${expenseIndex}.pendingReceipt`);
@@ -344,16 +374,30 @@ export function ManualExpenseForm({
       shouldDirty: true,
     });
     form.clearErrors(`expenses.${expenseIndex}.receipt`);
-    const pendingExtractionId = form.getValues(`expenses.${expenseIndex}.pendingExtractionId`);
-    form.setValue(`expenses.${expenseIndex}.receiptExtractionId`, pendingExtractionId || "", { shouldDirty: true });
-    
-    form.setValue(`expenses.${expenseIndex}.pendingReceipt`, "", { shouldDirty: true });
-    form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", { shouldDirty: true });
+    const pendingExtractionId = form.getValues(
+      `expenses.${expenseIndex}.pendingExtractionId`,
+    );
+    form.setValue(
+      `expenses.${expenseIndex}.receiptExtractionId`,
+      pendingExtractionId || "",
+      { shouldDirty: true },
+    );
+
+    form.setValue(`expenses.${expenseIndex}.pendingReceipt`, "", {
+      shouldDirty: true,
+    });
+    form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", {
+      shouldDirty: true,
+    });
   };
 
   const cancelPendingReceipt = (expenseIndex: number) => {
-    form.setValue(`expenses.${expenseIndex}.pendingReceipt`, "", { shouldDirty: true });
-    form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", { shouldDirty: true });
+    form.setValue(`expenses.${expenseIndex}.pendingReceipt`, "", {
+      shouldDirty: true,
+    });
+    form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", {
+      shouldDirty: true,
+    });
   };
 
   const renderReceiptPanel = (index: number) => {
@@ -420,7 +464,9 @@ export function ManualExpenseForm({
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <Check className="w-6 h-6 text-primary" />
               </div>
-              <p className="text-sm font-medium text-foreground">Receipt uploaded</p>
+              <p className="text-sm font-medium text-foreground">
+                Receipt uploaded
+              </p>
               <Button
                 type="button"
                 variant="outlinePrimary"
@@ -493,19 +539,19 @@ export function ManualExpenseForm({
         // Keep manual attachments local until the report is submitted. The
         // extraction endpoint is reserved for the explicit receipt-scan flow.
 
-
-
-
-
-
-
         const base64 = await fileToBase64(file);
-        form.setValue(`expenses.${expenseIndex}.pendingReceipt`, base64, { shouldDirty: true });
-        form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", { shouldDirty: true });
+        form.setValue(`expenses.${expenseIndex}.pendingReceipt`, base64, {
+          shouldDirty: true,
+        });
+        form.setValue(`expenses.${expenseIndex}.pendingExtractionId`, "", {
+          shouldDirty: true,
+        });
         toast.success("Receipt attached.", { id: toastId });
       } catch (error) {
         logger.error("Receipt attachment failed:", error);
-        toast.error("Receipt could not be attached. Please try again.", { id: toastId });
+        toast.error("Receipt could not be attached. Please try again.", {
+          id: toastId,
+        });
       }
     } catch {
       toast.error("Failed to upload receipt. Please try again.");
@@ -648,13 +694,15 @@ export function ManualExpenseForm({
         title: expense.title,
         merchantName: expense.vendor,
         description: expense.description || "",
-        expenseCategoryId: category.categoryId || (category as { id?: string }).id || "",
+        expenseCategoryId:
+          category.categoryId || (category as { id?: string }).id || "",
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
 
       if (expense.receiptExtractionId || expense.pendingExtractionId) {
-        expenseObj.receiptExtractionId = expense.receiptExtractionId || expense.pendingExtractionId;
+        expenseObj.receiptExtractionId =
+          expense.receiptExtractionId || expense.pendingExtractionId;
       }
 
       // Only attach justification when the backend explicitly required it for this expense
@@ -725,7 +773,8 @@ export function ManualExpenseForm({
         title: expense.title,
         merchantName: expense.vendor,
         description: expense.description || "",
-        expenseCategoryId: category.categoryId || (category as { id?: string }).id || "",
+        expenseCategoryId:
+          category.categoryId || (category as { id?: string }).id || "",
         amount: Number(expense.amount),
         transactionDate: toISODateString(expense.transactionDate || new Date()),
       };
@@ -772,7 +821,7 @@ export function ManualExpenseForm({
     // All expenses are now stored on the server via API
     // This function is kept for backward compatibility but should not store base64 images
     // to avoid localStorage quota issues
-    
+
     const existing = readPersonalExpenses();
     let nextId = getNextPersonalExpenseId(existing);
 
@@ -930,34 +979,56 @@ export function ManualExpenseForm({
 
       if (isEditMode && reportId && reportDetail?.expenses) {
         // Use single PATCH /reports/{reportId} endpoint to update entire report
-        const basePayload = buildPatchReportPayload(data, true, justificationsByIndex, requiredActionsByIndex);
+        const basePayload = buildPatchReportPayload(
+          data,
+          true,
+          justificationsByIndex,
+          requiredActionsByIndex,
+        );
         const reportPayload = {
           ...basePayload,
           status: "pending", // Explicitly set to pending on final submit
         };
-        const response = await axios.patch(`reports/${reportId}`, reportPayload);
+        const response = await axios.patch(
+          `reports/${reportId}`,
+          reportPayload,
+        );
 
         // Check if the policy engine requires ACTION_REQUIRED (201 but not submitted)
         const responseData = response.data?.data;
-        if (responseData?.submitted === false && responseData?.resolution === "ACTION_REQUIRED") {
-          const actions: PolicyRequiredAction[] = Array.isArray(responseData.requiredActions)
+        if (
+          responseData?.submitted === false &&
+          responseData?.resolution === "ACTION_REQUIRED"
+        ) {
+          const actions: PolicyRequiredAction[] = Array.isArray(
+            responseData.requiredActions,
+          )
             ? responseData.requiredActions
             : [];
           const byIndex: Record<number, PolicyRequiredAction> = {};
-          actions.forEach((a) => { byIndex[a.expenseIndex] = a; });
+          actions.forEach((a) => {
+            byIndex[a.expenseIndex] = a;
+          });
           setRequiredActionsByIndex(byIndex);
           // Auto-expand all flagged accordion items so user can see the amber banners
           setOpenAccordionItems((prev) => {
             const flaggedKeys = actions.map((a) => `expense-${a.expenseIndex}`);
             return Array.from(new Set([...prev, ...flaggedKeys]));
           });
-          const needsReceipt = actions.some((a) => a.requiredFields?.includes("receiptUrl"));
-          const needsJustification = actions.some((a) => a.requiredFields?.includes("justification") || a.requiredFields?.includes("policyJustification"));
-          const toastMsg = needsReceipt && needsJustification
-            ? "Some expenses require a receipt and a written explanation before they can be submitted. See highlighted items below."
-            : needsReceipt
-            ? "Some expenses require a receipt before they can be submitted. Please attach one to the highlighted expense(s) below."
-            : "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.";
+          const needsReceipt = actions.some((a) =>
+            a.requiredFields?.includes("receiptUrl"),
+          );
+          const needsJustification = actions.some(
+            (a) =>
+              a.requiredFields?.includes("justification") ||
+              a.requiredFields?.includes("policyJustification"),
+          );
+          const toastMsg =
+            needsReceipt && needsJustification
+              ? "Some expenses require a receipt and a written explanation before they can be submitted. See highlighted items below."
+              : needsReceipt
+                ? "Some expenses require a receipt before they can be submitted. Please attach one to the highlighted expense(s) below."
+                : "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.";
           toast.warning(toastMsg, { duration: 6000 });
           return;
         }
@@ -969,18 +1040,21 @@ export function ManualExpenseForm({
         toast.success(
           `Your ${data.expenses.length} expense(s) have been updated and submitted successfully.`,
         );
-        
+
         // Invalidate React Query cache to refetch personal expenses and report details
         invalidatePersonalExpenseQueries(queryClient);
         queryClient.invalidateQueries({
-          queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES, reportId],
+          queryKey: workspaceQueryKey([
+            API_KEYS.EXPENSE.PERSONAL_EXPENSES,
+            reportId,
+          ]),
         });
-        
+
         // Refetch report details if callback is provided
         if (onUpdateSuccess) {
           onUpdateSuccess();
         }
-        
+
         // Show success modal and navigate after a short delay to allow modal to render
         successToggle();
         sessionStorage.removeItem("uploadedReceipts");
@@ -988,35 +1062,56 @@ export function ManualExpenseForm({
         setTimeout(() => {
           const returnTab =
             sessionStorage.getItem("expensesReturnTab") || "personal-expenses";
-          const returnPage = sessionStorage.getItem("expensesReturnPage") || "1";
+          const returnPage =
+            sessionStorage.getItem("expensesReturnPage") || "1";
           router.push(`/expenses?tab=${returnTab}&page=${returnPage}`);
         }, 500);
       } else {
         // Use POST for creating new expenses
-        const payload = buildExpensePayload(data, true, "pending", justificationsByIndex, requiredActionsByIndex);
+        const payload = buildExpensePayload(
+          data,
+          true,
+          "pending",
+          justificationsByIndex,
+          requiredActionsByIndex,
+        );
         const response = await axios.post(API_KEYS.EXPENSE.REPORTS, payload);
 
         // Check if the policy engine requires ACTION_REQUIRED (201 but not submitted)
         const responseData = response.data?.data;
-        if (responseData?.submitted === false && responseData?.resolution === "ACTION_REQUIRED") {
-          const actions: PolicyRequiredAction[] = Array.isArray(responseData.requiredActions)
+        if (
+          responseData?.submitted === false &&
+          responseData?.resolution === "ACTION_REQUIRED"
+        ) {
+          const actions: PolicyRequiredAction[] = Array.isArray(
+            responseData.requiredActions,
+          )
             ? responseData.requiredActions
             : [];
           const byIndex: Record<number, PolicyRequiredAction> = {};
-          actions.forEach((a) => { byIndex[a.expenseIndex] = a; });
+          actions.forEach((a) => {
+            byIndex[a.expenseIndex] = a;
+          });
           setRequiredActionsByIndex(byIndex);
           // Auto-expand all flagged accordion items so user can see the amber banners
           setOpenAccordionItems((prev) => {
             const flaggedKeys = actions.map((a) => `expense-${a.expenseIndex}`);
             return Array.from(new Set([...prev, ...flaggedKeys]));
           });
-          const needsReceipt = actions.some((a) => a.requiredFields?.includes("receiptUrl"));
-          const needsJustification = actions.some((a) => a.requiredFields?.includes("justification") || a.requiredFields?.includes("policyJustification"));
-          const toastMsg = needsReceipt && needsJustification
-            ? "Some expenses require a receipt and a written explanation before they can be submitted. See highlighted items below."
-            : needsReceipt
-            ? "Some expenses require a receipt before they can be submitted. Please attach one to the highlighted expense(s) below."
-            : "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.";
+          const needsReceipt = actions.some((a) =>
+            a.requiredFields?.includes("receiptUrl"),
+          );
+          const needsJustification = actions.some(
+            (a) =>
+              a.requiredFields?.includes("justification") ||
+              a.requiredFields?.includes("policyJustification"),
+          );
+          const toastMsg =
+            needsReceipt && needsJustification
+              ? "Some expenses require a receipt and a written explanation before they can be submitted. See highlighted items below."
+              : needsReceipt
+                ? "Some expenses require a receipt before they can be submitted. Please attach one to the highlighted expense(s) below."
+                : "Your report needs a written explanation before it can be submitted. See the highlighted expense(s) below.";
           toast.warning(toastMsg, { duration: 6000 });
           return;
         }
@@ -1052,7 +1147,8 @@ export function ManualExpenseForm({
         setTimeout(() => {
           const returnTab =
             sessionStorage.getItem("expensesReturnTab") || "personal-expenses";
-          const returnPage = sessionStorage.getItem("expensesReturnPage") || "1";
+          const returnPage =
+            sessionStorage.getItem("expensesReturnPage") || "1";
           router.push(`/expenses?tab=${returnTab}&page=${returnPage}`);
         }, 500);
       }
@@ -1061,17 +1157,30 @@ export function ManualExpenseForm({
 
       if (isDuplicateReceiptError(error)) {
         applyDuplicateErrorState(error);
-        toast.error(getApiErrorMessage(error, "This receipt appears to have been submitted previously"));
+        toast.error(
+          getApiErrorMessage(
+            error,
+            "This receipt appears to have been submitted previously",
+          ),
+        );
         return;
       }
       if (isPolicyViolationError(error)) {
         applyPolicyErrorState(error, data);
-        toast.error(getApiErrorMessage(error, "Policy violation — please review your expenses."));
+        toast.error(
+          getApiErrorMessage(
+            error,
+            "Policy violation — please review your expenses.",
+          ),
+        );
         return;
       }
 
       const err = error as {
-        response?: { data?: { message?: string; error?: string }; status?: number };
+        response?: {
+          data?: { message?: string; error?: string };
+          status?: number;
+        };
         message?: string;
       };
       logger.error("Error response:", err?.response?.data);
@@ -1173,16 +1282,20 @@ export function ManualExpenseForm({
                                       }}
                                     />
                                   )}
-                                  {duplicateErrorsByIndex[index] && duplicateErrorsByIndex[index].length > 0 && (
-                                    <AlertCircle
-                                      className="w-4 h-4 text-red-500 shrink-0 cursor-pointer"
-                                      aria-label="Duplicate receipt — click to view original"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedDuplicate(duplicateErrorsByIndex[index][0]);
-                                      }}
-                                    />
-                                  )}
+                                  {duplicateErrorsByIndex[index] &&
+                                    duplicateErrorsByIndex[index].length >
+                                      0 && (
+                                      <AlertCircle
+                                        className="w-4 h-4 text-red-500 shrink-0 cursor-pointer"
+                                        aria-label="Duplicate receipt — click to view original"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedDuplicate(
+                                            duplicateErrorsByIndex[index][0],
+                                          );
+                                        }}
+                                      />
+                                    )}
                                   <span className="font-medium">
                                     {form.getValues(
                                       `expenses.${index}.title`,
@@ -1226,7 +1339,9 @@ export function ManualExpenseForm({
                                 {policyErrorsByIndex[index] && (
                                   <div className="absolute top-2 left-6 right-6 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 z-10">
                                     <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                                    <p className="text-xs text-red-600">{policyErrorsByIndex[index]}</p>
+                                    <p className="text-xs text-red-600">
+                                      {policyErrorsByIndex[index]}
+                                    </p>
                                   </div>
                                 )}
                                 {requiredActionsByIndex[index] && (
@@ -1234,46 +1349,77 @@ export function ManualExpenseForm({
                                     <button
                                       type="button"
                                       className="w-full text-left flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 hover:bg-amber-100 transition-colors cursor-pointer"
-                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDrawerOpenForIndex(index); }}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setDrawerOpenForIndex(index);
+                                      }}
                                     >
                                       <div className="flex items-start gap-2 flex-1 min-w-0">
                                         <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                                         <div className="min-w-0">
-                                          <p className="text-xs font-semibold text-amber-800">Explanation required to submit</p>
-                                          <p className="text-xs text-amber-700 truncate">{requiredActionsByIndex[index].categoryName} · {requiredActionsByIndex[index].policyName}</p>
+                                          <p className="text-xs font-semibold text-amber-800">
+                                            Explanation required to submit
+                                          </p>
+                                          <p className="text-xs text-amber-700 truncate">
+                                            {
+                                              requiredActionsByIndex[index]
+                                                .categoryName
+                                            }{" "}
+                                            ·{" "}
+                                            {
+                                              requiredActionsByIndex[index]
+                                                .policyName
+                                            }
+                                          </p>
                                         </div>
                                       </div>
                                       <span className="shrink-0 ml-2 text-xs font-medium text-amber-700 hover:text-amber-900 whitespace-nowrap">
-                                        {justificationsByIndex[index] ? "✏ Edit explanation" : "+ Provide explanation"}
+                                        {justificationsByIndex[index]
+                                          ? "✏ Edit explanation"
+                                          : "+ Provide explanation"}
                                       </span>
                                     </button>
                                     {justificationsByIndex[index] && (
                                       <p className="mt-1 text-xs text-green-700 flex items-center gap-1 px-1">
-                                        <Check className="w-3 h-3" /> Explanation saved
+                                        <Check className="w-3 h-3" />{" "}
+                                        Explanation saved
                                       </p>
                                     )}
                                   </div>
                                 )}
-                                {duplicateErrorsByIndex[index] && duplicateErrorsByIndex[index].length > 0 && (
-                                  <button
-                                    type="button"
-                                    className="absolute top-2 left-6 right-6 z-10 w-[calc(100%-3rem)] flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2 cursor-pointer hover:bg-red-100 transition-colors text-left"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      setSelectedDuplicate(duplicateErrorsByIndex[index][0]);
-                                    }}
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                                      <p className="text-xs text-red-600">This receipt was submitted before — <span className="underline font-medium">click to see original</span></p>
-                                    </div>
-                                    <Eye className="w-4 h-4 text-red-500 shrink-0" />
-                                  </button>
-                                )}
-                                <div className={`space-y-5 max-w-lg flex flex-col pr-16 ${(policyErrorsByIndex[index] || requiredActionsByIndex[index] || duplicateErrorsByIndex[index]) ? "pt-14" : ""}  ${requiredActionsByIndex[index] && justificationsByIndex[index] ? "pt-20" : ""}`}>
+                                {duplicateErrorsByIndex[index] &&
+                                  duplicateErrorsByIndex[index].length > 0 && (
+                                    <button
+                                      type="button"
+                                      className="absolute top-2 left-6 right-6 z-10 w-[calc(100%-3rem)] flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2 cursor-pointer hover:bg-red-100 transition-colors text-left"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setSelectedDuplicate(
+                                          duplicateErrorsByIndex[index][0],
+                                        );
+                                      }}
+                                    >
+                                      <div className="flex items-start gap-2">
+                                        <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                        <p className="text-xs text-red-600">
+                                          This receipt was submitted before —{" "}
+                                          <span className="underline font-medium">
+                                            click to see original
+                                          </span>
+                                        </p>
+                                      </div>
+                                      <Eye className="w-4 h-4 text-red-500 shrink-0" />
+                                    </button>
+                                  )}
+                                <div
+                                  className={`space-y-5 max-w-lg flex flex-col pr-16 ${policyErrorsByIndex[index] || requiredActionsByIndex[index] || duplicateErrorsByIndex[index] ? "pt-14" : ""}  ${requiredActionsByIndex[index] && justificationsByIndex[index] ? "pt-20" : ""}`}
+                                >
                                   <SplitExpense
-                                    control={form.control as unknown as Control<SplitExpenseFormValues>}
+                                    control={
+                                      form.control as unknown as Control<SplitExpenseFormValues>
+                                    }
                                     expenseIndex={index}
                                     totalAmount={amount}
                                   />
@@ -1355,7 +1501,9 @@ export function ManualExpenseForm({
                             {policyErrorsByIndex[index] && (
                               <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2">
                                 <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                                <p className="text-xs text-red-600">{policyErrorsByIndex[index]}</p>
+                                <p className="text-xs text-red-600">
+                                  {policyErrorsByIndex[index]}
+                                </p>
                               </div>
                             )}
                             {requiredActionsByIndex[index] && (
@@ -1363,43 +1511,70 @@ export function ManualExpenseForm({
                                 <button
                                   type="button"
                                   className="w-full text-left flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 hover:bg-amber-100 transition-colors cursor-pointer"
-                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDrawerOpenForIndex(index); }}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setDrawerOpenForIndex(index);
+                                  }}
                                 >
                                   <div className="flex items-start gap-2 flex-1 min-w-0">
                                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                                     <div className="min-w-0">
-                                      <p className="text-xs font-semibold text-amber-800">Explanation required to submit</p>
-                                      <p className="text-xs text-amber-700">{requiredActionsByIndex[index].categoryName} · {requiredActionsByIndex[index].policyName}</p>
+                                      <p className="text-xs font-semibold text-amber-800">
+                                        Explanation required to submit
+                                      </p>
+                                      <p className="text-xs text-amber-700">
+                                        {
+                                          requiredActionsByIndex[index]
+                                            .categoryName
+                                        }{" "}
+                                        ·{" "}
+                                        {
+                                          requiredActionsByIndex[index]
+                                            .policyName
+                                        }
+                                      </p>
                                     </div>
                                   </div>
                                   <span className="shrink-0 ml-2 text-xs font-medium text-amber-700 hover:text-amber-900 whitespace-nowrap">
-                                    {justificationsByIndex[index] ? "✏ Edit explanation" : "+ Provide explanation"}
+                                    {justificationsByIndex[index]
+                                      ? "✏ Edit explanation"
+                                      : "+ Provide explanation"}
                                   </span>
                                 </button>
                                 {justificationsByIndex[index] && (
                                   <p className="text-xs text-green-700 flex items-center gap-1 px-1">
-                                    <Check className="w-3 h-3" /> Explanation saved — ready to resubmit
+                                    <Check className="w-3 h-3" /> Explanation
+                                    saved — ready to resubmit
                                   </p>
                                 )}
                               </div>
                             )}
-                            {duplicateErrorsByIndex[index] && duplicateErrorsByIndex[index].length > 0 && (
-                              <button
-                                type="button"
-                                className="w-full flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2 cursor-pointer hover:bg-red-100 transition-colors text-left"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setSelectedDuplicate(duplicateErrorsByIndex[index][0]);
-                                }}
-                              >
-                                <div className="flex items-start gap-2">
-                                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                                  <p className="text-xs text-red-600">This receipt was submitted before — <span className="underline font-medium">click to see original</span></p>
-                                </div>
-                                <Eye className="w-4 h-4 text-red-500 shrink-0" />
-                              </button>
-                            )}
+                            {duplicateErrorsByIndex[index] &&
+                              duplicateErrorsByIndex[index].length > 0 && (
+                                <button
+                                  type="button"
+                                  className="w-full flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2 cursor-pointer hover:bg-red-100 transition-colors text-left"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setSelectedDuplicate(
+                                      duplicateErrorsByIndex[index][0],
+                                    );
+                                  }}
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-red-600">
+                                      This receipt was submitted before —{" "}
+                                      <span className="underline font-medium">
+                                        click to see original
+                                      </span>
+                                    </p>
+                                  </div>
+                                  <Eye className="w-4 h-4 text-red-500 shrink-0" />
+                                </button>
+                              )}
                             {fields.length > 1 && index != 0 && (
                               <div className="ml-auto w-fit flex">
                                 <Button
@@ -1415,7 +1590,9 @@ export function ManualExpenseForm({
                             )}
 
                             <SplitExpense
-                              control={form.control as unknown as Control<SplitExpenseFormValues>}
+                              control={
+                                form.control as unknown as Control<SplitExpenseFormValues>
+                              }
                               expenseIndex={index}
                               totalAmount={amount}
                             />
@@ -1487,37 +1664,40 @@ export function ManualExpenseForm({
               )}
 
               {/* Pending policy justification banner */}
-              {Object.keys(requiredActionsByIndex).length > 0 && (() => {
-                const total = Object.keys(requiredActionsByIndex).length;
-                const done = Object.keys(justificationsByIndex).filter(
-                  (k) => requiredActionsByIndex[Number(k)] && justificationsByIndex[Number(k)]?.trim()
-                ).length;
-                const remaining = total - done;
-                return (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-3">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-semibold text-amber-800">
-                          {remaining > 0
-                            ? `${remaining} expense${remaining > 1 ? "s" : ""} need${remaining === 1 ? "s" : ""} your explanation`
-                            : "All explanations provided — ready to submit"}
-                        </p>
-                        <p className="text-xs text-amber-700 mt-0.5">
-                          {remaining > 0
-                            ? "Click the amber warning on each flagged expense and provide a business reason."
-                            : "Click Submit below to complete your submission."}
-                        </p>
+              {Object.keys(requiredActionsByIndex).length > 0 &&
+                (() => {
+                  const total = Object.keys(requiredActionsByIndex).length;
+                  const done = Object.keys(justificationsByIndex).filter(
+                    (k) =>
+                      requiredActionsByIndex[Number(k)] &&
+                      justificationsByIndex[Number(k)]?.trim(),
+                  ).length;
+                  const remaining = total - done;
+                  return (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold text-amber-800">
+                            {remaining > 0
+                              ? `${remaining} expense${remaining > 1 ? "s" : ""} need${remaining === 1 ? "s" : ""} your explanation`
+                              : "All explanations provided — ready to submit"}
+                          </p>
+                          <p className="text-xs text-amber-700 mt-0.5">
+                            {remaining > 0
+                              ? "Click the amber warning on each flagged expense and provide a business reason."
+                              : "Click Submit below to complete your submission."}
+                          </p>
+                        </div>
                       </div>
+                      {remaining === 0 && (
+                        <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                          <Check className="w-4 h-4 text-green-600" />
+                        </div>
+                      )}
                     </div>
-                    {remaining === 0 && (
-                      <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                        <Check className="w-4 h-4 text-green-600" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+                  );
+                })()}
 
               {/* Form Actions */}
               <div className="flex space-x-4 pt-4">
@@ -1531,7 +1711,7 @@ export function ManualExpenseForm({
                     (isEditMode && !hasFormChanges) ||
                     (Object.keys(requiredActionsByIndex).length > 0 &&
                       Object.keys(requiredActionsByIndex).some(
-                        (k) => !justificationsByIndex[Number(k)]?.trim()
+                        (k) => !justificationsByIndex[Number(k)]?.trim(),
                       ))
                   }
                 >
@@ -1559,11 +1739,7 @@ export function ManualExpenseForm({
                       try {
                         setIsSubmitting(true);
 
-                        if (
-                          isEditMode &&
-                          reportId &&
-                          reportDetail?.expenses
-                        ) {
+                        if (isEditMode && reportId && reportDetail?.expenses) {
                           const basePayload = buildPatchReportPayload(
                             validData as ExpenseFormValues,
                             true,
@@ -1572,18 +1748,24 @@ export function ManualExpenseForm({
                             ...basePayload,
                             status: "draft", // Explicitly keep as draft
                           };
-                          await axios.patch(`reports/${reportId}`, reportPayload);
-                          
+                          await axios.patch(
+                            `reports/${reportId}`,
+                            reportPayload,
+                          );
+
                           // Invalidate React Query cache to refetch report details
                           invalidatePersonalExpenseQueries(queryClient);
                           queryClient.invalidateQueries({
-                            queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES, reportId],
+                            queryKey: workspaceQueryKey([
+                              API_KEYS.EXPENSE.PERSONAL_EXPENSES,
+                              reportId,
+                            ]),
                           });
-                          
+
                           if (onUpdateSuccess) {
                             onUpdateSuccess();
                           }
-                          
+
                           toast.success("Saved as draft.");
                           // Don't navigate away in edit mode - stay on the page
                         } else {
@@ -1593,7 +1775,7 @@ export function ManualExpenseForm({
                             "draft",
                           );
                           await axios.post(API_KEYS.EXPENSE.REPORTS, payload);
-                          
+
                           // Only persist to localStorage for new expenses (not edit mode)
                           // And only store metadata, not base64 images
                           try {
@@ -1603,7 +1785,10 @@ export function ManualExpenseForm({
                             );
                           } catch (storageError) {
                             // If localStorage fails (quota exceeded), log but don't fail the request
-                            logger.warn("Failed to persist to localStorage:", storageError);
+                            logger.warn(
+                              "Failed to persist to localStorage:",
+                              storageError,
+                            );
                           }
 
                           invalidatePersonalExpenseQueries(queryClient);
@@ -1616,16 +1801,31 @@ export function ManualExpenseForm({
                         logger.error("Error saving draft:", error);
                         if (isDuplicateReceiptError(error)) {
                           applyDuplicateErrorState(error);
-                          toast.error(getApiErrorMessage(error, "This receipt appears to have been submitted previously"));
+                          toast.error(
+                            getApiErrorMessage(
+                              error,
+                              "This receipt appears to have been submitted previously",
+                            ),
+                          );
                           return;
                         }
                         if (isPolicyViolationError(error)) {
-                          applyPolicyErrorState(error, values as ExpenseFormValues);
-                          toast.error(getApiErrorMessage(error, "Policy violation — please review your expenses."));
+                          applyPolicyErrorState(
+                            error,
+                            values as ExpenseFormValues,
+                          );
+                          toast.error(
+                            getApiErrorMessage(
+                              error,
+                              "Policy violation — please review your expenses.",
+                            ),
+                          );
                           return;
                         }
                         const err = error as {
-                          response?: { data?: { message?: string; error?: string } };
+                          response?: {
+                            data?: { message?: string; error?: string };
+                          };
                           message?: string;
                         };
                         const errorMessage =
@@ -1665,34 +1865,44 @@ export function ManualExpenseForm({
       <CompanyExpenseItemModal
         isOpen={selectedDuplicate !== null}
         onClose={() => setSelectedDuplicate(null)}
-        expense={selectedDuplicate ? {
-          title: selectedDuplicate.title,
-          amount: selectedDuplicate.amount,
-          merchantName: selectedDuplicate.merchantName,
-          categoryName: "Previously Submitted Expense",
-          transactionDate: selectedDuplicate.transactionDate,
-          receiptUrl: selectedDuplicate.receiptUrl || undefined,
-          description: `Expense ID: ${selectedDuplicate.expenseId}`,
-        } : null}
+        expense={
+          selectedDuplicate
+            ? {
+                title: selectedDuplicate.title,
+                amount: selectedDuplicate.amount,
+                merchantName: selectedDuplicate.merchantName,
+                categoryName: "Previously Submitted Expense",
+                transactionDate: selectedDuplicate.transactionDate,
+                receiptUrl: selectedDuplicate.receiptUrl || undefined,
+                description: `Expense ID: ${selectedDuplicate.expenseId}`,
+              }
+            : null
+        }
       />
 
       {/* Policy justification drawer */}
-      {drawerOpenForIndex !== null && requiredActionsByIndex[drawerOpenForIndex] && (
-        <PolicyJustificationDrawer
-          isOpen={drawerOpenForIndex !== null}
-          onClose={() => setDrawerOpenForIndex(null)}
-          expenseTitle={
-            form.getValues(`expenses.${drawerOpenForIndex}.title`) ||
-            `Expense ${drawerOpenForIndex + 1}`
-          }
-          action={requiredActionsByIndex[drawerOpenForIndex]}
-          existingJustification={justificationsByIndex[drawerOpenForIndex] || ""}
-          onSave={(expenseIndex, justification) => {
-            setJustificationsByIndex((prev) => ({ ...prev, [expenseIndex]: justification }));
-            setDrawerOpenForIndex(null);
-          }}
-        />
-      )}
+      {drawerOpenForIndex !== null &&
+        requiredActionsByIndex[drawerOpenForIndex] && (
+          <PolicyJustificationDrawer
+            isOpen={drawerOpenForIndex !== null}
+            onClose={() => setDrawerOpenForIndex(null)}
+            expenseTitle={
+              form.getValues(`expenses.${drawerOpenForIndex}.title`) ||
+              `Expense ${drawerOpenForIndex + 1}`
+            }
+            action={requiredActionsByIndex[drawerOpenForIndex]}
+            existingJustification={
+              justificationsByIndex[drawerOpenForIndex] || ""
+            }
+            onSave={(expenseIndex, justification) => {
+              setJustificationsByIndex((prev) => ({
+                ...prev,
+                [expenseIndex]: justification,
+              }));
+              setDrawerOpenForIndex(null);
+            }}
+          />
+        )}
     </>
   );
 }

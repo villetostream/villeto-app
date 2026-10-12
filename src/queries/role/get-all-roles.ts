@@ -1,4 +1,9 @@
-import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  UseQueryOptions,
+  UseQueryResult,
+  useQuery,
+} from "@tanstack/react-query";
 import type { AxiosInstance } from "axios";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -10,111 +15,115 @@ import { AppUser } from "../departments/get-all-departments";
 // ── Shared types ───────────────────────────────────────────────────────────
 
 export interface PaginationMeta {
-    totalCount: number;
-    totalPages: number;
-    currentPage: number;
-    limit: number;
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+  limit: number;
 }
 
 export interface CapabilityGroupPermission {
-    permissionId: string;
-    name: string;
-    description: string;
-    resource: string;
-    action: string;
+  permissionId: string;
+  name: string;
+  description: string;
+  resource: string;
+  action: string;
 }
 
-export type CapabilityScopeType = "own" | "reporting_chain" | "department" | "company";
+export type CapabilityScopeType =
+  | "own"
+  | "reporting_chain"
+  | "department"
+  | "company";
 export type CapabilityRiskLevel = "standard" | "elevated" | "sensitive";
 
 export interface RoleCapabilityScopeConfig {
-    departmentIds?: string[];
-    legalEntityIds?: string[];
+  departmentIds?: string[];
+  legalEntityIds?: string[];
 }
 
 export interface RoleCapabilityInput {
-    key: string;
-    scopeType: CapabilityScopeType;
-    scopeConfig?: RoleCapabilityScopeConfig;
+  key: string;
+  scopeType: CapabilityScopeType;
+  scopeConfig?: RoleCapabilityScopeConfig;
 }
 
 export interface SelectedRoleCapability extends RoleCapabilityInput {
-    name: string;
-    module: string;
-    description?: string;
-    riskLevel: CapabilityRiskLevel;
+  name: string;
+  module: string;
+  description?: string;
+  riskLevel: CapabilityRiskLevel;
 }
 
 export interface ImpliedRoleCapability extends RoleCapabilityInput {
-    name: string;
-    module: string;
-    description?: string;
+  name: string;
+  module: string;
+  description?: string;
 }
 
 export interface CapabilityGroup {
-    capabilityGroupId: string;
-    key: string;
-    name: string;
-    description: string;
-    module: string;
-    sortOrder: number;
-    isActive: boolean;
-    supportedScopes?: CapabilityScopeType[];
-    defaultScope?: CapabilityScopeType;
-    riskLevel?: CapabilityRiskLevel;
-    isBaseCapability?: boolean;
-    scopePermissions?: Partial<Record<CapabilityScopeType, string[]>>;
-    requiredCapabilityKeys?: string[];
-    permissions: CapabilityGroupPermission[];
+  capabilityGroupId: string;
+  key: string;
+  name: string;
+  description: string;
+  module: string;
+  sortOrder: number;
+  isActive: boolean;
+  supportedScopes?: CapabilityScopeType[];
+  defaultScope?: CapabilityScopeType;
+  riskLevel?: CapabilityRiskLevel;
+  isBaseCapability?: boolean;
+  scopePermissions?: Partial<Record<CapabilityScopeType, string[]>>;
+  requiredCapabilityKeys?: string[];
+  permissions: CapabilityGroupPermission[];
 }
 
 export interface CapabilitiesByModule {
-    [module: string]: {
-        capabilityGroups: CapabilityGroup[];
-    };
+  [module: string]: {
+    capabilityGroups: CapabilityGroup[];
+  };
 }
 
 export interface Role {
-    roleId: string;
-    name: string;
-    description?: string;
-    isActive: boolean | "Active" | "Inactive";
-    permissions: Permission[];
-    createdAt: Date;
-    updatedAt: Date;
-    totalAssignedUsers?: number;
-    createdBy?: AppUser;
-    templateKey?: string | null;
-    source?: string;
-    isDefault?: boolean;
-    capabilityGroupKeys?: string[];
-    capabilitiesByModule?: CapabilitiesByModule;
-    selectedCapabilities?: SelectedRoleCapability[];
-    impliedCapabilities?: ImpliedRoleCapability[];
-    effectivePermissions?: Permission[];
-    modules?: string[];
+  roleId: string;
+  name: string;
+  description?: string;
+  isActive: boolean | "Active" | "Inactive";
+  permissions: Permission[];
+  createdAt: Date;
+  updatedAt: Date;
+  totalAssignedUsers?: number;
+  createdBy?: AppUser;
+  templateKey?: string | null;
+  source?: string;
+  isDefault?: boolean;
+  capabilityGroupKeys?: string[];
+  capabilitiesByModule?: CapabilitiesByModule;
+  selectedCapabilities?: SelectedRoleCapability[];
+  impliedCapabilities?: ImpliedRoleCapability[];
+  effectivePermissions?: Permission[];
+  modules?: string[];
 }
 
 export function isRoleActive(role: Pick<Role, "isActive">): boolean {
-    return role.isActive === true || role.isActive === "Active";
+  return role.isActive === true || role.isActive === "Active";
 }
 
 // ── Response shape ─────────────────────────────────────────────────────────
 
 interface PaginatedRolesResponse {
-    data: Role[];
-    meta: PaginationMeta;
-    message: string;
-    status: number;
-    statusCode: number;
-    statusText: string;
+  data: Role[];
+  meta: PaginationMeta;
+  message: string;
+  status: number;
+  statusCode: number;
+  statusText: string;
 }
 
 // ── Params ─────────────────────────────────────────────────────────────────
 
 export interface GetRolesParams {
-    page?: number;
-    limit?: number;
+  page?: number;
+  limit?: number;
 }
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
@@ -123,60 +132,73 @@ export interface GetRolesParams {
  * Fetches a paginated list of all roles.
  * GET /roles?page=1&limit=20
  */
-async function fetchAllRolesLoop(axiosInstance: AxiosInstance, apiUrl: string, page: number, limit: number) {
-    if (limit !== 1000) {
-        const response = await axiosInstance.get(apiUrl);
-        return response.data;
-    }
+async function fetchAllRolesLoop(
+  axiosInstance: AxiosInstance,
+  apiUrl: string,
+  page: number,
+  limit: number,
+) {
+  if (limit !== 1000) {
+    const response = await axiosInstance.get(apiUrl);
+    return response.data;
+  }
 
-    // Intercept limit=1000 and fetch all pages
-    const firstUrl = API_KEYS.ROLE.ROLES_LIST(1, 100);
-    const response = await axiosInstance.get(firstUrl);
-    const firstPageData = response.data;
-    
-    const totalPages = firstPageData?.meta?.totalPages || 1;
-    let allData = firstPageData?.data || [];
-    
-    if (totalPages > 1) {
-        const promises = [];
-        for (let i = 2; i <= totalPages; i++) {
-            promises.push(axiosInstance.get(API_KEYS.ROLE.ROLES_LIST(i, 100)));
-        }
-        const results = await Promise.all(promises);
-        results.forEach(res => {
-            if (res.data?.data) {
-                allData = [...allData, ...res.data.data];
-            }
-        });
+  // Intercept limit=1000 and fetch all pages
+  const firstUrl = API_KEYS.ROLE.ROLES_LIST(1, 100);
+  const response = await axiosInstance.get(firstUrl);
+  const firstPageData = response.data;
+
+  const totalPages = firstPageData?.meta?.totalPages || 1;
+  let allData = firstPageData?.data || [];
+
+  if (totalPages > 1) {
+    const promises = [];
+    for (let i = 2; i <= totalPages; i++) {
+      promises.push(axiosInstance.get(API_KEYS.ROLE.ROLES_LIST(i, 100)));
     }
-    
-    return {
-        ...firstPageData,
-        data: allData,
-        meta: {
-            ...firstPageData.meta,
-            totalCount: allData.length,
-            limit: allData.length,
-            totalPages: 1,
-            currentPage: 1
-        }
-    };
+    const results = await Promise.all(promises);
+    results.forEach((res) => {
+      if (res.data?.data) {
+        allData = [...allData, ...res.data.data];
+      }
+    });
+  }
+
+  return {
+    ...firstPageData,
+    data: allData,
+    meta: {
+      ...firstPageData.meta,
+      totalCount: allData.length,
+      limit: allData.length,
+      totalPages: 1,
+      currentPage: 1,
+    },
+  };
 }
 
 export const useGetAllRolesApi = (
-    { page = 1, limit = 20 }: GetRolesParams = {},
-    options?: Omit<UseQueryOptions<PaginatedRolesResponse, Error>, "queryKey" | "queryFn">
+  { page = 1, limit = 20 }: GetRolesParams = {},
+  options?: Omit<
+    UseQueryOptions<PaginatedRolesResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<PaginatedRolesResponse, Error> => {
-    const axiosInstance = useAxios();
+  const axiosInstance = useAxios();
 
-    return useQuery<PaginatedRolesResponse, Error>({
-        queryKey: [...QUERY_KEYS.people.roles, { page, limit }],
-        queryFn: async () => {
-            return fetchAllRolesLoop(axiosInstance, API_KEYS.ROLE.ROLES_LIST(page, limit), page, limit);
-        },
-        staleTime: STALE_TIMES.STATIC,
-        ...options,
-    });
+  return useQuery<PaginatedRolesResponse, Error>({
+    queryKey: workspaceQueryKey([...QUERY_KEYS.people.roles, { page, limit }]),
+    queryFn: async () => {
+      return fetchAllRolesLoop(
+        axiosInstance,
+        API_KEYS.ROLE.ROLES_LIST(page, limit),
+        page,
+        limit,
+      );
+    },
+    staleTime: STALE_TIMES.STATIC,
+    ...options,
+  });
 };
 
 /**
@@ -187,20 +209,25 @@ export const useGetAllRolesApi = (
  * callers that need real pagination can pass explicit page/limit.
  */
 export const useGetCompanyRolesApi = (
-    { page = 1, limit = 100 }: GetRolesParams = {},
-    options?: Omit<UseQueryOptions<PaginatedRolesResponse, Error>, "queryKey" | "queryFn">
+  { page = 1, limit = 100 }: GetRolesParams = {},
+  options?: Omit<
+    UseQueryOptions<PaginatedRolesResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<PaginatedRolesResponse, Error> => {
-    const axiosInstance = useAxios();
+  const axiosInstance = useAxios();
 
-    return useQuery<PaginatedRolesResponse, Error>({
-        queryKey: [...QUERY_KEYS.people.roles, { page, limit }],
-        queryFn: async () => {
-            const response = await axiosInstance.get(API_KEYS.ROLE.ROLES_COMPANY(page, limit));
-            return response.data;
-        },
-        staleTime: STALE_TIMES.STATIC,
-        ...options,
-    });
+  return useQuery<PaginatedRolesResponse, Error>({
+    queryKey: workspaceQueryKey([...QUERY_KEYS.people.roles, { page, limit }]),
+    queryFn: async () => {
+      const response = await axiosInstance.get(
+        API_KEYS.ROLE.ROLES_COMPANY(page, limit),
+      );
+      return response.data;
+    },
+    staleTime: STALE_TIMES.STATIC,
+    ...options,
+  });
 };
 
 /**
@@ -208,8 +235,11 @@ export const useGetCompanyRolesApi = (
  * Kept for backward compatibility while callers are migrated.
  */
 export const useGetVilletoRolesApi = (
-    params: GetRolesParams = {},
-    options?: Omit<UseQueryOptions<PaginatedRolesResponse, Error>, "queryKey" | "queryFn">
+  params: GetRolesParams = {},
+  options?: Omit<
+    UseQueryOptions<PaginatedRolesResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<PaginatedRolesResponse, Error> => {
-    return useGetCompanyRolesApi(params, options);
+  return useGetCompanyRolesApi(params, options);
 };

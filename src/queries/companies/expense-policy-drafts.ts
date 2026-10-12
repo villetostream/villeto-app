@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryOptions,
+} from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
@@ -51,15 +57,23 @@ export const useCreateExpensePolicyDraft = () => {
   const axios = useAxios();
   const qc = useQueryClient();
 
-  return useMutation<DraftResponse, Error, Omit<ExpensePolicyDraftPayload, "draftId">>({
+  return useMutation<
+    DraftResponse,
+    Error,
+    Omit<ExpensePolicyDraftPayload, "draftId">
+  >({
     retry: false,
     mutationFn: async (payload) => {
       const res = await axios.post(API_KEYS.EXPENSE.POLICY_DRAFTS, payload);
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policyDrafts });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDrafts),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies),
+      });
     },
   });
 };
@@ -69,14 +83,18 @@ export const useCreateExpensePolicyDraft = () => {
 /** Fetch a single expense-policy draft by ID. */
 export const useGetExpensePolicyDraft = (
   draftId: string | null | undefined,
-  options?: Omit<UseQueryOptions<DraftResponse, Error>, "queryKey" | "queryFn">
+  options?: Omit<UseQueryOptions<DraftResponse, Error>, "queryKey" | "queryFn">,
 ) => {
   const axios = useAxios();
 
   return useQuery<DraftResponse, Error>({
-    queryKey: draftId ? QUERY_KEYS.expenses.policyDraft(draftId) : [],
+    queryKey: workspaceQueryKey(
+      draftId ? QUERY_KEYS.expenses.policyDraft(draftId) : [],
+    ),
     queryFn: async () => {
-      const res = await axios.get(API_KEYS.EXPENSE.POLICY_DRAFT_BY_ID(draftId!));
+      const res = await axios.get(
+        API_KEYS.EXPENSE.POLICY_DRAFT_BY_ID(draftId!),
+      );
       return res.data;
     },
     enabled: !!draftId,
@@ -89,12 +107,15 @@ export const useGetExpensePolicyDraft = (
 
 /** Fetch all expense-policy drafts. */
 export const useGetExpensePolicyDrafts = (
-  options?: Omit<UseQueryOptions<DraftListResponse, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<DraftListResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
 ) => {
   const axios = useAxios();
 
   return useQuery<DraftListResponse, Error>({
-    queryKey: QUERY_KEYS.expenses.policyDrafts,
+    queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDrafts),
     queryFn: async () => {
       const res = await axios.get(API_KEYS.EXPENSE.POLICY_DRAFTS);
       return res.data;
@@ -120,13 +141,22 @@ export const useUpdateExpensePolicyDraft = () => {
     mutationFn: async ({ draftId, payload }) => {
       const p = { ...payload, draftId } as any;
       delete p.expensePolicyId;
-      const res = await axios.patch(API_KEYS.EXPENSE.POLICY_DRAFT_BY_ID(draftId), p);
+      const res = await axios.patch(
+        API_KEYS.EXPENSE.POLICY_DRAFT_BY_ID(draftId),
+        p,
+      );
       return res.data;
     },
     onSuccess: (_data, { draftId }) => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policyDraft(draftId) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policyDrafts });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDraft(draftId)),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDrafts),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies),
+      });
     },
   });
 };
@@ -141,13 +171,21 @@ export const useDeleteExpensePolicyDraft = () => {
   return useMutation<{ message: string; status: number }, Error, string>({
     retry: false,
     mutationFn: async (draftId: string) => {
-      const res = await axios.delete(API_KEYS.EXPENSE.POLICY_DRAFT_BY_ID(draftId));
+      const res = await axios.delete(
+        API_KEYS.EXPENSE.POLICY_DRAFT_BY_ID(draftId),
+      );
       return res.data;
     },
     onSuccess: (_data, draftId) => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policyDrafts });
-      qc.removeQueries({ queryKey: QUERY_KEYS.expenses.policyDraft(draftId) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDrafts),
+      });
+      qc.removeQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policyDraft(draftId)),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies),
+      });
     },
   });
 };

@@ -1,17 +1,48 @@
 "use client";
+import {
+  useTransactionLegalEntities,
+  useWorkspaceUnsavedChanges,
+} from "@/features/entity-workspace/hooks";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
-  CheckCircle2, Loader2, Pencil, Search, AlertCircle, AlertTriangle, XCircle
+  ChevronDown,
+  Plus,
+  Trash2,
+  Calendar as CalendarIcon,
+  X,
+  CheckCircle2,
+  Loader2,
+  Pencil,
+  Search,
+  AlertCircle,
+  AlertTriangle,
+  XCircle,
 } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import { LineItemDetailModal } from "@/components/procurement/LineItemDetailModal";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import {
   useCreatePurchaseOrder,
@@ -32,19 +63,15 @@ import {
 import { toast } from "sonner";
 
 import { isPRPriority } from "@/lib/types/purchase-request-helpers";
-import {
-  isProcurementReadyLegalEntity,
-  useLegalEntities,
-} from "@/queries/legal-entities";
+import { isProcurementReadyLegalEntity } from "@/queries/legal-entities";
 import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
-import { 
-  getApiErrorMessage, 
-  isProcurementPolicyViolationError, 
-  getProcurementPolicyViolations, 
-  applyProcurementPolicyErrorToLineItems, 
-  type ProcurementPolicyViolation 
+import {
+  getApiErrorMessage,
+  isProcurementPolicyViolationError,
+  getProcurementPolicyViolations,
+  applyProcurementPolicyErrorToLineItems,
+  type ProcurementPolicyViolation,
 } from "@/lib/types/api-error";
-
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -57,7 +84,12 @@ const PRIORITIES: { label: string; value: string }[] = [
 // ─── Generic Select Dropdown ──────────────────────────────────────────────────
 
 function SelectDropdown({
-  value, onChange, options, placeholder, disabled = false, id,
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled = false,
+  id,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -70,29 +102,42 @@ function SelectDropdown({
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-  const selected = options.find(o => o.value === value);
+  const selected = options.find((o) => o.value === value);
   return (
     <div className="relative" ref={ref}>
       <button
-        type="button" id={id}
-        onClick={() => !disabled && setOpen(v => !v)}
+        type="button"
+        id={id}
+        onClick={() => !disabled && setOpen((v) => !v)}
         className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between transition-colors ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:border-[#087f70]/60 focus:outline-none"}`}
       >
         <span className={selected ? "text-[#0b100e]" : "text-[#68726d]"}>
           {selected?.label || placeholder}
         </span>
-        {!disabled && <ChevronDown className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />}
+        {!disabled && (
+          <ChevronDown
+            className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        )}
       </button>
       {open && (
         <div className="absolute left-0 right-0 z-50 bg-white border border-black/[0.06] rounded-[12px] shadow-lg mt-1 max-h-52 overflow-y-auto">
-          {options.map(o => (
-            <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors ${value === o.value ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors ${value === o.value ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}
+            >
               {o.label}
             </button>
           ))}
@@ -104,11 +149,20 @@ function SelectDropdown({
 
 // ─── Searchable Vendor Dropdown ───────────────────────────────────────────────
 
-function VendorDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function VendorDropdown({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
   const { data: vendorData, isLoading } = useGetVendors();
   const rawVendors = useMemo(() => vendorData?.data || [], [vendorData?.data]);
-  const options = rawVendors.map(v => ({ label: v.displayName || v.legalName || "Unknown", value: v.vendorId }));
-  
+  const options = rawVendors.map((v) => ({
+    label: v.displayName || v.legalName || "Unknown",
+    value: v.vendorId,
+  }));
+
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -124,17 +178,24 @@ function VendorDropdown({ value, onChange }: { value: string; onChange: (v: stri
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const selected = options.find(o => o.value === value);
-  const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
+  const selected = options.find((o) => o.value === value);
+  const filtered = options.filter((o) =>
+    o.label.toLowerCase().includes(search.toLowerCase()),
+  );
 
   return (
     <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen(v => !v)}
-        className="w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between cursor-pointer hover:border-[#087f70]/60 focus:outline-none transition-colors">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between cursor-pointer hover:border-[#087f70]/60 focus:outline-none transition-colors"
+      >
         <span className={selected ? "text-[#0b100e]" : "text-[#68726d]"}>
           {selected?.label || "Select vendor..."}
         </span>
-        <ChevronDown className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown
+          className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        />
       </button>
 
       {open && (
@@ -142,20 +203,35 @@ function VendorDropdown({ value, onChange }: { value: string; onChange: (v: stri
           <div className="p-2 border-b border-black/[0.06]">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#68726d]" />
-              <input value={search} onChange={e => setSearch(e.target.value)}
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search vendors..."
-                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-black/[0.06] focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
+                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-black/[0.06] focus:outline-none focus:border-[#087f70] transition-colors bg-white"
+              />
             </div>
           </div>
           <div className="max-h-56 overflow-y-auto py-1">
             {isLoading ? (
-              <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-[#68726d]" /></div>
+              <div className="flex justify-center py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-[#68726d]" />
+              </div>
             ) : filtered.length === 0 ? (
-              <p className="text-sm text-[#68726d] px-4 py-3 text-center">No vendors found</p>
+              <p className="text-sm text-[#68726d] px-4 py-3 text-center">
+                No vendors found
+              </p>
             ) : (
-              filtered.map(o => (
-                <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); setSearch(""); }}
-                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors ${value === o.value ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
+              filtered.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors ${value === o.value ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}
+                >
                   {o.label}
                 </button>
               ))
@@ -177,14 +253,26 @@ function StepIndicator({ step }: { step: 1 | 2 }) {
         const active = step === s;
         return (
           <div key={s} className="flex items-center gap-3">
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${done ? "bg-[#f0faf8] text-[#087f70]" : active ? "bg-[#f0faf8] text-[#087f70]" : "bg-[#f9faf9] text-[#68726d]"}`}>
-              {done ? <CheckCircle2 className="w-4 h-4" /> : (
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${active ? "bg-[#087f70] text-white" : "bg-muted-foreground/30 text-[#68726d]"}`}>{s}</span>
+            <div
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${done ? "bg-[#f0faf8] text-[#087f70]" : active ? "bg-[#f0faf8] text-[#087f70]" : "bg-[#f9faf9] text-[#68726d]"}`}
+            >
+              {done ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <span
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${active ? "bg-[#087f70] text-white" : "bg-muted-foreground/30 text-[#68726d]"}`}
+                >
+                  {s}
+                </span>
               )}
-              <span className="hidden sm:inline">{s === 1 ? "PO Details" : "Add Items"}</span>
+              <span className="hidden sm:inline">
+                {s === 1 ? "PO Details" : "Add Items"}
+              </span>
             </div>
             {i === 0 && (
-              <div className={`w-8 h-px ${step > 1 ? "bg-[#087f70]" : "bg-border"}`} />
+              <div
+                className={`w-8 h-px ${step > 1 ? "bg-[#087f70]" : "bg-border"}`}
+              />
             )}
           </div>
         );
@@ -204,6 +292,7 @@ function NewPurchaseOrderPage() {
 
   // PO Header form
   const [vendorId, setVendorId] = useState("");
+  const [vendorSiteId, setVendorSiteId] = useState("");
   const [priority, setPriority] = useState<PRPriority | "">("");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [legalEntityId, setLegalEntityId] = useState("");
@@ -211,51 +300,82 @@ function NewPurchaseOrderPage() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [headerSaving, setHeaderSaving] = useState(false);
 
+  useWorkspaceUnsavedChanges(
+    step === 1 &&
+      !!(vendorId || vendorSiteId || priority || deliveryDate || notes),
+  );
+
   // Line items
   const [savedLineItems, setSavedLineItems] = useState<any[]>([]);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
-  const [editingItem, setEditingItem] = useState<{ item: any; index: number } | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<{ item: any; index: number } | null>(null);
+  const [editingItem, setEditingItem] = useState<{
+    item: any;
+    index: number;
+  } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{
+    item: any;
+    index: number;
+  } | null>(null);
   const [panelSaving, setPanelSaving] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedDetailItem, setSelectedDetailItem] = useState<any | null>(null);
-  const [detailModalStartsInEditMode, setDetailModalStartsInEditMode] = useState(false);
+  const [selectedDetailItem, setSelectedDetailItem] = useState<any | null>(
+    null,
+  );
+  const [detailModalStartsInEditMode, setDetailModalStartsInEditMode] =
+    useState(false);
 
   // API Hooks
   const createPO = useCreatePurchaseOrder();
   const addLineItem = useAddPOLineItems(purchaseOrderId || "");
-  const updateLineItem = useUpdatePOLineItem(purchaseOrderId || "", selectedDetailItem?.purchaseOrderLineItemId || selectedDetailItem?.id || "");
+  const updateLineItem = useUpdatePOLineItem(
+    purchaseOrderId || "",
+    selectedDetailItem?.purchaseOrderLineItemId || selectedDetailItem?.id || "",
+  );
   const deleteLineItem = useDeletePOLineItem(purchaseOrderId || "");
   const submitPO = useSubmitPurchaseOrderForApproval(purchaseOrderId || "");
 
-  const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
+  const [policyViolations, setPolicyViolations] = useState<
+    ProcurementPolicyViolation[] | null
+  >(null);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
 
   const { refetch: refetchPO } = usePurchaseOrder(purchaseOrderId || "");
 
   const { data: catData } = useGetProcurementCategories();
   const { data: vendorData } = useGetVendors();
-  const { data: legalEntityData } = useLegalEntities();
+  const { data: legalEntityData, workspaceEnabled } =
+    useTransactionLegalEntities("procurement");
 
   const rawCategories = catData?.data || [];
-  const categories = rawCategories.flatMap(c => [c, ...(c.children || [])]);
+  const categories = rawCategories.flatMap((c) => [c, ...(c.children || [])]);
   const getCategoryName = (categoryId?: string | null) => {
     if (!categoryId) return null;
-    return categories.find(c => c.categoryId === categoryId)?.name || null;
+    return categories.find((c) => c.categoryId === categoryId)?.name || null;
   };
 
   const rawVendors = vendorData?.data || [];
   const getVendorName = (vid: string) => {
-    const v = rawVendors.find(v => v.vendorId === vid);
+    const v = rawVendors.find((v) => v.vendorId === vid);
     return v ? v.displayName || v.legalName : "Unknown Vendor";
+  };
+
+  const vendorSites =
+    rawVendors.find((vendor) => vendor.vendorId === vendorId)?.sites || [];
+  const effectiveVendorSiteId =
+    vendorSiteId ||
+    vendorSites.find((site) => site.isPrimary)?.vendorSiteId ||
+    (vendorSites.length === 1 ? vendorSites[0].vendorSiteId : "");
+  const selectVendor = (id: string) => {
+    setVendorId(id);
+    setVendorSiteId("");
   };
 
   const legalEntities = (legalEntityData?.data || []).filter(
     isProcurementReadyLegalEntity,
   );
-  const legalEntityOptions = legalEntities.map(entity => ({
+  const legalEntityOptions = legalEntities.map((entity) => ({
     label: `${entity.legalName} (${entity.baseCurrency})`,
     value: entity.legalEntityId,
   }));
@@ -274,17 +394,37 @@ function NewPurchaseOrderPage() {
   };
 
   const handleSaveHeader = async () => {
-    if (!vendorId) { toast.error("Vendor is required"); return; }
-    if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
-    if (!deliveryDate) { toast.error("Delivery date is required"); return; }
-    if (legalEntities.length === 0) { toast.error("No procurement-ready legal entity is available"); return; }
-    if (requiresLegalEntitySelection && !effectiveLegalEntityId) { toast.error("Select the legal entity for this purchase order"); return; }
+    if (!vendorId) {
+      toast.error("Vendor is required");
+      return;
+    }
+    if (workspaceEnabled && vendorSites.length > 1 && !effectiveVendorSiteId) {
+      toast.error("Select the purchasing site");
+      return;
+    }
+    if (!isPRPriority(priority)) {
+      toast.error("Priority is required");
+      return;
+    }
+    if (!deliveryDate) {
+      toast.error("Delivery date is required");
+      return;
+    }
+    if (legalEntities.length === 0) {
+      toast.error("No procurement-ready legal entity is available");
+      return;
+    }
+    if (requiresLegalEntitySelection && !effectiveLegalEntityId) {
+      toast.error("Select the legal entity for this purchase order");
+      return;
+    }
 
     setHeaderSaving(true);
     try {
       const payload: CreatePurchaseOrderPayload = {
         legalEntityId: effectiveLegalEntityId || undefined,
         vendorId,
+        vendorSiteId: effectiveVendorSiteId || undefined,
         priority: priority as any,
         deliveryDate,
         currency,
@@ -313,7 +453,9 @@ function NewPurchaseOrderPage() {
       const items = refetched.data?.data?.lineItems || [];
       if (items.length > 0) setSavedLineItems(items);
       setPolicyViolations(null);
-      toast.success(`${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`);
+      toast.success(
+        `${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`,
+      );
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to add items"));
       throw err;
@@ -345,7 +487,8 @@ function NewPurchaseOrderPage() {
   const confirmDeleteItem = async () => {
     if (!purchaseOrderId || !itemToDelete) return;
     try {
-      const lineItemId = itemToDelete.item.purchaseOrderLineItemId || itemToDelete.item.id;
+      const lineItemId =
+        itemToDelete.item.purchaseOrderLineItemId || itemToDelete.item.id;
       if (!lineItemId) throw new Error("Item ID is missing");
       await deleteLineItem.mutateAsync(lineItemId);
       const refetched = await refetchPO();
@@ -353,7 +496,9 @@ function NewPurchaseOrderPage() {
       if (items) {
         setSavedLineItems(items);
       } else {
-        setSavedLineItems(prev => prev.filter((_, i) => i !== itemToDelete.index));
+        setSavedLineItems((prev) =>
+          prev.filter((_, i) => i !== itemToDelete.index),
+        );
       }
       setPolicyViolations(null);
       toast.success("Item removed");
@@ -369,15 +514,31 @@ function NewPurchaseOrderPage() {
     setShowModal(true);
   };
 
-  const totals = savedLineItems.reduce((acc, item) => {
-    const qty = item.quantity || 0;
-    const price = item.unitPrice || 0;
-    const tax = item.taxAmount || 0;
-    const sub = qty * price;
-    return { subtotal: acc.subtotal + sub, tax: acc.tax + tax, total: acc.total + sub + tax };
-  }, { subtotal: 0, tax: 0, total: 0 });
+  const totals = savedLineItems.reduce(
+    (acc, item) => {
+      const qty = item.quantity || 0;
+      const price = item.unitPrice || 0;
+      const tax = item.taxAmount || 0;
+      const sub = qty * price;
+      return {
+        subtotal: acc.subtotal + sub,
+        tax: acc.tax + tax,
+        total: acc.total + sub + tax,
+      };
+    },
+    { subtotal: 0, tax: 0, total: 0 },
+  );
 
-  const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
+  const currencySymbol =
+    currency === "USD"
+      ? "$"
+      : currency === "NGN"
+        ? "₦"
+        : currency === "EUR"
+          ? "€"
+          : currency === "GBP"
+            ? "£"
+            : currency;
 
   return (
     <>
@@ -385,23 +546,52 @@ function NewPurchaseOrderPage() {
         <div className="w-full space-y-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sticky -top-3 sm:-top-5 lg:-top-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 z-40 bg-[#f4f7f5]">
             <div>
-              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Create purchase order</h1>
-              <p className="mt-1 text-[12px] text-[#68726d]">Define the supplier commitment, entity, and delivery expectation.</p>
+              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">
+                Create purchase order
+              </h1>
+              <p className="mt-1 text-[12px] text-[#68726d]">
+                Define the supplier commitment, entity, and delivery
+                expectation.
+              </p>
             </div>
             <StepIndicator step={step} />
           </div>
 
           <div className="bg-white rounded-[14px] border border-black/[0.06] p-6 space-y-5">
-            <h2 className="text-base font-semibold text-[#0b100e]">PO Details</h2>
+            <h2 className="text-base font-semibold text-[#0b100e]">
+              PO Details
+            </h2>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Vendor <span className="text-[#d33d44]">*</span></label>
-              <VendorDropdown value={vendorId} onChange={setVendorId} />
+              <label className="text-sm font-medium text-[#0b100e]">
+                Vendor <span className="text-[#d33d44]">*</span>
+              </label>
+              <VendorDropdown value={vendorId} onChange={selectVendor} />
+              {workspaceEnabled && vendorSites.length > 0 && (
+                <label className="mt-3 block space-y-1.5 text-sm">
+                  <span>Purchasing site</span>
+                  <select
+                    aria-label="Purchasing site"
+                    value={effectiveVendorSiteId}
+                    onChange={(event) => setVendorSiteId(event.target.value)}
+                    className="h-11 w-full rounded-lg border bg-white px-3"
+                  >
+                    <option value="">Select a purchasing site</option>
+                    {vendorSites.map((site) => (
+                      <option key={site.vendorSiteId} value={site.vendorSiteId}>
+                        {site.name} · {site.code}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Priority <span className="text-[#d33d44]">*</span></label>
+                <label className="text-sm font-medium text-[#0b100e]">
+                  Priority <span className="text-[#d33d44]">*</span>
+                </label>
                 <SelectDropdown
                   value={priority}
                   onChange={(v) => setPriority(isPRPriority(v) ? v : "")}
@@ -409,55 +599,109 @@ function NewPurchaseOrderPage() {
                   placeholder="Select priority"
                 />
               </div>
-              {legalEntities.length > 1 && (
+              {workspaceEnabled && legalEntities.length === 1 && (
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-[#0b100e]">Legal entity <span className="text-[#d33d44]">*</span></label>
-                  <SelectDropdown value={effectiveLegalEntityId} onChange={selectLegalEntity} options={legalEntityOptions} placeholder="Select legal entity" />
+                  <label className="text-sm font-medium text-[#0b100e]">
+                    Legal entity
+                  </label>
+                  <div className="rounded-lg border bg-[#f9faf9] px-3 py-2.5 text-sm">
+                    {legalEntities[0].legalName}
+                  </div>
+                </div>
+              )}
+              {!workspaceEnabled && legalEntities.length > 1 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-[#0b100e]">
+                    Legal entity <span className="text-[#d33d44]">*</span>
+                  </label>
+                  <SelectDropdown
+                    value={effectiveLegalEntityId}
+                    onChange={selectLegalEntity}
+                    options={legalEntityOptions}
+                    placeholder="Select legal entity"
+                  />
                 </div>
               )}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Delivery Date <span className="text-[#d33d44]">*</span></label>
+                <label className="text-sm font-medium text-[#0b100e]">
+                  Delivery Date <span className="text-[#d33d44]">*</span>
+                </label>
                 <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                   <PopoverTrigger asChild>
-                    <button type="button" className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] cursor-pointer ${!deliveryDate ? "text-[#68726d]" : "text-[#0b100e]"}`}>
-                      {deliveryDate ? format(new Date(deliveryDate), "PPP") : "Pick a date"}
+                    <button
+                      type="button"
+                      className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] cursor-pointer ${!deliveryDate ? "text-[#68726d]" : "text-[#0b100e]"}`}
+                    >
+                      {deliveryDate
+                        ? format(new Date(deliveryDate), "PPP")
+                        : "Pick a date"}
                       <CalendarIcon className="w-4 h-4 ml-2 opacity-50" />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <CalendarPicker
                       mode="single"
-                      selected={deliveryDate ? new Date(deliveryDate) : undefined}
+                      selected={
+                        deliveryDate ? new Date(deliveryDate) : undefined
+                      }
                       onSelect={(d) => {
                         if (d) {
                           setDeliveryDate(format(d, "yyyy-MM-dd"));
                           setCalendarOpen(false);
                         }
                       }}
-                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      disabled={(date) =>
+                        date < new Date(new Date().setHours(0, 0, 0, 0))
+                      }
                       initialFocus
                     />
                   </PopoverContent>
                 </Popover>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Currency</label>
-                <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">{currency || "Select a legal entity"}</div>
-                <p className="text-xs text-[#68726d]">Locked to the legal entity base currency.</p>
+                <label className="text-sm font-medium text-[#0b100e]">
+                  Currency
+                </label>
+                <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">
+                  {currency || "Select a legal entity"}
+                </div>
+                <p className="text-xs text-[#68726d]">
+                  Locked to the legal entity base currency.
+                </p>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Notes <span className="text-[#68726d] font-normal">(optional)</span></label>
-              <textarea value={notes} onChange={e => setNotes(e.target.value)}
+              <label className="text-sm font-medium text-[#0b100e]">
+                Notes{" "}
+                <span className="text-[#68726d] font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 placeholder="Provide context for this PO..."
                 rows={3}
-                className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors" />
+                className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors"
+              />
             </div>
 
             <div className="pt-1 flex justify-end">
-              <button type="button" onClick={handleSaveHeader} disabled={!vendorId || !priority || legalEntities.length === 0 || (requiresLegalEntitySelection && !effectiveLegalEntityId) || !deliveryDate || headerSaving}
-                className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
+              <button
+                type="button"
+                onClick={handleSaveHeader}
+                disabled={
+                  !vendorId ||
+                  (workspaceEnabled &&
+                    vendorSites.length > 1 &&
+                    !effectiveVendorSiteId) ||
+                  !priority ||
+                  legalEntities.length === 0 ||
+                  (requiresLegalEntitySelection && !effectiveLegalEntityId) ||
+                  !deliveryDate ||
+                  headerSaving
+                }
+                className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+              >
                 {headerSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save & Continue
               </button>
@@ -470,8 +714,12 @@ function NewPurchaseOrderPage() {
         <div className="flex flex-col h-full w-full">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 sticky -top-3 sm:-top-5 lg:-top-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 z-40 bg-[#f4f7f5]">
             <div>
-              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Build the purchase order</h1>
-              <p className="mt-1 text-[12px] text-[#68726d]">Add the exact items, quantities, categories, and pricing.</p>
+              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">
+                Build the purchase order
+              </h1>
+              <p className="mt-1 text-[12px] text-[#68726d]">
+                Add the exact items, quantities, categories, and pricing.
+              </p>
             </div>
             <StepIndicator step={step} />
           </div>
@@ -480,7 +728,9 @@ function NewPurchaseOrderPage() {
             {/* Read-only PO summary */}
             <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-[#0b100e]">PO Details</h2>
+                <h2 className="text-base font-semibold text-[#0b100e]">
+                  PO Details
+                </h2>
                 <div className="flex items-center gap-1.5 text-xs bg-[#f0faf8] text-[#087f70] px-3 py-1 rounded-full font-medium">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Saved as draft
                 </div>
@@ -488,13 +738,20 @@ function NewPurchaseOrderPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
                   { label: "Vendor", value: getVendorName(vendorId) },
-                  { label: "Priority", value: PRIORITIES.find(p => p.value === priority)?.label || priority },
+                  {
+                    label: "Priority",
+                    value:
+                      PRIORITIES.find((p) => p.value === priority)?.label ||
+                      priority,
+                  },
                   { label: "Currency", value: currency },
                   { label: "Expected Delivery", value: deliveryDate },
                 ].map(({ label, value }) => (
                   <div key={label}>
                     <p className="text-xs text-[#68726d]">{label}</p>
-                    <p className="text-sm font-medium text-[#0b100e] mt-0.5">{value}</p>
+                    <p className="text-sm font-medium text-[#0b100e] mt-0.5">
+                      {value}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -509,17 +766,31 @@ function NewPurchaseOrderPage() {
                     {savedLineItems.length}
                   </span>
                 </h2>
-                <button type="button" onClick={() => { setEditingItem(null); setShowModal(true); }}
-                  className="flex items-center gap-1 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingItem(null);
+                    setShowModal(true);
+                  }}
+                  className="flex items-center gap-1 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors"
+                >
                   <Plus className="w-4 h-4" /> Add Item
                 </button>
               </div>
 
               {savedLineItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <p className="text-sm text-[#68726d]">No items yet. Click &quot;Add Item&quot; to get started.</p>
-                  <button type="button" onClick={() => { setEditingItem(null); setShowModal(true); }}
-                    className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#087f70] text-[#087f70] text-sm font-medium hover:bg-[#f0faf8] transition-colors">
+                  <p className="text-sm text-[#68726d]">
+                    No items yet. Click &quot;Add Item&quot; to get started.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingItem(null);
+                      setShowModal(true);
+                    }}
+                    className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#087f70] text-[#087f70] text-sm font-medium hover:bg-[#f0faf8] transition-colors"
+                  >
                     <Plus className="w-4 h-4" /> Add first item
                   </button>
                 </div>
@@ -527,111 +798,199 @@ function NewPurchaseOrderPage() {
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border/60 bg-[#f9faf9]">
-                        {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal", ""].map(h => (
-                          <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-[#68726d] uppercase tracking-wide">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {savedLineItems.map((item, i) => {
-                        const catName = getCategoryName(item.categoryId);
-                        const sub = (item.quantity || 0) * (item.unitPrice || 0);
-                        let itemViolations = [...(item.policyViolations || [])];
-                        if (policyViolations && Array.isArray(policyViolations)) {
-                          policyViolations.forEach((issue: any) => {
-                            const appliesToItem = issue.lineItems?.some((li: any) => li.lineItemId === item.purchaseOrderLineItemId || li.lineItemId === (item as any).id) ||
-                                                  issue.categories?.some((c: any) => c.categoryId === item.categoryId);
-                            if (appliesToItem) {
-                              if (!itemViolations.some((v: any) => v.message === issue.message)) {
-                                itemViolations.push({
-                                  type: issue.resolution === "BLOCK" ? "hard_block" : "warning",
-                                  message: issue.message
-                                });
-                              }
-                            }
-                          });
-                        }
-                        const hasViolations = itemViolations.length > 0;
-                        const hasBlock = itemViolations.some((v: any) => v.type === "hard_block");
-                        const itemKey = item.id || item.purchaseOrderLineItemId || i;
-                        return (
-                          <React.Fragment key={itemKey}>
-                            <tr 
-                              className={`border-b ${hasViolations ? "border-transparent" : "border-border/40 last:border-0"} hover:bg-[#f9faf9] transition-colors cursor-pointer`}
-                              onClick={() => {
-                                setSelectedDetailItem({ ...item, policyViolations: itemViolations, categoryName: catName, index: i });
-                                setDetailModalStartsInEditMode(false);
-                                setIsDetailModalOpen(true);
-                              }}
+                      <thead>
+                        <tr className="border-b border-border/60 bg-[#f9faf9]">
+                          {[
+                            "Name",
+                            "Description",
+                            "Category",
+                            "Qty",
+                            "Unit Price",
+                            "Subtotal",
+                            "",
+                          ].map((h) => (
+                            <th
+                              key={h}
+                              className="px-5 py-3 text-left text-xs font-semibold text-[#68726d] uppercase tracking-wide"
                             >
-                              <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
-                                <div className="flex items-center gap-1.5">
-                                  {item.name}
-                                  {hasViolations && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span 
-                                          className={`inline-flex items-center justify-center w-4 h-4 rounded-full shrink-0 cursor-help ${hasBlock ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}
-                                        >
-                                          {hasBlock 
-                                            ? <XCircle className="w-3 h-3" /> 
-                                            : <AlertTriangle className="w-3 h-3" />
-                                          }
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent className="max-w-[280px] text-center whitespace-pre-wrap">
-                                        {itemViolations.map((v: any) => v.message).join('\n\n')}
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                </div>
-                              </td>
-                            <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
-                            <td className="px-5 py-3.5">
-                              {catName
-                                ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{catName}</span>
-                                : <span className="text-[#68726d]">—</span>
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {savedLineItems.map((item, i) => {
+                          const catName = getCategoryName(item.categoryId);
+                          const sub =
+                            (item.quantity || 0) * (item.unitPrice || 0);
+                          let itemViolations = [
+                            ...(item.policyViolations || []),
+                          ];
+                          if (
+                            policyViolations &&
+                            Array.isArray(policyViolations)
+                          ) {
+                            policyViolations.forEach((issue: any) => {
+                              const appliesToItem =
+                                issue.lineItems?.some(
+                                  (li: any) =>
+                                    li.lineItemId ===
+                                      item.purchaseOrderLineItemId ||
+                                    li.lineItemId === (item as any).id,
+                                ) ||
+                                issue.categories?.some(
+                                  (c: any) => c.categoryId === item.categoryId,
+                                );
+                              if (appliesToItem) {
+                                if (
+                                  !itemViolations.some(
+                                    (v: any) => v.message === issue.message,
+                                  )
+                                ) {
+                                  itemViolations.push({
+                                    type:
+                                      issue.resolution === "BLOCK"
+                                        ? "hard_block"
+                                        : "warning",
+                                    message: issue.message,
+                                  });
+                                }
                               }
-                            </td>
-                            <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
-                            <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(sub || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center gap-1">
-                                <div className="relative group">
-                                  <button type="button" onClick={() => {
-                                      setSelectedDetailItem({ ...item, policyViolations: itemViolations, categoryName: catName, index: i });
-                                      setDetailModalStartsInEditMode(true);
-                                      setIsDetailModalOpen(true);
-                                    }}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
-                                </div>
-                                <div className="relative group">
-                                  <button type="button" onClick={() => setItemToDelete({ item, index: i })}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-
-                        </React.Fragment>
-                      );
-                    })}
-                    </tbody>
-                  </table>
+                            });
+                          }
+                          const hasViolations = itemViolations.length > 0;
+                          const hasBlock = itemViolations.some(
+                            (v: any) => v.type === "hard_block",
+                          );
+                          const itemKey =
+                            item.id || item.purchaseOrderLineItemId || i;
+                          return (
+                            <React.Fragment key={itemKey}>
+                              <tr
+                                className={`border-b ${hasViolations ? "border-transparent" : "border-border/40 last:border-0"} hover:bg-[#f9faf9] transition-colors cursor-pointer`}
+                                onClick={() => {
+                                  setSelectedDetailItem({
+                                    ...item,
+                                    policyViolations: itemViolations,
+                                    categoryName: catName,
+                                    index: i,
+                                  });
+                                  setDetailModalStartsInEditMode(false);
+                                  setIsDetailModalOpen(true);
+                                }}
+                              >
+                                <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
+                                  <div className="flex items-center gap-1.5">
+                                    {item.name}
+                                    {hasViolations && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span
+                                            className={`inline-flex items-center justify-center w-4 h-4 rounded-full shrink-0 cursor-help ${hasBlock ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"}`}
+                                          >
+                                            {hasBlock ? (
+                                              <XCircle className="w-3 h-3" />
+                                            ) : (
+                                              <AlertTriangle className="w-3 h-3" />
+                                            )}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-[280px] text-center whitespace-pre-wrap">
+                                          {itemViolations
+                                            .map((v: any) => v.message)
+                                            .join("\n\n")}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">
+                                  {item.description || "—"}
+                                </td>
+                                <td className="px-5 py-3.5">
+                                  {catName ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
+                                      {catName}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[#68726d]">—</span>
+                                  )}
+                                </td>
+                                <td className="px-5 py-3.5 text-[#0b100e]">
+                                  {item.quantity}
+                                </td>
+                                <td className="px-5 py-3.5 text-[#0b100e]">
+                                  {currencySymbol}
+                                  {(item.unitPrice || 0).toLocaleString(
+                                    "en-US",
+                                    { minimumFractionDigits: 2 },
+                                  )}
+                                </td>
+                                <td className="px-5 py-3.5 font-medium text-[#0b100e]">
+                                  {currencySymbol}
+                                  {(sub || 0).toLocaleString("en-US", {
+                                    minimumFractionDigits: 2,
+                                  })}
+                                </td>
+                                <td
+                                  className="px-5 py-3.5"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    <div className="relative group">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedDetailItem({
+                                            ...item,
+                                            policyViolations: itemViolations,
+                                            categoryName: catName,
+                                            index: i,
+                                          });
+                                          setDetailModalStartsInEditMode(true);
+                                          setIsDetailModalOpen(true);
+                                        }}
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                        Edit item
+                                      </span>
+                                    </div>
+                                    <div className="relative group">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setItemToDelete({ item, index: i })
+                                        }
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                        Remove item
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
 
                   <div className="px-5 py-3 border-t border-border/40">
-                    <button type="button" onClick={() => { setEditingItem(null); setShowModal(true); }}
-                      className="flex items-center gap-1.5 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingItem(null);
+                        setShowModal(true);
+                      }}
+                      className="flex items-center gap-1.5 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors"
+                    >
                       <Plus className="w-4 h-4" /> Add Item
                     </button>
                   </div>
@@ -640,15 +999,32 @@ function NewPurchaseOrderPage() {
                     <div className="space-y-1.5 min-w-[220px]">
                       <div className="flex justify-between text-sm">
                         <span className="text-[#68726d]">Subtotal</span>
-                        <span className="font-medium">{currencySymbol}{totals.subtotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                        <span className="font-medium">
+                          {currencySymbol}
+                          {totals.subtotal.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-[#68726d]">Tax</span>
-                        <span className="font-medium">{currencySymbol}{totals.tax.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                        <span className="font-medium">
+                          {currencySymbol}
+                          {totals.tax.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
                       </div>
                       <div className="flex justify-between text-sm border-t border-border/60 pt-1.5">
-                        <span className="font-semibold text-[#0b100e]">Total</span>
-                        <span className="font-bold text-[#0b100e]">{currencySymbol}{totals.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                        <span className="font-semibold text-[#0b100e]">
+                          Total
+                        </span>
+                        <span className="font-bold text-[#0b100e]">
+                          {currencySymbol}
+                          {totals.total.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -658,7 +1034,9 @@ function NewPurchaseOrderPage() {
           </div>
 
           <div className="shrink-0 border-t border-black/[0.06] bg-white py-4 flex items-center justify-end">
-            <button type="button" disabled={savedLineItems.length === 0 || submitPO.isPending}
+            <button
+              type="button"
+              disabled={savedLineItems.length === 0 || submitPO.isPending}
               onClick={async () => {
                 if (!purchaseOrderId) return;
                 if (policyViolations) {
@@ -674,16 +1052,23 @@ function NewPurchaseOrderPage() {
                     const violations = getProcurementPolicyViolations(err);
                     setPolicyViolations(violations);
                     setIsPolicyModalOpen(true);
-                    setSavedLineItems(prev => applyProcurementPolicyErrorToLineItems(prev, violations));
+                    setSavedLineItems((prev) =>
+                      applyProcurementPolicyErrorToLineItems(prev, violations),
+                    );
                   } else {
                     toast.error(getApiErrorMessage(err, "Failed to submit"));
                   }
                 }
               }}
               className={`h-11 px-8 rounded-[12px] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm ${
-                policyViolations ? "bg-[#d33d44] hover:bg-[#c33339]" : "bg-[#087f70]"
-              }`}>
-              {submitPO.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                policyViolations
+                  ? "bg-[#d33d44] hover:bg-[#c33339]"
+                  : "bg-[#087f70]"
+              }`}
+            >
+              {submitPO.isPending && (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              )}
               {policyViolations ? "Fix Violations to Submit" : "Submit Order"}
             </button>
           </div>
@@ -693,7 +1078,10 @@ function NewPurchaseOrderPage() {
       {/* Add/Edit Item Modal */}
       <LineItemBatchModal
         open={showModal}
-        onClose={() => { setShowModal(false); setEditingItem(null); }}
+        onClose={() => {
+          setShowModal(false);
+          setEditingItem(null);
+        }}
         currency={currency}
         onSaveAll={handleAddItems as any}
         saving={panelSaving}
@@ -705,7 +1093,11 @@ function NewPurchaseOrderPage() {
 
       <LineItemDetailModal
         isOpen={isDetailModalOpen}
-        onClose={() => { setIsDetailModalOpen(false); setSelectedDetailItem(null); setDetailModalStartsInEditMode(false); }}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedDetailItem(null);
+          setDetailModalStartsInEditMode(false);
+        }}
         item={selectedDetailItem}
         currency={currency}
         startInEditMode={detailModalStartsInEditMode}
@@ -737,7 +1129,9 @@ function NewPurchaseOrderPage() {
               setSelectedDetailItem(null);
               setPolicyViolations(null);
             } catch (err: any) {
-              toast.error(err?.response?.data?.message || "Failed to update item");
+              toast.error(
+                err?.response?.data?.message || "Failed to update item",
+              );
             } finally {
               setPanelSaving(false);
             }
@@ -745,17 +1139,27 @@ function NewPurchaseOrderPage() {
         }}
       />
 
-      <AlertDialog open={!!itemToDelete} onOpenChange={(val) => !val && setItemToDelete(null)}>
+      <AlertDialog
+        open={!!itemToDelete}
+        onOpenChange={(val) => !val && setItemToDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Item?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove <span className="font-semibold text-[#0b100e]">{itemToDelete?.item.name}</span> from the order? This action cannot be undone.
+              Are you sure you want to remove{" "}
+              <span className="font-semibold text-[#0b100e]">
+                {itemToDelete?.item.name}
+              </span>{" "}
+              from the order? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteItem} className="bg-[#b83038] hover:bg-red-700 text-white">
+            <AlertDialogAction
+              onClick={confirmDeleteItem}
+              className="bg-[#b83038] hover:bg-red-700 text-white"
+            >
               Remove
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -772,9 +1176,9 @@ function NewPurchaseOrderPage() {
           onProceedWithWarnings={async (justification) => {
             if (!purchaseOrderId) return;
             try {
-              await submitPO.mutateAsync({ 
+              await submitPO.mutateAsync({
                 policyJustification: justification,
-                spendProgramJustification: justification
+                spendProgramJustification: justification,
               });
               toast.success("Purchase order submitted for approval!");
               setPolicyViolations(null);
@@ -784,9 +1188,16 @@ function NewPurchaseOrderPage() {
               if (isProcurementPolicyViolationError(err)) {
                 const violations = getProcurementPolicyViolations(err);
                 setPolicyViolations(violations);
-                setSavedLineItems(prev => applyProcurementPolicyErrorToLineItems(prev, violations));
+                setSavedLineItems((prev) =>
+                  applyProcurementPolicyErrorToLineItems(prev, violations),
+                );
               } else {
-                toast.error(getApiErrorMessage(err, "Failed to submit with justifications"));
+                toast.error(
+                  getApiErrorMessage(
+                    err,
+                    "Failed to submit with justifications",
+                  ),
+                );
               }
             }
           }}
