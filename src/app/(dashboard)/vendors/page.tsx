@@ -1,6 +1,5 @@
 "use client";
 
-import { useAuthStore } from "@/stores/auth-stores";
 import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -908,7 +907,8 @@ function VendorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
-  const canInviteVendor = useAuthorizationPolicies().vendors.canInvite;
+  const policies = useAuthorizationPolicies();
+  const canInviteVendor = policies.vendors.canInvite;
 
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
   const [page, setPage] = useState(1);
@@ -921,11 +921,7 @@ function VendorPage() {
   const workspaceEnabled = useEntityWorkspaceStore(
     (state) => !!state.snapshot?.enabled,
   );
-  const canAdminDirectory = useAuthStore(
-    (state) =>
-      state.can("vendor.entity_configuration", "manage") &&
-      state.can("vendor", "read_sensitive"),
-  );
+  const canAdminDirectory = policies.vendors.canViewOrganizationSetup;
   const organizationAdmin =
     workspaceEnabled &&
     canAdminDirectory &&
