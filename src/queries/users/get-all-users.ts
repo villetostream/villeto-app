@@ -1,4 +1,7 @@
-import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  useEntityWorkspaceStore,
+  workspaceQueryKey,
+} from "@/features/entity-workspace/store";
 
 import {
   UseQueryOptions,
@@ -142,11 +145,14 @@ export const useGetDirectoryUsersApi = (
   options?: UseUserListOptions,
 ): UseQueryResult<Response, Error> => {
   const axiosInstance = useAxios();
+  // Subscribe to workspace selection so the directory rerenders on a switch.
+  const selectedWorkspace = useEntityWorkspaceStore((state) => state.selection);
 
   return useQuery<Response, Error>({
     queryKey: workspaceQueryKey([
       ...QUERY_KEYS.people.directoryUsers,
       options?.params,
+      selectedWorkspace,
     ]),
     queryFn: async () => {
       return fetchAllUsersLoop(

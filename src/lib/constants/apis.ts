@@ -42,7 +42,7 @@ export const API_KEYS = {
   USER: {
     USERS: "users/",
     INVITED_USERS: "users?invited=true",
-    DIRECTORY_USERS: "users",
+    DIRECTORY_USERS: "users/directory",
     SPLIT_EXPENSE_USERS: "users/directory?status=all",
     UNINVITED_USERS: "users?status=Inactive",
     INVITEUSER: "users/invite",
