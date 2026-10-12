@@ -1,6 +1,6 @@
-# Module delivery stage 07: expenses
+# Module delivery stage 08: cross-module
 
-Delivered source stages: foundation, people-administration, vendors-policies, procurement, invoice-intake-ap, payments-accounting, expenses.
+Delivered source stages: foundation, people-administration, vendors-policies, procurement, invoice-intake-ap, payments-accounting, expenses, cross-module.
 
 The paired backend/frontend branches use the same stage name. Stage 01 targets
 backend develop and frontend main; each later stage targets its previous branch.
