@@ -1,3 +1,4 @@
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
@@ -9,11 +10,15 @@ export function useApproveProcurementPolicy() {
 
   return useMutation({
     mutationFn: async ({ id }: { id: string }) => {
-      const response = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY_ACTION(id, "approve"));
+      const response = await axios.patch(
+        PROCUREMENT_KEYS.PROCUREMENT_POLICY_ACTION(id, "approve"),
+      );
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.policies),
+      });
     },
   });
 }
@@ -24,11 +29,15 @@ export function useRejectProcurementPolicy() {
 
   return useMutation({
     mutationFn: async ({ id }: { id: string }) => {
-      const response = await axios.patch(PROCUREMENT_KEYS.PROCUREMENT_POLICY_ACTION(id, "reject"));
+      const response = await axios.patch(
+        PROCUREMENT_KEYS.PROCUREMENT_POLICY_ACTION(id, "reject"),
+      );
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.procurement.policies });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.policies),
+      });
     },
   });
 }

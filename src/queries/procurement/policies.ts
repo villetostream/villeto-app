@@ -1,9 +1,19 @@
-import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  UseQueryOptions,
+} from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
-import type { SpendProgramDraft, SpendProgramGroup, RuleDefinition } from "@/components/policies/procurement/types";
+import type {
+  SpendProgramDraft,
+  SpendProgramGroup,
+  RuleDefinition,
+} from "@/components/policies/procurement/types";
 
 // ─── Response shapes ──────────────────────────────────────────────────────────
 
@@ -50,7 +60,12 @@ interface PoliciesListResponse {
   message: string;
   status: number;
   data: ProcurementPolicyApiRecord[];
-  meta: { totalCount: number; totalPages: number; currentPage: number; limit: number };
+  meta: {
+    totalCount: number;
+    totalPages: number;
+    currentPage: number;
+    limit: number;
+  };
 }
 
 interface PolicyDetailResponse {
@@ -61,7 +76,12 @@ interface PolicyDetailResponse {
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
-async function fetchAllProcurementPoliciesLoop(axios: any, url: string, page: number, limit: number) {
+async function fetchAllProcurementPoliciesLoop(
+  axios: any,
+  url: string,
+  page: number,
+  limit: number,
+) {
   if (limit !== 1000) {
     const res = await axios.get(`${url}?page=${page}&limit=${limit}`);
     return res.data;
@@ -70,23 +90,23 @@ async function fetchAllProcurementPoliciesLoop(axios: any, url: string, page: nu
   // Intercept limit=1000 and fetch all pages
   const firstRes = await axios.get(`${url}?page=1&limit=100`);
   const firstPageData = firstRes.data;
-  
+
   const totalPages = Math.min(Number(firstPageData?.meta?.totalPages) || 1, 50); // Cap at 50 pages to prevent hangs
   let allData = firstPageData?.data || [];
-  
+
   if (totalPages > 1) {
     const promises = [];
     for (let i = 2; i <= totalPages; i++) {
       promises.push(axios.get(`${url}?page=${i}&limit=100`));
     }
     const results = await Promise.all(promises);
-    results.forEach(res => {
+    results.forEach((res) => {
       if (res.data?.data) {
         allData = [...allData, ...res.data.data];
       }
     });
   }
-  
+
   return {
     ...firstPageData,
     data: allData,
@@ -95,12 +115,10 @@ async function fetchAllProcurementPoliciesLoop(axios: any, url: string, page: nu
       totalCount: allData.length,
       limit: allData.length,
       totalPages: 1,
-      currentPage: 1
-    }
+      currentPage: 1,
+    },
   };
 }
-
-
 
 // ─── Spend Programs V1 Hooks ─────────────────────────────────────────────────
 
@@ -116,12 +134,16 @@ export interface SpendProgramSettings {
   activeStages?: string[]; // Fallback
 }
 
-export const useGetSpendProgramRuleDefinitions = (group?: SpendProgramGroup) => {
+export const useGetSpendProgramRuleDefinitions = (
+  group?: SpendProgramGroup,
+) => {
   const axios = useAxios();
   return useQuery<{ data: RuleDefinition[] }, Error>({
-    queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(group),
+    queryKey: workspaceQueryKey(
+      QUERY_KEYS.procurement.spendProgramRuleDefs(group),
+    ),
     queryFn: async () => {
-      const url = group 
+      const url = group
         ? `${PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS}?group=${group}&includeInactive=false`
         : `${PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS}?includeInactive=false`;
       const res = await axios.get(url);
@@ -147,11 +169,19 @@ export const useUpdateSpendProgramRuleDefinition = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: UpdateRuleDefinitionPayload) => {
-      const res = await axios.put(PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS, payload);
+      const res = await axios.put(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS,
+        payload,
+      );
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(), refetchType: "all" });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(
+          QUERY_KEYS.procurement.spendProgramRuleDefs(),
+        ),
+        refetchType: "all",
+      });
     },
   });
 };
@@ -161,11 +191,18 @@ export const useDeleteSpendProgramRuleDefinition = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (ruleType: string) => {
-      const res = await axios.delete(PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITION_DELETE(ruleType));
+      const res = await axios.delete(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITION_DELETE(ruleType),
+      );
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(), refetchType: "all" });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(
+          QUERY_KEYS.procurement.spendProgramRuleDefs(),
+        ),
+        refetchType: "all",
+      });
     },
   });
 };
@@ -175,11 +212,18 @@ export const useSeedDefaultRuleDefinitions = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const res = await axios.post(PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS_SEED);
+      const res = await axios.post(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS_SEED,
+      );
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramRuleDefs(), refetchType: "all" });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(
+          QUERY_KEYS.procurement.spendProgramRuleDefs(),
+        ),
+        refetchType: "all",
+      });
     },
   });
 };
@@ -187,7 +231,7 @@ export const useSeedDefaultRuleDefinitions = () => {
 export const useGetSpendProgramSettings = (options?: { enabled?: boolean }) => {
   const axios = useAxios();
   return useQuery<{ data: SpendProgramSettings }, Error>({
-    queryKey: QUERY_KEYS.procurement.spendProgramSettings,
+    queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgramSettings),
     queryFn: async () => {
       const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS);
       return res.data;
@@ -203,11 +247,19 @@ export const useUpdateSpendProgramSettings = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (settings: Partial<SpendProgramSettings>) => {
-      const res = await axios.put(PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS, settings);
+      const res = await axios.put(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS,
+        settings,
+      );
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgramSettings, refetchType: "all" });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(
+          QUERY_KEYS.procurement.spendProgramSettings,
+        ),
+        refetchType: "all",
+      });
     },
   });
 };
@@ -222,12 +274,25 @@ export interface SpendProgramSettingsCategory {
 
 export const useGetSpendProgramSettingsCategories = (inSettings?: boolean) => {
   const axios = useAxios();
-  return useQuery<{ data: { enabled: boolean; coverageMode: string; categories: SpendProgramSettingsCategory[] } }, Error>({
-    queryKey: [...QUERY_KEYS.procurement.spendProgramCategories, { inSettings }],
+  return useQuery<
+    {
+      data: {
+        enabled: boolean;
+        coverageMode: string;
+        categories: SpendProgramSettingsCategory[];
+      };
+    },
+    Error
+  >({
+    queryKey: workspaceQueryKey([
+      ...QUERY_KEYS.procurement.spendProgramCategories,
+      { inSettings },
+    ]),
     queryFn: async () => {
-      const url = inSettings !== undefined 
-        ? `${PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS_CATEGORIES}?inSettings=${inSettings}`
-        : PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS_CATEGORIES;
+      const url =
+        inSettings !== undefined
+          ? `${PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS_CATEGORIES}?inSettings=${inSettings}`
+          : PROCUREMENT_KEYS.SPEND_PROGRAM_SETTINGS_CATEGORIES;
       const res = await axios.get(url);
       return res.data;
     },
@@ -238,9 +303,13 @@ export const useGetSpendProgramSettingsCategories = (inSettings?: boolean) => {
 export const useGetSpendProgramEligibleRoles = () => {
   const axios = useAxios();
   return useQuery<{ data: any[] }, Error>({
-    queryKey: QUERY_KEYS.procurement.spendProgramEligibleRoles,
+    queryKey: workspaceQueryKey(
+      QUERY_KEYS.procurement.spendProgramEligibleRoles,
+    ),
     queryFn: async () => {
-      const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM_ELIGIBLE_ROLES);
+      const res = await axios.get(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_ELIGIBLE_ROLES,
+      );
       return res.data;
     },
     staleTime: STALE_TIMES.SLOW,
@@ -252,89 +321,115 @@ export const useGetSpendProgramEligibleRoles = () => {
 function transformConditionConfigToBackend(config: any) {
   if (!config) return {};
   const res = { ...config };
-  
+
   if (res.amounts && Object.keys(res.amounts).length > 0) {
-    res.amountThresholds = Object.entries(res.amounts).map(([currency, amount]) => ({
-      currency,
-      amount: Number(amount)
-    }));
+    res.amountThresholds = Object.entries(res.amounts).map(
+      ([currency, amount]) => ({
+        currency,
+        amount: Number(amount),
+      }),
+    );
     delete res.amounts;
     delete res.amount;
     delete res.currency;
   } else if (res.amount !== undefined && res.currency) {
-    res.amountThresholds = [{ currency: res.currency, amount: Number(res.amount) }];
+    res.amountThresholds = [
+      { currency: res.currency, amount: Number(res.amount) },
+    ];
     delete res.amount;
     delete res.currency;
   }
-  
+
   return res;
 }
 
 function transformConditionConfigFromBackend(config: any) {
   if (!config) return {};
   const res = { ...config };
-  
+
   if (res.amountThresholds && Array.isArray(res.amountThresholds)) {
     if (res.amountThresholds.length === 1) {
       res.amount = res.amountThresholds[0].amount;
       res.currency = res.amountThresholds[0].currency;
     } else if (res.amountThresholds.length > 1) {
-      res.amounts = res.amountThresholds.reduce((acc: Record<string, number>, curr: any) => {
-        acc[curr.currency] = curr.amount;
-        return acc;
-      }, {});
+      res.amounts = res.amountThresholds.reduce(
+        (acc: Record<string, number>, curr: any) => {
+          acc[curr.currency] = curr.amount;
+          return acc;
+        },
+        {},
+      );
       // For fallback UI consistency in single-currency view modes
       res.amount = res.amountThresholds[0].amount;
       res.currency = res.amountThresholds[0].currency;
     }
     delete res.amountThresholds;
   }
-  
+
   return res;
 }
 
 // ─── Spend Program Payload builder ───────────────────────────────────────────
 
-export function buildSpendProgramPayload(draft: SpendProgramDraft, isUpdate: boolean = false) {
+export function buildSpendProgramPayload(
+  draft: SpendProgramDraft,
+  isUpdate: boolean = false,
+) {
   return {
     draftId: draft.draftId,
     name: draft.name.trim(),
     description: draft.description.trim() || undefined,
     categoryIds: draft.categoryIds,
     groups: draft.groups
-      .filter(g => g.rules.length > 0)
-      .map(g => ({
+      .filter((g) => g.rules.length > 0)
+      .map((g) => ({
         group: g.group,
         rules: g.rules.map((r, idx) => {
-          const hasExceptions = r.exceptionConfig && (
-            (r.exceptionConfig.departmentIds && r.exceptionConfig.departmentIds.length > 0) ||
-            (r.exceptionConfig.roleIds && r.exceptionConfig.roleIds.length > 0) ||
-            (r.exceptionConfig.jobGradeIds && r.exceptionConfig.jobGradeIds.length > 0) ||
-            (r.exceptionConfig.managementLevelIds && r.exceptionConfig.managementLevelIds.length > 0) ||
-            (r.exceptionConfig.userIds && r.exceptionConfig.userIds.length > 0)
-          );
+          const hasExceptions =
+            r.exceptionConfig &&
+            ((r.exceptionConfig.departmentIds &&
+              r.exceptionConfig.departmentIds.length > 0) ||
+              (r.exceptionConfig.roleIds &&
+                r.exceptionConfig.roleIds.length > 0) ||
+              (r.exceptionConfig.jobGradeIds &&
+                r.exceptionConfig.jobGradeIds.length > 0) ||
+              (r.exceptionConfig.managementLevelIds &&
+                r.exceptionConfig.managementLevelIds.length > 0) ||
+              (r.exceptionConfig.userIds &&
+                r.exceptionConfig.userIds.length > 0));
 
           return {
-            procurementSpendProgramRuleId: r.procurementSpendProgramRuleId || (r.id && !r.id.startsWith("rule-") ? r.id : undefined),
+            procurementSpendProgramRuleId:
+              r.procurementSpendProgramRuleId ||
+              (r.id && !r.id.startsWith("rule-") ? r.id : undefined),
             ruleDefinitionId: r.ruleDefinitionId,
             ruleType: r.ruleType,
-            appliesToCategoryIds: r.appliesToAll ? draft.categoryIds : (r.appliesToCategoryIds || []),
+            appliesToCategoryIds: r.appliesToAll
+              ? draft.categoryIds
+              : r.appliesToCategoryIds || [],
             legalEntityIds: r.legalEntityIds || [],
-            conditionConfig: transformConditionConfigToBackend(r.conditionConfig),
+            conditionConfig: transformConditionConfigToBackend(
+              r.conditionConfig,
+            ),
             action: r.action,
             actionConfig: r.actionConfig,
-            exceptionConfig: hasExceptions ? {
-              departmentIds: r.exceptionConfig.departmentIds || [],
-              roleIds: r.exceptionConfig.roleIds || [],
-              jobGradeIds: r.exceptionConfig.jobGradeIds || [],
-              managementLevelIds: r.exceptionConfig.managementLevelIds || [],
-              userIds: r.exceptionConfig.userIds || [],
-              exceptionRule: {
-                conditionConfig: transformConditionConfigToBackend(r.exceptionConfig.conditionConfig),
-                action: r.exceptionConfig.action || "allow",
-                actionConfig: r.exceptionConfig.actionConfig || {},
-              }
-            } : undefined,
+            exceptionConfig: hasExceptions
+              ? {
+                  departmentIds: r.exceptionConfig.departmentIds || [],
+                  roleIds: r.exceptionConfig.roleIds || [],
+                  jobGradeIds: r.exceptionConfig.jobGradeIds || [],
+                  managementLevelIds:
+                    r.exceptionConfig.managementLevelIds || [],
+                  userIds: r.exceptionConfig.userIds || [],
+                  exceptionRule: {
+                    conditionConfig: transformConditionConfigToBackend(
+                      r.exceptionConfig.conditionConfig,
+                    ),
+                    action: r.exceptionConfig.action || "allow",
+                    actionConfig: r.exceptionConfig.actionConfig || {},
+                  },
+                }
+              : undefined,
             sortOrder: idx,
             isActive: r.isActive ?? true,
           };
@@ -356,7 +451,9 @@ export function mapSpendProgramFromBackend(data: any): SpendProgramDraft {
         if (exceptionConfig && exceptionConfig.exceptionRule) {
           exceptionConfig = {
             ...exceptionConfig,
-            conditionConfig: transformConditionConfigFromBackend(exceptionConfig.exceptionRule.conditionConfig),
+            conditionConfig: transformConditionConfigFromBackend(
+              exceptionConfig.exceptionRule.conditionConfig,
+            ),
             action: exceptionConfig.exceptionRule.action || "",
             actionConfig: exceptionConfig.exceptionRule.actionConfig || {},
           };
@@ -367,7 +464,9 @@ export function mapSpendProgramFromBackend(data: any): SpendProgramDraft {
           ...r,
           id: r.procurementSpendProgramRuleId || `rule-${Date.now()}-${idx}`,
           procurementSpendProgramRuleId: r.procurementSpendProgramRuleId,
-          conditionConfig: transformConditionConfigFromBackend(r.conditionConfig),
+          conditionConfig: transformConditionConfigFromBackend(
+            r.conditionConfig,
+          ),
           exceptionConfig: exceptionConfig || {
             departmentIds: [],
             roleIds: [],
@@ -392,11 +491,14 @@ export const useGetSpendPrograms = (
   limit = 20,
   group?: string,
   status?: string,
-  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">
+  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">,
 ) => {
   const axios = useAxios();
   return useQuery<any, Error>({
-    queryKey: [...QUERY_KEYS.procurement.spendPrograms, { page, limit, group, status }],
+    queryKey: workspaceQueryKey([
+      ...QUERY_KEYS.procurement.spendPrograms,
+      { page, limit, group, status },
+    ]),
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -404,8 +506,10 @@ export const useGetSpendPrograms = (
       });
       if (group) params.append("group", group);
       if (status) params.append("status", status);
-      
-      const res = await axios.get(`${PROCUREMENT_KEYS.SPEND_PROGRAMS}?${params.toString()}`);
+
+      const res = await axios.get(
+        `${PROCUREMENT_KEYS.SPEND_PROGRAMS}?${params.toString()}`,
+      );
       return res.data;
     },
     staleTime: STALE_TIMES.NORMAL,
@@ -416,11 +520,11 @@ export const useGetSpendPrograms = (
 
 export const useGetSpendProgramById = (
   id: string,
-  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">
+  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">,
 ) => {
   const axios = useAxios();
   return useQuery<any, Error>({
-    queryKey: QUERY_KEYS.procurement.spendProgram(id),
+    queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
     queryFn: async () => {
       const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM(id));
       return res.data;
@@ -446,7 +550,10 @@ export const useCreateSpendProgram = () => {
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
     },
   });
 };
@@ -458,12 +565,21 @@ export const useUpdateSpendProgram = (id: string) => {
     mutationFn: async (draft: SpendProgramDraft) => {
       const payload = buildSpendProgramPayload(draft, true);
       delete payload.draftId;
-      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM(id), payload);
+      const res = await axios.patch(
+        PROCUREMENT_KEYS.SPEND_PROGRAM(id),
+        payload,
+      );
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendProgram(id), refetchType: "all" });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
+        refetchType: "all",
+      });
     },
   });
 };
@@ -477,8 +593,13 @@ export const useDeleteSpendProgram = () => {
       return res.data;
     },
     onSuccess: async (_, id) => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
-      qc.removeQueries({ queryKey: QUERY_KEYS.procurement.spendProgram(id) });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
+      qc.removeQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
+      });
     },
   });
 };
@@ -488,11 +609,16 @@ export const useApproveSpendProgram = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_ACTION(id, "approve"));
+      const res = await axios.patch(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_ACTION(id, "approve"),
+      );
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
     },
   });
 };
@@ -502,22 +628,30 @@ export const useRejectSpendProgram = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_ACTION(id, "reject"));
+      const res = await axios.patch(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_ACTION(id, "reject"),
+      );
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
     },
   });
 };
 
 export const useGetSpendProgramDraftById = (
   draftId: string,
-  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">
+  options?: Omit<UseQueryOptions<any, Error>, "queryKey" | "queryFn">,
 ) => {
   const axios = useAxios();
   return useQuery<any, Error>({
-    queryKey: [...QUERY_KEYS.procurement.spendProgram(draftId), "draft"],
+    queryKey: workspaceQueryKey([
+      ...QUERY_KEYS.procurement.spendProgram(draftId),
+      "draft",
+    ]),
     queryFn: async () => {
       const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM(draftId));
       return res.data;
@@ -536,7 +670,10 @@ export const useCreateSpendProgramDraft = () => {
   const axios = useAxios();
   return useMutation({
     mutationFn: async (draft: SpendProgramDraft) => {
-      const res = await axios.post(PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFTS, buildSpendProgramPayload(draft));
+      const res = await axios.post(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFTS,
+        buildSpendProgramPayload(draft),
+      );
       return res.data;
     },
   });
@@ -545,10 +682,19 @@ export const useCreateSpendProgramDraft = () => {
 export const useUpdateSpendProgramDraft = () => {
   const axios = useAxios();
   return useMutation({
-    mutationFn: async ({ draftId, payload }: { draftId: string; payload: SpendProgramDraft }) => {
+    mutationFn: async ({
+      draftId,
+      payload,
+    }: {
+      draftId: string;
+      payload: SpendProgramDraft;
+    }) => {
       const p = buildSpendProgramPayload(payload, true);
       p.draftId = draftId;
-      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFT(draftId), p);
+      const res = await axios.patch(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFT(draftId),
+        p,
+      );
       return res.data;
     },
   });
@@ -567,11 +713,17 @@ export const useToggleSpendProgramRuleStatus = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (rules: ToggleRuleStatusPayload[]) => {
-      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS_STATUS, { rules });
+      const res = await axios.patch(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_RULE_DEFINITIONS_STATUS,
+        { rules },
+      );
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
     },
   });
 };
@@ -581,12 +733,22 @@ export const useDeleteSpendProgramDraft = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (draftId: string) => {
-      const res = await axios.delete(PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFT(draftId));
+      const res = await axios.delete(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_DRAFT(draftId),
+      );
       return res.data;
     },
     onSuccess: async (_, draftId) => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.spendPrograms, refetchType: "all" });
-      qc.removeQueries({ queryKey: [...QUERY_KEYS.procurement.spendProgram(draftId), "draft"] });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
+      qc.removeQueries({
+        queryKey: workspaceQueryKey([
+          ...QUERY_KEYS.procurement.spendProgram(draftId),
+          "draft",
+        ]),
+      });
     },
   });
 };
