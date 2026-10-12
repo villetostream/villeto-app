@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { isAxiosError, type AxiosInstance } from "axios";
 import {
   Building2,
@@ -444,12 +444,29 @@ function Field({
   );
 }
 
-export function VendorLegalEntityPanel({
+export function VendorLegalEntityPanel(props: {
+  vendorId: string;
+  axiosInstance: AxiosInstance;
+}) {
+  const workspaceGeneration = useEntityWorkspaceStore((state) => state.generation);
+  // Reset coverage, site selection, and dialogs when the workspace changes.
+  return (
+    <VendorLegalEntityPanelContent
+      key={`${props.vendorId}:${workspaceGeneration}`}
+      {...props}
+      workspaceGeneration={workspaceGeneration}
+    />
+  );
+}
+
+function VendorLegalEntityPanelContent({
   vendorId,
   axiosInstance,
+  workspaceGeneration,
 }: {
   vendorId: string;
   axiosInstance: AxiosInstance;
+  workspaceGeneration: number;
 }) {
   const can = useAuthStore((state) => state.can);
   const canManageSites = can("vendor", "create");
@@ -457,7 +474,6 @@ export function VendorLegalEntityPanel({
     "vendor.entity_configuration",
     "manage",
   );
-  useEntityWorkspaceStore((state) => state.generation);
   const canManageEntityConfiguration =
     canReadEntityConfiguration && !workspaceReadOnly();
   const [sites, setSites] = useState<VendorSite[]>([]);
@@ -481,18 +497,23 @@ export function VendorLegalEntityPanel({
     assignment: SiteAssignment;
   } | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
+    const isCurrent = () =>
+      !signal?.aborted &&
+      workspaceGeneration === useEntityWorkspaceStore.getState().generation;
+    if (!isCurrent()) return;
     setLoading(true);
     setMatrixError(false);
     try {
-      const sitesRequest = axiosInstance.get(`/vendors/${vendorId}/sites`);
+      const sitesRequest = axiosInstance.get(`/vendors/${vendorId}/sites`, { signal });
       const relationshipRequest = canReadEntityConfiguration
-        ? axiosInstance.get(`/vendors/${vendorId}/entity-relationships`)
+        ? axiosInstance.get(`/vendors/${vendorId}/entity-relationships`, { signal })
         : Promise.resolve(null);
       const [sitesResponse, relationshipsResponse] = await Promise.all([
         sitesRequest,
         relationshipRequest,
       ]);
+      if (!isCurrent()) return;
       setSites(unwrap<VendorSite[]>(sitesResponse));
       setRelationships(
         relationshipsResponse
@@ -500,18 +521,21 @@ export function VendorLegalEntityPanel({
           : [],
       );
     } catch {
+      if (!isCurrent()) return;
       setMatrixError(true);
       toast.error("Could not load vendor legal-entity setup.");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  };
+  }, [axiosInstance, vendorId, canReadEntityConfiguration, workspaceGeneration]);
 
   useEffect(() => {
+    const controller = new AbortController();
     queueMicrotask(() => {
-      void load();
+      if (!controller.signal.aborted) void load(controller.signal);
     });
-  }, [vendorId, canReadEntityConfiguration]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => controller.abort();
+  }, [load]);
 
   const saveSite = async (draft: SiteDraft) => {
     setSubmitting(true);
