@@ -1,4 +1,10 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { saveMailboxAttachment } from "@/lib/mailbox-attachment-download";
 
@@ -63,18 +69,20 @@ type ApiEnvelope<T> = { data: T };
 function unwrap<T>(response: ApiEnvelope<T> | T): T {
   return response && typeof response === "object" && "data" in response
     ? (response as ApiEnvelope<T>).data
-    : response as T;
+    : (response as T);
 }
 
 export function useTenantMailboxConnections(legalEntityId?: string) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "mailboxes", legalEntityId],
+    queryKey: workspaceQueryKey(["bill-pay", "mailboxes", legalEntityId]),
     queryFn: async () =>
       unwrap<Paginated<TenantMailboxConnection>>(
-        (await axios.get("bill-pay/mailbox-connections", {
-          params: { legalEntityId, page: 1, limit: 50 },
-        })).data,
+        (
+          await axios.get("bill-pay/mailbox-connections", {
+            params: { legalEntityId, page: 1, limit: 50 },
+          })
+        ).data,
       ),
     enabled: Boolean(legalEntityId),
   });
@@ -89,7 +97,11 @@ export function useStartGoogleMailboxAuthorization() {
         authorizationUrl: string;
         expiresAt: string;
       }>(
-        (await axios.post("bill-pay/mailbox-connections/google/authorize", { legalEntityId })).data,
+        (
+          await axios.post("bill-pay/mailbox-connections/google/authorize", {
+            legalEntityId,
+          })
+        ).data,
       ),
   });
 }
@@ -100,22 +112,45 @@ export function useDisconnectTenantMailbox() {
   return useMutation({
     mutationFn: async (tenantMailboxConnectionId: string) =>
       unwrap<TenantMailboxConnection>(
-        (await axios.delete(`bill-pay/mailbox-connections/${tenantMailboxConnectionId}`)).data,
+        (
+          await axios.delete(
+            `bill-pay/mailbox-connections/${tenantMailboxConnectionId}`,
+          )
+        ).data,
       ),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["bill-pay", "mailboxes"] }),
+    onSuccess: () =>
+      client.invalidateQueries({
+        queryKey: workspaceQueryKey(["bill-pay", "mailboxes"]),
+      }),
   });
 }
 
 export function useTenantMailboxMessages(tenantMailboxConnectionId?: string) {
   const axios = useAxios();
   return useInfiniteQuery({
-    queryKey: ["bill-pay", "mailboxes", tenantMailboxConnectionId, "messages"],
+    queryKey: workspaceQueryKey([
+      "bill-pay",
+      "mailboxes",
+      tenantMailboxConnectionId,
+      "messages",
+    ]),
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
-      unwrap<{ messages: MailboxMessageSummary[]; nextPageToken: string | null }>(
-        (await axios.get(`bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages`, {
-          params: { limit: 50, ...(pageParam ? { pageToken: pageParam } : {}) },
-        })).data,
+      unwrap<{
+        messages: MailboxMessageSummary[];
+        nextPageToken: string | null;
+      }>(
+        (
+          await axios.get(
+            `bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages`,
+            {
+              params: {
+                limit: 50,
+                ...(pageParam ? { pageToken: pageParam } : {}),
+              },
+            },
+          )
+        ).data,
       ),
     getNextPageParam: (lastPage) => lastPage.nextPageToken || undefined,
     enabled: Boolean(tenantMailboxConnectionId),
@@ -128,10 +163,20 @@ export function useTenantMailboxMessage(
 ) {
   const axios = useAxios();
   return useQuery({
-    queryKey: ["bill-pay", "mailboxes", tenantMailboxConnectionId, "message", messageId],
+    queryKey: workspaceQueryKey([
+      "bill-pay",
+      "mailboxes",
+      tenantMailboxConnectionId,
+      "message",
+      messageId,
+    ]),
     queryFn: async () =>
       unwrap<MailboxMessage>(
-        (await axios.get(`bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}`)).data,
+        (
+          await axios.get(
+            `bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}`,
+          )
+        ).data,
       ),
     enabled: Boolean(tenantMailboxConnectionId && messageId),
   });
@@ -178,7 +223,12 @@ export function useViewTenantMailboxAttachment() {
       attachmentId: string;
       filename: string;
       mimeType: string;
-    }): Promise<{ url: string; filename: string; mimeType: string; data: Blob }> => {
+    }): Promise<{
+      url: string;
+      filename: string;
+      mimeType: string;
+      data: Blob;
+    }> => {
       const response = await axios.get<Blob>(
         `bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}/attachments/${encodeURIComponent(attachmentId)}/download`,
         { responseType: "blob" },
@@ -191,4 +241,3 @@ export function useViewTenantMailboxAttachment() {
     },
   });
 }
-
