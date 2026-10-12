@@ -1,7 +1,5 @@
 "use client";
 
-import { useAuthStore } from "@/stores/auth-stores";
-import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -908,7 +906,8 @@ function VendorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
-  const canInviteVendor = useAuthorizationPolicies().vendors.canInvite;
+  const policies = useAuthorizationPolicies();
+  const canInviteVendor = policies.vendors.canInvite;
 
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
   const [page, setPage] = useState(1);
@@ -918,19 +917,7 @@ function VendorPage() {
   );
 
   const axiosInstance = useAxios();
-  const workspaceEnabled = useEntityWorkspaceStore(
-    (state) => !!state.snapshot?.enabled,
-  );
-  const canAdminDirectory = useAuthStore(
-    (state) =>
-      state.can("vendor.entity_configuration", "manage") &&
-      state.can("vendor", "read_sensitive"),
-  );
-  const organizationAdmin =
-    workspaceEnabled &&
-    canAdminDirectory &&
-    searchParams.get("scope") === "administration";
-  const vendorsApi = useVendorNetworkList({ organizationAdmin });
+  const vendorsApi = useVendorNetworkList({});
   const isLoading = vendorsApi.isLoading;
 
   const vendors = useMemo(() => {
@@ -1051,9 +1038,7 @@ function VendorPage() {
       }
       return;
     }
-    router.push(
-      `/vendors/${vendor.id}${organizationAdmin ? "?scope=administration" : ""}`,
-    );
+    router.push(`/vendors/${vendor.id}`);
   };
 
   const statCards = [
@@ -1109,29 +1094,6 @@ function VendorPage() {
         onSuccess={() => vendorsApi.refetch()}
       />
 
-      {workspaceEnabled && canAdminDirectory && (
-        <div className="flex items-center justify-between rounded-xl border bg-white p-3">
-          <span className="text-sm">
-            {organizationAdmin
-              ? "Organization vendor setup · shared identities and onboarding"
-              : "Vendors visible in your legal entity workspace"}
-          </span>
-          <button
-            className="text-sm underline"
-            onClick={() =>
-              router.push(
-                organizationAdmin
-                  ? "/vendors"
-                  : "/vendors?scope=administration",
-              )
-            }
-          >
-            {organizationAdmin
-              ? "Return to workspace vendors"
-              : "Organization vendor setup"}
-          </button>
-        </div>
-      )}
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
         {statCards.map((s) => (
