@@ -1,4 +1,3 @@
-
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
@@ -38,7 +37,10 @@ export interface UpdateApprovalSettingPayload {
 /** Fetch all approval settings (both expense_policy + procurement_policy) */
 export const useGetAllApprovalSettings = () => {
   const axios = useAxios();
-  return useQuery<{ message: string; status: number; data: ApprovalSetting[] }, Error>({
+  return useQuery<
+    { message: string; status: number; data: ApprovalSetting[] },
+    Error
+  >({
     queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.all),
     queryFn: async () => {
       const res = await axios.get(POLICY_GOVERNANCE_KEYS.APPROVAL_SETTINGS);
@@ -52,10 +54,15 @@ export const useGetAllApprovalSettings = () => {
 /** Fetch approval setting for a single target */
 export const useGetApprovalSettingByTarget = (target: PolicyTarget) => {
   const axios = useAxios();
-  return useQuery<{ message: string; status: number; data: ApprovalSetting }, Error>({
+  return useQuery<
+    { message: string; status: number; data: ApprovalSetting },
+    Error
+  >({
     queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.byTarget(target)),
     queryFn: async () => {
-      const res = await axios.get(POLICY_GOVERNANCE_KEYS.APPROVAL_SETTINGS_TARGET(target));
+      const res = await axios.get(
+        POLICY_GOVERNANCE_KEYS.APPROVAL_SETTINGS_TARGET(target),
+      );
       return res.data;
     },
     staleTime: STALE_TIMES.NORMAL,
@@ -66,10 +73,17 @@ export const useGetApprovalSettingByTarget = (target: PolicyTarget) => {
 /** Fetch eligible roles that can be configured for approving policies */
 export const useGetEligibleRoles = (target: PolicyTarget) => {
   const axios = useAxios();
-  return useQuery<{ message: string; status: number; data: ApproverRole[] }, Error>({
-    queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.eligibleRoles(target)),
+  return useQuery<
+    { message: string; status: number; data: ApproverRole[] },
+    Error
+  >({
+    queryKey: workspaceQueryKey(
+      QUERY_KEYS.policyGovernance.eligibleRoles(target),
+    ),
     queryFn: async () => {
-      const res = await axios.get(POLICY_GOVERNANCE_KEYS.ELIGIBLE_ROLES(target));
+      const res = await axios.get(
+        POLICY_GOVERNANCE_KEYS.ELIGIBLE_ROLES(target),
+      );
       return res.data;
     },
     staleTime: STALE_TIMES.NORMAL,
@@ -83,12 +97,23 @@ export const useUpdateApprovalSettings = (target: PolicyTarget) => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: UpdateApprovalSettingPayload) => {
-      const res = await axios.put(POLICY_GOVERNANCE_KEYS.UPDATE_APPROVAL_SETTINGS(target), payload);
+      const res = await axios.put(
+        POLICY_GOVERNANCE_KEYS.UPDATE_APPROVAL_SETTINGS(target),
+        payload,
+      );
       return res.data;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.all), refetchType: "all" });
-      await qc.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.byTarget(target)), refetchType: "all" });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.all),
+        refetchType: "all",
+      });
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(
+          QUERY_KEYS.policyGovernance.byTarget(target),
+        ),
+        refetchType: "all",
+      });
     },
   });
 };

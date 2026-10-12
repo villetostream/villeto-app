@@ -1,4 +1,3 @@
-
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
@@ -23,12 +22,18 @@ export const useDeletePolicyApi = () => {
   return useMutation<DeletePolicyResponse, Error, string>({
     retry: false,
     mutationFn: async (id: string) => {
-      const response = await axiosInstance.delete(API_KEYS.EXPENSE.POLICY_BY_ID(id));
+      const response = await axiosInstance.delete(
+        API_KEYS.EXPENSE.POLICY_BY_ID(id),
+      );
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies) });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.categories) });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.categories),
+      });
     },
   });
 };

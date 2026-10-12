@@ -1,4 +1,3 @@
-
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
@@ -32,19 +31,33 @@ export const useUpdatePolicyApi = () => {
   const axiosInstance = useAxios();
   const queryClient = useQueryClient();
 
-  return useMutation<UpdatePolicyResponse, Error, { id: string; payload: UpdatePolicyPayload }>({
+  return useMutation<
+    UpdatePolicyResponse,
+    Error,
+    { id: string; payload: UpdatePolicyPayload }
+  >({
     retry: false,
     mutationFn: async ({ id, payload }) => {
-      const response = await axiosInstance.patch(API_KEYS.EXPENSE.POLICY_BY_ID(id), payload, {
-        _skipErrorToast: true,
-      } as any);
+      const response = await axiosInstance.patch(
+        API_KEYS.EXPENSE.POLICY_BY_ID(id),
+        payload,
+        {
+          _skipErrorToast: true,
+        } as any,
+      );
       return response.data;
     },
     onSuccess: (_data, { id }) => {
       // Invalidate both list and the specific policy cache
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies) });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policy(id)) });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.expenses.categories) });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policy(id)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.categories),
+      });
     },
   });
 };

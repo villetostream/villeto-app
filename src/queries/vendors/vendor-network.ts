@@ -1,4 +1,3 @@
-
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
@@ -23,6 +22,7 @@ export interface VendorNetworkListResponse {
 }
 
 export interface VendorNetworkListParams {
+  organizationAdmin?: boolean;
   status?: string;
   onboardingStatus?: string;
   approvalStatus?: string;
@@ -40,22 +40,25 @@ export interface VendorNetworkListParams {
  */
 export const useVendorNetworkList = (params: VendorNetworkListParams) => {
   const axiosInstance = useAxios();
-  
+
   return useQuery({
     queryKey: workspaceQueryKey(["vendor-network", "list", params]),
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       if (params.status) queryParams.set("status", params.status);
-      if (params.onboardingStatus) queryParams.set("onboardingStatus", params.onboardingStatus);
-      if (params.approvalStatus) queryParams.set("approvalStatus", params.approvalStatus);
-      if (params.isPaymentEnabled !== undefined) queryParams.set("isPaymentEnabled", String(params.isPaymentEnabled));
+      if (params.onboardingStatus)
+        queryParams.set("onboardingStatus", params.onboardingStatus);
+      if (params.approvalStatus)
+        queryParams.set("approvalStatus", params.approvalStatus);
+      if (params.isPaymentEnabled !== undefined)
+        queryParams.set("isPaymentEnabled", String(params.isPaymentEnabled));
       if (params.search) queryParams.set("search", params.search);
       if (params.page) queryParams.set("page", String(params.page));
       if (params.limit) queryParams.set("limit", String(params.limit));
 
       const queryStr = queryParams.toString();
-      const url = `/vendor-network/vendors${queryStr ? `?${queryStr}` : ""}`;
-      
+      const url = `/vendor-network/${params.organizationAdmin ? "administration/" : ""}vendors${queryStr ? `?${queryStr}` : ""}`;
+
       const response = await axiosInstance.get<VendorNetworkListResponse>(url);
       return response.data;
     },
@@ -66,7 +69,11 @@ export const useVendorNetworkList = (params: VendorNetworkListParams) => {
 /**
  * Lookup vendor details before inviting (by email, cac, or tin)
  */
-export const useVendorLookup = (type: "email" | "cac" | "tin", value: string, enabled: boolean = true) => {
+export const useVendorLookup = (
+  type: "email" | "cac" | "tin",
+  value: string,
+  enabled: boolean = true,
+) => {
   const axiosInstance = useAxios();
 
   return useQuery({
@@ -74,7 +81,7 @@ export const useVendorLookup = (type: "email" | "cac" | "tin", value: string, en
     queryFn: async () => {
       if (!value) return null;
       const response = await axiosInstance.get(
-        `/vendor-network/vendor-lookup?type=${encodeURIComponent(type)}&value=${encodeURIComponent(value)}`
+        `/vendor-network/vendor-lookup?type=${encodeURIComponent(type)}&value=${encodeURIComponent(value)}`,
       );
       return response.data;
     },
@@ -100,11 +107,16 @@ export const useInviteVendorV2 = () => {
       identifier?: string;
       verificationId?: string;
     }) => {
-      const response = await axiosInstance.post("/vendor-network/invitations", payload);
+      const response = await axiosInstance.post(
+        "/vendor-network/invitations",
+        payload,
+      );
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "list"]) });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["vendor-network", "list"]),
+      });
     },
   });
 };
@@ -112,14 +124,24 @@ export const useInviteVendorV2 = () => {
 /**
  * Get a single vendor's detail from the V2 endpoint
  */
-export const useVendorNetworkDetail = (vendorId: string) => {
+export const useVendorNetworkDetail = (
+  vendorId: string,
+  organizationAdmin = false,
+) => {
   const axiosInstance = useAxios();
 
   return useQuery({
-    queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]),
+    queryKey: workspaceQueryKey([
+      "vendor-network",
+      "detail",
+      vendorId,
+      organizationAdmin,
+    ]),
     queryFn: async () => {
       if (!vendorId) return null;
-      const response = await axiosInstance.get(`/vendor-network/vendors/${vendorId}`);
+      const response = await axiosInstance.get(
+        `/vendor-network/${organizationAdmin ? "administration/" : ""}vendors/${vendorId}`,
+      );
       return response.data;
     },
     enabled: !!vendorId,
@@ -135,13 +157,23 @@ export const useVendorReview = (vendorId: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: { decision: "approved" | "rejected"; note?: string }) => {
-      const response = await axiosInstance.patch(`/vendor-network/vendors/${vendorId}/review`, payload);
+    mutationFn: async (payload: {
+      decision: "approved" | "rejected";
+      note?: string;
+    }) => {
+      const response = await axiosInstance.patch(
+        `/vendor-network/vendors/${vendorId}/review`,
+        payload,
+      );
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]) });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "list"]) });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["vendor-network", "list"]),
+      });
     },
   });
 };
@@ -155,12 +187,19 @@ export const useVendorStatusUpdate = (vendorId: string) => {
 
   return useMutation({
     mutationFn: async (payload: { status: "Active" | "Inactive" }) => {
-      const response = await axiosInstance.patch(`/vendor-network/vendors/${vendorId}/status`, payload);
+      const response = await axiosInstance.patch(
+        `/vendor-network/vendors/${vendorId}/status`,
+        payload,
+      );
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]) });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "list"]) });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["vendor-network", "list"]),
+      });
     },
   });
 };
@@ -174,12 +213,19 @@ export const useVendorPaymentStatusUpdate = (vendorId: string) => {
 
   return useMutation({
     mutationFn: async (payload: { enabled: boolean }) => {
-      const response = await axiosInstance.patch(`/vendor-network/vendors/${vendorId}/payment-status`, payload);
+      const response = await axiosInstance.patch(
+        `/vendor-network/vendors/${vendorId}/payment-status`,
+        payload,
+      );
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]) });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["vendor-network", "list"]) });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["vendor-network", "detail", vendorId]),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["vendor-network", "list"]),
+      });
     },
   });
 };

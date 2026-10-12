@@ -1,19 +1,32 @@
 "use client";
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 
-
 import withPermissions from "@/components/permissions/permission-protected-routes";
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ReceiptUploadSection } from "@/components/expenses/new-report/ReceiptUploadSection";
-import { ExpensePreviewList, type ExpenseItem } from "@/components/expenses/new-report/ExpensePreviewList";
+import {
+  ExpensePreviewList,
+  type ExpenseItem,
+} from "@/components/expenses/new-report/ExpensePreviewList";
 import { ExpenseDetailModal } from "@/components/expenses/new-report/ExpenseDetailModal";
 import { ReceiptPreviewModal } from "@/components/expenses/new-report/ReceiptPreviewModal";
-import { PolicyCheckModal, type PolicyCheckResult } from "@/components/expenses/new-report/PolicyCheckModal";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { type ExpenseDetailFormData, type SplitParticipant } from "@/components/expenses/new-report/ExpenseForm";
+import {
+  PolicyCheckModal,
+  type PolicyCheckResult,
+} from "@/components/expenses/new-report/PolicyCheckModal";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  type ExpenseDetailFormData,
+  type SplitParticipant,
+} from "@/components/expenses/new-report/ExpenseForm";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
@@ -21,7 +34,12 @@ import { Loader2, Trash2, Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import { logger } from "@/lib/logger";
-import { getApiErrorMessage, isPolicyViolationError, applyPolicyViolationErrorToExpenses, getPolicyExpenseResults } from "@/lib/types/api-error";
+import {
+  getApiErrorMessage,
+  isPolicyViolationError,
+  applyPolicyViolationErrorToExpenses,
+  getPolicyExpenseResults,
+} from "@/lib/types/api-error";
 import {
   extractedReceiptValues,
   getReceiptExtraction,
@@ -62,12 +80,16 @@ interface DraftDetail {
 // ─── Humanize backend receipt policy messages ────────────────────────────────
 function humanizeReceiptMessage(message: string): string {
   if (!message) return message;
-  const match = message.match(/A receipt is required for "([^"]+)" expenses of ([\d,.]+) or more\. This expense is ([\d,.]+)\./i);
+  const match = message.match(
+    /A receipt is required for "([^"]+)" expenses of ([\d,.]+) or more\. This expense is ([\d,.]+)\./i,
+  );
   if (match) {
     const [, category, thresholdStr, expenseStr] = match;
     const threshold = Number(thresholdStr.replace(/,/g, ""));
     const expense = Number(expenseStr.replace(/,/g, ""));
-    const fmtThreshold = isNaN(threshold) ? thresholdStr : threshold.toLocaleString();
+    const fmtThreshold = isNaN(threshold)
+      ? thresholdStr
+      : threshold.toLocaleString();
     const fmtExpense = isNaN(expense) ? expenseStr : expense.toLocaleString();
     return `Receipt Required: Your expense of ${fmtExpense} exceeds the ${fmtThreshold} receipt threshold for the ${category} category. Please attach a receipt.`;
   }
@@ -81,10 +103,20 @@ function deriveFreshViolations(expenses: ExpenseItem[]): PolicyCheckResult[] {
     if (expense.policyViolations && expense.policyViolations.length > 0) {
       for (const v of expense.policyViolations) {
         if (v.type === "hard_block" || v.type === "block") {
-          results.push({ expenseId: expense.id, expenseName: expense.name, violation: v as any, justification: expense.justification });
+          results.push({
+            expenseId: expense.id,
+            expenseName: expense.name,
+            violation: v as any,
+            justification: expense.justification,
+          });
         } else if (v.type === "soft_warning" || v.type === "soft_warn") {
           if (!expense.justification?.trim()) {
-            results.push({ expenseId: expense.id, expenseName: expense.name, violation: v as any, justification: expense.justification });
+            results.push({
+              expenseId: expense.id,
+              expenseName: expense.name,
+              violation: v as any,
+              justification: expense.justification,
+            });
           }
         }
       }
@@ -109,23 +141,33 @@ function EditReportPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal states
-  const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
+  const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(
+    null,
+  );
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
-  const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(null);
-  
+  const [selectedReceiptId, setSelectedReceiptId] = useState<string | null>(
+    null,
+  );
+
   // Delete confirm states
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [expenseToDeleteId, setExpenseToDeleteId] = useState<string | null>(null);
+  const [expenseToDeleteId, setExpenseToDeleteId] = useState<string | null>(
+    null,
+  );
   const [isDeletingReport, setIsDeletingReport] = useState(false);
-  
+
   // Track deleted expense IDs (for existing expenses only)
   const [deletedExpenseIds, setDeletedExpenseIds] = useState<string[]>([]);
 
   // Policy modal states
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
-  const [pendingSubmitStatus, setPendingSubmitStatus] = useState<"draft" | "pending" | null>(null);
-  const [requiredActionsByExpenseId, setRequiredActionsByExpenseId] = useState<Record<string, any>>({});
+  const [pendingSubmitStatus, setPendingSubmitStatus] = useState<
+    "draft" | "pending" | null
+  >(null);
+  const [requiredActionsByExpenseId, setRequiredActionsByExpenseId] = useState<
+    Record<string, any>
+  >({});
   const [detailModalReadOnly, setDetailModalReadOnly] = useState(false);
 
   // Dirty state tracking
@@ -140,10 +182,10 @@ function EditReportPage() {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        
+
         // 1. Fetch Categories
         const categoriesResponse = await axios.get<{ data: ExpenseCategory[] }>(
-          API_KEYS.EXPENSE.CATEGORIES_WITH_POLICIES
+          API_KEYS.EXPENSE.CATEGORIES_WITH_POLICIES,
         );
         if (categoriesResponse.data?.data) {
           setCategories(categoriesResponse.data.data);
@@ -153,68 +195,89 @@ function EditReportPage() {
         let reportData;
         if (isResubmitMode) {
           const reportResponse = await axios.get<any>(
-            `${API_KEYS.EXPENSE.PERSONAL_EXPENSES}/${reportId}`
+            `${API_KEYS.EXPENSE.PERSONAL_EXPENSES}/${reportId}`,
           );
           reportData = reportResponse.data?.data || {};
         } else {
           const reportResponse = await axios.get<any>(
-            `reports/drafts/${reportId}`
+            `reports/drafts/${reportId}`,
           );
           // Handle double-nested data if present
           const innerData = reportResponse.data?.data || {};
           reportData = innerData.data ? innerData.data : innerData;
         }
-        
+
         setReportTitle(reportData.reportTitle || "Draft");
 
         // Map existing expenses to local state (handle both expenses and expensesPayload)
-        const rawExpenses = reportData.expenses || reportData.expensesPayload || [];
-        const mappedExpenses: ExpenseItem[] = await Promise.all(rawExpenses.map(async (e: any, index: number) => {
-          // Find the category name since backend only returns category ID in some endpoints,
-          // or we get categoryName directly in others.
-          const categoryName = e.categoryName || categoriesResponse.data?.data?.find((c: ExpenseCategory) => c.categoryId === e.expenseCategoryId)?.name || "Uncategorized";
+        const rawExpenses =
+          reportData.expenses || reportData.expensesPayload || [];
+        const mappedExpenses: ExpenseItem[] = await Promise.all(
+          rawExpenses.map(async (e: any, index: number) => {
+            // Find the category name since backend only returns category ID in some endpoints,
+            // or we get categoryName directly in others.
+            const categoryName =
+              e.categoryName ||
+              categoriesResponse.data?.data?.find(
+                (c: ExpenseCategory) => c.categoryId === e.expenseCategoryId,
+              )?.name ||
+              "Uncategorized";
 
-          // Convert raw base64 to a full data URL if the receipt is not already one
-          let receiptImage = e.receiptImage || "";
-          if (receiptImage && !receiptImage.startsWith("data:") && !receiptImage.startsWith("http")) {
-            receiptImage = `data:image/jpeg;base64,${receiptImage}`;
-          }
-          if (!receiptImage && e.receiptExtractionId) {
-            try {
-              const extraction = await getReceiptExtraction(
-                axios,
-                e.receiptExtractionId,
-              );
-              receiptImage = extraction.receiptUrl;
-            } catch (error) {
-              logger.warn("Could not restore extracted receipt preview", error);
+            // Convert raw base64 to a full data URL if the receipt is not already one
+            let receiptImage = e.receiptImage || "";
+            if (
+              receiptImage &&
+              !receiptImage.startsWith("data:") &&
+              !receiptImage.startsWith("http")
+            ) {
+              receiptImage = `data:image/jpeg;base64,${receiptImage}`;
             }
-          }
+            if (!receiptImage && e.receiptExtractionId) {
+              try {
+                const extraction = await getReceiptExtraction(
+                  axios,
+                  e.receiptExtractionId,
+                );
+                receiptImage = extraction.receiptUrl;
+              } catch (error) {
+                logger.warn(
+                  "Could not restore extracted receipt preview",
+                  error,
+                );
+              }
+            }
 
-          return {
-            id: isResubmitMode && e.expenseId ? e.expenseId : `draft-${index}-${Date.now()}`,
-            name: e.title,
-            category: categoryName,
-            amount: Number(e.amount),
-            merchantName: e.merchantName || "",
-            description: e.description || "",
-            transactionDate: e.transactionDate ? new Date(e.transactionDate) : new Date(),
-            receiptImage,
-            receiptExtractionId: e.receiptExtractionId,
-            ...(isResubmitMode && e.expenseId ? { originalExpenseId: e.expenseId } : {}),
-            isSplit: e.isSplit,
-            expenseType: e.expenseType,
-            splitParticipants: e.splitParticipants,
-            splitAllocationMode: e.splitAllocationMode,
-            splitAllocations: e.splitAllocations,
-          } as ExpenseItem;
-        }));
+            return {
+              id:
+                isResubmitMode && e.expenseId
+                  ? e.expenseId
+                  : `draft-${index}-${Date.now()}`,
+              name: e.title,
+              category: categoryName,
+              amount: Number(e.amount),
+              merchantName: e.merchantName || "",
+              description: e.description || "",
+              transactionDate: e.transactionDate
+                ? new Date(e.transactionDate)
+                : new Date(),
+              receiptImage,
+              receiptExtractionId: e.receiptExtractionId,
+              ...(isResubmitMode && e.expenseId
+                ? { originalExpenseId: e.expenseId }
+                : {}),
+              isSplit: e.isSplit,
+              expenseType: e.expenseType,
+              splitParticipants: e.splitParticipants,
+              splitAllocationMode: e.splitAllocationMode,
+              splitAllocations: e.splitAllocations,
+            } as ExpenseItem;
+          }),
+        );
 
         setExpenses(mappedExpenses);
-        
+
         // Save initial state for dirty checking
         setInitialData(JSON.stringify(mappedExpenses));
-
       } catch (error) {
         logger.error("Error loading report:", error);
         toast.error("Failed to load report details");
@@ -232,36 +295,43 @@ function EditReportPage() {
   }, [reportId, axios, router]);
 
   // Handle receipt upload (New expenses)
-  const handleReceiptsUpload = (receipts: ReceiptExtraction[], isSplit?: boolean) => {
-      const currentNames = [...expenses.map((e) => e.name)];
-      const newExpenses: ExpenseItem[] = receipts.map((receipt, index) => {
-        const extracted = extractedReceiptValues(receipt);
-        let name = extracted.merchantName;
-        if (!name) {
-          let counter = 1;
+  const handleReceiptsUpload = (
+    receipts: ReceiptExtraction[],
+    isSplit?: boolean,
+  ) => {
+    const currentNames = [...expenses.map((e) => e.name)];
+    const newExpenses: ExpenseItem[] = receipts.map((receipt, index) => {
+      const extracted = extractedReceiptValues(receipt);
+      let name = extracted.merchantName;
+      if (!name) {
+        let counter = 1;
+        name = `Expense ${counter}`;
+        while (
+          currentNames.some(
+            (n) => n.trim().toLowerCase() === name.toLowerCase(),
+          )
+        ) {
+          counter++;
           name = `Expense ${counter}`;
-          while (currentNames.some((n) => n.trim().toLowerCase() === name.toLowerCase())) {
-            counter++;
-            name = `Expense ${counter}`;
-          }
         }
-        currentNames.push(name);
-        return {
-          id: `new-${Date.now()}-${index}`, // Temporary ID for new items
-          name,
-          category: "",
-          amount: extracted.amount,
-          receiptImage: receipt.receiptUrl,
-          receiptExtractionId: receipt.expenseReceiptExtractionId,
-          merchantName: extracted.merchantName,
-          transactionDate: extracted.transactionDate,
-          fileName: receipt.filename,
-          isSplit: !!isSplit,
-        };
-      });
+      }
+      currentNames.push(name);
+      return {
+        id: `new-${Date.now()}-${index}`, // Temporary ID for new items
+        name,
+        category: "",
+        amount: extracted.amount,
+        receiptImage: receipt.receiptUrl,
+        receiptExtractionId: receipt.expenseReceiptExtractionId,
+        merchantName: extracted.merchantName,
+        transactionDate: extracted.transactionDate,
+        fileName: receipt.filename,
+        isSplit: !!isSplit,
+      };
+    });
 
-      setExpenses((prev) => [...prev, ...newExpenses]);
-      toast.success(`${receipts.length} receipt(s) scanned successfully`);
+    setExpenses((prev) => [...prev, ...newExpenses]);
+    toast.success(`${receipts.length} receipt(s) scanned successfully`);
   };
 
   // Handle manual expense addition
@@ -269,7 +339,11 @@ function EditReportPage() {
     data: ExpenseDetailFormData,
     receiptImage?: string,
     isSplit?: boolean,
-    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> },
+    splitData?: {
+      participants: SplitParticipant[];
+      allocationMode: "equal" | "manual";
+      allocations: Record<string, string>;
+    },
     receiptExtractionId?: string,
   ) => {
     const newExpense: ExpenseItem = {
@@ -296,7 +370,7 @@ function EditReportPage() {
   // Handle updates
   const handleEditName = (id: string, newName: string) => {
     setExpenses((prev) =>
-      prev.map((exp) => (exp.id === id ? { ...exp, name: newName } : exp))
+      prev.map((exp) => (exp.id === id ? { ...exp, name: newName } : exp)),
     );
   };
 
@@ -305,7 +379,11 @@ function EditReportPage() {
     data: ExpenseDetailFormData,
     newReceipt?: string,
     justification?: string,
-    splitData?: { participants: SplitParticipant[]; allocationMode: "equal" | "manual"; allocations: Record<string, string> }
+    splitData?: {
+      participants: SplitParticipant[];
+      allocationMode: "equal" | "manual";
+      allocations: Record<string, string>;
+    },
   ) => {
     const resolvedReceipt = newReceipt;
     let replacementExtractionId: string | undefined;
@@ -338,8 +416,8 @@ function EditReportPage() {
                 splitAllocations: splitData.allocations,
               }),
             }
-          : exp
-      )
+          : exp,
+      ),
     );
     toast.success("Expense updated in view");
   };
@@ -363,7 +441,7 @@ function EditReportPage() {
 
     // Remove from UI immediately
     setExpenses((prev) => prev.filter((e) => e.id !== expenseToDeleteId));
- // Mark as dirty
+    // Mark as dirty
     toast.success("Expense removed (will be deleted on save)");
     setIsDeleteModalOpen(false);
     setExpenseToDeleteId(null);
@@ -371,28 +449,36 @@ function EditReportPage() {
 
   // Handle Delete Entire Report
   const handleDeleteReport = async () => {
-      try {
-          setIsDeletingReport(true);
-          await axios.delete(`reports/drafts/${reportId}`);
-          toast.success("Report deleted successfully");
-          queryClient.invalidateQueries({ queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES]) });
-          router.push("/expenses?tab=personal-expenses");
-      } catch (error) {
-          logger.error("Error deleting report:", error);
-          toast.error("Failed to delete report");
-      } finally {
-          setIsDeletingReport(false);
-          setIsDeleteReportModalOpen(false);
-      }
+    try {
+      setIsDeletingReport(true);
+      await axios.delete(`reports/drafts/${reportId}`);
+      toast.success("Report deleted successfully");
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES]),
+      });
+      router.push("/expenses?tab=personal-expenses");
+    } catch (error) {
+      logger.error("Error deleting report:", error);
+      toast.error("Failed to delete report");
+    } finally {
+      setIsDeletingReport(false);
+      setIsDeleteReportModalOpen(false);
+    }
   };
 
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
-  const handlePolicyContinue = async (justifications: Record<string, string>) => {
+  const handlePolicyContinue = async (
+    justifications: Record<string, string>,
+  ) => {
     // Apply justifications to expenses
     setExpenses((prev) =>
-      prev.map((e) => (justifications[e.id] ? { ...e, justification: justifications[e.id] } : e))
+      prev.map((e) =>
+        justifications[e.id]
+          ? { ...e, justification: justifications[e.id] }
+          : e,
+      ),
     );
     setIsPolicyModalOpen(false);
     await handleSubmit(pendingSubmitStatus!, justifications);
@@ -411,7 +497,7 @@ function EditReportPage() {
     justifications: Record<string, string> = {},
     overrideExpenses?: typeof expenses,
     overrideRequiredActions?: Record<string, any>,
-    retryCount = 0
+    retryCount = 0,
   ) => {
     const activeExpenses = overrideExpenses ?? expenses;
     if (activeExpenses.length === 0) {
@@ -421,7 +507,7 @@ function EditReportPage() {
 
     // Validation
     const invalidExpenses = activeExpenses.filter(
-      (exp) => !exp.name || exp.amount < 0 || !exp.category
+      (exp) => !exp.name || exp.amount < 0 || !exp.category,
     );
     if (invalidExpenses.length > 0) {
       toast.error("Please complete all required fields for each expense");
@@ -430,13 +516,13 @@ function EditReportPage() {
 
     // Set loading state based on action
     if (status === "draft") {
-        setIsSavingDraft(true);
+      setIsSavingDraft(true);
     } else {
-        setIsSubmittingReport(true);
+      setIsSubmittingReport(true);
     }
 
     try {
-      // For drafts, we don't need to individually delete expenses before patching. 
+      // For drafts, we don't need to individually delete expenses before patching.
       // The PATCH request or Submit request will overwrite with the provided expenses array.
       if (deletedExpenseIds.length > 0) {
         setDeletedExpenseIds([]);
@@ -444,18 +530,27 @@ function EditReportPage() {
 
       // Helper to extract base64
       const extractBase64 = (dataUrl: string) => {
-          if (!dataUrl || !dataUrl.startsWith("data:")) return undefined;
-          return dataUrl.split(",")[1];
+        if (!dataUrl || !dataUrl.startsWith("data:")) return undefined;
+        return dataUrl.split(",")[1];
       };
 
       const expensesPayload = activeExpenses.map((expense) => {
-        const category = categories.find((cat) => cat.name === expense.category);
-        if (!category) throw new Error(`Category not found: ${expense.category}`);
+        const category = categories.find(
+          (cat) => cat.name === expense.category,
+        );
+        if (!category)
+          throw new Error(`Category not found: ${expense.category}`);
 
-        const justificationValue = justifications[expense.id] || expense.justification;
-        const action = (overrideRequiredActions || requiredActionsByExpenseId)[expense.id];
-        const isJustificationRequired = action?.requiredFields?.includes("policyJustification") || action?.requiredFields?.includes("justification");
-        const isReceiptRequired = action?.requiredFields?.includes("receiptUrl");
+        const justificationValue =
+          justifications[expense.id] || expense.justification;
+        const action = (overrideRequiredActions || requiredActionsByExpenseId)[
+          expense.id
+        ];
+        const isJustificationRequired =
+          action?.requiredFields?.includes("policyJustification") ||
+          action?.requiredFields?.includes("justification");
+        const isReceiptRequired =
+          action?.requiredFields?.includes("receiptUrl");
         const isActionRequired = isJustificationRequired || isReceiptRequired;
 
         const payload: Record<string, unknown> = {
@@ -471,14 +566,18 @@ function EditReportPage() {
           // splitParticipants: expense.splitParticipants,
           // splitAllocationMode: expense.splitAllocationMode,
           // splitAllocations: expense.splitAllocations,
-          ...(justificationValue && isActionRequired ? { policyJustification: justificationValue } : {}),
-          ...(isResubmitMode && expense.originalExpenseId ? { expenseId: expense.originalExpenseId } : {}),
+          ...(justificationValue && isActionRequired
+            ? { policyJustification: justificationValue }
+            : {}),
+          ...(isResubmitMode && expense.originalExpenseId
+            ? { expenseId: expense.originalExpenseId }
+            : {}),
         };
-        
+
         // Add receipt if it's new (base64)
         const base64 = extractBase64(expense.receiptImage);
         if (base64) {
-            payload.receiptImage = base64;
+          payload.receiptImage = base64;
         }
         if (expense.receiptExtractionId) {
           payload.receiptExtractionId = expense.receiptExtractionId;
@@ -493,7 +592,9 @@ function EditReportPage() {
           expenses: expensesPayload,
         };
         // Use PATCH to update the draft
-        await axios.patch(`reports/drafts/${reportId}`, requestPayload, { _skipErrorToast: true });
+        await axios.patch(`reports/drafts/${reportId}`, requestPayload, {
+          _skipErrorToast: true,
+        });
       } else {
         let res;
         if (isResubmitMode) {
@@ -501,7 +602,11 @@ function EditReportPage() {
             reportTitle: reportTitle,
             expenses: expensesPayload,
           };
-          res = await axios.post(`reports/${reportId}/resubmit`, requestPayload, { _skipErrorToast: true });
+          res = await axios.post(
+            `reports/${reportId}/resubmit`,
+            requestPayload,
+            { _skipErrorToast: true },
+          );
         } else {
           const requestPayload = {
             reportTitle: reportTitle,
@@ -509,21 +614,38 @@ function EditReportPage() {
             expenses: expensesPayload,
           };
           // Use POST to submit the draft
-          res = await axios.post(API_KEYS.EXPENSE.REPORTS, requestPayload, { _skipErrorToast: true });
+          res = await axios.post(API_KEYS.EXPENSE.REPORTS, requestPayload, {
+            _skipErrorToast: true,
+          });
         }
 
         // ── Check if the policy engine requires ACTION_REQUIRED (201 but not submitted) ──
         const responseData = res.data?.data;
-        if (responseData?.submitted === false && responseData?.resolution === "ACTION_REQUIRED") {
-          const requiredActions = Array.isArray(responseData.requiredActions) ? responseData.requiredActions : [];
+        if (
+          responseData?.submitted === false &&
+          responseData?.resolution === "ACTION_REQUIRED"
+        ) {
+          const requiredActions = Array.isArray(responseData.requiredActions)
+            ? responseData.requiredActions
+            : [];
           // Build a lookup of enforcement action per expense index from the warnings array
           // warnings[].enforcementAction is the authoritative source (soft_warn vs block)
           const warningsByIndex: Record<number, any> = {};
-          (Array.isArray(responseData.warnings) ? responseData.warnings : []).forEach((w: any) => {
-            (Array.isArray(w.affectedExpenseIndexes) ? w.affectedExpenseIndexes : []).forEach((idx: number) => {
+          (Array.isArray(responseData.warnings)
+            ? responseData.warnings
+            : []
+          ).forEach((w: any) => {
+            (Array.isArray(w.affectedExpenseIndexes)
+              ? w.affectedExpenseIndexes
+              : []
+            ).forEach((idx: number) => {
               const existing = warningsByIndex[idx];
-              const isHardNew = w.enforcementAction === "block" || w.enforcementAction === "hard_block";
-              const isHardExisting = existing?.enforcementAction === "block" || existing?.enforcementAction === "hard_block";
+              const isHardNew =
+                w.enforcementAction === "block" ||
+                w.enforcementAction === "hard_block";
+              const isHardExisting =
+                existing?.enforcementAction === "block" ||
+                existing?.enforcementAction === "hard_block";
               if (!existing || (isHardNew && !isHardExisting)) {
                 warningsByIndex[idx] = w;
               }
@@ -531,7 +653,9 @@ function EditReportPage() {
           });
 
           if (requiredActions.length > 0) {
-            const newRequiredActions: Record<string, any> = { ...requiredActionsByExpenseId };
+            const newRequiredActions: Record<string, any> = {
+              ...requiredActionsByExpenseId,
+            };
             let allRequiredHaveJustification = true;
 
             requiredActions.forEach((action: any) => {
@@ -540,15 +664,21 @@ function EditReportPage() {
                 newRequiredActions[exp.id] = action;
                 // Determine enforcement level from the warnings array (authoritative)
                 const warning = warningsByIndex[action.expenseIndex];
-                const enforcementAction = warning?.enforcementAction ?? "soft_warn";
-                const isHardBlock = enforcementAction === "block" || enforcementAction === "hard_block";
+                const enforcementAction =
+                  warning?.enforcementAction ?? "soft_warn";
+                const isHardBlock =
+                  enforcementAction === "block" ||
+                  enforcementAction === "hard_block";
 
-                const needsJustification = action.requiredFields?.includes("policyJustification") || action.requiredFields?.includes("justification");
+                const needsJustification =
+                  action.requiredFields?.includes("policyJustification") ||
+                  action.requiredFields?.includes("justification");
                 // Only block auto-retry if enforcement is genuinely hard
                 if (isHardBlock) {
                   allRequiredHaveJustification = false;
                 } else if (needsJustification) {
-                  const hasJustification = justifications[exp.id] || exp.justification?.trim();
+                  const hasJustification =
+                    justifications[exp.id] || exp.justification?.trim();
                   if (!hasJustification) {
                     allRequiredHaveJustification = false;
                   }
@@ -557,7 +687,13 @@ function EditReportPage() {
             });
 
             if (allRequiredHaveJustification && retryCount === 0) {
-              return handleSubmit(status, justifications, activeExpenses, newRequiredActions, retryCount + 1);
+              return handleSubmit(
+                status,
+                justifications,
+                activeExpenses,
+                newRequiredActions,
+                retryCount + 1,
+              );
             }
 
             setExpenses((prev) => {
@@ -567,20 +703,33 @@ function EditReportPage() {
                 if (next[idx]) {
                   // Resolve enforcement level from warnings array — this is authoritative
                   const warning = warningsByIndex[idx];
-                  const enforcementAction = warning?.enforcementAction ?? "soft_warn";
-                  const isHardBlock = enforcementAction === "block" || enforcementAction === "hard_block";
-                  const violationType = isHardBlock ? "hard_block" : "soft_warning";
-                  const violationMsg = humanizeReceiptMessage(action.message || "Policy action required for this expense.");
+                  const enforcementAction =
+                    warning?.enforcementAction ?? "soft_warn";
+                  const isHardBlock =
+                    enforcementAction === "block" ||
+                    enforcementAction === "hard_block";
+                  const violationType = isHardBlock
+                    ? "hard_block"
+                    : "soft_warning";
+                  const violationMsg = humanizeReceiptMessage(
+                    action.message ||
+                      "Policy action required for this expense.",
+                  );
 
                   next[idx] = {
                     ...next[idx],
-                    policyViolations: [{
-                      type: violationType,
-                      message: violationMsg,
-                      ruleType: action.type || "POLICY_RULE",
-                      limitChecks: warning?.limitChecks ?? undefined,
-                      categoryName: action.categoryName ?? warning?.categoryName ?? undefined,
-                    }],
+                    policyViolations: [
+                      {
+                        type: violationType,
+                        message: violationMsg,
+                        ruleType: action.type || "POLICY_RULE",
+                        limitChecks: warning?.limitChecks ?? undefined,
+                        categoryName:
+                          action.categoryName ??
+                          warning?.categoryName ??
+                          undefined,
+                      },
+                    ],
                   };
                 }
               });
@@ -589,8 +738,9 @@ function EditReportPage() {
 
             setRequiredActionsByExpenseId(newRequiredActions);
             setPendingSubmitStatus(status);
-            
-            const hasPendingWarnings = Object.keys(newRequiredActions).length > 0;
+
+            const hasPendingWarnings =
+              Object.keys(newRequiredActions).length > 0;
             if (hasPendingWarnings) {
               setIsPolicyModalOpen(true);
             }
@@ -602,13 +752,15 @@ function EditReportPage() {
       toast.success(
         status === "draft"
           ? "Draft saved successfully"
-          : "Report submitted successfully"
+          : "Report submitted successfully",
       );
 
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES]),
       });
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(["expense-drafts"]) });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["expense-drafts"]),
+      });
 
       if (status === "draft") {
         // Stay on the page — just reset dirty state so user knows it saved
@@ -620,7 +772,6 @@ function EditReportPage() {
           router.push("/expenses?tab=personal-expenses");
         }, 500);
       }
-
     } catch (error: unknown) {
       logger.error("Error updating report:", error);
 
@@ -644,18 +795,25 @@ function EditReportPage() {
                   expenseName: exp.name,
                   violation: {
                     type: isHard ? "hard_block" : "soft_warning",
-                    message: humanizeReceiptMessage(v.message ?? "Policy violation"),
+                    message: humanizeReceiptMessage(
+                      v.message ?? "Policy violation",
+                    ),
                     ruleType: v.type,
                     limitChecks: (v as any).limitChecks,
-                    categoryName: (v as any).categoryName ?? result.categoryName ?? undefined,
+                    categoryName:
+                      (v as any).categoryName ??
+                      result.categoryName ??
+                      undefined,
                   },
                   justification: exp.justification,
                 });
-                
+
                 if (!isHard) {
                   newRequiredActions[exp.id] = {
                     requiredFields: ["policyJustification"],
-                    message: humanizeReceiptMessage(v.message ?? "Justification required"),
+                    message: humanizeReceiptMessage(
+                      v.message ?? "Justification required",
+                    ),
                     type: v.type,
                     expenseIndex: idx,
                   };
@@ -664,7 +822,10 @@ function EditReportPage() {
             });
 
             if (Object.keys(newRequiredActions).length > 0) {
-              setRequiredActionsByExpenseId((prevReq) => ({ ...prevReq, ...newRequiredActions }));
+              setRequiredActionsByExpenseId((prevReq) => ({
+                ...prevReq,
+                ...newRequiredActions,
+              }));
             }
 
             if (freshViolations.length > 0) {
@@ -699,10 +860,14 @@ function EditReportPage() {
 
   const isEmpty = expenses.length === 0;
   // Disable if no changes (unless submitting), or if any action is in progress
-  const hasUnresolvedViolations = expenses.some((e) => e.policyViolations && e.policyViolations.length > 0);
-  const isActionInProgress = isSavingDraft || isSubmittingReport || isDeletingReport;
-  const isSaveDisabled = isActionInProgress || isEmpty || !isDirty; 
-  const isSubmitDisabled = isActionInProgress || isEmpty || hasUnresolvedViolations; // Can submit even if not dirty? Usually yes if it was draft.
+  const hasUnresolvedViolations = expenses.some(
+    (e) => e.policyViolations && e.policyViolations.length > 0,
+  );
+  const isActionInProgress =
+    isSavingDraft || isSubmittingReport || isDeletingReport;
+  const isSaveDisabled = isActionInProgress || isEmpty || !isDirty;
+  const isSubmitDisabled =
+    isActionInProgress || isEmpty || hasUnresolvedViolations; // Can submit even if not dirty? Usually yes if it was draft.
 
   const saveDraftClass = isSaveDisabled
     ? "bg-[#f9faf9] text-[#84908a] border border-black/[0.08] rounded-[8px] h-10 px-6 text-[13px] font-semibold cursor-not-allowed"
@@ -741,13 +906,13 @@ function EditReportPage() {
             </Tooltip>
           </TooltipProvider>
           {!isResubmitMode && (
-            <button 
-                type="button"
-                className="flex items-center text-[13px] font-semibold text-[#d33d44] hover:text-[#c33339] hover:bg-[#fdf2f2] px-3 py-1.5 rounded-[6px] transition-colors disabled:opacity-50"
-                onClick={() => setIsDeleteReportModalOpen(true)}
+            <button
+              type="button"
+              className="flex items-center text-[13px] font-semibold text-[#d33d44] hover:text-[#c33339] hover:bg-[#fdf2f2] px-3 py-1.5 rounded-[6px] transition-colors disabled:opacity-50"
+              onClick={() => setIsDeleteReportModalOpen(true)}
             >
-                <Trash2 className="w-4 h-4 mr-1.5" />
-                Delete Report
+              <Trash2 className="w-4 h-4 mr-1.5" />
+              Delete Report
             </button>
           )}
         </div>
@@ -758,7 +923,11 @@ function EditReportPage() {
               disabled={isSaveDisabled}
               className={saveDraftClass}
             >
-              {isActionInProgress ? (isSavingDraft ? "Saving..." : "Processing...") : "Save Changes"}
+              {isActionInProgress
+                ? isSavingDraft
+                  ? "Saving..."
+                  : "Processing..."
+                : "Save Changes"}
             </button>
           )}
           <button
@@ -766,9 +935,15 @@ function EditReportPage() {
             disabled={isSubmitDisabled}
             className={submitClass}
           >
-            {isActionInProgress 
-              ? (isSubmittingReport ? (isResubmitMode ? "Resubmitting..." : "Submitting...") : "Processing...") 
-              : (isResubmitMode ? "Resubmit Report" : "Submit Report")}
+            {isActionInProgress
+              ? isSubmittingReport
+                ? isResubmitMode
+                  ? "Resubmitting..."
+                  : "Submitting..."
+                : "Processing..."
+              : isResubmitMode
+                ? "Resubmit Report"
+                : "Submit Report"}
           </button>
         </div>
       </div>
@@ -781,8 +956,14 @@ function EditReportPage() {
             expenses={expenses}
             total={expenses.reduce((sum, exp) => sum + exp.amount, 0)}
             onEditName={handleEditName}
-            onViewDetails={(id) => { setSelectedExpenseId(id); setIsDetailModalOpen(true); }}
-            onViewReceipt={(id) => { setSelectedReceiptId(id); setIsReceiptModalOpen(true); }}
+            onViewDetails={(id) => {
+              setSelectedExpenseId(id);
+              setIsDetailModalOpen(true);
+            }}
+            onViewReceipt={(id) => {
+              setSelectedReceiptId(id);
+              setIsReceiptModalOpen(true);
+            }}
             onDelete={handleDeleteClick}
           />
         </div>
@@ -798,12 +979,13 @@ function EditReportPage() {
         </div>
       </div>
 
-
-
       {/* Modals */}
       <ExpenseDetailModal
         isOpen={isDetailModalOpen}
-        onClose={() => { setIsDetailModalOpen(false); setSelectedExpenseId(null); }}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedExpenseId(null);
+        }}
         expense={expenses.find((e) => e.id === selectedExpenseId) || null}
         categories={categories}
         onSave={handleSaveExpense}
@@ -812,28 +994,33 @@ function EditReportPage() {
 
       <ReceiptPreviewModal
         isOpen={isReceiptModalOpen}
-        onClose={() => { setIsReceiptModalOpen(false); setSelectedReceiptId(null); }}
-        receiptImage={expenses.find((e) => e.id === selectedReceiptId)?.receiptImage || ""}
-          onChangeReceipt={async (newReceipt) => {
-            if (!selectedReceiptId) return;
-            setExpenses((previous) =>
-              previous.map((expense) =>
-                expense.id === selectedReceiptId
-                  ? {
-                      ...expense,
-                      receiptImage: newReceipt,
-                      // A manually selected replacement is not OCR-backed.
-                      receiptExtractionId: undefined,
-                    }
-                  : expense,
-              ),
-            );
-            toast.success("Receipt updated");
-          }}
+        onClose={() => {
+          setIsReceiptModalOpen(false);
+          setSelectedReceiptId(null);
+        }}
+        receiptImage={
+          expenses.find((e) => e.id === selectedReceiptId)?.receiptImage || ""
+        }
+        onChangeReceipt={async (newReceipt) => {
+          if (!selectedReceiptId) return;
+          setExpenses((previous) =>
+            previous.map((expense) =>
+              expense.id === selectedReceiptId
+                ? {
+                    ...expense,
+                    receiptImage: newReceipt,
+                    // A manually selected replacement is not OCR-backed.
+                    receiptExtractionId: undefined,
+                  }
+                : expense,
+            ),
+          );
+          toast.success("Receipt updated");
+        }}
       />
-      
+
       {/* Delete Expense Confirmation */}
-      <ConfirmationModal 
+      <ConfirmationModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={confirmDeleteExpense}
@@ -842,7 +1029,7 @@ function EditReportPage() {
       />
 
       {/* Delete Report Confirmation */}
-      <ConfirmationModal 
+      <ConfirmationModal
         isOpen={isDeleteReportModalOpen}
         onClose={() => setIsDeleteReportModalOpen(false)}
         onConfirm={handleDeleteReport}

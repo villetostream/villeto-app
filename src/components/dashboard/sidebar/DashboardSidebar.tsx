@@ -44,7 +44,11 @@ import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
 import { useCompanyExpenses } from "@/lib/react-query/expenses";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { logoutAndRedirect } from "@/lib/logout";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
@@ -73,18 +77,22 @@ function CollapsedNavTooltip({
   );
 }
 
-export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoading?: boolean }) {
+export function DashboardSidebar({
+  isProfileLoading = false,
+}: {
+  isProfileLoading?: boolean;
+}) {
   const location = usePathname();
   const searchParams = useSearchParams();
   const policies = useAuthorizationPolicies();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
       const p = window.location.pathname;
-      if (p.startsWith("/expenses"))    return ["Expenses"];
+      if (p.startsWith("/expenses")) return ["Expenses"];
       if (p.startsWith("/procurement")) return ["Procurement"];
-      if (p.startsWith("/settings"))    return ["Settings"];
-      if (p.startsWith("/policies"))    return ["Policies"];
-      if (p.startsWith("/bill-pay"))    return ["Bill Pay"];
+      if (p.startsWith("/settings")) return ["Settings"];
+      if (p.startsWith("/policies")) return ["Policies"];
+      if (p.startsWith("/bill-pay")) return ["Bill Pay"];
     }
     return [];
   });
@@ -92,7 +100,8 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   const logout = useAuthStore((state) => state.logout);
   const can = useAuthStore((state) => state.can);
   const user = useAuthStore((state) => state.user);
-  const isAuthLoading = useAuthStore((state) => state.isLoading) || isProfileLoading;
+  const isAuthLoading =
+    useAuthStore((state) => state.isLoading) || isProfileLoading;
   const axios = useAxios();
   const { state, setOpen, isMobile } = useSidebar();
   const isTourActive = useTourStore((s) => s.isTourActive);
@@ -108,16 +117,12 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   const [syncedLocation, setSyncedLocation] = useState(location);
   if (location !== syncedLocation) {
     setSyncedLocation(location);
-    if (location.startsWith("/expenses"))
-      setExpandedMenus(["Expenses"]);
+    if (location.startsWith("/expenses")) setExpandedMenus(["Expenses"]);
     else if (location.startsWith("/procurement"))
       setExpandedMenus(["Procurement"]);
-    else if (location.startsWith("/settings"))
-      setExpandedMenus(["Settings"]);
-    else if (location.startsWith("/policies"))
-      setExpandedMenus(["Policies"]);
-    else if (location.startsWith("/bill-pay"))
-      setExpandedMenus(["Bill Pay"]);
+    else if (location.startsWith("/settings")) setExpandedMenus(["Settings"]);
+    else if (location.startsWith("/policies")) setExpandedMenus(["Policies"]);
+    else if (location.startsWith("/bill-pay")) setExpandedMenus(["Bill Pay"]);
   }
 
   const { data: companyData, isLoading: isQueryLoading } = useQuery({
@@ -146,13 +151,16 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   });
 
   const businessLogo = companyData?.logoUrl ?? user?.company?.logoUrl ?? null;
-  const businessName = companyData?.companyName ?? companyData?.businessName ?? user?.company?.companyName ?? user?.company?.businessName ?? null;
+  const businessName =
+    companyData?.companyName ??
+    companyData?.businessName ??
+    user?.company?.companyName ??
+    user?.company?.businessName ??
+    null;
   const loading = isQueryLoading && !businessLogo && !businessName;
 
   const toggleMenu = (label: string) => {
-    setExpandedMenus((prev) =>
-      prev.includes(label) ? [] : [label]
-    );
+    setExpandedMenus((prev) => (prev.includes(label) ? [] : [label]));
   };
 
   const isActive = (href: string) => {
@@ -162,8 +170,10 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
 
     if (location === "/settings/personal-settings") {
       const activeTab = searchParams.get("tab");
-      if (basePath === "/settings/company-settings") return activeTab === "company-profile";
-      if (basePath === "/settings/personal-settings") return activeTab === "my-profile" || !activeTab;
+      if (basePath === "/settings/company-settings")
+        return activeTab === "company-profile";
+      if (basePath === "/settings/personal-settings")
+        return activeTab === "my-profile" || !activeTab;
     }
 
     if (basePath === "/expenses") {
@@ -171,7 +181,8 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
         location.startsWith("/expenses/reimbursements") ||
         location.startsWith("/expenses/card-transactions") ||
         location.startsWith("/expenses/travel")
-      ) return false;
+      )
+        return false;
       return location.startsWith(basePath);
     }
 
@@ -180,7 +191,8 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
         location.startsWith("/bill-pay/payments") ||
         location.startsWith("/bill-pay/mailbox") ||
         location.startsWith("/bill-pay/settings")
-      ) return false;
+      )
+        return false;
       return location.startsWith(basePath);
     }
 
@@ -189,10 +201,12 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
 
   const hasNavPermission = (permissions: NavItem["permissions"]): boolean => {
     if (!permissions || permissions.length === 0) return true;
-    return permissions.some(p => can(p.resource, p.action));
+    return permissions.some((p) => can(p.resource, p.action));
   };
 
-  const canViewCompanyExpenses = policies.expenses.listScope === "company" || policies.expenses.listScope === "team";
+  const canViewCompanyExpenses =
+    policies.expenses.listScope === "company" ||
+    policies.expenses.listScope === "team";
 
   // ── Badge Counts ──
   const canApprovePR = policies.purchaseRequests.canApprove;
@@ -203,55 +217,98 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   const showPRApprovalCount = canApprovePR && isExplicitPRManager;
   const { data: prApprovalData } = useGetPurchaseRequests(
     { scope: "team", status: "submitted", requiresMyApproval: true },
-    { enabled: showPRApprovalCount, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: showPRApprovalCount, select: (d) => d.meta?.totalCount ?? 0 },
   );
-  const prAwaitingCount = showPRApprovalCount ? ((prApprovalData as unknown as number) ?? 0) : 0;
+  const prAwaitingCount = showPRApprovalCount
+    ? ((prApprovalData as unknown as number) ?? 0)
+    : 0;
 
   const { data: prConversionData } = useGetPurchaseRequests(
     { scope: prListScope, status: "approved", requiresMyConversion: true },
-    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 }
+    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 },
   );
-  const prReadyForPOCount = canConvertPR ? ((prConversionData as unknown as number) ?? 0) : 0;
+  const prReadyForPOCount = canConvertPR
+    ? ((prConversionData as unknown as number) ?? 0)
+    : 0;
 
   const { data: prPartialConversionData } = useGetPurchaseRequests(
-    { scope: prListScope, status: "partially_converted", requiresMyConversion: true },
-    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 }
+    {
+      scope: prListScope,
+      status: "partially_converted",
+      requiresMyConversion: true,
+    },
+    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 },
   );
-  const prPartialPOCount = canConvertPR ? ((prPartialConversionData as unknown as number) ?? 0) : 0;
-  const totalPRActionCount = prAwaitingCount + prReadyForPOCount + prPartialPOCount;
+  const prPartialPOCount = canConvertPR
+    ? ((prPartialConversionData as unknown as number) ?? 0)
+    : 0;
+  const totalPRActionCount =
+    prAwaitingCount + prReadyForPOCount + prPartialPOCount;
 
   const canApprovePO = policies.purchaseOrders.canApprove;
   const isExplicitPOManager = policies.purchaseOrders.canReadDepartment;
   const showPOApprovalCount = canApprovePO && isExplicitPOManager;
 
   const { data: poApprovalData } = usePurchaseOrders(
-    1, 1, "pending_approval", undefined, undefined, "team",
-    { enabled: showPOApprovalCount, select: (d) => d.meta?.totalCount ?? 0 }
+    1,
+    1,
+    "pending_approval",
+    undefined,
+    undefined,
+    "team",
+    { enabled: showPOApprovalCount, select: (d) => d.meta?.totalCount ?? 0 },
   );
-  const totalPOActionCount = showPOApprovalCount ? ((poApprovalData as unknown as number) ?? 0) : 0;
+  const totalPOActionCount = showPOApprovalCount
+    ? ((poApprovalData as unknown as number) ?? 0)
+    : 0;
 
   const canReceivePO = policies.purchaseOrders.canReceive;
   const poListScope = policies.purchaseOrders.listScope || "own";
 
   const { data: poReadyForDeliveryData } = usePurchaseOrders(
-    1, 1, "ready_for_delivery", undefined, undefined, poListScope,
-    { enabled: canReceivePO, select: (d) => d.meta?.totalCount ?? 0 }
+    1,
+    1,
+    "ready_for_delivery",
+    undefined,
+    undefined,
+    poListScope,
+    { enabled: canReceivePO, select: (d) => d.meta?.totalCount ?? 0 },
   );
-  const poReadyForDeliveryCount = canReceivePO ? ((poReadyForDeliveryData as unknown as number) ?? 0) : 0;
+  const poReadyForDeliveryCount = canReceivePO
+    ? ((poReadyForDeliveryData as unknown as number) ?? 0)
+    : 0;
 
   const { data: poPartiallyDeliveredData } = usePurchaseOrders(
-    1, 1, "partially_delivered", undefined, undefined, poListScope,
-    { enabled: canReceivePO, select: (d) => d.meta?.totalCount ?? 0 }
+    1,
+    1,
+    "partially_delivered",
+    undefined,
+    undefined,
+    poListScope,
+    { enabled: canReceivePO, select: (d) => d.meta?.totalCount ?? 0 },
   );
-  const poPartiallyDeliveredCount = canReceivePO ? ((poPartiallyDeliveredData as unknown as number) ?? 0) : 0;
-
-  const totalConfirmationCount = poReadyForDeliveryCount + poPartiallyDeliveredCount;
-
-  const isExpenseManager = policies.expenses.listScope === "company" || policies.expenses.listScope === "team";
-  const { data: expensesData } = useCompanyExpenses(1, 100, "team", undefined, undefined, isExpenseManager);
-  const totalExpenseActionCount = isExpenseManager && expensesData?.reports
-    ? expensesData.reports.filter(e => e.status === "submitted").length
+  const poPartiallyDeliveredCount = canReceivePO
+    ? ((poPartiallyDeliveredData as unknown as number) ?? 0)
     : 0;
+
+  const totalConfirmationCount =
+    poReadyForDeliveryCount + poPartiallyDeliveredCount;
+
+  const isExpenseManager =
+    policies.expenses.listScope === "company" ||
+    policies.expenses.listScope === "team";
+  const { data: expensesData } = useCompanyExpenses(
+    1,
+    100,
+    "team",
+    undefined,
+    undefined,
+    isExpenseManager,
+  );
+  const totalExpenseActionCount =
+    isExpenseManager && expensesData?.reports
+      ? expensesData.reports.filter((e) => e.status === "submitted").length
+      : 0;
 
   const filterItems = (items: NavItem[]): NavItem[] => {
     return items
@@ -261,11 +318,14 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
           currentItem.href = canViewCompanyExpenses
             ? "/expenses?tab=company-expenses"
             : "/expenses?tab=personal-expenses";
-          if (totalExpenseActionCount > 0) currentItem.badge = totalExpenseActionCount.toString();
+          if (totalExpenseActionCount > 0)
+            currentItem.badge = totalExpenseActionCount.toString();
         }
         if (currentItem.href === "/procurement") {
-          const totalProcurement = totalPRActionCount + totalPOActionCount + totalConfirmationCount;
-          if (totalProcurement > 0) currentItem.badge = totalProcurement.toString();
+          const totalProcurement =
+            totalPRActionCount + totalPOActionCount + totalConfirmationCount;
+          if (totalProcurement > 0)
+            currentItem.badge = totalProcurement.toString();
         }
         if (currentItem.subItems) {
           const filteredSubs = currentItem.subItems
@@ -276,18 +336,32 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
                 currentSub.href = canViewCompanyExpenses
                   ? "/expenses?tab=company-expenses"
                   : "/expenses?tab=personal-expenses";
-                if (totalExpenseActionCount > 0) currentSub.badge = totalExpenseActionCount.toString();
+                if (totalExpenseActionCount > 0)
+                  currentSub.badge = totalExpenseActionCount.toString();
               }
-              if (currentSub.label === "Purchase Requests" && totalPRActionCount > 0)
+              if (
+                currentSub.label === "Purchase Requests" &&
+                totalPRActionCount > 0
+              )
                 currentSub.badge = totalPRActionCount.toString();
-              if (currentSub.label === "Purchase Orders" && totalPOActionCount > 0)
+              if (
+                currentSub.label === "Purchase Orders" &&
+                totalPOActionCount > 0
+              )
                 currentSub.badge = totalPOActionCount.toString();
-              if (currentSub.label === "Confirmation" && totalConfirmationCount > 0)
+              if (
+                currentSub.label === "Confirmation" &&
+                totalConfirmationCount > 0
+              )
                 currentSub.badge = totalConfirmationCount.toString();
               return currentSub;
             })
             .filter((sub) => hasNavPermission(sub.permissions));
-          if (!hasNavPermission(currentItem.permissions) && filteredSubs.length === 0) return null;
+          if (
+            !hasNavPermission(currentItem.permissions) &&
+            filteredSubs.length === 0
+          )
+            return null;
           currentItem.subItems = filteredSubs;
           return currentItem;
         } else {
@@ -311,7 +385,9 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
           width={32}
           height={32}
           className="w-full h-full object-contain rounded-[6px]"
-          unoptimized={businessLogo.startsWith("data:") || businessLogo.startsWith("http")}
+          unoptimized={
+            businessLogo.startsWith("data:") || businessLogo.startsWith("http")
+          }
         />
       );
     return (
@@ -333,7 +409,9 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
           width={32}
           height={32}
           className="w-8 h-8 object-contain rounded-[6px]"
-          unoptimized={businessLogo.startsWith("data:") || businessLogo.startsWith("http")}
+          unoptimized={
+            businessLogo.startsWith("data:") || businessLogo.startsWith("http")
+          }
         />
       );
     return (
@@ -353,7 +431,7 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
           "flex items-center justify-center rounded-full bg-[#ff7b6b] text-white font-bold leading-none shadow-[0_2px_8px_rgba(255,123,107,0.25)]",
           collapsed
             ? "absolute -top-1 -right-1 min-w-[14px] h-[14px] px-[3px] text-[8px]"
-            : "ml-auto min-w-[18px] h-[18px] px-1.5 text-[10px] group-data-[collapsible=icon]:hidden"
+            : "ml-auto min-w-[18px] h-[18px] px-1.5 text-[10px] group-data-[collapsible=icon]:hidden",
         )}
       >
         {Number(badge) > 99 ? "99+" : badge}
@@ -366,35 +444,51 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
 
     if (hasExpandable) {
       const isOpen = expandedMenus.includes(item.label);
-      const isGroupActive = item.subItems?.some(sub => sub.href && isActive(sub.href)) || isActive(item.href);
+      const isGroupActive =
+        item.subItems?.some((sub) => sub.href && isActive(sub.href)) ||
+        isActive(item.href);
 
       return (
         <SidebarMenuItem key={item.label}>
-          <Collapsible open={isOpen} onOpenChange={() => toggleMenu(item.label)}>
+          <Collapsible
+            open={isOpen}
+            onOpenChange={() => toggleMenu(item.label)}
+          >
             <CollapsedNavTooltip label={item.label} show={!isExpanded}>
               <CollapsibleTrigger asChild>
                 <button
-                className={cn(
-                  "group/nav relative flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] transition-all duration-150",
-                  isGroupActive
-                    ? "bg-white/[0.11] text-white font-semibold shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
-                    : "text-white/65 hover:bg-white/[0.07] hover:text-white",
-                  !isExpanded && "justify-center px-2.5"
-                )}
-              >
-                {isGroupActive && isExpanded && <span className="absolute left-0 h-5 w-[3px] rounded-r-full bg-[#38d5bc]" />}
-                <span className={cn("relative shrink-0 flex size-8 items-center justify-center rounded-[8px] transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0", isGroupActive ? "bg-[#24bda7]/20 [&>svg]:text-[#55e2cc]" : "bg-white/[0.04] [&>svg]:text-white/55 group-hover/nav:[&>svg]:text-white/85")}>
-                  {item.icon}
-                  {!isExpanded && renderBadge(item.badge, true)}
-                </span>
-                <span className="flex-1 text-left group-data-[collapsible=icon]:hidden">{item.label}</span>
-                {isExpanded && renderBadge(item.badge)}
-                <ChevronDown
                   className={cn(
-                    "size-3.5 shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden",
-                    isOpen && "rotate-180"
+                    "group/nav relative flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] transition-all duration-150",
+                    isGroupActive
+                      ? "bg-white/[0.11] text-white font-semibold shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
+                      : "text-white/65 hover:bg-white/[0.07] hover:text-white",
+                    !isExpanded && "justify-center px-2.5",
                   )}
-                />
+                >
+                  {isGroupActive && isExpanded && (
+                    <span className="absolute left-0 h-5 w-[3px] rounded-r-full bg-[#38d5bc]" />
+                  )}
+                  <span
+                    className={cn(
+                      "relative shrink-0 flex size-8 items-center justify-center rounded-[8px] transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0",
+                      isGroupActive
+                        ? "bg-[#24bda7]/20 [&>svg]:text-[#55e2cc]"
+                        : "bg-white/[0.04] [&>svg]:text-white/55 group-hover/nav:[&>svg]:text-white/85",
+                    )}
+                  >
+                    {item.icon}
+                    {!isExpanded && renderBadge(item.badge, true)}
+                  </span>
+                  <span className="flex-1 text-left group-data-[collapsible=icon]:hidden">
+                    {item.label}
+                  </span>
+                  {isExpanded && renderBadge(item.badge)}
+                  <ChevronDown
+                    className={cn(
+                      "size-3.5 shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden",
+                      isOpen && "rotate-180",
+                    )}
+                  />
                 </button>
               </CollapsibleTrigger>
             </CollapsedNavTooltip>
@@ -424,20 +518,29 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
                         "flex items-center justify-between w-full px-2.5 py-2 rounded-[7px] text-[12px] transition-colors",
                         subActive
                           ? "bg-[#38d5bc]/10 text-[#70ead7] font-semibold"
-                          : "text-white/50 hover:bg-white/[0.06] hover:text-white/85"
+                          : "text-white/50 hover:bg-white/[0.06] hover:text-white/85",
                       )}
                     >
                       <span>{sub.label}</span>
                       {renderBadge(sub.badge)}
-                      {sub.imageUrl === "user-avatar" && (
-                        (user as unknown as { profilePicture?: string })?.profilePicture ? (
-                          <Image src={(user as unknown as { profilePicture: string }).profilePicture} alt="Avatar" width={18} height={18} className="ml-auto w-[18px] h-[18px] rounded-full object-cover" />
+                      {sub.imageUrl === "user-avatar" &&
+                        ((user as unknown as { profilePicture?: string })
+                          ?.profilePicture ? (
+                          <Image
+                            src={
+                              (user as unknown as { profilePicture: string })
+                                .profilePicture
+                            }
+                            alt="Avatar"
+                            width={18}
+                            height={18}
+                            className="ml-auto w-[18px] h-[18px] rounded-full object-cover"
+                          />
                         ) : (
                           <div className="ml-auto w-[18px] h-[18px] rounded-full bg-[#38d5bc]/15 flex items-center justify-center text-[9px] font-semibold text-[#70ead7] capitalize">
                             {user?.firstName?.[0] || user?.email?.[0] || "U"}
                           </div>
-                        )
-                      )}
+                        ))}
                     </Link>
                   );
                 })}
@@ -453,15 +556,22 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
     if (item.comingSoon) {
       return (
         <SidebarMenuItem key={item.label}>
-          <CollapsedNavTooltip label={`${item.label} · Coming soon`} show={!isExpanded}>
+          <CollapsedNavTooltip
+            label={`${item.label} · Coming soon`}
+            show={!isExpanded}
+          >
             <span
               className={cn(
                 "flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] text-white/30 cursor-not-allowed",
-                !isExpanded && "justify-center px-2.5"
+                !isExpanded && "justify-center px-2.5",
               )}
             >
-              <span className="shrink-0 flex size-8 items-center justify-center rounded-[8px] bg-white/[0.03] [&>svg]:size-[18px] [&>svg]:text-white/30">{item.icon}</span>
-              <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
+              <span className="shrink-0 flex size-8 items-center justify-center rounded-[8px] bg-white/[0.03] [&>svg]:size-[18px] [&>svg]:text-white/30">
+                {item.icon}
+              </span>
+              <span className="flex-1 group-data-[collapsible=icon]:hidden">
+                {item.label}
+              </span>
               <span className="ml-auto border border-amber-300/20 bg-amber-300/10 px-1.5 py-0.5 rounded-full text-[9px] font-semibold text-amber-200/70 group-data-[collapsible=icon]:hidden whitespace-nowrap">
                 Soon
               </span>
@@ -482,15 +592,26 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
               active
                 ? "bg-white/[0.11] text-white font-semibold shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
                 : "text-white/65 hover:bg-white/[0.07] hover:text-white",
-              !isExpanded && "justify-center px-2.5"
+              !isExpanded && "justify-center px-2.5",
             )}
           >
-            {active && isExpanded && <span className="absolute left-0 h-5 w-[3px] rounded-r-full bg-[#38d5bc]" />}
-            <span className={cn("relative shrink-0 flex size-8 items-center justify-center rounded-[8px] transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0", active ? "bg-[#24bda7]/20 [&>svg]:text-[#55e2cc]" : "bg-white/[0.04] [&>svg]:text-white/55 group-hover/nav:[&>svg]:text-white/85")}>
+            {active && isExpanded && (
+              <span className="absolute left-0 h-5 w-[3px] rounded-r-full bg-[#38d5bc]" />
+            )}
+            <span
+              className={cn(
+                "relative shrink-0 flex size-8 items-center justify-center rounded-[8px] transition-colors [&>svg]:size-[18px] [&>svg]:shrink-0",
+                active
+                  ? "bg-[#24bda7]/20 [&>svg]:text-[#55e2cc]"
+                  : "bg-white/[0.04] [&>svg]:text-white/55 group-hover/nav:[&>svg]:text-white/85",
+              )}
+            >
               {item.icon}
               {!isExpanded && renderBadge(item.badge, true)}
             </span>
-            <span className="flex-1 group-data-[collapsible=icon]:hidden">{item.label}</span>
+            <span className="flex-1 group-data-[collapsible=icon]:hidden">
+              {item.label}
+            </span>
             {isExpanded && renderBadge(item.badge)}
           </Link>
         </CollapsedNavTooltip>
@@ -499,19 +620,25 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-white/[0.06] !bg-[#0b1f1a] text-white [&_[data-slot=sidebar-inner]]:!bg-[#0b1f1a]">
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-white/[0.06] !bg-[#0b1f1a] text-white [&_[data-slot=sidebar-inner]]:!bg-[#0b1f1a]"
+    >
       {/* ── Header: Logo + Toggle ── */}
       <SidebarHeader className="border-b border-white/[0.07] !p-0 space-y-0 bg-[#0b1f1a]">
         <div className={cn("flex flex-col", isExpanded ? "pl-4 pr-6" : "px-2")}>
           <div
             className={cn(
               "flex items-center h-[72px] transition-all duration-300",
-              isExpanded ? "justify-between" : "justify-center"
+              isExpanded ? "justify-between" : "justify-center",
             )}
           >
             {isExpanded ? (
               <>
-                <Link href="/dashboard" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
+                >
                   <Image
                     src="/images/villeto-logo-v.png"
                     alt="Villeto"
@@ -520,9 +647,13 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
                     className="object-contain"
                     priority
                   />
-                  <span className="text-[20px] font-semibold tracking-[-0.04em] text-white">Villeto</span>
+                  <span className="text-[20px] font-semibold tracking-[-0.04em] text-white">
+                    Villeto
+                  </span>
                 </Link>
-                {!isTourActive && <SidebarTrigger className="shrink-0 cursor-pointer rounded-[8px] text-white/45 hover:bg-white/[0.08] hover:text-white" />}
+                {!isTourActive && (
+                  <SidebarTrigger className="shrink-0 cursor-pointer rounded-[8px] text-white/45 hover:bg-white/[0.08] hover:text-white" />
+                )}
               </>
             ) : (
               !isTourActive && (
@@ -541,9 +672,15 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
                   {renderLogo()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/35">Workspace</p>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/35">
+                    Workspace
+                  </p>
                   <p className="truncate text-[13px] font-semibold text-white/90">
-                    {loading ? <Skeleton className="h-4 w-28 bg-white/10" /> : (businessName || "Business Name")}
+                    {loading ? (
+                      <Skeleton className="h-4 w-28 bg-white/10" />
+                    ) : (
+                      businessName || "Business Name"
+                    )}
                   </p>
                 </div>
               </div>
@@ -557,16 +694,21 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
       </SidebarHeader>
 
       {/* ── Nav Content ── */}
-      <SidebarContent className={cn(
-        "py-3 overflow-y-auto bg-[#0b1f1a]",
-        isExpanded ? "px-4" : "px-2",
-        "scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent",
-        "group-data-[state=collapsed]:[scrollbar-width:none] group-data-[state=collapsed]:[&::-webkit-scrollbar]:hidden"
-      )}>
+      <SidebarContent
+        className={cn(
+          "py-3 overflow-y-auto bg-[#0b1f1a]",
+          isExpanded ? "px-4" : "px-2",
+          "scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent",
+          "group-data-[state=collapsed]:[scrollbar-width:none] group-data-[state=collapsed]:[&::-webkit-scrollbar]:hidden",
+        )}
+      >
         {isAuthLoading ? (
           <div className="space-y-1 px-1">
             {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-2.5 px-2.5 py-2 rounded-[8px]">
+              <div
+                key={i}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-[8px]"
+              >
                 <Skeleton className="w-[18px] h-[18px] rounded-[5px] shrink-0" />
                 <Skeleton className="h-3.5 w-24 rounded-md group-data-[collapsible=icon]:hidden" />
               </div>
@@ -580,17 +722,24 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
       </SidebarContent>
 
       {/* ── Footer: Logout ── */}
-      <SidebarFooter className={cn("border-t border-white/[0.07] bg-[#0b1f1a] py-3", isExpanded ? "pl-4 pr-6" : "px-2")}>
+      <SidebarFooter
+        className={cn(
+          "border-t border-white/[0.07] bg-[#0b1f1a] py-3",
+          isExpanded ? "pl-4 pr-6" : "px-2",
+        )}
+      >
         <CollapsedNavTooltip label="Log out" show={!isExpanded}>
           <button
             onClick={() => setShowLogoutModal(true)}
             className={cn(
               "flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[12px] text-white/45 transition-colors hover:bg-red-400/10 hover:text-red-200",
-              !isExpanded && "justify-center px-2"
+              !isExpanded && "justify-center px-2",
             )}
           >
             <Logout className="size-[18px] shrink-0" />
-            <span className="group-data-[collapsible=icon]:hidden">Log Out</span>
+            <span className="group-data-[collapsible=icon]:hidden">
+              Log Out
+            </span>
           </button>
         </CollapsedNavTooltip>
       </SidebarFooter>
@@ -603,7 +752,8 @@ export function DashboardSidebar({ isProfileLoading = false }: { isProfileLoadin
               Are you sure you want to log out?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-[13px] text-[#68726d]">
-              Any unsaved changes may be lost. You will need to log in again to access the dashboard.
+              Any unsaved changes may be lost. You will need to log in again to
+              access the dashboard.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,4 +1,3 @@
-
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
@@ -15,54 +14,67 @@ import { QUERY_KEYS } from "@/shared/lib/query/keys";
  * same mutation without fighting over required/optional fields.
  */
 export interface UserUpdatePayload {
-    id: string;
-    companyRoleIds?: string[];
-    /** @deprecated Compatibility only; new screens must use companyRoleIds. */
-    companyRoleId?: string;
-    jobTitle?: string;
-    departmentId?: string;
-    firstName?: string;
-    lastName?: string;
-    phone?: string;
-    email?: string;
-    location?: string;
-    cardIssued?: boolean;
-    [key: string]: unknown;   // allow any extra fields the add-user form sends
+  id: string;
+  companyRoleIds?: string[];
+  /** @deprecated Compatibility only; new screens must use companyRoleIds. */
+  companyRoleId?: string;
+  jobTitle?: string;
+  departmentId?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  email?: string;
+  location?: string;
+  cardIssued?: boolean;
+  [key: string]: unknown; // allow any extra fields the add-user form sends
 }
 
 interface Response {
-    data: {
-        [key: string]: string | number | boolean;
-    };
-    error: {
-        error: string;
-        message?: string;
-        success: boolean;
-    };
-    message: string;
-    status: number;
-    statusCode: number;
-    statusText: string;
+  data: {
+    [key: string]: string | number | boolean;
+  };
+  error: {
+    error: string;
+    message?: string;
+    success: boolean;
+  };
+  message: string;
+  status: number;
+  statusCode: number;
+  statusText: string;
 }
 
 export const useUpdateUserApi = () => {
-    const axiosInstance = useAxios();
-    const queryClient = useQueryClient();
+  const axiosInstance = useAxios();
+  const queryClient = useQueryClient();
 
-    return useMutation<Response, Error, UserUpdatePayload>({
-        retry: false,
-        mutationFn: async (payload: UserUpdatePayload) => {
-            const { id, ...latestPayload } = payload;
-            const res = await axiosInstance.patch(`${API_KEYS.USER.USERS}${id}`, latestPayload);
-            return res.data;
-        },
-        onSuccess: (_data, variables) => {
-            // Refresh the individual user record and all list views
-            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.user(variables.id)) });
-            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.invitedUsers) });
-            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.directoryUsers) });
-            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.uninvitedUsers) });
-            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.users()) });
-        },
-    });
+  return useMutation<Response, Error, UserUpdatePayload>({
+    retry: false,
+    mutationFn: async (payload: UserUpdatePayload) => {
+      const { id, ...latestPayload } = payload;
+      const res = await axiosInstance.patch(
+        `${API_KEYS.USER.USERS}${id}`,
+        latestPayload,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      // Refresh the individual user record and all list views
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.user(variables.id)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.invitedUsers),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.directoryUsers),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.uninvitedUsers),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.users()),
+      });
+    },
+  });
 };

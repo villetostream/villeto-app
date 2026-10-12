@@ -13,8 +13,18 @@ import {
 } from "@/shared/lib/errors/api-errors";
 import { useAuthStore } from "@/stores/auth-stores";
 import { toast } from "sonner";
-import { useEntityWorkspaceStore, workspaceReadOnly } from "@/features/entity-workspace/store";
-import { workspaceRoute, workspaceDetailRoute, reportReviewRoute, stripAllEntityFilter, responseEntity } from "@/features/entity-workspace/transport";
+import {
+  useEntityWorkspaceStore,
+  workspaceReadOnly,
+} from "@/features/entity-workspace/store";
+import {
+  workspaceRoute,
+  workspaceDetailRoute,
+  reportReviewRoute,
+  optionalWorkspaceDetail,
+  stripAllEntityFilter,
+  responseEntity,
+} from "@/features/entity-workspace/transport";
 
 declare module "axios" {
   export interface AxiosRequestConfig {
@@ -50,6 +60,12 @@ const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+function finishWorkspaceMutation(config?: InternalAxiosRequestConfig) {
+  if (!config?._workspaceMutation) return;
+  config._workspaceMutation = false;
+  useEntityWorkspaceStore.getState().mutationFinished();
+}
+
 let refreshPromise: Promise<string> | null = null;
 
 function redirectToLogin() {
@@ -65,7 +81,11 @@ function refreshAccessToken() {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = axios
-    .post<RefreshResponse["data"]>(`${BASEURL}auth/refresh`, {}, { withCredentials: true })
+    .post<RefreshResponse["data"]>(
+      `${BASEURL}auth/refresh`,
+      {},
+      { withCredentials: true },
+    )
     .then((response) => {
       const accessToken =
         response.data?.data?.accessToken ?? response.data?.accessToken;
@@ -132,14 +152,36 @@ function formatErrorMessage(error: AxiosError<ApiErrorPayload>) {
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const workspace = useEntityWorkspaceStore.getState();
-  const scoped = workspaceRoute(config.url || "") || reportReviewRoute(config.url || "", config.params);
+  const optionalDetail = optionalWorkspaceDetail(
+    config.url || "",
+    config.method,
+  );
+  const scoped =
+    optionalDetail ||
+    workspaceRoute(config.url || "", config.method) ||
+    reportReviewRoute(config.url || "", config.params);
   if (workspace.snapshot?.enabled && scoped) {
-    if (!workspace.selection) throw new axios.CanceledError("A legal entity assignment or workspace selection is required");
-    if (config._workspaceGeneration !== undefined && config._workspaceGeneration !== workspace.generation) throw new axios.CanceledError("Workspace changed before the request could be retried");
+    if (!workspace.selection && !optionalDetail)
+      throw new axios.CanceledError(
+        "A legal entity assignment or workspace selection is required",
+      );
+    if (
+      config._workspaceGeneration !== undefined &&
+      config._workspaceGeneration !== workspace.generation
+    )
+      throw new axios.CanceledError(
+        "Workspace changed before the request could be retried",
+      );
     config._workspaceGeneration = workspace.generation;
-    config.headers.set("X-Villeto-Legal-Entity", workspace.selection);
-    const mutation = !["get", "head", "options"].includes(config.method || "get") || /notifications\/mark/.test(config.url || "");
-    if (mutation && workspaceReadOnly()) throw new axios.CanceledError("Select an active legal entity before performing this action");
+    if (workspace.selection)
+      config.headers.set("X-Villeto-Legal-Entity", workspace.selection);
+    const mutation =
+      !["get", "head", "options"].includes(config.method || "get") ||
+      /notifications\/mark/.test(config.url || "");
+    if (mutation && workspaceReadOnly())
+      throw new axios.CanceledError(
+        "Select an active legal entity before performing this action",
+      );
     if (workspace.selection === "all") {
       config.url = stripAllEntityFilter(config.url || "");
       if (config.params?.legalEntityId === "all") {
@@ -162,13 +204,30 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 apiClient.interceptors.response.use(
   (response) => {
     const workspace = useEntityWorkspaceStore.getState();
-    if (response.config._workspaceMutation) workspace.mutationFinished();
-    if (response.config._workspaceGeneration !== undefined && response.config._workspaceGeneration !== workspace.generation) return Promise.reject(new axios.CanceledError("Workspace changed while the request was running"));
-    if (workspace.snapshot?.enabled && workspace.selection === "all" && workspaceDetailRoute(response.config.url || "")) {
-      const entityId = responseEntity(response.data);
+    finishWorkspaceMutation(response.config);
+    if (
+      response.config._workspaceGeneration !== undefined &&
+      response.config._workspaceGeneration !== workspace.generation
+    )
+      return Promise.reject(
+        new axios.CanceledError(
+          "Workspace changed while the request was running",
+        ),
+      );
+    if (
+      workspace.snapshot?.enabled &&
+      workspace.selection === "all" &&
+      workspaceDetailRoute(response.config.url || "")
+    ) {
+      const entityId = responseEntity(
+        response.data,
+        useAuthStore.getState().user?.userId,
+      );
       if (entityId) {
         workspace.select(entityId);
-        return Promise.reject(new axios.CanceledError("Switched to the record's legal entity"));
+        return Promise.reject(
+          new axios.CanceledError("Switched to the record's legal entity"),
+        );
       }
     }
     if (readEmbeddedStatus(response.data) === 401) {
@@ -191,22 +250,19 @@ apiClient.interceptors.response.use(
     }
 
     if (axios.isCancel(error)) {
-      if (error.config?._workspaceMutation) useEntityWorkspaceStore.getState().mutationFinished();
+      finishWorkspaceMutation(error.config);
       return Promise.reject(error);
     }
     const originalRequest = error.config;
     if (!originalRequest) return Promise.reject(error);
+    finishWorkspaceMutation(originalRequest);
 
     const isOnboardingPath =
       typeof window !== "undefined" &&
       window.location.pathname.includes("onboarding");
     const isAuthRequest = originalRequest.url?.includes("auth") ?? false;
 
-    if (
-      error.response?.status === 401 &&
-      !isAuthRequest &&
-      !isOnboardingPath
-    ) {
+    if (error.response?.status === 401 && !isAuthRequest && !isOnboardingPath) {
       if (originalRequest._retry) {
         useAuthStore.getState().logout();
         redirectToLogin();
@@ -225,7 +281,6 @@ apiClient.interceptors.response.use(
       }
     }
 
-    if (originalRequest._workspaceMutation) useEntityWorkspaceStore.getState().mutationFinished();
     if (error.response?.status === 403) {
       // Refresh authorization for subsequent UI decisions, but never replay
       // a denied request because mutations may not be safe to retry.
@@ -251,6 +306,6 @@ apiClient.interceptors.response.use(
 
 /** Returns the singleton API client; interceptors are installed exactly once. */
 export function useAxios(): AxiosInstance {
-  useEntityWorkspaceStore(state => state.generation);
+  useEntityWorkspaceStore((state) => state.generation);
   return apiClient;
 }

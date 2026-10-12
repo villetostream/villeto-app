@@ -1,20 +1,43 @@
 "use client";
-import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
-
+import {
+  useTransactionLegalEntities,
+  useWorkspaceUnsavedChanges,
+} from "@/features/entity-workspace/hooks";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronDown, Plus, Trash2, Calendar as CalendarIcon, X,
-  CheckCircle2, Loader2, Pencil, ChevronLeft, AlertCircle,
+  ChevronDown,
+  Plus,
+  Trash2,
+  Calendar as CalendarIcon,
+  X,
+  CheckCircle2,
+  Loader2,
+  Pencil,
+  ChevronLeft,
+  AlertCircle,
 } from "lucide-react";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import { ProcurementPolicyCheckModal } from "@/components/procurement/ProcurementPolicyCheckModal";
 import { LineItemDetailModal } from "@/components/procurement/LineItemDetailModal";
 import type { LineItemPayload as _LIP } from "@/queries/procurement/purchase-requests";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
@@ -34,11 +57,18 @@ import {
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { toast } from "sonner";
-import { getApiErrorMessage, isProcurementPolicyViolationError, getProcurementPolicyViolations, applyProcurementPolicyErrorToLineItems, type ProcurementPolicyViolation } from "@/lib/types/api-error";
-import { isPRPriority, toApiLineItemPayload } from "@/lib/types/purchase-request-helpers";
 import {
-  isProcurementReadyLegalEntity,
-} from "@/queries/legal-entities";
+  getApiErrorMessage,
+  isProcurementPolicyViolationError,
+  getProcurementPolicyViolations,
+  applyProcurementPolicyErrorToLineItems,
+  type ProcurementPolicyViolation,
+} from "@/lib/types/api-error";
+import {
+  isPRPriority,
+  toApiLineItemPayload,
+} from "@/lib/types/purchase-request-helpers";
+import { isProcurementReadyLegalEntity } from "@/queries/legal-entities";
 
 function cleanLineItemPayload(payload: LineItemPayload): LineItemPayload {
   return toApiLineItemPayload(payload);
@@ -49,7 +79,7 @@ function cleanLineItemPayload(payload: LineItemPayload): LineItemPayload {
 const PRIORITIES: { label: string; value: string }[] = [
   { label: "Low", value: "low" },
   { label: "Medium", value: "medium" },
-  { label: "High", value: "urgent" },   // UI shows "High", sends "urgent" to backend
+  { label: "High", value: "urgent" }, // UI shows "High", sends "urgent" to backend
 ];
 
 // Department editability is now driven by permissions, not role names
@@ -57,7 +87,12 @@ const PRIORITIES: { label: string; value: string }[] = [
 // ─── Generic Select Dropdown ──────────────────────────────────────────────────
 
 function SelectDropdown({
-  value, onChange, options, placeholder, disabled = false, id,
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled = false,
+  id,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -70,29 +105,42 @@ function SelectDropdown({
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-  const selected = options.find(o => o.value === value);
+  const selected = options.find((o) => o.value === value);
   return (
     <div className="relative" ref={ref}>
       <button
-        type="button" id={id}
-        onClick={() => !disabled && setOpen(v => !v)}
+        type="button"
+        id={id}
+        onClick={() => !disabled && setOpen((v) => !v)}
         className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between transition-colors ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:border-[#087f70]/60 focus:outline-none"}`}
       >
         <span className={selected ? "text-[#0b100e]" : "text-[#68726d]"}>
           {selected?.label || placeholder}
         </span>
-        {!disabled && <ChevronDown className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />}
+        {!disabled && (
+          <ChevronDown
+            className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        )}
       </button>
       {open && (
         <div className="absolute left-0 right-0 z-50 bg-white border border-black/[0.06] rounded-[12px] shadow-lg mt-1 max-h-52 overflow-y-auto">
-          {options.map(o => (
-            <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors ${value === o.value ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors ${value === o.value ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}
+            >
               {o.label}
             </button>
           ))}
@@ -105,7 +153,8 @@ function SelectDropdown({
 // ─── Two-Step Category Dropdown ───────────────────────────────────────────────
 
 function CategoryDropdown({
-  value, onChange,
+  value,
+  onChange,
 }: {
   value: string;
   onChange: (id: string, name: string) => void;
@@ -137,39 +186,61 @@ function CategoryDropdown({
   const rawCategories = useMemo(() => catData?.data || [], [catData?.data]);
   const selectedName = useMemo(() => {
     if (!value) return "";
-    const all = rawCategories.flatMap(c => [c, ...(c.children || [])]);
-    return all.find(c => c.categoryId === value)?.name ?? "Selected";
+    const all = rawCategories.flatMap((c) => [c, ...(c.children || [])]);
+    return all.find((c) => c.categoryId === value)?.name ?? "Selected";
   }, [value, rawCategories]);
   const q = search.trim().toLowerCase();
 
   // Flat search results: matches from parents and subcategories
   const searchResults: { id: string; name: string; parentName?: string }[] = q
-    ? rawCategories.flatMap(cat => {
+    ? rawCategories.flatMap((cat) => {
         const results: { id: string; name: string; parentName?: string }[] = [];
-        if (cat.name.toLowerCase().includes(q)) results.push({ id: cat.categoryId, name: cat.name });
-        (cat.children || []).forEach(sub => {
-          if (sub.name.toLowerCase().includes(q)) results.push({ id: sub.categoryId, name: sub.name, parentName: cat.name });
+        if (cat.name.toLowerCase().includes(q))
+          results.push({ id: cat.categoryId, name: cat.name });
+        (cat.children || []).forEach((sub) => {
+          if (sub.name.toLowerCase().includes(q))
+            results.push({
+              id: sub.categoryId,
+              name: sub.name,
+              parentName: cat.name,
+            });
         });
         return results;
       })
     : [];
 
-  const close = () => { setOpen(false); setSearch(""); setExpandedId(null); };
+  const close = () => {
+    setOpen(false);
+    setSearch("");
+    setExpandedId(null);
+  };
 
-  const handleSelectParent = (id: string, name: string) => { onChange(id, name); close(); };
-  const handleSelectSub = (id: string, name: string) => { onChange(id, name); close(); };
-  const handleSelectResult = (id: string, name: string) => { onChange(id, name); close(); };
-
-
+  const handleSelectParent = (id: string, name: string) => {
+    onChange(id, name);
+    close();
+  };
+  const handleSelectSub = (id: string, name: string) => {
+    onChange(id, name);
+    close();
+  };
+  const handleSelectResult = (id: string, name: string) => {
+    onChange(id, name);
+    close();
+  };
 
   return (
     <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen(v => !v)}
-        className="w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between cursor-pointer hover:border-[#087f70]/60 focus:outline-none transition-colors">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] text-sm flex items-center justify-between cursor-pointer hover:border-[#087f70]/60 focus:outline-none transition-colors"
+      >
         <span className={value ? "text-[#0b100e]" : "text-[#68726d]"}>
           {value ? selectedName || "Selected" : "Select category..."}
         </span>
-        <ChevronDown className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown
+          className={`w-4 h-4 text-[#68726d] shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        />
       </button>
 
       {open && (
@@ -177,12 +248,35 @@ function CategoryDropdown({
           {/* Search bar — always visible */}
           <div className="p-2 border-b border-black/[0.06]">
             <div className="relative">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#68726d]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              <input ref={searchRef} value={search} onChange={e => { setSearch(e.target.value); setExpandedId(null); }}
+              <svg
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#68726d]"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                ref={searchRef}
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setExpandedId(null);
+                }}
                 placeholder="Search categories..."
-                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-black/[0.06] focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
+                className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-black/[0.06] focus:outline-none focus:border-[#087f70] transition-colors bg-white"
+              />
               {search && (
-                <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#68726d] hover:text-[#0b100e]">
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#68726d] hover:text-[#0b100e]"
+                >
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -198,14 +292,24 @@ function CategoryDropdown({
             <div className="max-h-56 overflow-y-auto py-1">
               {searchResults.length === 0 ? (
                 <div className="px-4 py-3 text-sm text-[#68726d] text-center">
-                  <span className="block font-medium text-[#0b100e]">No matches for &quot;{search}&quot;</span>
+                  <span className="block font-medium text-[#0b100e]">
+                    No matches for &quot;{search}&quot;
+                  </span>
                 </div>
               ) : (
-                searchResults.map(r => (
-                  <button key={r.id} type="button" onClick={() => handleSelectResult(r.id, r.name)}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors flex items-baseline gap-2 ${value === r.id ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
+                searchResults.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => handleSelectResult(r.id, r.name)}
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#f9faf9] transition-colors flex items-baseline gap-2 ${value === r.id ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}
+                  >
                     <span>{r.name}</span>
-                    {r.parentName && <span className="text-xs text-[#68726d] font-normal">in {r.parentName}</span>}
+                    {r.parentName && (
+                      <span className="text-xs text-[#68726d] font-normal">
+                        in {r.parentName}
+                      </span>
+                    )}
                   </button>
                 ))
               )}
@@ -214,37 +318,60 @@ function CategoryDropdown({
             /* ── Accordion browse (no search) ── */
             <div className="max-h-56 overflow-y-auto py-1">
               {rawCategories.length === 0 ? (
-                <p className="text-sm text-[#68726d] px-4 py-3">No categories yet</p>
+                <p className="text-sm text-[#68726d] px-4 py-3">
+                  No categories yet
+                </p>
               ) : (
-                rawCategories.map(cat => {
+                rawCategories.map((cat) => {
                   const isExpanded = expandedId === cat.categoryId;
                   const subs = cat.children || [];
                   const isSelected = value === cat.categoryId;
                   return (
                     <div key={cat.categoryId}>
                       <div className="flex items-center">
-                        <button type="button" onClick={() => handleSelectParent(cat.categoryId, cat.name)}
-                          className={`flex-1 text-left px-4 py-2.5 text-sm font-medium hover:bg-[#f9faf9] transition-colors ${isSelected ? "text-[#087f70]" : "text-[#0b100e]"}`}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleSelectParent(cat.categoryId, cat.name)
+                          }
+                          className={`flex-1 text-left px-4 py-2.5 text-sm font-medium hover:bg-[#f9faf9] transition-colors ${isSelected ? "text-[#087f70]" : "text-[#0b100e]"}`}
+                        >
                           {cat.name}
-                          {isSelected && <span className="ml-2 text-xs font-normal text-[#68726d]">(selected)</span>}
+                          {isSelected && (
+                            <span className="ml-2 text-xs font-normal text-[#68726d]">
+                              (selected)
+                            </span>
+                          )}
                         </button>
-                        <button type="button" onClick={() => setExpandedId(isExpanded ? null : cat.categoryId)}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedId(isExpanded ? null : cat.categoryId)
+                          }
                           className={`w-9 h-9 flex items-center justify-center mr-1 rounded-lg transition-colors ${isExpanded ? "text-[#087f70] bg-[#f0faf8]" : "text-[#68726d] hover:bg-[#f9faf9]"}`}
-                          title={`${subs.length} subcategory${subs.length !== 1 ? "s" : ""}`}>
-                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                          title={`${subs.length} subcategory${subs.length !== 1 ? "s" : ""}`}
+                        >
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                          />
                         </button>
                       </div>
 
                       {isExpanded && (
                         <div className="bg-[#f9faf9] border-t border-b border-border/40">
-                          {subs.map(sub => (
-                            <button key={sub.categoryId} type="button" onClick={() => handleSelectSub(sub.categoryId, sub.name)}
-                              className={`w-full text-left pl-7 pr-4 py-2 text-sm flex items-center gap-2 hover:bg-[#f9faf9] transition-colors ${value === sub.categoryId ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}>
+                          {subs.map((sub) => (
+                            <button
+                              key={sub.categoryId}
+                              type="button"
+                              onClick={() =>
+                                handleSelectSub(sub.categoryId, sub.name)
+                              }
+                              className={`w-full text-left pl-7 pr-4 py-2 text-sm flex items-center gap-2 hover:bg-[#f9faf9] transition-colors ${value === sub.categoryId ? "text-[#087f70] font-medium" : "text-[#0b100e]"}`}
+                            >
                               <span className="w-1 h-1 rounded-full bg-muted-foreground/50 shrink-0" />
                               {sub.name}
                             </button>
                           ))}
-
                         </div>
                       )}
                     </div>
@@ -253,8 +380,6 @@ function CategoryDropdown({
               )}
             </div>
           )}
-
-
         </div>
       )}
     </div>
@@ -277,13 +402,24 @@ interface ModalItem {
 }
 
 const EMPTY_MODAL: ModalItem = {
-  name: "", description: "", categoryId: "", categoryName: "",
-  departmentId: "", quantity: 0, taxAmount: 0,
-  sku: "", unitOfMeasure: "unit",
+  name: "",
+  description: "",
+  categoryId: "",
+  categoryName: "",
+  departmentId: "",
+  quantity: 0,
+  taxAmount: 0,
+  sku: "",
+  unitOfMeasure: "unit",
 };
 
 function LineItemModal({
-  onClose, onSave, initial, loading, departments: _departments, currency,
+  onClose,
+  onSave,
+  initial,
+  loading,
+  departments: _departments,
+  currency,
 }: {
   onClose: () => void;
   onSave: (data: LineItemPayload) => void;
@@ -293,15 +429,30 @@ function LineItemModal({
   currency: string;
 }) {
   const [form, setForm] = useState<ModalItem>(initial || EMPTY_MODAL);
-  const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
+  const currencySymbol =
+    currency === "USD"
+      ? "$"
+      : currency === "NGN"
+        ? "₦"
+        : currency === "EUR"
+          ? "€"
+          : currency === "GBP"
+            ? "£"
+            : currency;
   const subtotal = form.quantity * (form.unitPrice || 0);
 
   const set = (k: keyof ModalItem, v: string | number | undefined) =>
-    setForm(p => ({ ...p, [k]: v }));
+    setForm((p) => ({ ...p, [k]: v }));
 
   const handleSave = () => {
-    if (!form.name.trim()) { toast.error("Item name is required"); return; }
-    if (!form.quantity || form.quantity <= 0) { toast.error("Quantity must be > 0"); return; }
+    if (!form.name.trim()) {
+      toast.error("Item name is required");
+      return;
+    }
+    if (!form.quantity || form.quantity <= 0) {
+      toast.error("Quantity must be > 0");
+      return;
+    }
     const payload: LineItemPayload = {
       name: form.name,
       description: form.description || undefined,
@@ -319,11 +470,19 @@ function LineItemModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        onClick={onClose}
+      />
       <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] bg-white z-10 shrink-0 rounded-t-2xl">
-          <h3 className="text-base font-bold text-[#0b100e]">{initial ? "Edit Line Item" : "Add Line Item"}</h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors">
+          <h3 className="text-base font-bold text-[#0b100e]">
+            {initial ? "Edit Line Item" : "Add Line Item"}
+          </h3>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f9faf9] transition-colors"
+          >
             <X className="w-4 h-4 text-[#68726d]" />
           </button>
         </div>
@@ -331,58 +490,100 @@ function LineItemModal({
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
           {/* Name */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[#0b100e]">Item Name <span className="text-[#d33d44]">*</span></label>
-            <input type="text" value={form.name} onChange={e => set("name", e.target.value)}
+            <label className="text-sm font-medium text-[#0b100e]">
+              Item Name <span className="text-[#d33d44]">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
               placeholder="e.g. Dell XPS Laptop"
-              className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
+              className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors"
+            />
           </div>
 
           {/* Category */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[#0b100e]">Category</label>
+            <label className="text-sm font-medium text-[#0b100e]">
+              Category
+            </label>
             <CategoryDropdown
               value={form.categoryId}
-              onChange={(id, name) => setForm(p => ({ ...p, categoryId: id, categoryName: name }))}
+              onChange={(id, name) =>
+                setForm((p) => ({ ...p, categoryId: id, categoryName: name }))
+              }
             />
           </div>
 
           {/* Qty + Unit Price */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Quantity <span className="text-[#d33d44]">*</span></label>
-              <input type="number" min={1} value={form.quantity || ""}
-                onChange={e => set("quantity", Number(e.target.value))} placeholder="0"
-                className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
+              <label className="text-sm font-medium text-[#0b100e]">
+                Quantity <span className="text-[#d33d44]">*</span>
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={form.quantity || ""}
+                onChange={(e) => set("quantity", Number(e.target.value))}
+                placeholder="0"
+                className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors"
+              />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Unit Price</label>
+              <label className="text-sm font-medium text-[#0b100e]">
+                Unit Price
+              </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">
                   {currencySymbol}
                 </span>
-                <input type="number" min={0} value={form.unitPrice ?? ""}
-                  onChange={e => set("unitPrice", e.target.value === "" ? undefined : Number(e.target.value))} placeholder="0.00"
-                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
+                <input
+                  type="number"
+                  min={0}
+                  value={form.unitPrice ?? ""}
+                  onChange={(e) =>
+                    set(
+                      "unitPrice",
+                      e.target.value === ""
+                        ? undefined
+                        : Number(e.target.value),
+                    )
+                  }
+                  placeholder="0.00"
+                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors bg-white"
+                />
               </div>
             </div>
           </div>
 
           {/* Unit of Measure */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[#0b100e]">Unit of Measure</label>
-            <input type="text" value={form.unitOfMeasure} onChange={e => set("unitOfMeasure", e.target.value)}
+            <label className="text-sm font-medium text-[#0b100e]">
+              Unit of Measure
+            </label>
+            <input
+              type="text"
+              value={form.unitOfMeasure}
+              onChange={(e) => set("unitOfMeasure", e.target.value)}
               placeholder="unit / box / kg"
-              className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
+              className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors"
+            />
           </div>
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[#0b100e]">Description <span className="text-[#68726d] font-normal">(optional)</span></label>
-            <textarea value={form.description}
-              onChange={e => set("description", e.target.value)}
+            <label className="text-sm font-medium text-[#0b100e]">
+              Description{" "}
+              <span className="text-[#68726d] font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
               placeholder="Brief description of this item"
               rows={3}
-              className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors" />
+              className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors"
+            />
           </div>
 
           {/* Subtotal preview */}
@@ -390,15 +591,28 @@ function LineItemModal({
             <div className="flex items-center justify-between px-4 py-3 bg-[#f9faf9] rounded-[12px]">
               <span className="text-sm text-[#68726d]">Line Subtotal</span>
               <span className="text-sm font-semibold text-[#0b100e]">
-                {currencySymbol}{subtotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {currencySymbol}
+                {subtotal.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </span>
             </div>
           )}
         </div>
 
         <div className="px-6 py-4 border-t border-black/[0.06] bg-white z-10 shrink-0 rounded-b-2xl">
-          <button type="button" onClick={handleSave} disabled={loading || !(form.name || "").trim() || !form.categoryId || form.quantity <= 0}
-            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-95 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={
+              loading ||
+              !(form.name || "").trim() ||
+              !form.categoryId ||
+              form.quantity <= 0
+            }
+            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-95 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {initial ? "Save Changes" : "Add Item"}
           </button>
@@ -418,14 +632,26 @@ function StepIndicator({ step }: { step: 1 | 2 }) {
         const active = step === s;
         return (
           <div key={s} className="flex items-center gap-3">
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${done ? "bg-[#f0faf8] text-[#087f70]" : active ? "bg-[#f0faf8] text-[#087f70]" : "bg-[#f9faf9] text-[#68726d]"}`}>
-              {done ? <CheckCircle2 className="w-4 h-4" /> : (
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${active ? "bg-[#087f70] text-white" : "bg-muted-foreground/30 text-[#68726d]"}`}>{s}</span>
+            <div
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${done ? "bg-[#f0faf8] text-[#087f70]" : active ? "bg-[#f0faf8] text-[#087f70]" : "bg-[#f9faf9] text-[#68726d]"}`}
+            >
+              {done ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <span
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${active ? "bg-[#087f70] text-white" : "bg-muted-foreground/30 text-[#68726d]"}`}
+                >
+                  {s}
+                </span>
               )}
-              <span className="hidden sm:inline">{s === 1 ? "Request Details" : "Add Items"}</span>
+              <span className="hidden sm:inline">
+                {s === 1 ? "Request Details" : "Add Items"}
+              </span>
             </div>
             {i === 0 && (
-              <div className={`w-8 h-px ${step > 1 ? "bg-[#087f70]" : "bg-border"}`} />
+              <div
+                className={`w-8 h-px ${step > 1 ? "bg-[#087f70]" : "bg-border"}`}
+              />
             )}
           </div>
         );
@@ -438,7 +664,7 @@ function StepIndicator({ step }: { step: 1 | 2 }) {
 
 function NewPurchaseRequestPage() {
   const router = useRouter();
-  const user = useAuthStore(s => s.user);
+  const user = useAuthStore((s) => s.user);
 
   // Department dropdown visibility:
   // Only users who can create/convert POs (i.e. procurement staff who may
@@ -449,14 +675,23 @@ function NewPurchaseRequestPage() {
 
   // Step state
   const [step, setStep] = useState<1 | 2>(1);
-  const [purchaseRequestId, setPurchaseRequestId] = useState<string | null>(null);
-  const [savedLineItems, setSavedLineItems] = useState<PurchaseRequestLineItem[]>([]);
-  const [policyViolations, setPolicyViolations] = useState<ProcurementPolicyViolation[] | null>(null);
+  const [purchaseRequestId, setPurchaseRequestId] = useState<string | null>(
+    null,
+  );
+  const [savedLineItems, setSavedLineItems] = useState<
+    PurchaseRequestLineItem[]
+  >([]);
+  const [policyViolations, setPolicyViolations] = useState<
+    ProcurementPolicyViolation[] | null
+  >(null);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
 
-  const [selectedDetailItem, setSelectedDetailItem] = useState<any | null>(null);
+  const [selectedDetailItem, setSelectedDetailItem] = useState<any | null>(
+    null,
+  );
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [detailModalStartsInEditMode, setDetailModalStartsInEditMode] = useState(false);
+  const [detailModalStartsInEditMode, setDetailModalStartsInEditMode] =
+    useState(false);
 
   // Header form
   const [title, setTitle] = useState("");
@@ -465,15 +700,37 @@ function NewPurchaseRequestPage() {
   const [priority, setPriority] = useState<PRPriority | "">("");
   const [legalEntityId, setLegalEntityId] = useState("");
   const [neededByDate, setNeededByDate] = useState("");
-  const defaultDepartmentId = user?.departmentId || (user?.department as { departmentId?: string })?.departmentId || "";
-  const [departmentOverride, setDepartmentOverride] = useState<string | null>(null);
+  const defaultDepartmentId =
+    user?.departmentId ||
+    (user?.department as { departmentId?: string })?.departmentId ||
+    "";
+  const [departmentOverride, setDepartmentOverride] = useState<string | null>(
+    null,
+  );
   const departmentId = departmentOverride ?? defaultDepartmentId;
   const [headerSaving, setHeaderSaving] = useState(false);
 
+  useWorkspaceUnsavedChanges(
+    step === 1 &&
+      !!(
+        title ||
+        description ||
+        priority ||
+        neededByDate ||
+        departmentOverride
+      ),
+  );
+
   // Panel state
   const [panelOpen, setPanelOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<{ item: PurchaseRequestLineItem; index: number } | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<{ item: PurchaseRequestLineItem; index: number } | null>(null);
+  const [editingItem, setEditingItem] = useState<{
+    item: PurchaseRequestLineItem;
+    index: number;
+  } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{
+    item: PurchaseRequestLineItem;
+    index: number;
+  } | null>(null);
   const [panelSaving, setPanelSaving] = useState(false);
 
   // API hooks
@@ -482,27 +739,43 @@ function NewPurchaseRequestPage() {
   // different department. Read-only requesters get their department name
   // directly from their profile (user.department.departmentName), avoiding
   // an unnecessary request to an endpoint they have no use for.
-  const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
+  const { data: deptData } = useGetAllDepartmentsApi({
+    enabled: canChangeDept,
+  });
   const { data: catData } = useGetProcurementCategories();
-  const { data: legalEntityData } = useTransactionLegalEntities("requester");
+  const { data: legalEntityData, workspaceEnabled } =
+    useTransactionLegalEntities("requester");
   const addLineItem = useAddLineItem(purchaseRequestId || "");
-  const targetItemId = editingItem?.item.purchaseRequestLineItemId || (editingItem?.item as any)?.id || selectedDetailItem?.purchaseRequestLineItemId || selectedDetailItem?.id || "";
-  const updateLineItem = useUpdateLineItem(purchaseRequestId || "", targetItemId);
+  const targetItemId =
+    editingItem?.item.purchaseRequestLineItemId ||
+    (editingItem?.item as any)?.id ||
+    selectedDetailItem?.purchaseRequestLineItemId ||
+    selectedDetailItem?.id ||
+    "";
+  const updateLineItem = useUpdateLineItem(
+    purchaseRequestId || "",
+    targetItemId,
+  );
   const deleteLineItem = useDeleteLineItem(purchaseRequestId || "");
   const submitPR = useSubmitPurchaseRequest(purchaseRequestId || "");
   // Fetch the saved PR so we always have authoritative IDs for edit/delete
-  const { refetch: refetchPR } = useGetPurchaseRequestById(purchaseRequestId || "", {
-    enabled: false, // only refetch manually after mutations
-  });
+  const { refetch: refetchPR } = useGetPurchaseRequestById(
+    purchaseRequestId || "",
+    {
+      enabled: false, // only refetch manually after mutations
+    },
+  );
 
   const rawCategories = catData?.data || [];
-  const categories = rawCategories.flatMap(c => [c, ...(c.children || [])]);
+  const categories = rawCategories.flatMap((c) => [c, ...(c.children || [])]);
   const getCategoryName = (categoryId?: string | null) => {
     if (!categoryId) return null;
-    return categories.find(c => c.categoryId === categoryId)?.name || null;
+    return categories.find((c) => c.categoryId === categoryId)?.name || null;
   };
 
-  const departments: { label: string; value: string }[] = (deptData?.data || []).map(d => ({
+  const departments: { label: string; value: string }[] = (
+    deptData?.data || []
+  ).map((d) => ({
     label: d.departmentName || d.name || "Unknown",
     value: d.departmentId,
   }));
@@ -510,7 +783,7 @@ function NewPurchaseRequestPage() {
   const legalEntities = (legalEntityData?.data || []).filter(
     isProcurementReadyLegalEntity,
   );
-  const legalEntityOptions = legalEntities.map(entity => ({
+  const legalEntityOptions = legalEntities.map((entity) => ({
     label: `${entity.legalName} (${entity.baseCurrency})`,
     value: entity.legalEntityId,
   }));
@@ -523,7 +796,16 @@ function NewPurchaseRequestPage() {
     legalEntities.find(
       (entity) => entity.legalEntityId === effectiveLegalEntityId,
     )?.baseCurrency || "";
-  const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
+  const currencySymbol =
+    currency === "USD"
+      ? "$"
+      : currency === "NGN"
+        ? "₦"
+        : currency === "EUR"
+          ? "€"
+          : currency === "GBP"
+            ? "£"
+            : currency;
 
   const selectLegalEntity = (id: string) => {
     setLegalEntityId(id);
@@ -532,12 +814,30 @@ function NewPurchaseRequestPage() {
   // Department defaults from the signed-in user when available.
 
   const handleSaveHeader = async () => {
-    if (!title.trim()) { toast.error("Request title is required"); return; }
-    if (!isPRPriority(priority)) { toast.error("Priority is required"); return; }
-    if (!neededByDate) { toast.error("Needed by date is required"); return; }
-    if (!departmentId) { toast.error("Department is required"); return; }
-    if (legalEntities.length === 0) { toast.error("No procurement-ready legal entity is available"); return; }
-    if (requiresLegalEntitySelection && !effectiveLegalEntityId) { toast.error("Select the legal entity for this request"); return; }
+    if (!title.trim()) {
+      toast.error("Request title is required");
+      return;
+    }
+    if (!isPRPriority(priority)) {
+      toast.error("Priority is required");
+      return;
+    }
+    if (!neededByDate) {
+      toast.error("Needed by date is required");
+      return;
+    }
+    if (!departmentId) {
+      toast.error("Department is required");
+      return;
+    }
+    if (legalEntities.length === 0) {
+      toast.error("No procurement-ready legal entity is available");
+      return;
+    }
+    if (requiresLegalEntitySelection && !effectiveLegalEntityId) {
+      toast.error("Select the legal entity for this request");
+      return;
+    }
 
     setHeaderSaving(true);
     try {
@@ -573,7 +873,9 @@ function NewPurchaseRequestPage() {
       const items = refetched.data?.data?.lineItems || [];
       if (items.length > 0) setSavedLineItems(items);
       setPolicyViolations(null); // Clear errors so user can resubmit
-      toast.success(`${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`);
+      toast.success(
+        `${payloads.length} item${payloads.length !== 1 ? "s" : ""} added`,
+      );
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to add items"));
       throw err; // rethrow so panel keeps staged items
@@ -605,7 +907,9 @@ function NewPurchaseRequestPage() {
   const confirmDeleteItem = async () => {
     if (!purchaseRequestId || !itemToDelete) return;
     try {
-      const lineItemId = itemToDelete.item.purchaseRequestLineItemId || (itemToDelete.item as any).id;
+      const lineItemId =
+        itemToDelete.item.purchaseRequestLineItemId ||
+        (itemToDelete.item as any).id;
       if (!lineItemId) throw new Error("Item ID is missing");
       await deleteLineItem.mutateAsync(lineItemId);
       // Refetch the PR to sync the list
@@ -627,31 +931,33 @@ function NewPurchaseRequestPage() {
     setPanelOpen(true);
   };
 
-  const editInitial: ModalItem | undefined = editingItem ? {
-    name: editingItem.item.name || "",
-    description: editingItem.item.description || "",
-    categoryId: editingItem.item.categoryId || "",
-    categoryName: "",
-    departmentId: editingItem.item.departmentId || "",
-    quantity: editingItem.item.quantity || 0,
-    unitPrice: editingItem.item.unitPrice || 0,
-    taxAmount: editingItem.item.taxAmount || 0,
-    sku: editingItem.item.sku || "",
-    unitOfMeasure: editingItem.item.unitOfMeasure || "unit",
-  } : undefined;
+  const editInitial: ModalItem | undefined = editingItem
+    ? {
+        name: editingItem.item.name || "",
+        description: editingItem.item.description || "",
+        categoryId: editingItem.item.categoryId || "",
+        categoryName: "",
+        departmentId: editingItem.item.departmentId || "",
+        quantity: editingItem.item.quantity || 0,
+        unitPrice: editingItem.item.unitPrice || 0,
+        taxAmount: editingItem.item.taxAmount || 0,
+        sku: editingItem.item.sku || "",
+        unitOfMeasure: editingItem.item.unitOfMeasure || "unit",
+      }
+    : undefined;
 
   const totals = savedLineItems.reduce(
     (acc, it) => {
-      const lineSub = it.subtotal ?? (it.quantity * (it.unitPrice || 0));
+      const lineSub = it.subtotal ?? it.quantity * (it.unitPrice || 0);
       const lineTax = it.taxAmount ?? 0;
-      const lineTot = it.lineTotal ?? (lineSub + lineTax);
+      const lineTot = it.lineTotal ?? lineSub + lineTax;
       return {
         subtotal: acc.subtotal + lineSub,
         tax: acc.tax + lineTax,
         total: acc.total + lineTot,
       };
     },
-    { subtotal: 0, tax: 0, total: 0 }
+    { subtotal: 0, tax: 0, total: 0 },
   );
 
   // For the read-only "Your department" display, prefer the department name
@@ -662,12 +968,10 @@ function NewPurchaseRequestPage() {
   // the only value sent to the backend on create; departmentName is purely
   // for display.
   const userDepartmentName =
-    user?.department?.departmentName ||
-    user?.departmentName ||
-    "";
+    user?.department?.departmentName || user?.departmentName || "";
   const selectedDeptName =
     userDepartmentName ||
-    departments.find(d => d.value === departmentId)?.label ||
+    departments.find((d) => d.value === departmentId)?.label ||
     "";
 
   return (
@@ -675,22 +979,29 @@ function NewPurchaseRequestPage() {
       {/* Line Item Batch Modal */}
       <LineItemBatchModal
         open={panelOpen}
-        onClose={() => { setPanelOpen(false); setEditingItem(null); }}
+        onClose={() => {
+          setPanelOpen(false);
+          setEditingItem(null);
+        }}
         currency={currency}
         onSaveAll={handleAddItems}
         saving={panelSaving}
-        editInitial={editingItem ? {
-          name: editingItem.item.name || "",
-          description: editingItem.item.description || "",
-          categoryId: editingItem.item.categoryId || "",
-          categoryName: "",
-          quantity: editingItem.item.quantity || 0,
-          unitPrice: editingItem.item.unitPrice,
-          taxAmount: editingItem.item.taxAmount,
-          sku: editingItem.item.sku || "",
-          unitOfMeasure: editingItem.item.unitOfMeasure || "unit",
-          accountingResolutionStatus: "unresolved",
-        } : null}
+        editInitial={
+          editingItem
+            ? {
+                name: editingItem.item.name || "",
+                description: editingItem.item.description || "",
+                categoryId: editingItem.item.categoryId || "",
+                categoryName: "",
+                quantity: editingItem.item.quantity || 0,
+                unitPrice: editingItem.item.unitPrice,
+                taxAmount: editingItem.item.taxAmount,
+                sku: editingItem.item.sku || "",
+                unitOfMeasure: editingItem.item.unitOfMeasure || "unit",
+                accountingResolutionStatus: "unresolved",
+              }
+            : null
+        }
         onEditSaved={handleEditItem}
         editSaving={panelSaving}
         persistKey={purchaseRequestId || undefined}
@@ -704,26 +1015,40 @@ function NewPurchaseRequestPage() {
           {/* Title + stepper */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sticky -top-3 sm:-top-5 lg:-top-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 z-40 bg-[#f4f7f5]">
             <div>
-              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Create purchase request</h1>
-              <p className="mt-1 text-[12px] text-[#68726d]">Capture the need, ownership, entity, and expected timing.</p>
+              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">
+                Create purchase request
+              </h1>
+              <p className="mt-1 text-[12px] text-[#68726d]">
+                Capture the need, ownership, entity, and expected timing.
+              </p>
             </div>
             <StepIndicator step={step} />
           </div>
 
           {/* Request Details card */}
           <div className="bg-white rounded-[14px] border border-black/[0.06] p-6 space-y-5">
-            <h2 className="text-base font-semibold text-[#0b100e]">Request Details</h2>
+            <h2 className="text-base font-semibold text-[#0b100e]">
+              Request Details
+            </h2>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Request Title <span className="text-[#d33d44]">*</span></label>
-              <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+              <label className="text-sm font-medium text-[#0b100e]">
+                Request Title <span className="text-[#d33d44]">*</span>
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Engineering Laptops Q3 2026"
-                className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
+                className="w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors"
+              />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Priority <span className="text-[#d33d44]">*</span></label>
+                <label className="text-sm font-medium text-[#0b100e]">
+                  Priority <span className="text-[#d33d44]">*</span>
+                </label>
                 <SelectDropdown
                   value={priority}
                   onChange={(v) => setPriority(isPRPriority(v) ? v : "")}
@@ -731,67 +1056,134 @@ function NewPurchaseRequestPage() {
                   placeholder="Select priority"
                 />
               </div>
-              {legalEntities.length > 1 && (
+              {workspaceEnabled && legalEntities.length === 1 && (
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-[#0b100e]">Legal entity <span className="text-[#d33d44]">*</span></label>
-                  <SelectDropdown value={effectiveLegalEntityId} onChange={selectLegalEntity} options={legalEntityOptions} placeholder="Select legal entity" />
+                  <label className="text-sm font-medium text-[#0b100e]">
+                    Legal entity
+                  </label>
+                  <div className="rounded-lg border bg-[#f9faf9] px-3 py-2.5 text-sm">
+                    {legalEntities[0].legalName}
+                  </div>
+                </div>
+              )}
+              {!workspaceEnabled && legalEntities.length > 1 && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-[#0b100e]">
+                    Legal entity <span className="text-[#d33d44]">*</span>
+                  </label>
+                  <SelectDropdown
+                    value={effectiveLegalEntityId}
+                    onChange={selectLegalEntity}
+                    options={legalEntityOptions}
+                    placeholder="Select legal entity"
+                  />
                 </div>
               )}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Needed by Date <span className="text-[#d33d44]">*</span></label>
+                <label className="text-sm font-medium text-[#0b100e]">
+                  Needed by Date <span className="text-[#d33d44]">*</span>
+                </label>
                 <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                   <PopoverTrigger asChild>
-                    <button type="button" className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] cursor-pointer ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}>
-                      {neededByDate ? format(new Date(neededByDate), "PPP") : "Pick a date"}
+                    <button
+                      type="button"
+                      className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] cursor-pointer ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}
+                    >
+                      {neededByDate
+                        ? format(new Date(neededByDate), "PPP")
+                        : "Pick a date"}
                       <CalendarIcon className="w-4 h-4 ml-2 opacity-50" />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <CalendarPicker
                       mode="single"
-                      selected={neededByDate ? new Date(neededByDate) : undefined}
+                      selected={
+                        neededByDate ? new Date(neededByDate) : undefined
+                      }
                       onSelect={(d) => {
                         if (d) {
                           setNeededByDate(format(d, "yyyy-MM-dd"));
                           setCalendarOpen(false);
                         }
                       }}
-                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      disabled={(date) =>
+                        date < new Date(new Date().setHours(0, 0, 0, 0))
+                      }
                       initialFocus
                     />
                   </PopoverContent>
                 </Popover>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-[#0b100e]">Currency</label>
-                <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">{currency || "Select a legal entity"}</div>
-                <p className="text-xs text-[#68726d]">Locked to the legal entity base currency.</p>
+                <label className="text-sm font-medium text-[#0b100e]">
+                  Currency
+                </label>
+                <div className="flex h-11 items-center rounded-lg border border-black/[0.06] bg-[#f9faf9] px-3 text-sm font-medium">
+                  {currency || "Select a legal entity"}
+                </div>
+                <p className="text-xs text-[#68726d]">
+                  Locked to the legal entity base currency.
+                </p>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Department <span className="text-[#d33d44]">*</span></label>
+              <label className="text-sm font-medium text-[#0b100e]">
+                Department <span className="text-[#d33d44]">*</span>
+              </label>
               {canChangeDept ? (
-                <SelectDropdown value={departmentId} onChange={setDepartmentOverride} options={departments} placeholder="Select department" />
+                <SelectDropdown
+                  value={departmentId}
+                  onChange={setDepartmentOverride}
+                  options={departments}
+                  placeholder="Select department"
+                />
               ) : (
                 <div className="w-full h-11 px-3 rounded-lg border border-black/[0.06] bg-[#f9faf9] flex items-center justify-between text-sm text-[#0b100e]">
-                  <span>{selectedDeptName || <span className="text-[#68726d] italic">No department assigned</span>}</span>
-                  <span className="text-xs text-[#68726d] bg-[#f9faf9] px-2 py-0.5 rounded-full">Your department</span>
+                  <span>
+                    {selectedDeptName || (
+                      <span className="text-[#68726d] italic">
+                        No department assigned
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-xs text-[#68726d] bg-[#f9faf9] px-2 py-0.5 rounded-full">
+                    Your department
+                  </span>
                 </div>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#0b100e]">Description <span className="text-[#68726d] font-normal">(optional)</span></label>
-              <textarea value={description} onChange={e => setDescription(e.target.value)}
+              <label className="text-sm font-medium text-[#0b100e]">
+                Description{" "}
+                <span className="text-[#68726d] font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 placeholder="Provide context for this request..."
                 rows={3}
-                className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors" />
+                className="w-full px-3 py-2.5 rounded-lg border border-black/[0.06] text-sm resize-none focus:outline-none focus:border-[#087f70] transition-colors"
+              />
             </div>
 
             <div className="pt-1 flex justify-end">
-              <button type="button" onClick={handleSaveHeader} disabled={headerSaving || !title.trim() || !priority || legalEntities.length === 0 || (requiresLegalEntitySelection && !effectiveLegalEntityId) || !departmentId || !neededByDate}
-                className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSaveHeader}
+                disabled={
+                  headerSaving ||
+                  !title.trim() ||
+                  !priority ||
+                  legalEntities.length === 0 ||
+                  (requiresLegalEntitySelection && !effectiveLegalEntityId) ||
+                  !departmentId ||
+                  !neededByDate
+                }
+                className="h-11 px-8 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+              >
                 {headerSaving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save & Continue
               </button>
@@ -805,23 +1197,27 @@ function NewPurchaseRequestPage() {
           ════════════════════════════════════════════════════════════ */}
       {step === 2 && (
         <div className="flex flex-col h-full w-full">
-
           {/* Sticky page header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 sticky -top-3 sm:-top-5 lg:-top-6 -mt-3 sm:-mt-5 lg:-mt-6 pt-3 sm:pt-5 lg:pt-6 pb-4 z-40 bg-[#f4f7f5]">
             <div>
-              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">Build the request</h1>
-              <p className="mt-1 text-[12px] text-[#68726d]">Add quantities, categories, vendors, and accounting context.</p>
+              <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-[#0b100e]">
+                Build the request
+              </h1>
+              <p className="mt-1 text-[12px] text-[#68726d]">
+                Add quantities, categories, vendors, and accounting context.
+              </p>
             </div>
             <StepIndicator step={step} />
           </div>
 
           {/* Scrollable content */}
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-5 pb-4 pr-2">
-
             {/* Read-only request summary */}
             <div className="bg-white rounded-[14px] border border-black/[0.06] p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-[#0b100e]">Request Details</h2>
+                <h2 className="text-base font-semibold text-[#0b100e]">
+                  Request Details
+                </h2>
                 <div className="flex items-center gap-1.5 text-xs bg-[#f0faf8] text-[#087f70] px-3 py-1 rounded-full font-medium">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Saved as draft
                 </div>
@@ -829,14 +1225,21 @@ function NewPurchaseRequestPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
                   { label: "Title", value: title },
-                  { label: "Priority", value: PRIORITIES.find(p => p.value === priority)?.label || priority },
+                  {
+                    label: "Priority",
+                    value:
+                      PRIORITIES.find((p) => p.value === priority)?.label ||
+                      priority,
+                  },
                   { label: "Currency", value: currency },
                   { label: "Needed by Date", value: neededByDate },
                   { label: "Department", value: selectedDeptName || "—" },
                 ].map(({ label, value }) => (
                   <div key={label}>
                     <p className="text-xs text-[#68726d]">{label}</p>
-                    <p className="text-sm font-medium text-[#0b100e] mt-0.5">{value}</p>
+                    <p className="text-sm font-medium text-[#0b100e] mt-0.5">
+                      {value}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -851,17 +1254,31 @@ function NewPurchaseRequestPage() {
                     {savedLineItems.length}
                   </span>
                 </h2>
-                <button type="button" onClick={() => { setEditingItem(null); setPanelOpen(true); }}
-                  className="flex items-center gap-1 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingItem(null);
+                    setPanelOpen(true);
+                  }}
+                  className="flex items-center gap-1 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors"
+                >
                   <Plus className="w-4 h-4" /> Add Items
                 </button>
               </div>
 
               {savedLineItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <p className="text-sm text-[#68726d]">No items yet. Click &quot;Add Item&quot; to get started.</p>
-                  <button type="button" onClick={() => { setEditingItem(null); setPanelOpen(true); }}
-                    className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#087f70] text-[#087f70] text-sm font-medium hover:bg-[#f0faf8] transition-colors">
+                  <p className="text-sm text-[#68726d]">
+                    No items yet. Click &quot;Add Item&quot; to get started.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingItem(null);
+                      setPanelOpen(true);
+                    }}
+                    className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#087f70] text-[#087f70] text-sm font-medium hover:bg-[#f0faf8] transition-colors"
+                  >
                     <Plus className="w-4 h-4" /> Add first item
                   </button>
                 </div>
@@ -869,115 +1286,197 @@ function NewPurchaseRequestPage() {
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border/60 bg-[#f9faf9]">
-                        {["Name", "Description", "Category", "Qty", "Unit Price", "Subtotal", ""].map(h => (
-                          <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-[#68726d] uppercase tracking-wide">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {savedLineItems.map((item, i) => {
-                        const catName = getCategoryName(item.categoryId);
-                        let itemViolations = [...(item.policyViolations || [])];
-                        if (policyViolations && Array.isArray(policyViolations)) {
-                          policyViolations.forEach(issue => {
-                            const appliesToItem = issue.lineItems?.some(li => li.lineItemId === item.purchaseRequestLineItemId || li.lineItemId === (item as any).id) ||
-                                                  issue.categories?.some(c => c.categoryId === item.categoryId);
-                            if (appliesToItem) {
-                              if (!itemViolations.some((v: any) => v.message === issue.message)) {
-                                itemViolations.push({
-                                  type: issue.resolution === "BLOCK" ? "hard_block" : "warning",
-                                  message: issue.message
+                      <thead>
+                        <tr className="border-b border-border/60 bg-[#f9faf9]">
+                          {[
+                            "Name",
+                            "Description",
+                            "Category",
+                            "Qty",
+                            "Unit Price",
+                            "Subtotal",
+                            "",
+                          ].map((h) => (
+                            <th
+                              key={h}
+                              className="px-5 py-3 text-left text-xs font-semibold text-[#68726d] uppercase tracking-wide"
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {savedLineItems.map((item, i) => {
+                          const catName = getCategoryName(item.categoryId);
+                          let itemViolations = [
+                            ...(item.policyViolations || []),
+                          ];
+                          if (
+                            policyViolations &&
+                            Array.isArray(policyViolations)
+                          ) {
+                            policyViolations.forEach((issue) => {
+                              const appliesToItem =
+                                issue.lineItems?.some(
+                                  (li) =>
+                                    li.lineItemId ===
+                                      item.purchaseRequestLineItemId ||
+                                    li.lineItemId === (item as any).id,
+                                ) ||
+                                issue.categories?.some(
+                                  (c) => c.categoryId === item.categoryId,
+                                );
+                              if (appliesToItem) {
+                                if (
+                                  !itemViolations.some(
+                                    (v: any) => v.message === issue.message,
+                                  )
+                                ) {
+                                  itemViolations.push({
+                                    type:
+                                      issue.resolution === "BLOCK"
+                                        ? "hard_block"
+                                        : "warning",
+                                    message: issue.message,
+                                  });
+                                }
+                              }
+                            });
+                          }
+                          const hasViolations = itemViolations.length > 0;
+                          const hasBlock = itemViolations.some(
+                            (v: any) => v.type === "hard_block",
+                          );
+                          const violationCount = itemViolations.length;
+                          const itemKey =
+                            item.purchaseRequestLineItemId ||
+                            (item as any).id ||
+                            i;
+                          return (
+                            <tr
+                              key={itemKey}
+                              className={`border-b border-border/40 last:border-0 transition-colors cursor-pointer ${
+                                hasViolations
+                                  ? "hover:bg-red-50/40"
+                                  : "hover:bg-[#f9faf9]"
+                              }`}
+                              onClick={() => {
+                                setSelectedDetailItem({
+                                  ...item,
+                                  policyViolations: itemViolations,
+                                  categoryName: catName || undefined,
+                                  index: i, // keep index in case we want to edit it later
                                 });
-                              }
-                            }
-                          });
-                        }
-                        const hasViolations = itemViolations.length > 0;
-                        const hasBlock = itemViolations.some((v: any) => v.type === "hard_block");
-                        const violationCount = itemViolations.length;
-                        const itemKey = item.purchaseRequestLineItemId || (item as any).id || i;
-                        return (
-                          <tr
-                            key={itemKey}
-                            className={`border-b border-border/40 last:border-0 transition-colors cursor-pointer ${
-                              hasViolations
-                                ? "hover:bg-red-50/40"
-                                : "hover:bg-[#f9faf9]"
-                            }`}
-                            onClick={() => {
-                              setSelectedDetailItem({
-                                ...item,
-                                policyViolations: itemViolations,
-                                categoryName: catName || undefined,
-                                index: i, // keep index in case we want to edit it later
-                              });
-                              setDetailModalStartsInEditMode(false);
-                              setIsDetailModalOpen(true);
-                            }}
-                          >
-                            <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
-                              <div className="flex items-center gap-2">
-                                {hasViolations && (
-                                  <AlertCircle className={`w-4 h-4 shrink-0 ${hasBlock ? "text-red-500" : "text-amber-500"}`} />
-                                )}
-                                <span>{item.name}</span>
-                                {violationCount > 0 && (
-                                  <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
-                                    hasBlock ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
-                                  }`}>
-                                    {violationCount}
+                                setDetailModalStartsInEditMode(false);
+                                setIsDetailModalOpen(true);
+                              }}
+                            >
+                              <td className="px-5 py-3.5 font-semibold text-[#0b100e]">
+                                <div className="flex items-center gap-2">
+                                  {hasViolations && (
+                                    <AlertCircle
+                                      className={`w-4 h-4 shrink-0 ${hasBlock ? "text-red-500" : "text-amber-500"}`}
+                                    />
+                                  )}
+                                  <span>{item.name}</span>
+                                  {violationCount > 0 && (
+                                    <span
+                                      className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
+                                        hasBlock
+                                          ? "bg-red-100 text-red-600"
+                                          : "bg-amber-100 text-amber-600"
+                                      }`}
+                                    >
+                                      {violationCount}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">
+                                {item.description || "—"}
+                              </td>
+                              <td className="px-5 py-3.5">
+                                {catName ? (
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
+                                    {catName}
                                   </span>
+                                ) : (
+                                  <span className="text-[#68726d]">—</span>
                                 )}
-                              </div>
-                            </td>
-                            <td className="px-5 py-3.5 text-[#68726d] max-w-[180px] truncate">{item.description || "—"}</td>
-                            <td className="px-5 py-3.5">
-                              {catName
-                                ? <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">{catName}</span>
-                                : <span className="text-[#68726d]">—</span>
-                              }
-                            </td>
-                            <td className="px-5 py-3.5 text-[#0b100e]">{item.quantity}</td>
-                            <td className="px-5 py-3.5 text-[#0b100e]">{currencySymbol}{(item.unitPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3.5 font-medium text-[#0b100e]">{currencySymbol}{(item.subtotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                                <div className="relative group">
-                                  <button type="button" onClick={() => {
-                                    setSelectedDetailItem({
-                                      ...item,
-                                      categoryName: catName || undefined,
-                                      index: i,
-                                    });
-                                    setDetailModalStartsInEditMode(true);
-                                    setIsDetailModalOpen(true);
-                                  }}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors">
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Edit item</span>
+                              </td>
+                              <td className="px-5 py-3.5 text-[#0b100e]">
+                                {item.quantity}
+                              </td>
+                              <td className="px-5 py-3.5 text-[#0b100e]">
+                                {currencySymbol}
+                                {(item.unitPrice || 0).toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </td>
+                              <td className="px-5 py-3.5 font-medium text-[#0b100e]">
+                                {currencySymbol}
+                                {(item.subtotal || 0).toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <div
+                                  className="flex items-center gap-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="relative group">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedDetailItem({
+                                          ...item,
+                                          categoryName: catName || undefined,
+                                          index: i,
+                                        });
+                                        setDetailModalStartsInEditMode(true);
+                                        setIsDetailModalOpen(true);
+                                      }}
+                                      className="w-7 h-7 flex items-center justify-center rounded-lg text-[#68726d] hover:bg-[#f9faf9] hover:text-[#0b100e] transition-colors"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                      Edit item
+                                    </span>
+                                  </div>
+                                  <div className="relative group">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setItemToDelete({ item, index: i })
+                                      }
+                                      className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                      Remove item
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="relative group">
-                                  <button type="button" onClick={() => setItemToDelete({ item, index: i })}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-[#fff5f5] hover:text-[#d33d44] transition-colors">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[#0b100e] text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity z-10">Remove item</span>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
 
                   <div className="px-5 py-3 border-t border-border/40">
-                    <button type="button" onClick={() => { setEditingItem(null); setPanelOpen(true); }}
-                      className="flex items-center gap-1.5 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingItem(null);
+                        setPanelOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 text-sm font-semibold text-[#087f70] hover:text-primary/80 transition-colors"
+                    >
                       <Plus className="w-4 h-4" /> Add Items
                     </button>
                   </div>
@@ -986,15 +1485,32 @@ function NewPurchaseRequestPage() {
                     <div className="space-y-1.5 min-w-[220px]">
                       <div className="flex justify-between text-sm">
                         <span className="text-[#68726d]">Subtotal</span>
-                        <span className="font-medium">{currencySymbol}{totals.subtotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                        <span className="font-medium">
+                          {currencySymbol}
+                          {totals.subtotal.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-[#68726d]">Tax</span>
-                        <span className="font-medium">{currencySymbol}{totals.tax.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                        <span className="font-medium">
+                          {currencySymbol}
+                          {totals.tax.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
                       </div>
                       <div className="flex justify-between text-sm border-t border-border/60 pt-1.5">
-                        <span className="font-semibold text-[#0b100e]">Total</span>
-                        <span className="font-bold text-[#0b100e]">{currencySymbol}{totals.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                        <span className="font-semibold text-[#0b100e]">
+                          Total
+                        </span>
+                        <span className="font-bold text-[#0b100e]">
+                          {currencySymbol}
+                          {totals.total.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1005,7 +1521,8 @@ function NewPurchaseRequestPage() {
 
           {/* Sticky Submit footer */}
           <div className="shrink-0 border-t border-black/[0.06] bg-white py-4 flex items-center justify-end">
-            <button type="button"
+            <button
+              type="button"
               disabled={savedLineItems.length === 0 || submitPR.isPending}
               onClick={async () => {
                 if (!purchaseRequestId) return;
@@ -1022,7 +1539,9 @@ function NewPurchaseRequestPage() {
                     const violations = getProcurementPolicyViolations(err);
                     setPolicyViolations(violations);
                     setIsPolicyModalOpen(true);
-                    setSavedLineItems(prev => applyProcurementPolicyErrorToLineItems(prev, violations));
+                    setSavedLineItems((prev) =>
+                      applyProcurementPolicyErrorToLineItems(prev, violations),
+                    );
                   } else {
                     toast.error(getApiErrorMessage(err, "Failed to submit"));
                   }
@@ -1032,8 +1551,11 @@ function NewPurchaseRequestPage() {
                 policyViolations
                   ? "bg-[#d33d44] hover:bg-[#c33339] cursor-pointer"
                   : "bg-[#087f70] hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
-              }`}>
-              {submitPR.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              }`}
+            >
+              {submitPR.isPending && (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              )}
               {policyViolations ? "Fix Violations to Submit" : "Submit Request"}
             </button>
           </div>
@@ -1041,19 +1563,33 @@ function NewPurchaseRequestPage() {
       )}
 
       {/* Delete Confirmation Modal */}
-      <AlertDialog open={!!itemToDelete} onOpenChange={(val) => !val && setItemToDelete(null)}>
+      <AlertDialog
+        open={!!itemToDelete}
+        onOpenChange={(val) => !val && setItemToDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Item?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove <span className="font-semibold text-[#0b100e]">{itemToDelete?.item.name}</span> from the request? This action cannot be undone.
+              Are you sure you want to remove{" "}
+              <span className="font-semibold text-[#0b100e]">
+                {itemToDelete?.item.name}
+              </span>{" "}
+              from the request? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteLineItem.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteItem} disabled={deleteLineItem.isPending}
-              className="bg-[#b83038] hover:bg-red-700 text-white">
-              {deleteLineItem.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+            <AlertDialogCancel disabled={deleteLineItem.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteItem}
+              disabled={deleteLineItem.isPending}
+              className="bg-[#b83038] hover:bg-red-700 text-white"
+            >
+              {deleteLineItem.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
               Remove
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1063,7 +1599,11 @@ function NewPurchaseRequestPage() {
       {/* Line Item Detail Modal */}
       <LineItemDetailModal
         isOpen={isDetailModalOpen}
-        onClose={() => { setIsDetailModalOpen(false); setSelectedDetailItem(null); setDetailModalStartsInEditMode(false); }}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedDetailItem(null);
+          setDetailModalStartsInEditMode(false);
+        }}
         item={selectedDetailItem}
         currency={currency}
         startInEditMode={detailModalStartsInEditMode}
@@ -1087,12 +1627,14 @@ function NewPurchaseRequestPage() {
                     const items = refetched.data?.data?.lineItems || [];
                     if (items.length > 0) setSavedLineItems(items);
                   } else {
-                    setSavedLineItems(prev => {
+                    setSavedLineItems((prev) => {
                       const copy = [...prev];
                       copy[idx] = {
                         ...copy[idx],
                         ...updatedItem,
-                        subtotal: (updatedItem.quantity * updatedItem.unitPrice) + (updatedItem.taxAmount || 0),
+                        subtotal:
+                          updatedItem.quantity * updatedItem.unitPrice +
+                          (updatedItem.taxAmount || 0),
                       };
                       return copy;
                     });
@@ -1102,7 +1644,9 @@ function NewPurchaseRequestPage() {
                   setPolicyViolations(null);
                   toast.success("Item updated");
                 } catch (err: any) {
-                  toast.error(err?.response?.data?.message || "Failed to update item");
+                  toast.error(
+                    err?.response?.data?.message || "Failed to update item",
+                  );
                 }
               }
             : undefined
@@ -1119,9 +1663,9 @@ function NewPurchaseRequestPage() {
           onProceedWithWarnings={async (justification) => {
             if (!purchaseRequestId) return;
             try {
-              await submitPR.mutateAsync({ 
+              await submitPR.mutateAsync({
                 policyJustification: justification,
-                spendProgramJustification: justification
+                spendProgramJustification: justification,
               });
               toast.success("Purchase request submitted for review!");
               setPolicyViolations(null);
@@ -1131,9 +1675,16 @@ function NewPurchaseRequestPage() {
               if (isProcurementPolicyViolationError(err)) {
                 const violations = getProcurementPolicyViolations(err);
                 setPolicyViolations(violations);
-                setSavedLineItems(prev => applyProcurementPolicyErrorToLineItems(prev, violations));
+                setSavedLineItems((prev) =>
+                  applyProcurementPolicyErrorToLineItems(prev, violations),
+                );
               } else {
-                toast.error(getApiErrorMessage(err, "Failed to submit with justifications"));
+                toast.error(
+                  getApiErrorMessage(
+                    err,
+                    "Failed to submit with justifications",
+                  ),
+                );
               }
             }
           }}

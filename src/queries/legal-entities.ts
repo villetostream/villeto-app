@@ -1,6 +1,10 @@
-
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 
@@ -82,14 +86,22 @@ export function useLegalEntities(options?: { enabled?: boolean }) {
 }
 
 export function useEligibleLegalEntities(
-  action: "requester" | "approver" | "procurement" | "finance" | "accounting" | "administrator" | "vendor_administration",
+  action:
+    | "requester"
+    | "approver"
+    | "procurement"
+    | "finance"
+    | "accounting"
+    | "administrator"
+    | "vendor_administration",
   options?: { enabled?: boolean },
 ) {
   const axios = useAxios();
   return useQuery<LegalEntity[]>({
     queryKey: workspaceQueryKey(["eligible-legal-entities", action]),
     queryFn: async () => {
-      const response = (await axios.get(API_KEYS.LEGAL_ENTITY.ELIGIBLE(action))).data as {
+      const response = (await axios.get(API_KEYS.LEGAL_ENTITY.ELIGIBLE(action)))
+        .data as {
         data?: { entities?: LegalEntity[] };
         entities?: LegalEntity[];
       };
@@ -116,7 +128,8 @@ export function useCreateLegalEntity() {
   return useMutation({
     mutationFn: async (input: LegalEntityInput) =>
       (await axios.post(API_KEYS.LEGAL_ENTITY.LIST, input)).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
+    onSuccess: () =>
+      client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
   });
 }
 
@@ -126,7 +139,8 @@ export function useUpdateLegalEntity(id: string) {
   return useMutation({
     mutationFn: async (input: Partial<LegalEntityInput>) =>
       (await axios.patch(API_KEYS.LEGAL_ENTITY.DETAIL(id), input)).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
+    onSuccess: () =>
+      client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
   });
 }
 
@@ -136,7 +150,8 @@ export function useSetDefaultLegalEntity() {
   return useMutation({
     mutationFn: async (id: string) =>
       (await axios.patch(API_KEYS.LEGAL_ENTITY.DEFAULT(id))).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
+    onSuccess: () =>
+      client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
   });
 }
 
@@ -144,9 +159,16 @@ export function useSetLegalEntityStatus() {
   const axios = useAxios();
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: LegalEntityStatus }) =>
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: LegalEntityStatus;
+    }) =>
       (await axios.patch(API_KEYS.LEGAL_ENTITY.STATUS(id), { status })).data,
-    onSuccess: () => client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
+    onSuccess: () =>
+      client.invalidateQueries({ queryKey: workspaceQueryKey(key) }),
   });
 }
 
@@ -157,9 +179,13 @@ export function useEmployeeLegalEntityAssignments(
   const axios = useAxios();
   return useQueries({
     queries: userIds.map((userId) => ({
-      queryKey: workspaceQueryKey(["employee-legal-entity-assignments", userId]),
+      queryKey: workspaceQueryKey([
+        "employee-legal-entity-assignments",
+        userId,
+      ]),
       queryFn: async () =>
-        (await axios.get(API_KEYS.LEGAL_ENTITY.USER_ASSIGNMENTS(userId))).data as {
+        (await axios.get(API_KEYS.LEGAL_ENTITY.USER_ASSIGNMENTS(userId)))
+          .data as {
           data: EmployeeLegalEntityAssignment[];
         },
       enabled: options?.enabled !== false,
@@ -180,7 +206,10 @@ export function useAssignEmployeeLegalEntity() {
       ).data,
     onSuccess: (_data, variables) =>
       client.invalidateQueries({
-        queryKey: workspaceQueryKey(["employee-legal-entity-assignments", variables.userId]),
+        queryKey: workspaceQueryKey([
+          "employee-legal-entity-assignments",
+          variables.userId,
+        ]),
       }),
   });
 }

@@ -1,4 +1,3 @@
-
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
@@ -6,51 +5,55 @@ import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
 export interface Member {
-    id: string;
-    name: string;
-    username: string;
-    avatar?: string;
+  id: string;
+  name: string;
+  username: string;
+  avatar?: string;
 }
 
 export interface CreateDepartmentPayload {
-    departmentName: string;
-    description: string;
-    departmentCode?: string;
-    membersIds?: string[];
-    departmentHeadId?: string;
-    managerId?: string;
-    id?: number | string;
-    isActive?: boolean
-
+  departmentName: string;
+  description: string;
+  departmentCode?: string;
+  membersIds?: string[];
+  departmentHeadId?: string;
+  managerId?: string;
+  id?: number | string;
+  isActive?: boolean;
 }
 
 interface Response {
-    data: {
-        [key: string]: string | number | boolean;
-    };
-    error: {
-        error: string;
-        message?: string;
-        success: boolean;
-    };
-    message: string;
-    status: number;
-    statusCode: number;
-    statusText: string;
+  data: {
+    [key: string]: string | number | boolean;
+  };
+  error: {
+    error: string;
+    message?: string;
+    success: boolean;
+  };
+  message: string;
+  status: number;
+  statusCode: number;
+  statusText: string;
 }
 
 export const useCreateDepartmentApi = () => {
-    const axiosInstance = useAxios();
-    const queryClient = useQueryClient();
+  const axiosInstance = useAxios();
+  const queryClient = useQueryClient();
 
-    return useMutation<Response, Error, CreateDepartmentPayload>({
-        retry: false,
-        mutationFn: async (payload: CreateDepartmentPayload) => {
-            const res = await axiosInstance.post(API_KEYS.DEPARTMENT.DEPARTMENTS, payload);
-            return res.data;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.departments) });
-        }
-    });
+  return useMutation<Response, Error, CreateDepartmentPayload>({
+    retry: false,
+    mutationFn: async (payload: CreateDepartmentPayload) => {
+      const res = await axiosInstance.post(
+        API_KEYS.DEPARTMENT.DEPARTMENTS,
+        payload,
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.departments),
+      });
+    },
+  });
 };

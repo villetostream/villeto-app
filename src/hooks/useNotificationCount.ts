@@ -12,24 +12,30 @@ interface NotificationCountState {
   setUnreadCount: (count: number) => void;
 }
 
-export const useNotificationCountStore = create<NotificationCountState>((set) => ({
-  unreadCount: 0,
-  setUnreadCount: (count) => {
-    const generation = useEntityWorkspaceStore.getState().generation;
-    deferStateUpdate(() => { if (generation === useEntityWorkspaceStore.getState().generation) set({ unreadCount: count }); });
-  },
-}));
+export const useNotificationCountStore = create<NotificationCountState>(
+  (set) => ({
+    unreadCount: 0,
+    setUnreadCount: (count) => {
+      const generation = useEntityWorkspaceStore.getState().generation;
+      deferStateUpdate(() => {
+        if (generation === useEntityWorkspaceStore.getState().generation)
+          set({ unreadCount: count });
+      });
+    },
+  }),
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.villeto.com/";
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.villeto.com/";
 
 function apiUrl(path: string) {
   return `${BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
 export function useNotificationCountHook() {
-  const generation = useEntityWorkspaceStore(state => state.generation);
+  const generation = useEntityWorkspaceStore((state) => state.generation);
   const accessToken = useAuthStore((s) => s.accessToken);
   const { setUnreadCount } = useNotificationCountStore();
   const sseAbortRef = useRef<AbortController | null>(null);
@@ -38,13 +44,16 @@ export function useNotificationCountHook() {
   const fetchCount = useCallback(async () => {
     if (!accessToken) return;
     try {
-      const res = await workspaceFetch(apiUrl("events/notifications/unread-count"), {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+      const res = await workspaceFetch(
+        apiUrl("events/notifications/unread-count"),
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          credentials: "include",
         },
-        credentials: "include",
-      });
+      );
       if (!res.ok) return;
       const json = await res.json();
       logger.log("[fetchCount] Raw response:", json);
@@ -56,9 +65,10 @@ export function useNotificationCountHook() {
       else if (typeof json?.count === "number") count = json.count;
       else if (typeof json?.data?.count === "number") count = json.data.count;
       else if (typeof json?.unreadCount === "number") count = json.unreadCount;
-      
+
       logger.log("[fetchCount] Extracted count:", count);
-      if (generation === useEntityWorkspaceStore.getState().generation) setUnreadCount(Number(count));
+      if (generation === useEntityWorkspaceStore.getState().generation)
+        setUnreadCount(Number(count));
     } catch (err) {
       logger.error("[fetchCount] Error:", err);
       // Silently fail — badge stays at previous value
@@ -72,7 +82,7 @@ export function useNotificationCountHook() {
     // Bulletproof fallback: Poll every 15 seconds so changes are ALWAYS
     // picked up automatically, even if SSE drops or network stutters.
     const interval = setInterval(fetchCount, 15000);
-    
+
     return () => clearInterval(interval);
   }, [fetchCount]);
 
@@ -97,7 +107,10 @@ export function useNotificationCountHook() {
         });
 
         if (!res.ok || !res.body) {
-          logger.warn("[useNotificationCount] SSE connection failed", res.status);
+          logger.warn(
+            "[useNotificationCount] SSE connection failed",
+            res.status,
+          );
           return;
         }
 
@@ -112,7 +125,7 @@ export function useNotificationCountHook() {
           const chunk = decoder.decode(value, { stream: true });
           logger.log("[SSE Raw Text Received (useNotificationCount)]:", chunk);
           buffer += chunk;
-          
+
           const blocks = buffer.split("\n\n");
           buffer = blocks.pop() ?? "";
 
@@ -148,7 +161,7 @@ export function useNotificationCountHook() {
   }, [accessToken, fetchCount, generation]);
 }
 
-/** 
+/**
  * Drop-in replacement for any component that just needs the count.
  * Maintains backwards compatibility with `const unreadCount = useNotificationCount();`
  */

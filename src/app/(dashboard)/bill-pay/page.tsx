@@ -2,7 +2,6 @@
 import type { BillPayDashboardSummary } from "@/queries/bill-pay";
 import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
 
-
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 
@@ -15,8 +14,20 @@ import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, startOfMonth, endOfMonth, subMonths, startOfMonth as startOfM } from "date-fns";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  startOfMonth as startOfM,
+} from "date-fns";
 
 import { DatePicker } from "@/components/ui/date-picker";
 
@@ -28,22 +39,31 @@ function BillPayPage() {
   // TODO: Uncomment when backend delivers email-configuration endpoints
   // const [showConfigureEmail, setShowConfigureEmail] = useState(false);
   const [activeTab, setActiveTab] = useState("recurring");
-  
+
   const [period, setPeriod] = useState("this_month");
   const [customStartDate, setCustomStartDate] = useState<Date>();
   const [customEndDate, setCustomEndDate] = useState<Date>();
-  
+
   const periodDates = useMemo(() => {
     const now = new Date();
     if (period === "this_month") {
-      return { start: format(startOfMonth(now), "yyyy-MM-dd"), end: format(endOfMonth(now), "yyyy-MM-dd") };
+      return {
+        start: format(startOfMonth(now), "yyyy-MM-dd"),
+        end: format(endOfMonth(now), "yyyy-MM-dd"),
+      };
     }
     if (period === "last_month") {
       const lastMonth = subMonths(now, 1);
-      return { start: format(startOfMonth(lastMonth), "yyyy-MM-dd"), end: format(endOfMonth(lastMonth), "yyyy-MM-dd") };
+      return {
+        start: format(startOfMonth(lastMonth), "yyyy-MM-dd"),
+        end: format(endOfMonth(lastMonth), "yyyy-MM-dd"),
+      };
     }
     if (period === "last_3_months") {
-      return { start: format(startOfMonth(subMonths(now, 2)), "yyyy-MM-dd"), end: format(endOfMonth(now), "yyyy-MM-dd") };
+      return {
+        start: format(startOfMonth(subMonths(now, 2)), "yyyy-MM-dd"),
+        end: format(endOfMonth(now), "yyyy-MM-dd"),
+      };
     }
     if (period === "custom") {
       if (customStartDate && customEndDate) {
@@ -54,9 +74,9 @@ function BillPayPage() {
           s = customEndDate;
           e = customStartDate;
         }
-        return { 
-          start: format(s, "yyyy-MM-dd"), 
-          end: format(e, "yyyy-MM-dd") 
+        return {
+          start: format(s, "yyyy-MM-dd"),
+          end: format(e, "yyyy-MM-dd"),
         };
       }
       // If both aren't selected yet, return undefined to prevent 400 Bad Request from API
@@ -67,16 +87,20 @@ function BillPayPage() {
 
   const { data: legalEntitiesData } = useTransactionLegalEntities("finance");
   const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
-  
-  const { data: summaryData, isLoading: isSummaryLoading } = useGetBillPayDashboardSummary(
-    legalEntityId,
-    periodDates.start,
-    periodDates.end,
-    { refetchInterval: 60_000 }
-  );
+
+  const { data: summaryData, isLoading: isSummaryLoading } =
+    useGetBillPayDashboardSummary(
+      legalEntityId,
+      periodDates.start,
+      periodDates.end,
+      { refetchInterval: 60_000 },
+    );
 
   useEffect(() => {
-    if (!policies.billPay.canCreateIntake && !policies.billPay.canCreateInvoice) {
+    if (
+      !policies.billPay.canCreateIntake &&
+      !policies.billPay.canCreateInvoice
+    ) {
       clearAction();
       return () => clearAction();
     }
@@ -102,32 +126,50 @@ function BillPayPage() {
       }),
     });
     return () => clearAction();
-  }, [router, setAction, clearAction, policies.billPay.canCreateIntake, policies.billPay.canCreateInvoice, policies.billPay.canViewMailboxConnections]);
+  }, [
+    router,
+    setAction,
+    clearAction,
+    policies.billPay.canCreateIntake,
+    policies.billPay.canCreateInvoice,
+    policies.billPay.canViewMailboxConnections,
+  ]);
 
   // Format the total bills amount
   const baseCurrency = summaryData?.legalEntity?.baseCurrency || "NGN";
-  const formatter = new Intl.NumberFormat("en-NG", { style: "currency", currency: baseCurrency });
+  const formatter = new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: baseCurrency,
+  });
   // Helper to format metric
   const getMetricFormat = (metricObj: any) => {
-    const amount = metricObj?.amount ? formatter.format(parseFloat(metricObj.amount)) : "—";
+    const amount = metricObj?.amount
+      ? formatter.format(parseFloat(metricObj.amount))
+      : "—";
     const pctChangeRaw = parseFloat(metricObj?.amountPercentageChange || "0");
     const pctChangeText = `${Math.abs(pctChangeRaw).toFixed(1)}% vs last period`;
-    const trendDir = pctChangeRaw > 0 ? "up" : pctChangeRaw < 0 ? "down" : "neutral";
+    const trendDir =
+      pctChangeRaw > 0 ? "up" : pctChangeRaw < 0 ? "down" : "neutral";
     return { amount, pctChangeText, trendDir };
   };
 
   const totalBills = getMetricFormat(summaryData?.metrics?.totalBills);
-  const pendingApprovals = getMetricFormat(summaryData?.metrics?.awaitingApproval);
-  const readyForPayment = getMetricFormat(summaryData?.metrics?.readyForPayment);
+  const pendingApprovals = getMetricFormat(
+    summaryData?.metrics?.awaitingApproval,
+  );
+  const readyForPayment = getMetricFormat(
+    summaryData?.metrics?.readyForPayment,
+  );
   const completed = getMetricFormat(summaryData?.metrics?.completed);
 
   return (
     <div className="flex flex-col h-full pb-2">
       <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden">
-        
         {/* Dashboard Header & Period Filter */}
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">Dashboard Summary</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Dashboard Summary
+          </h2>
           <div className="flex items-center justify-end gap-2">
             {period === "custom" && (
               <div className="flex items-center gap-2">
@@ -165,61 +207,157 @@ function BillPayPage() {
         </div>
 
         {/* Summary Cards */}
-        {summaryData?.scope === 'all' ? <div className="space-y-3" aria-label="Bills by currency">
-          <p className="text-sm text-[#68726d]">All legal entities · Read-only</p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {summaryData.totalsByCurrency?.map((group: NonNullable<BillPayDashboardSummary["totalsByCurrency"]>[number]) => <div key={group.currency} className="rounded-xl border bg-white p-4">
-              <p className="text-sm font-semibold">{group.currency}</p>
-              <p className="mt-2 text-xl font-semibold">{new Intl.NumberFormat(undefined, { style: 'currency', currency: group.currency }).format(Number(group.metrics.totalBills.amount))}</p>
-              <p className="text-xs text-[#68726d]">{group.metrics.totalBills.count} bills</p>
-            </div>)}
+        {summaryData?.scope === "all" ? (
+          <div className="space-y-3" aria-label="Bills by currency">
+            <p className="text-sm text-[#68726d]">
+              All legal entities · Read-only
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {summaryData.totalsByCurrency?.map(
+                (
+                  group: NonNullable<
+                    BillPayDashboardSummary["totalsByCurrency"]
+                  >[number],
+                ) => (
+                  <div
+                    key={group.currency}
+                    className="rounded-xl border bg-white p-4"
+                  >
+                    <p className="text-sm font-semibold">{group.currency}</p>
+                    <p className="mt-2 text-xl font-semibold">
+                      {new Intl.NumberFormat(undefined, {
+                        style: "currency",
+                        currency: group.currency,
+                      }).format(Number(group.metrics.totalBills.amount))}
+                    </p>
+                    <p className="text-xs text-[#68726d]">
+                      {group.metrics.totalBills.count} bills
+                    </p>
+                  </div>
+                ),
+              )}
+            </div>
+            <div className="divide-y rounded-xl border bg-white">
+              {summaryData.entityBreakdowns?.map(
+                (row: BillPayDashboardSummary) => (
+                  <div
+                    key={row.legalEntity.legalEntityId}
+                    className="flex justify-between gap-3 p-3 text-sm"
+                  >
+                    <span>
+                      {row.legalEntity.code} · {row.legalEntity.legalName}
+                    </span>
+                    <span>
+                      {new Intl.NumberFormat(undefined, {
+                        style: "currency",
+                        currency: row.legalEntity.baseCurrency,
+                      }).format(Number(row.metrics.totalBills.amount))}
+                    </span>
+                  </div>
+                ),
+              )}
+            </div>
           </div>
-          <div className="divide-y rounded-xl border bg-white">
-            {summaryData.entityBreakdowns?.map((row: BillPayDashboardSummary) => <div key={row.legalEntity.legalEntityId} className="flex justify-between gap-3 p-3 text-sm">
-              <span>{row.legalEntity.code} · {row.legalEntity.legalName}</span>
-              <span>{new Intl.NumberFormat(undefined, { style: 'currency', currency: row.legalEntity.baseCurrency }).format(Number(row.metrics.totalBills.amount))}</span>
-            </div>)}
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
+            <StatsCard
+              title="Total Bills This Period"
+              value={totalBills.amount}
+              subtitle={
+                summaryData ? (
+                  totalBills.pctChangeText
+                ) : (
+                  <span className="text-[11px] text-[#68726d]">
+                    vs last period
+                  </span>
+                )
+              }
+              trend={
+                summaryData
+                  ? (totalBills.trendDir as "up" | "down" | "neutral")
+                  : "none"
+              }
+              isLoading={isSummaryLoading}
+              icon={
+                <Receipt2 variant="Bulk" className="w-5 h-5 text-emerald-500" />
+              }
+              accentColor="#10b981"
+            />
+            <StatsCard
+              title="Pending Approvals"
+              value={pendingApprovals.amount}
+              subtitle={
+                summaryData ? (
+                  pendingApprovals.pctChangeText
+                ) : (
+                  <span className="text-[11px] text-[#68726d]">
+                    Review pending bills
+                  </span>
+                )
+              }
+              trend={
+                summaryData
+                  ? (pendingApprovals.trendDir as "up" | "down" | "neutral")
+                  : "none"
+              }
+              isLoading={isSummaryLoading}
+              icon={
+                <ClipboardText
+                  variant="Bulk"
+                  className="w-5 h-5 text-amber-500"
+                />
+              }
+              accentColor="#f59e0b"
+            />
+            <StatsCard
+              title="Ready for Payment"
+              value={readyForPayment.amount}
+              subtitle={
+                summaryData ? (
+                  readyForPayment.pctChangeText
+                ) : (
+                  <span className="text-[11px] text-[#68726d]">
+                    Release payments
+                  </span>
+                )
+              }
+              trend={
+                summaryData
+                  ? (readyForPayment.trendDir as "up" | "down" | "neutral")
+                  : "none"
+              }
+              isLoading={isSummaryLoading}
+              icon={<Cards variant="Bulk" className="w-5 h-5 text-blue-500" />}
+              accentColor="#3b82f6"
+            />
+            <StatsCard
+              title="Completed This Period"
+              value={completed.amount}
+              subtitle={
+                summaryData ? (
+                  completed.pctChangeText
+                ) : (
+                  <span className="text-[11px] text-[#68726d]">
+                    View completed transactions
+                  </span>
+                )
+              }
+              trend={
+                summaryData
+                  ? (completed.trendDir as "up" | "down" | "neutral")
+                  : "none"
+              }
+              isLoading={isSummaryLoading}
+              icon={
+                <TickCircle
+                  variant="Bulk"
+                  className="w-5 h-5 text-emerald-500"
+                />
+              }
+              accentColor="#10b981"
+            />
           </div>
-        </div> : <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
-          <StatsCard
-            title="Total Bills This Period"
-            value={totalBills.amount}
-            subtitle={summaryData ? totalBills.pctChangeText : <span className="text-[11px] text-[#68726d]">vs last period</span>}
-            trend={summaryData ? totalBills.trendDir as "up" | "down" | "neutral" : "none"}
-            isLoading={isSummaryLoading}
-            icon={<Receipt2 variant="Bulk" className="w-5 h-5 text-emerald-500" />}
-            accentColor="#10b981"
-          />
-          <StatsCard
-            title="Pending Approvals"
-            value={pendingApprovals.amount}
-            subtitle={summaryData ? pendingApprovals.pctChangeText : <span className="text-[11px] text-[#68726d]">Review pending bills</span>}
-            trend={summaryData ? pendingApprovals.trendDir as "up" | "down" | "neutral" : "none"}
-            isLoading={isSummaryLoading}
-            icon={<ClipboardText variant="Bulk" className="w-5 h-5 text-amber-500" />}
-            accentColor="#f59e0b"
-          />
-          <StatsCard
-            title="Ready for Payment"
-            value={readyForPayment.amount}
-            subtitle={summaryData ? readyForPayment.pctChangeText : <span className="text-[11px] text-[#68726d]">Release payments</span>}
-            trend={summaryData ? readyForPayment.trendDir as "up" | "down" | "neutral" : "none"}
-            isLoading={isSummaryLoading}
-            icon={<Cards variant="Bulk" className="w-5 h-5 text-blue-500" />}
-            accentColor="#3b82f6"
-          />
-          <StatsCard
-            title="Completed This Period"
-            value={completed.amount}
-            subtitle={summaryData ? completed.pctChangeText : <span className="text-[11px] text-[#68726d]">View completed transactions</span>}
-            trend={summaryData ? completed.trendDir as "up" | "down" | "neutral" : "none"}
-            isLoading={isSummaryLoading}
-            icon={<TickCircle variant="Bulk" className="w-5 h-5 text-emerald-500" />}
-            accentColor="#10b981"
-          />
-        </div>
-
-        }
+        )}
 
         {/* Tabs Section */}
         <BillPayTabs activeTab={activeTab} setActiveTab={setActiveTab} />

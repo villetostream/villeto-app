@@ -2,10 +2,16 @@
 import { workspaceFetch } from "@/features/entity-workspace/fetch";
 import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { Bell, CheckCheck, Loader2, X, ExternalLink, ArrowRight } from "lucide-react";
+import {
+  Bell,
+  CheckCheck,
+  Loader2,
+  X,
+  ExternalLink,
+  ArrowRight,
+} from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useRouter } from "next/navigation";
 
@@ -30,8 +36,10 @@ interface NotificationProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.villeto.com/";
-const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.villeto.com/";
+const UUID_RE =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
 function apiUrl(path: string) {
   return `${BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
@@ -53,14 +61,23 @@ function getBoolean(value: unknown, fallback = false): boolean {
 
 function normalise(raw: Record<string, unknown>): NotificationItem {
   return {
-    id: getString(raw.notificationId) || getString(raw.id) || String(Math.random()),
+    id:
+      getString(raw.notificationId) ||
+      getString(raw.id) ||
+      String(Math.random()),
     title: getString(raw.title) || getString(raw.message) || "New notification",
     message: getString(raw.message) || getString(raw.title),
     type: getOptionalString(raw.type),
-    actionText: getOptionalString(raw.actionText) || getOptionalString(raw.action_text),
-    actionUrl: getOptionalString(raw.actionUrl) || getOptionalString(raw.action_url),
-    isRead: getBoolean(raw.isRead) || getBoolean(raw.is_read) || getBoolean(raw.read),
-    createdAt: getString(raw.createdAt) || getString(raw.created_at) || new Date().toISOString(),
+    actionText:
+      getOptionalString(raw.actionText) || getOptionalString(raw.action_text),
+    actionUrl:
+      getOptionalString(raw.actionUrl) || getOptionalString(raw.action_url),
+    isRead:
+      getBoolean(raw.isRead) || getBoolean(raw.is_read) || getBoolean(raw.read),
+    createdAt:
+      getString(raw.createdAt) ||
+      getString(raw.created_at) ||
+      new Date().toISOString(),
   };
 }
 
@@ -86,7 +103,7 @@ function timeAgo(iso: string): string {
  */
 async function resolveMessageIds(
   message: string,
-  accessToken: string | null
+  accessToken: string | null,
 ): Promise<string> {
   const matches = Array.from(new Set(message.match(UUID_RE) ?? []));
   if (!matches.length) return message;
@@ -106,12 +123,18 @@ async function resolveMessageIds(
         apiUrl(`expense-reports/${uuid}`),
       ];
     } else if (context.includes("policy") || context.includes("polic")) {
-      fetchEndpoints = [apiUrl(`expense-policies/${uuid}`), apiUrl(`policies/${uuid}`)];
+      fetchEndpoints = [
+        apiUrl(`expense-policies/${uuid}`),
+        apiUrl(`policies/${uuid}`),
+      ];
     } else if (context.includes("user") || context.includes("employee")) {
       fetchEndpoints = [apiUrl(`users/${uuid}`)];
     } else {
       // Generic fallback — try common entity endpoints
-      fetchEndpoints = [apiUrl(`expenses/${uuid}`), apiUrl(`expense-reports/${uuid}`)];
+      fetchEndpoints = [
+        apiUrl(`expenses/${uuid}`),
+        apiUrl(`expense-reports/${uuid}`),
+      ];
     }
 
     let entityName: string | null = null;
@@ -148,7 +171,7 @@ async function resolveMessageIds(
       // Replace "with ID {uuid}" → "named "{entityName}""
       resolved = resolved.replace(
         new RegExp(`(with\\s+ID\\s+)${uuid}`, "i"),
-        `named "${entityName}"`
+        `named "${entityName}"`,
       );
       // Fallback: replace plain UUID occurrence
       resolved = resolved.replace(new RegExp(uuid, "gi"), `"${entityName}"`);
@@ -164,16 +187,23 @@ const notificationCache = new Map<string, NotificationItem[]>();
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function Notification({ onClose, onUnreadChange }: NotificationProps) {
-  const generation = useEntityWorkspaceStore(state => state.generation);
+export default function Notification({
+  onClose,
+  onUnreadChange,
+}: NotificationProps) {
+  const generation = useEntityWorkspaceStore((state) => state.generation);
   const workspace = useEntityWorkspaceStore.getState();
-  const cacheKey = `${workspace.identity}:${workspace.selection || 'legacy'}`;
+  const cacheKey = `${workspace.identity}:${workspace.selection || "legacy"}:${workspace.generation}`;
   const cachedNotifications = notificationCache.get(cacheKey) || null;
   const accessToken = useAuthStore.getState().accessToken;
   const router = useRouter();
-  const setGlobalUnreadCount = useNotificationCountStore((s) => s.setUnreadCount);
+  const setGlobalUnreadCount = useNotificationCountStore(
+    (s) => s.setUnreadCount,
+  );
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>(cachedNotifications ?? []);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(
+    cachedNotifications ?? [],
+  );
   const [loading, setLoading] = useState(cachedNotifications === null);
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
@@ -212,11 +242,16 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
       const list: Record<string, unknown>[] = Array.isArray(json)
         ? json
         : Array.isArray(json?.data)
-        ? json.data
-        : [];
+          ? json.data
+          : [];
 
-      const raw = list.map(normalise).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      
+      const raw = list
+        .map(normalise)
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+
       // Immediately display raw while resolving IDs
       setNotifications(raw);
       notificationCache.set(cacheKey, raw);
@@ -232,7 +267,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
           } catch {
             return n;
           }
-        })
+        }),
       );
       setNotifications(resolved);
       notificationCache.set(cacheKey, resolved);
@@ -281,14 +316,15 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
           const chunk = decoder.decode(value, { stream: true });
           console.log("[SSE Raw Text Received (Notification Panel)]:", chunk);
           buffer += chunk;
-          
+
           const blocks = buffer.split("\n\n");
           buffer = blocks.pop() ?? "";
 
           for (const block of blocks) {
             let eventData = "";
             for (const line of block.split("\n")) {
-              if (line.startsWith("data:")) eventData += line.slice(5).trimStart();
+              if (line.startsWith("data:"))
+                eventData += line.slice(5).trimStart();
             }
             if (!eventData || eventData === ":") continue;
             try {
@@ -320,7 +356,8 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
           }
         }
       } catch (err: unknown) {
-        if (isRecord(err) && err.name !== "AbortError") console.error("[Notification] SSE error:", err);
+        if (isRecord(err) && err.name !== "AbortError")
+          console.error("[Notification] SSE error:", err);
       }
     })();
 
@@ -333,7 +370,9 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
       if (markingId) return;
       setMarkingId(id);
       setNotifications((prev) => {
-        const copy = prev.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+        const copy = prev.map((n) =>
+          n.id === id ? { ...n, isRead: true } : n,
+        );
         notificationCache.set(cacheKey, copy);
         return copy;
       });
@@ -348,7 +387,7 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
         setMarkingId(null);
       }
     },
-    [authHeaders, markingId]
+    [authHeaders, markingId],
   );
 
   // ── Mark all read ────────────────────────────────────────────────────────────
@@ -376,7 +415,6 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
 
   return (
     <div className="w-full bg-white rounded-xl overflow-hidden flex flex-col max-h-[80vh] min-h-[200px]">
-
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-black/[0.06]">
         <div className="flex items-center gap-2.5">
@@ -384,7 +422,9 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
             <Bell className="w-4 h-4 text-[#087f70]" />
           </div>
           <div>
-            <h3 className="text-[15px] font-semibold text-[#0b100e] leading-tight">Notifications</h3>
+            <h3 className="text-[15px] font-semibold text-[#0b100e] leading-tight">
+              Notifications
+            </h3>
             <p className="text-[11px] text-[#84908a] leading-tight">
               {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
             </p>
@@ -422,7 +462,9 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 text-[#84908a] gap-3">
             <Loader2 className="w-6 h-6 animate-spin text-[#087f70]" />
-            <span className="text-[13px] text-[#68726d]">Loading notifications…</span>
+            <span className="text-[13px] text-[#68726d]">
+              Loading notifications…
+            </span>
           </div>
         ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-[#84908a] gap-3">
@@ -430,8 +472,12 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
               <Bell className="w-7 h-7 text-[#c4ccc8]" />
             </div>
             <div className="text-center">
-              <p className="text-[13px] font-semibold text-[#0b100e]">You&apos;re all caught up!</p>
-              <p className="text-[12px] text-[#84908a] mt-0.5">No notifications yet.</p>
+              <p className="text-[13px] font-semibold text-[#0b100e]">
+                You&apos;re all caught up!
+              </p>
+              <p className="text-[12px] text-[#84908a] mt-0.5">
+                No notifications yet.
+              </p>
             </div>
           </div>
         ) : (
@@ -451,10 +497,14 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
               >
                 {/* Avatar */}
                 <div className="shrink-0 mt-0.5">
-                  <div className={[
-                    "w-9 h-9 rounded-[8px] flex items-center justify-center border shadow-sm",
-                    n.isRead ? "bg-white border-black/[0.06]" : "bg-white border-[#087f70]/20",
-                  ].join(" ")}>
+                  <div
+                    className={[
+                      "w-9 h-9 rounded-[8px] flex items-center justify-center border shadow-sm",
+                      n.isRead
+                        ? "bg-white border-black/[0.06]"
+                        : "bg-white border-[#087f70]/20",
+                    ].join(" ")}
+                  >
                     <Image
                       src="/images/villeto-logo-v.png"
                       alt="Villeto"
@@ -469,10 +519,14 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
                 <div className="flex-1 min-w-0">
                   {/* Title row */}
                   <div className="flex items-start justify-between gap-2">
-                    <p className={[
-                      "text-[13px] leading-snug",
-                      n.isRead ? "text-[#68726d] font-normal" : "text-[#0b100e] font-semibold",
-                    ].join(" ")}>
+                    <p
+                      className={[
+                        "text-[13px] leading-snug",
+                        n.isRead
+                          ? "text-[#68726d] font-normal"
+                          : "text-[#0b100e] font-semibold",
+                      ].join(" ")}
+                    >
                       {n.title}
                     </p>
                     {/* Unread dot */}
@@ -501,7 +555,9 @@ export default function Notification({ onClose, onUnreadChange }: NotificationPr
                   )}
 
                   {/* Timestamp */}
-                  <p className="text-[11px] text-[#84908a] mt-1.5">{timeAgo(n.createdAt)}</p>
+                  <p className="text-[11px] text-[#84908a] mt-1.5">
+                    {timeAgo(n.createdAt)}
+                  </p>
                 </div>
               </div>
             );

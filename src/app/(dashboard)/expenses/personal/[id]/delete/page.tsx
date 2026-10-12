@@ -1,7 +1,6 @@
 "use client";
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 
-
 import withPermissions from "@/components/permissions/permission-protected-routes";
 
 import { useParams, useRouter } from "next/navigation";
@@ -275,9 +274,8 @@ function DeleteExpenseReportPage() {
           description: (
             <>
               Are you sure you want to delete the expense: &quot;
-              <span className="font-semibold">
-                {expenseToDelete?.title}
-              </span>&quot; ?
+              <span className="font-semibold">{expenseToDelete?.title}</span>
+              &quot; ?
             </>
           ),
           onConfirm: deleteSingleExpense,
