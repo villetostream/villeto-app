@@ -1,4 +1,5 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
@@ -62,7 +63,9 @@ export default function SimpleAddExpenseCategoryDialog({
         ],
       });
       // Refresh the expense categories list wherever it is consumed
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.categories });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.categories),
+      });
       toast.success("Category added!");
       reset();
       onSuccess?.();
@@ -73,7 +76,12 @@ export default function SimpleAddExpenseCategoryDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(val) => { if (!val) handleClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(val) => {
+        if (!val) handleClose();
+      }}
+    >
       <DialogContent
         showCloseButton={false}
         className="w-[95vw] max-h-[90vh] sm:max-w-[480px] rounded-[1.5rem] sm:rounded-[2rem] p-0 overflow-y-auto border-0 shadow-2xl bg-white"
@@ -108,7 +116,9 @@ export default function SimpleAddExpenseCategoryDialog({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !isLoading && handleAdd()}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && !isLoading && handleAdd()
+                }
                 placeholder="Enter name"
                 disabled={isLoading}
                 className="w-full h-[50px] rounded-[14px] border border-black/[0.06] focus:border-[#88ded3] focus:outline-none text-[15px] px-4 transition-colors disabled:opacity-50"

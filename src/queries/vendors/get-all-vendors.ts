@@ -1,4 +1,9 @@
-import { useQuery, UseQueryOptions, UseQueryResult } from "@tanstack/react-query";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  useQuery,
+  UseQueryOptions,
+  UseQueryResult,
+} from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { Vendor } from "@/queries/procurement/purchase-requests";
@@ -25,18 +30,22 @@ export interface GetVendorsParams {
 
 export const useGetAllVendors = (
   params: GetVendorsParams = {},
-  options?: Omit<UseQueryOptions<ApiResponse<Vendor[]>, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<ApiResponse<Vendor[]>, Error>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<ApiResponse<Vendor[]>, Error> => {
   const axiosInstance = useAxios();
-  
+
   return useQuery({
-    queryKey: ["vendors", params],
+    queryKey: workspaceQueryKey(["vendors", params]),
     queryFn: async () => {
       const query = new URLSearchParams();
       if (params.page) query.set("page", params.page.toString());
       if (params.limit) query.set("limit", params.limit.toString());
-      if (params.approvalStatus) query.set("approvalStatus", params.approvalStatus);
-      
+      if (params.approvalStatus)
+        query.set("approvalStatus", params.approvalStatus);
+
       const url = `/vendors${query.toString() ? `?${query.toString()}` : ""}`;
       const res = await axiosInstance.get(url);
       return res.data;
