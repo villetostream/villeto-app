@@ -1,6 +1,6 @@
-# Module delivery stage 02: people-administration
+# Module delivery stage 04: procurement
 
-Delivered source stages: foundation, people-administration.
+Delivered source stages: foundation, people-administration, vendors-policies, procurement.
 
 The paired backend/frontend branches use the same stage name. Stage 01 targets
 backend develop and frontend main; each later stage targets its previous branch.
