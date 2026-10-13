@@ -25,7 +25,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { PolicySummaryStrip, type PolicySummaryItem } from "@/components/policies/PolicyWorkspace";
 import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
-import { SortableColumnHeader } from "@/components/datatable/SortableColumnHeader";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ColumnDef } from "@tanstack/react-table";
@@ -41,6 +40,8 @@ import {
   useDeleteSpendProgram,
 } from "@/queries/procurement/policies";
 import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
+import { saveSpendProgramRejection } from "@/lib/policies/rejection-store";
+import { isUserCreatorOfSpendProgram } from "@/lib/policies/spend-program-creator-store";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -68,11 +69,46 @@ const formatDate = (iso: string) =>
 
 const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
 
-const createdByName = (record: SpendProgramListItem) => {
-  const cb = record.createdBy;
-  if (!cb) return "—";
+const createdByName = (
+  record: SpendProgramListItem,
+  details?: any,
+  currentUserId?: string,
+  currentUserName?: string
+) => {
+  const cb =
+    details?.createdBy ||
+    record.createdBy ||
+    (details as any)?.creator ||
+    (record as any)?.creator ||
+    (details as any)?.user ||
+    (record as any)?.user;
+
+  if (!cb) {
+    if ((details as any)?.createdByName) return (details as any).createdByName;
+    if ((record as any).createdByName) return (record as any).createdByName;
+    if ((details as any)?.creatorName) return (details as any).creatorName;
+    if ((record as any).creatorName) return (record as any).creatorName;
+    const progId =
+      record.procurementSpendProgramId ||
+      (record as any).procurementPolicyId ||
+      (record as any).id;
+    if (
+      isUserCreatorOfSpendProgram({
+        id: progId,
+        name: record.name,
+        userId: currentUserId,
+      })
+    ) {
+      return currentUserName ? `${currentUserName} (You)` : "You";
+    }
+    return "—";
+  }
   if (typeof cb === "string") return cb;
-  if (cb.firstName || cb.lastName) return `${cb.firstName ?? ""} ${cb.lastName ?? ""}`.trim();
+  if (cb.firstName || cb.lastName)
+    return `${cb.firstName ?? ""} ${cb.lastName ?? ""}`.trim();
+  if (cb.name) return cb.name;
+  if (cb.fullName) return cb.fullName;
+  if (cb.email) return cb.email;
   return "—";
 };
 
@@ -170,21 +206,101 @@ export function ProcurementPolicySection({
     tableProps.setTotalItems(filteredPrograms.length);
   }, [filteredPrograms.length, tableProps.setTotalItems]);
 
-  const user = useAuthStore.getState().user;
+  const user = useAuthStore((state) => state.user);
   const { can } = useAuthStore();
   const canUpdate     = can("policy", "update");
   const canDeactivate = can("policy", "deactivate");
   const canApprove    = can("policy", "approve");
 
+  const [programDetailsMap, setProgramDetailsMap] = useState<Record<string, any>>({});
+
+  const pendingProgramIds = useMemo(() => {
+    return programs
+      .filter((p) => p.status === "pending" || p.status === "pending_approval")
+      .map((p) => p.procurementSpendProgramId || (p as any).procurementPolicyId || (p as any).id)
+      .filter(Boolean);
+  }, [programs]);
+
+  useEffect(() => {
+    if (pendingProgramIds.length === 0) return;
+    let isMounted = true;
+    Promise.all(
+      pendingProgramIds.map(async (id: string) => {
+        try {
+          const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM(id));
+          const prog = res?.data?.data ?? res?.data;
+          return prog ? { id, data: prog } : null;
+        } catch {
+          return null;
+        }
+      })
+    ).then((results) => {
+      if (!isMounted) return;
+      const updates: Record<string, any> = {};
+      results.forEach((r) => {
+        if (r?.data) updates[r.id] = r.data;
+      });
+      if (Object.keys(updates).length > 0) {
+        setProgramDetailsMap((prev) => ({ ...prev, ...updates }));
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [pendingProgramIds, axios]);
+
   const checkIfReviewable = useCallback((program: SpendProgramListItem) => {
     const isPending = program.status === "pending" || program.status === "pending_approval";
     if (!isPending) return false;
 
-    const cb = program.createdBy;
+    const progId = program.procurementSpendProgramId || (program as any).procurementPolicyId || (program as any).id;
+    const details = progId ? programDetailsMap[progId] : undefined;
+    const fullProg = details ? { ...program, ...details } : program;
+
+    const currentUserId = user?.userId || (user as any)?.id || (user as any)?._id || "";
+    const userFullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim().toLowerCase();
+    const userEmail = (user?.email || '').trim().toLowerCase();
+
+    // Check 1: persistent client store
+    if (isUserCreatorOfSpendProgram({
+      id: progId,
+      name: program.name,
+      userId: currentUserId,
+      userName: userFullName,
+      userEmail: userEmail,
+    })) {
+      return false;
+    }
+
+    // Check 2: object & ID matching
+    const cb = fullProg.createdBy || (fullProg as any).creator || (fullProg as any).user;
     const creatorId = typeof cb === "object" && cb !== null
-      ? ((cb as any).userId ?? (cb as any).id ?? "")
-      : "";
-    const isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
+      ? ((cb as any).userId ?? (cb as any).id ?? (cb as any)._id ?? "")
+      : ((fullProg as any).createdById ?? (fullProg as any).creatorId ?? (fullProg as any).userId ?? "");
+    let isCreator = Boolean(currentUserId) && Boolean(creatorId) && creatorId === currentUserId;
+
+    // Check 3: name & email matching
+    if (!isCreator && user) {
+      let creatorName = "";
+      if (typeof cb === 'string') {
+        creatorName = cb.trim().toLowerCase();
+      } else if (typeof cb === 'object' && cb !== null) {
+        creatorName = `${(cb as any).firstName || ''} ${(cb as any).lastName || ''}`.trim().toLowerCase() ||
+                      ((cb as any).name || (cb as any).fullName || '').trim().toLowerCase();
+      } else if (typeof (fullProg as any).createdByName === 'string') {
+        creatorName = (fullProg as any).createdByName.trim().toLowerCase();
+      }
+      if (userFullName && creatorName && userFullName === creatorName) {
+        isCreator = true;
+      }
+
+      const creatorEmail = (typeof cb === 'object' && cb !== null ? (cb as any).email : '') ||
+                           (fullProg as any).creatorEmail || '';
+      if (userEmail && creatorEmail && userEmail === creatorEmail.trim().toLowerCase()) {
+        isCreator = true;
+      }
+    }
+
     if (isCreator) return false;
 
     const currentUserRoleId = 
@@ -200,16 +316,19 @@ export function ProcurementPolicySection({
     if (approvalSetting?.allRolesCanApprove) return true;
     if (approvalSetting?.approverRoleIds?.length) return approvalSetting.approverRoleIds.includes(currentUserRoleId);
     return canApprove;
-  }, [user, spendProgramSettingsResponse?.data, canApprove]);
+  }, [user, programDetailsMap, spendProgramSettingsResponse?.data, canApprove]);
 
   const handleRowClick = useCallback((row: SpendProgramListItem) => {
+    const progId = row.procurementSpendProgramId || (row as any).procurementPolicyId || (row as any).id;
+    const details = progId ? programDetailsMap[progId] : undefined;
+    const fullRow = details ? { ...row, ...details } : row;
     setDetailPolicy({
-      id: row.procurementSpendProgramId || (row as any).procurementPolicyId || (row as any).id,
+      id: progId,
       isDraft: row.status === "draft",
-      isReviewMode: checkIfReviewable(row),
-      initialData: row,
+      isReviewMode: checkIfReviewable(fullRow),
+      initialData: fullRow,
     });
-  }, [checkIfReviewable]);
+  }, [checkIfReviewable, programDetailsMap]);
 
   const handleOpenSpendReview = useCallback((program: SpendProgramListItem) => {
     handleRowClick(program);
@@ -224,7 +343,7 @@ export function ProcurementPolicySection({
           const b = String(rowB.getValue(columnId) || "").toLowerCase();
           return a.localeCompare(b);
         },
-        header: ({ column }) => <SortableColumnHeader column={column} title="Policy Name" />,
+        header: "Policy Name",
         cell: ({ row }) => (
           <div>
             <p className="text-sm font-bold text-[#0b100e]">{capitalizeName(row.original.name)}</p>
@@ -313,9 +432,17 @@ export function ProcurementPolicySection({
       {
         id: "createdBy",
         header: "Created By",
-        cell: ({ row }) => (
-          <span className="text-sm text-[#3a4a44]">{createdByName(row.original)}</span>
-        ),
+        cell: ({ row }) => {
+          const progId = row.original.procurementSpendProgramId || (row.original as any).procurementPolicyId || (row.original as any).id;
+          const details = progId ? programDetailsMap[progId] : undefined;
+          const currentUserId = user?.userId || (user as any)?.id || "";
+          const currentUserName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+          return (
+            <span className="text-sm text-[#3a4a44]">
+              {createdByName(row.original, details, currentUserId, currentUserName)}
+            </span>
+          );
+        },
       },
       {
         accessorKey: "createdAt",
@@ -324,7 +451,7 @@ export function ProcurementPolicySection({
           const b = new Date(rowB.getValue(columnId) as string).getTime();
           return a - b;
         },
-        header: ({ column }) => <SortableColumnHeader column={column} title="Date" />,
+        header: "Date",
         cell: ({ row }) => (
           <span className="text-sm text-[#68726d] tabular-nums">
             {formatDate(row.original.createdAt)}
@@ -394,7 +521,7 @@ export function ProcurementPolicySection({
         },
       },
     ],
-    [canUpdate, canDeactivate, canApprove, handleOpenSpendReview, setDetailPolicy, onEdit, deleteDraftMutation, checkIfReviewable]
+    [canUpdate, canDeactivate, canApprove, handleOpenSpendReview, setDetailPolicy, onEdit, deleteDraftMutation, checkIfReviewable, programDetailsMap, user]
   );
 
   return (
@@ -595,8 +722,23 @@ export function ProcurementPolicySection({
           toast.success("Spend program approved successfully.");
           setDetailPolicy(null);
         }}
-        onReject={async (p: any) => {
-          await rejectMutation.mutateAsync(p.procurementSpendProgramId || p.procurementPolicyId || p.id);
+        onReject={async (p: any, reason?: string) => {
+          const id = p.procurementSpendProgramId || p.procurementPolicyId || p.id;
+          await rejectMutation.mutateAsync({ id, reason });
+          if (user) {
+            saveSpendProgramRejection({
+              id,
+              reason: reason || "",
+              rejectedBy: {
+                userId: user.userId,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                roleName: (user as any).roleName,
+                jobTitle: (user as any).jobTitle,
+              },
+              rejectedAt: new Date().toISOString(),
+            });
+          }
           toast.success("Spend program rejected.");
           setDetailPolicy(null);
         }}

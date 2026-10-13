@@ -18,6 +18,7 @@ import {
   useShortClosePOLine,
   useConfirmPOFinalBilling,
 } from "@/queries/procurement/purchase-orders";
+import { useGetProcurementCategories } from "@/queries/procurement/purchase-requests";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import EditPOHeaderModal from "@/components/procurement/EditPOHeaderModal";
@@ -271,6 +272,20 @@ function PODetailPage() {
   const { id } = useParams() as { id: string };
   const can    = useAuthStore(s => s.can);
   const user   = useAuthStore(s => s.user);
+
+  const { data: catData } = useGetProcurementCategories();
+  const categories = catData?.data || [];
+
+  const getCategoryName = (categoryId?: string | null) => {
+    if (!categoryId) return null;
+    for (const cat of categories) {
+      if (cat.categoryId === categoryId) return cat.name;
+      for (const sub of ((cat as any).subcategories || cat.children || [])) {
+        if (sub.categoryId === categoryId) return sub.name;
+      }
+    }
+    return null;
+  };
 
   const outerTab = searchParams.get("outerTab") || "own";
   const innerTab = searchParams.get("innerTab") || undefined;
@@ -596,8 +611,12 @@ function PODetailPage() {
           onProceedWithWarnings={async (justification: string) => {
             try {
               setIsPolicyModalOpen(false);
-              await submitMut.mutateAsync({ policyJustification: justification, spendProgramJustification: justification });
-              toast.success("Purchase order submitted with justification.");
+              await submitMut.mutateAsync({ 
+                policyJustification: justification || undefined, 
+                spendProgramJustification: justification || undefined,
+                spendProgramWarningsAccepted: true,
+              });
+              toast.success("Purchase order submitted for approval.");
               setPolicyViolations(null);
               router.push(listUrl);
             } catch (err: unknown) {
@@ -766,7 +785,7 @@ function PODetailPage() {
           }}
           editInitial={editingLineItem ? {
              _stagingId: "edit-current",
-             categoryName: (editingLineItem.category as any)?.name || "",
+             categoryName: editingLineItem.categoryName || (editingLineItem.category as any)?.name || getCategoryName(editingLineItem.categoryId) || "",
              ...editingLineItem,
           } : undefined}
           editSaving={updateLineItemMut.isPending}
@@ -1049,6 +1068,8 @@ function PODetailPage() {
                     const hasViolations = itemViolations.length > 0;
                     const hasBlock = itemViolations.some((v: any) => v.type === "hard_block");
 
+                    const catName = item.categoryName || (item.category as any)?.name || getCategoryName(item.categoryId);
+
                     return (
                     <tr 
                       key={item.purchaseOrderLineItemId} 
@@ -1056,7 +1077,7 @@ function PODetailPage() {
                         setSelectedDetailItem({
                           ...item,
                           policyViolations: itemViolations,
-                          categoryName: item.category?.name || undefined,
+                          categoryName: catName || undefined,
                           purchaseRequestLineItemId: item.purchaseOrderLineItemId, // For LineItemDetailModal compatibility
                         });
                         setDetailModalStartsInEditMode(false);
@@ -1087,7 +1108,7 @@ function PODetailPage() {
                         </div>
                         {item.description ? <p className="text-xs text-[#68726d]">{item.description as string}</p> : null}
                       </td>
-                      <td className="px-6 py-4 text-[#68726d]">{(item.category as any)?.name || "—"}</td>
+                      <td className="px-6 py-4 text-[#68726d]">{catName || "—"}</td>
                       <td className="px-6 py-4 text-center">{Number(item.quantity)}</td>
 
                       <td className="px-6 py-4 text-right">{formatCurrency(item.unitPrice, po.currency)}</td>
@@ -1099,7 +1120,7 @@ function PODetailPage() {
                               onClick={() => { 
                                 setSelectedDetailItem({
                                   ...item,
-                                  categoryName: item.category?.name || undefined,
+                                  categoryName: catName || undefined,
                                   purchaseRequestLineItemId: item.purchaseOrderLineItemId,
                                 });
                                 setDetailModalStartsInEditMode(true);

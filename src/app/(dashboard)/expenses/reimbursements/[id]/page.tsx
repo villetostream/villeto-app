@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { getStatusIcon } from "@/lib/helper";
 import type { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -23,6 +23,8 @@ import { useState } from "react";
 import { useAxios } from "@/hooks/useAxios";
 import { toast } from "sonner";
 import { PolicyComplianceBadge } from "@/components/expenses/PolicyComplianceBadge";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateAllExpenseQueries } from "@/lib/react-query/expenses";
 
 // ─── Status helpers (same as company page) ────────────────────────────────────
 
@@ -141,33 +143,46 @@ function FeedbackModal({
   onClose: () => void;
   type: "approved" | "rejected";
 }) {
+  const isApproved = type === "approved";
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm rounded-[14px]">
         <div className="flex flex-col items-center text-center gap-5 py-4">
-          <div className="relative w-20 h-20">
-            <span className="absolute -top-3 left-0 w-2.5 h-2.5 bg-blue-500 rotate-45 rounded-sm" />
-            <span className="absolute -top-5 left-7 w-2 h-2 bg-orange-400 rounded-sm rotate-12" />
-            <span className="absolute top-0 -right-2 text-green-400 text-xl leading-none">✦</span>
-            <span className="absolute top-8 -right-4 w-1.5 h-5 bg-blue-400 rounded-full rotate-12" />
-            <span className="absolute top-3 -left-5 text-orange-400 text-sm leading-none">✦</span>
-            <span className="absolute -bottom-2 right-1 text-green-400 text-sm leading-none">★</span>
-            <div className="w-20 h-20 rounded-full bg-teal-500 flex items-center justify-center shadow-lg">
-              <Check className="w-9 h-9 text-white" strokeWidth={3} />
+          {isApproved ? (
+            <div className="relative w-20 h-20">
+              <span className="absolute -top-3 left-0 w-2.5 h-2.5 bg-blue-500 rotate-45 rounded-sm" />
+              <span className="absolute -top-5 left-7 w-2 h-2 bg-orange-400 rounded-sm rotate-12" />
+              <span className="absolute top-0 -right-2 text-green-400 text-xl leading-none">✦</span>
+              <span className="absolute top-8 -right-4 w-1.5 h-5 bg-blue-400 rounded-full rotate-12" />
+              <span className="absolute top-3 -left-5 text-orange-400 text-sm leading-none">✦</span>
+              <span className="absolute -bottom-2 right-1 text-green-400 text-sm leading-none">★</span>
+              <div className="w-20 h-20 rounded-full bg-teal-500 flex items-center justify-center shadow-lg">
+                <Check className="w-9 h-9 text-white" strokeWidth={3} />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="w-20 h-20 rounded-full bg-[#fdf2f2] border border-[#fbd5d5] flex items-center justify-center shadow-sm">
+              <div className="w-12 h-12 rounded-full bg-[#d33d44] flex items-center justify-center">
+                <X className="w-7 h-7 text-white" strokeWidth={2.5} />
+              </div>
+            </div>
+          )}
           <div className="space-y-1.5">
             <h3 className="text-lg font-semibold text-foreground">
-              {type === "approved" ? "Expense Approved Successfully" : "Expense Rejected"}
+              {isApproved ? "Expense Approved Successfully" : "Expense Rejected"}
             </h3>
-            <p className="text-sm text-muted-foreground">
-              {type === "approved"
-                ? "The expense has been approved and the requester has been notified. You can view this approval in the expense audit trail."
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {isApproved
+                ? "The expense has been approved and the requester has been notified."
                 : "The expense has been rejected. The requester has been informed and can make corrections or resubmit for approval."}
             </p>
           </div>
-          <Button onClick={onClose} className="px-8 bg-teal-500 hover:bg-teal-600 text-white">
-            View Audi Trail
+          <Button
+            onClick={onClose}
+            className="w-full sm:w-auto px-8 bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-10 font-semibold"
+          >
+            Done
           </Button>
         </div>
       </DialogContent>
@@ -183,6 +198,7 @@ function ReimbursementDetailPage() {
   const policies = useAuthorizationPolicies();
   const currencySymbol = useAuthStore((state) => state.getCurrencySymbol());
   const axiosInstance = useAxios();
+  const queryClient = useQueryClient();
 
   const reportId = Number(params.id);
   const report = undefined as any;
@@ -228,6 +244,7 @@ function ReimbursementDetailPage() {
     try {
       await axiosInstance.patch(`/reports/${reportId}/approve`);
       setLocalStatus("paid");
+      invalidateAllExpenseQueries(queryClient);
       setFeedbackModal({ open: true, type: "approved" });
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to approve expense");
@@ -242,6 +259,7 @@ function ReimbursementDetailPage() {
       await axiosInstance.patch(`/reports/${reportId}/reject`, { reason });
       setRejectOpen(false);
       setLocalStatus("rejected");
+      invalidateAllExpenseQueries(queryClient);
       setFeedbackModal({ open: true, type: "rejected" });
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to reject expense");
@@ -382,6 +400,7 @@ function ReimbursementDetailPage() {
           open={feedbackModal.open}
           onClose={() => {
             setFeedbackModal(null);
+            invalidateAllExpenseQueries(queryClient);
             router.push("/expenses/reimbursements");
           }}
           type={feedbackModal.type}

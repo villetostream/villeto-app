@@ -4,7 +4,6 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ExpenseStatusBadge } from "@/components/expenses/ExpenseStatusBadge";
-import { SortableColumnHeader } from "@/components/datatable/SortableColumnHeader";
 import { useAuthStore } from "@/stores/auth-stores";
 
 export type PersonalExpenseStatus =
@@ -53,22 +52,16 @@ function ActionsCell({ expense }: { expense: PersonalExpenseRow }) {
 export const personalExpenseColumns: ColumnDef<PersonalExpenseRow>[] = [
   {
     accessorKey: "reportName",
-    header: ({ column }) => (
-      <SortableColumnHeader column={column} title="REPORT NAME" />
-    ),
+    header: "REPORT NAME",
   },
   {
     accessorKey: "date",
-    header: ({ column }) => (
-      <SortableColumnHeader column={column} title="DATE" />
-    ),
+    header: "DATE",
   },
   { accessorKey: "category", header: "COST CENTER" },
   {
     accessorKey: "amount",
-    header: ({ column }) => (
-      <SortableColumnHeader column={column} title="AMOUNT" />
-    ),
+    header: "AMOUNT",
     cell: ({ row }) => {
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
@@ -89,6 +82,7 @@ export const personalExpenseColumns: ColumnDef<PersonalExpenseRow>[] = [
   },
   {
     id: "actions",
+    enableSorting: false,
     cell: ({ row }) => <ActionsCell expense={row.original} />,
   },
 ];

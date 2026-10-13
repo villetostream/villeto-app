@@ -328,6 +328,7 @@ export default function Leadership() {
         const payload: LeaderShipPayload = {
             isUserAnOwner,
             businessOwners: businessOwners.map(owner => ({
+                userId: owner.id.startsWith("person-") ? undefined : owner.id,
                 firstName: owner.firstName,
                 lastName: owner.lastName,
                 email: owner.email,

@@ -28,6 +28,14 @@ export function invalidatePersonalExpenseQueries(queryClient: QueryClient) {
   });
 }
 
+/** Invalidate all expense queries across all scopes (company, team, personal, drafts, details). */
+export function invalidateAllExpenseQueries(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ["expenses", "reports"] });
+  queryClient.invalidateQueries({ queryKey: ["expenses", "company-reports"] });
+  queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.drafts });
+  queryClient.invalidateQueries({ queryKey: ["expenses"] });
+}
+
 // Define the payload type for submitting/saving expenses
 interface ExpenseItemPayload {
   title: string;
@@ -525,7 +533,8 @@ export const useUpdateCompanyExpenseStatus = () => {
       const statusLabel =
         variables.status === "approved" ? "Approved" : "Rejected";
       toast.success(`Report ${statusLabel.toLowerCase()} successfully.`);
-      // Invalidate queries to refetch updated data
+      // Invalidate all expense queries across scopes (company, team, personal, drafts)
+      invalidateAllExpenseQueries(queryClient);
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.expenses.companyReports),
       });
@@ -533,6 +542,9 @@ export const useUpdateCompanyExpenseStatus = () => {
         queryKey: workspaceQueryKey(
           QUERY_KEYS.expenses.companyReport(variables.reportId),
         ),
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: QUERY_KEYS.expenses.report(variables.reportId) 
       });
     },
     onError: (error: unknown) => {

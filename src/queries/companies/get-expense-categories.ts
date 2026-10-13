@@ -33,6 +33,25 @@ export interface ExpenseCategory {
   children: ExpenseCategory[];
 }
 
+/**
+ * Checks whether an individual expense category has at least one active/attached policy.
+ */
+export function isCategoryWithPolicy(cat: any): boolean {
+    if (!cat) return false;
+    if (cat.isPolicyAttached === true) return true;
+    if (Array.isArray(cat.policies) && cat.policies.length > 0) return true;
+    if (typeof cat.policyCount === "number" && cat.policyCount > 0) return true;
+    return false;
+}
+
+/**
+ * Checks whether an array of expense categories contains at least one category with an attached policy.
+ */
+export function hasCategoryWithPolicy(categories: any[] | undefined | null): boolean {
+    if (!Array.isArray(categories) || categories.length === 0) return false;
+    return categories.some(isCategoryWithPolicy);
+}
+
 interface Response {
   data: ExpenseCategory[];
   error: {

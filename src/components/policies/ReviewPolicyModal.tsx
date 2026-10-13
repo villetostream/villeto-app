@@ -1,11 +1,13 @@
-import React from "react";
-import { X, Loader2 } from "lucide-react";
+import React, { useState } from "react";
+import { X, Loader2, AlertCircle, XCircle } from "lucide-react";
 import { Policy } from "@/queries/companies/get-policies";
 import { useApprovePolicy } from "@/queries/companies/approve-policy";
 import { useRejectPolicy } from "@/queries/companies/reject-policy";
 import { toast } from "sonner";
 import { asRecord, pickString, getString, getApiErrorMessage } from "@/lib/types/api-error";
-import { AlertCircle } from "lucide-react";
+import { RejectPolicyReasonModal } from "@/components/policies/RejectPolicyReasonModal";
+import { savePolicyRejection, getPolicyRejection } from "@/lib/policies/rejection-store";
+import { useAuthStore } from "@/stores/auth-stores";
 
 interface ReviewPolicyModalProps {
   policy: Policy | null;
@@ -23,11 +25,65 @@ export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyMod
 
   const isPending = approveMutation.isPending || rejectMutation.isPending;
   const [error, setError] = React.useState<string | null>(null);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const currentUser = useAuthStore((state) => state.user);
+
+  const policyId = policy.policyId || (policy as any).id;
+  const storedRejection = getPolicyRejection(policyId);
+  const isRejected = policy.status === "rejected" || policy.status === "declined" || !!storedRejection;
+  const rejectionReason = (policy as any).rejectionReason || (policy as any).reason || storedRejection?.reason;
+  const rejectedBy = (policy as any).rejectedBy || storedRejection?.rejectedBy;
+  const rejectedAt = (policy as any).rejectedAt || storedRejection?.rejectedAt;
+
+  // Evaluate if current user is the creator
+  const createdByObj = (policy as any).createdBy;
+  const creatorId = typeof createdByObj === "object" && createdByObj !== null
+    ? ((createdByObj as any).id || (createdByObj as any).userId)
+    : (policy as any).createdById;
+  let isCreator = Boolean(currentUser?.userId) && Boolean(creatorId) && creatorId === currentUser?.userId;
+  if (!isCreator && currentUser) {
+    const userFullName = `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim().toLowerCase();
+    let creatorName = "";
+    if (typeof createdByObj === 'string') {
+      creatorName = createdByObj.trim().toLowerCase();
+    } else if (typeof createdByObj === 'object' && createdByObj !== null) {
+      creatorName = `${(createdByObj as any).firstName || ''} ${(createdByObj as any).lastName || ''}`.trim().toLowerCase();
+    } else if (typeof (policy as any).createdByName === 'string') {
+      creatorName = (policy as any).createdByName.trim().toLowerCase();
+    }
+    if (userFullName && creatorName && userFullName === creatorName) {
+      isCreator = true;
+    }
+  }
+
+  const currentUserRoleId = 
+    currentUser?.companyRole?.roleId || 
+    (currentUser as any)?.companyRole?.id || 
+    (currentUser as any)?.villetoRole?.roleId || 
+    (currentUser as any)?.villetoRole?.id || 
+    (currentUser as any)?.role?.roleId || 
+    (currentUser as any)?.role?.id || 
+    "";
+
+  let isEligibleApprover = false;
+  const approvalSetting = policy.approvalSetting;
+  if (approvalSetting?.allRolesCanApprove) {
+    isEligibleApprover = true;
+  } else if (approvalSetting?.approverRoleIds?.length) {
+    isEligibleApprover = approvalSetting.approverRoleIds.includes(currentUserRoleId);
+  } else if (policy.approvers && policy.approvers.length > 0) {
+    isEligibleApprover = policy.approvers.some((a: any) => (a.userId || a.id) === currentUser?.userId);
+  } else {
+    isEligibleApprover = useAuthStore.getState().can("policy", "approve");
+  }
+
+  const isPendingStatus = policy.status === "pending" || policy.status === "pending_approval";
+  const effectiveReadOnly = readOnly || isCreator || !isEligibleApprover || !isPendingStatus;
 
   const handleApprove = async () => {
     setError(null);
     try {
-      await approveMutation.mutateAsync({ policyId: policy.policyId || (policy as any).id });
+      await approveMutation.mutateAsync({ policyId });
       toast.success("Policy approved successfully");
       onClose();
     } catch (err) {
@@ -35,14 +91,27 @@ export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyMod
     }
   };
 
-  const handleReject = async () => {
+  const handleRejectConfirm = async (reason: string) => {
     setError(null);
     try {
-      await rejectMutation.mutateAsync({ policyId: policy.policyId || (policy as any).id });
+      await rejectMutation.mutateAsync({ policyId, reason });
+      savePolicyRejection({
+        id: policyId,
+        reason,
+        rejectedBy: currentUser ? {
+          userId: currentUser.userId,
+          firstName: currentUser.firstName,
+          lastName: currentUser.lastName,
+          jobTitle: (currentUser as any).jobTitle || (currentUser as any).roleName,
+        } : undefined,
+        rejectedAt: new Date().toISOString(),
+      });
+      setIsRejectModalOpen(false);
       toast.success("Policy rejected successfully");
       onClose();
     } catch (err) {
       setError(getApiErrorMessage(err, "Failed to reject policy. It may have already been reviewed."));
+      setIsRejectModalOpen(false);
     }
   };
 
@@ -178,16 +247,39 @@ export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyMod
 
           <div className="h-px bg-black/[0.06] w-full" />
 
-          <div>
-            <p className="text-xs text-[#84908a] mb-1">Created By</p>
-            <p className="text-[15px] font-medium text-[#52605b]">
-              {(policy as any).createdBy ? (
-                `${(policy as any).createdBy.firstName} ${(policy as any).createdBy.lastName} (${(policy as any).createdBy.jobTitle || "Owner"})`
-              ) : (
-                "—"
-              )}
-            </p>
+          <div className="flex justify-between items-start gap-4">
+            <div>
+              <p className="text-xs text-[#84908a] mb-1">Created By</p>
+              <p className="text-[15px] font-medium text-[#52605b]">
+                {(policy as any).createdBy ? (
+                  `${(policy as any).createdBy.firstName} ${(policy as any).createdBy.lastName} (${(policy as any).createdBy.jobTitle || "Owner"})`
+                ) : (
+                  "—"
+                )}
+              </p>
+            </div>
+            {isRejected && (rejectedBy || storedRejection) && (
+              <div className="text-right">
+                <p className="text-xs text-[#d33d44] font-medium mb-1">Rejected By</p>
+                <p className="text-[15px] font-semibold text-[#0b100e]">
+                  {rejectedBy?.firstName ?? storedRejection?.rejectedBy?.firstName} {rejectedBy?.lastName ?? storedRejection?.rejectedBy?.lastName}
+                </p>
+                <p className="text-xs text-[#84908a] mt-0.5">
+                  {rejectedAt ? new Date(rejectedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—"}
+                </p>
+              </div>
+            )}
           </div>
+
+          {isRejected && rejectionReason && (
+            <div className="rounded-xl border border-red-200 bg-red-50/60 p-4">
+              <div className="flex items-center gap-1.5 mb-1 text-[#d33d44] font-semibold text-xs">
+                <XCircle className="w-4 h-4" />
+                <span>Rejection Reason</span>
+              </div>
+              <p className="text-xs text-[#521c20] leading-relaxed">{rejectionReason}</p>
+            </div>
+          )}
         </div>
 
         {/* Error Message */}
@@ -199,16 +291,20 @@ export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyMod
         )}
 
         {/* Actions */}
-        {readOnly ? (
+        {effectiveReadOnly ? (
           <div className="flex items-center justify-center">
-            <div className="flex items-center gap-2.5 px-5 py-3 rounded-xl bg-amber-50 border border-amber-200">
-              <span className="text-sm font-medium text-amber-700">Awaiting review by an approver</span>
+            <div className={`flex items-center gap-2.5 px-5 py-3 rounded-xl border ${
+              isRejected ? "bg-red-50 border-red-200" : isPendingStatus ? "bg-amber-50 border-amber-200" : "bg-[#f4f7f5] border-black/[0.06]"
+            }`}>
+              <span className={`text-sm font-medium ${isRejected ? "text-red-700" : isPendingStatus ? "text-amber-700" : "text-[#52605b]"}`}>
+                {isRejected ? "Policy rejected" : isPendingStatus ? "Awaiting review by an approver" : "Policy active"}
+              </span>
             </div>
           </div>
         ) : (
           <div className="flex items-center justify-center gap-4">
             <button
-              onClick={handleReject}
+              onClick={() => setIsRejectModalOpen(true)}
               disabled={isPending}
               className="flex-1 max-w-[160px] h-12 rounded-xl border border-red-400 text-red-500 font-medium text-sm hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center"
             >
@@ -223,6 +319,15 @@ export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyMod
             </button>
           </div>
         )}
+
+        <RejectPolicyReasonModal
+          open={isRejectModalOpen}
+          onClose={() => setIsRejectModalOpen(false)}
+          onConfirm={handleRejectConfirm}
+          isLoading={rejectMutation.isPending}
+          title="Reject Expense Policy"
+          entityName={policy.name}
+        />
       </div>
     </div>
   );
