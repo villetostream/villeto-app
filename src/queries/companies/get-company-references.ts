@@ -1,4 +1,9 @@
-import { useQuery, UseQueryOptions, UseQueryResult } from "@tanstack/react-query";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  useQuery,
+  UseQueryOptions,
+  UseQueryResult,
+} from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
@@ -31,14 +36,19 @@ interface ReferenceResponse {
 }
 
 export const useGetJobGradesApi = (
-  options?: Omit<UseQueryOptions<ReferenceResponse, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<ReferenceResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<ReferenceResponse, Error> => {
   const axiosInstance = useAxios();
 
   return useQuery<ReferenceResponse, Error>({
-    queryKey: ["companies", "job-grades"],
+    queryKey: workspaceQueryKey(["companies", "job-grades"]),
     queryFn: async () => {
-      const response = await axiosInstance.get(API_KEYS.COMPANY.IMPORT_REFERENCES("job_grades"));
+      const response = await axiosInstance.get(
+        API_KEYS.COMPANY.IMPORT_REFERENCES("job_grades"),
+      );
       return response.data;
     },
     staleTime: STALE_TIMES.SLOW,
@@ -47,14 +57,19 @@ export const useGetJobGradesApi = (
 };
 
 export const useGetManagementLevelsApi = (
-  options?: Omit<UseQueryOptions<ReferenceResponse, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<ReferenceResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<ReferenceResponse, Error> => {
   const axiosInstance = useAxios();
 
   return useQuery<ReferenceResponse, Error>({
-    queryKey: ["companies", "management-levels"],
+    queryKey: workspaceQueryKey(["companies", "management-levels"]),
     queryFn: async () => {
-      const response = await axiosInstance.get(API_KEYS.COMPANY.IMPORT_REFERENCES("management_levels"));
+      const response = await axiosInstance.get(
+        API_KEYS.COMPANY.IMPORT_REFERENCES("management_levels"),
+      );
       return response.data;
     },
     staleTime: STALE_TIMES.SLOW,

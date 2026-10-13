@@ -7,12 +7,21 @@ import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
-import { asRecord, getApiErrorMessage, getString, pickString } from "@/lib/types/api-error";
+import {
+  asRecord,
+  getApiErrorMessage,
+  getString,
+  pickString,
+} from "@/lib/types/api-error";
 import { useAxios } from "@/hooks/useAxios";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
-import { useVendorNetworkList, useVendorLookup, useInviteVendorV2 } from "@/queries/vendors/vendor-network";
+import {
+  useVendorNetworkList,
+  useVendorLookup,
+  useInviteVendorV2,
+} from "@/queries/vendors/vendor-network";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   MoreHorizontal,
@@ -35,7 +44,15 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type VendorStatus = "active" | "deactivated" | "pending" | "invited" | "onboarding" | "flagged" | "rejected" | "approved";
+type VendorStatus =
+  | "active"
+  | "deactivated"
+  | "pending"
+  | "invited"
+  | "onboarding"
+  | "flagged"
+  | "rejected"
+  | "approved";
 
 interface Vendor {
   id: string;
@@ -51,7 +68,12 @@ interface Vendor {
 
 const STATUS_CONFIG: Record<
   VendorStatus,
-  { label: string; classes: string; actionLabel: string; actionIcon: React.ReactNode }
+  {
+    label: string;
+    classes: string;
+    actionLabel: string;
+    actionIcon: React.ReactNode;
+  }
 > = {
   active: {
     label: "Active",
@@ -117,7 +139,13 @@ import { StatusBadge } from "@/components/ui/status-badge";
 
 // ─── Action Menu ──────────────────────────────────────────────────────────────
 
-function ActionMenu({ vendor, onAction }: { vendor: Vendor; onAction: (v: Vendor, label: string) => void }) {
+function ActionMenu({
+  vendor,
+  onAction,
+}: {
+  vendor: Vendor;
+  onAction: (v: Vendor, label: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const cfg = STATUS_CONFIG[vendor.status];
@@ -125,7 +153,8 @@ function ActionMenu({ vendor, onAction }: { vendor: Vendor; onAction: (v: Vendor
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -134,7 +163,10 @@ function ActionMenu({ vendor, onAction }: { vendor: Vendor; onAction: (v: Vendor
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
         className="w-8 h-8 rounded-[8px] flex items-center justify-center text-[#84908a] hover:bg-[#f5f7f6] hover:text-[#0b100e] transition-colors cursor-pointer border border-transparent hover:border-black/[0.08]"
       >
         <MoreHorizontal className="w-4 h-4" />
@@ -142,7 +174,10 @@ function ActionMenu({ vendor, onAction }: { vendor: Vendor; onAction: (v: Vendor
       {open && (
         <div className="absolute right-0 top-9 z-50 bg-white border border-black/[0.08] rounded-[12px] shadow-[0_4px_24px_rgba(0,0,0,0.10)] w-48 overflow-hidden p-1">
           <button
-            onClick={() => { onAction(vendor, cfg.actionLabel); setOpen(false); }}
+            onClick={() => {
+              onAction(vendor, cfg.actionLabel);
+              setOpen(false);
+            }}
             className="w-full flex items-center gap-3 px-3 py-2 text-[13px] text-[#0b100e] hover:bg-[#f5f7f6] rounded-[6px] transition-colors"
           >
             {cfg.actionIcon}
@@ -150,10 +185,10 @@ function ActionMenu({ vendor, onAction }: { vendor: Vendor; onAction: (v: Vendor
           </button>
           {vendor.status === "invited" && (
             <button
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                onAction(vendor, "Resend Invitation"); 
-                setOpen(false); 
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction(vendor, "Resend Invitation");
+                setOpen(false);
               }}
               className="w-full flex items-center gap-3 px-3 py-2 text-[13px] text-[#0b100e] hover:bg-[#f5f7f6] rounded-[6px] transition-colors"
             >
@@ -203,18 +238,19 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
   const [identifier, setIdentifier] = useState("");
   const [methodOpen, setMethodOpen] = useState(false);
   const methodRef = useRef<HTMLDivElement>(null);
-  
+
   const [success, setSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (methodRef.current && !methodRef.current.contains(e.target as Node)) setMethodOpen(false);
+      if (methodRef.current && !methodRef.current.contains(e.target as Node))
+        setMethodOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-  
+
   // Lookup
   const [debouncedEmail, setDebouncedEmail] = useState("");
   useEffect(() => {
@@ -222,16 +258,26 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
     return () => clearTimeout(timer);
   }, [email]);
 
-  const { data: lookupResult, isFetching: isLookingUp } = useVendorLookup("email", debouncedEmail, !!debouncedEmail && debouncedEmail.includes("@"));
+  const { data: lookupResult, isFetching: isLookingUp } = useVendorLookup(
+    "email",
+    debouncedEmail,
+    !!debouncedEmail && debouncedEmail.includes("@"),
+  );
 
   const inviteMutation = useInviteVendorV2();
 
   useEffect(() => {
     if (!open) return;
     queueMicrotask(() => {
-      setEmail(""); setLegalName(""); setSponsorVerification(false);
-      setMethod("cac"); setIdentifier(""); setMethodOpen(false);
-      setErrors({}); setSuccess(false); setDebouncedEmail("");
+      setEmail("");
+      setLegalName("");
+      setSponsorVerification(false);
+      setMethod("cac");
+      setIdentifier("");
+      setMethodOpen(false);
+      setErrors({});
+      setSuccess(false);
+      setDebouncedEmail("");
     });
   }, [open]);
 
@@ -245,24 +291,29 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
   const validate = () => {
     const e: Record<string, string> = {};
     if (!email.trim()) e.email = "Required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Invalid email";
-    
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      e.email = "Invalid email";
+
     if (!legalName.trim()) e.legalName = "Required";
-    
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async () => {
     if (!validate()) return;
-    
+
     const payload = {
       email,
       legalName,
       verificationRequested: sponsorVerification,
-      ...(sponsorVerification && identifier.trim() ? { method, identifier: identifier.trim() } : {}),
+      ...(sponsorVerification && identifier.trim()
+        ? { method, identifier: identifier.trim() }
+        : {}),
       // If vendor already verified in the past based on lookup
-      ...(lookupResult?.data?.vendor?.verificationId ? { verificationId: lookupResult.data.vendor.verificationId } : {})
+      ...(lookupResult?.data?.vendor?.verificationId
+        ? { verificationId: lookupResult.data.vendor.verificationId }
+        : {}),
     };
 
     try {
@@ -272,14 +323,20 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
     } catch (err: unknown) {
       logger.error("Invite vendor error", err);
       const msg = getApiErrorMessage(err, "Failed to invite vendor");
-      if (msg.toLowerCase().includes("already exists") && msg.toLowerCase().includes(email.toLowerCase())) {
-        setErrors(prev => ({ ...prev, email: msg }));
+      if (
+        msg.toLowerCase().includes("already exists") &&
+        msg.toLowerCase().includes(email.toLowerCase())
+      ) {
+        setErrors((prev) => ({ ...prev, email: msg }));
       } else {
         toast.error(msg);
       }
     }
   };
-  const isFormValid = email.trim() && legalName.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const isFormValid =
+    email.trim() &&
+    legalName.trim() &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   if (!open) return null;
 
@@ -289,16 +346,27 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
         {success ? (
           <div className="p-10 flex flex-col items-center text-center">
             <div className="relative mb-6">
-              {["top-0 left-4 bg-orange-400","top-2 right-6 bg-blue-500","bottom-4 left-2 bg-primary","bottom-0 right-4 bg-amber-400"].map((cls, i) => (
-                <span key={i} className={`absolute w-2 h-2 rounded-full ${cls}`} />
+              {[
+                "top-0 left-4 bg-orange-400",
+                "top-2 right-6 bg-blue-500",
+                "bottom-4 left-2 bg-primary",
+                "bottom-0 right-4 bg-amber-400",
+              ].map((cls, i) => (
+                <span
+                  key={i}
+                  className={`absolute w-2 h-2 rounded-full ${cls}`}
+                />
               ))}
               <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
                 <CheckCircle2 className="w-8 h-8 text-white" />
               </div>
             </div>
-            <h2 className="text-[18px] font-bold text-[#0b100e] mb-2">Vendor Invite Sent</h2>
+            <h2 className="text-[18px] font-bold text-[#0b100e] mb-2">
+              Vendor Invite Sent
+            </h2>
             <p className="text-[13px] text-[#68726d] leading-relaxed mb-8">
-              The vendor has received an onboarding link and can now begin verification.
+              The vendor has received an onboarding link and can now begin
+              verification.
             </p>
             <button
               onClick={onClose}
@@ -311,8 +379,12 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
           <div className="p-6">
             <div className="flex items-start justify-between mb-1">
               <div>
-                <h2 className="text-[18px] font-bold text-[#0b100e]">Invite Vendor</h2>
-                <p className="text-[13px] text-[#68726d] mt-0.5">Invite a vendor to join your network.</p>
+                <h2 className="text-[18px] font-bold text-[#0b100e]">
+                  Invite Vendor
+                </h2>
+                <p className="text-[13px] text-[#68726d] mt-0.5">
+                  Invite a vendor to join your network.
+                </p>
               </div>
               <button
                 onClick={onClose}
@@ -327,27 +399,41 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
             <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2 pb-2">
               {/* Email */}
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0b100e]">Email address</label>
+                <label className="text-[13px] font-semibold text-[#0b100e]">
+                  Email address
+                </label>
                 <div className="relative">
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => { setEmail(e.target.value); setErrors(err => ({ ...err, email: "" })); }}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setErrors((err) => ({ ...err, email: "" }));
+                    }}
                     placeholder="e.g. vendor@acme.com"
                     className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
                       errors.email ? "border-[#d33d44]" : "border-black/[0.08]"
                     }`}
                   />
-                  {isLookingUp && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-[#087f70]/30 border-t-[#087f70] animate-spin" />}
+                  {isLookingUp && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-[#087f70]/30 border-t-[#087f70] animate-spin" />
+                  )}
                 </div>
-                {errors.email && <p className="text-[11px] text-[#d33d44]">{errors.email}</p>}
-                
+                {errors.email && (
+                  <p className="text-[11px] text-[#d33d44]">{errors.email}</p>
+                )}
+
                 {lookupResult?.data?.found && (
                   <div className="mt-2 p-2.5 rounded-lg border border-[#e7f6f2] bg-[#f0faf8] flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-[#087f70] mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-[12px] font-medium text-[#087f70]">Vendor found on Villeto Network</p>
-                      <p className="text-[11px] text-[#087f70]/80 mt-0.5">{lookupResult.data.vendor.legalName} • {lookupResult.data.vendor.country || "Nigeria"}</p>
+                      <p className="text-[12px] font-medium text-[#087f70]">
+                        Vendor found on Villeto Network
+                      </p>
+                      <p className="text-[11px] text-[#087f70]/80 mt-0.5">
+                        {lookupResult.data.vendor.legalName} •{" "}
+                        {lookupResult.data.vendor.country || "Nigeria"}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -355,17 +441,28 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
 
               {/* Legal Name */}
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0b100e]">Legal Name</label>
+                <label className="text-[13px] font-semibold text-[#0b100e]">
+                  Legal Name
+                </label>
                 <input
                   type="text"
                   value={legalName}
-                  onChange={(e) => { setLegalName(e.target.value); setErrors(err => ({ ...err, legalName: "" })); }}
+                  onChange={(e) => {
+                    setLegalName(e.target.value);
+                    setErrors((err) => ({ ...err, legalName: "" }));
+                  }}
                   placeholder="e.g. Acme Supplies Limited"
                   className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
-                    errors.legalName ? "border-[#d33d44]" : "border-black/[0.08]"
+                    errors.legalName
+                      ? "border-[#d33d44]"
+                      : "border-black/[0.08]"
                   }`}
                 />
-                {errors.legalName && <p className="text-[11px] text-[#d33d44]">{errors.legalName}</p>}
+                {errors.legalName && (
+                  <p className="text-[11px] text-[#d33d44]">
+                    {errors.legalName}
+                  </p>
+                )}
               </div>
 
               <div className="w-full h-px bg-black/[0.04]" />
@@ -374,18 +471,23 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="pr-4">
-                    <label className="text-[13px] font-semibold text-[#0b100e]">Do you want the vendor to require a verification?</label>
-                    <p className="text-[11px] text-[#68726d] mt-0.5">Sponsor a verification check using a business registration or tax identifier.</p>
+                    <label className="text-[13px] font-semibold text-[#0b100e]">
+                      Do you want the vendor to require a verification?
+                    </label>
+                    <p className="text-[11px] text-[#68726d] mt-0.5">
+                      Sponsor a verification check using a business registration
+                      or tax identifier.
+                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setSponsorVerification(!sponsorVerification)}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${sponsorVerification ? 'bg-[#087f70]' : 'bg-gray-200'}`}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${sponsorVerification ? "bg-[#087f70]" : "bg-gray-200"}`}
                   >
                     <span className="sr-only">Toggle verification</span>
                     <span
                       aria-hidden="true"
-                      className={`pointer-events-none absolute left-0.5 inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${sponsorVerification ? 'translate-x-4' : 'translate-x-0'}`}
+                      className={`pointer-events-none absolute left-0.5 inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${sponsorVerification ? "translate-x-4" : "translate-x-0"}`}
                     />
                   </button>
                 </div>
@@ -393,28 +495,37 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
                 {sponsorVerification && (
                   <div className="grid grid-cols-[130px_1fr] gap-3 mt-3 animate-in slide-in-from-top-2 fade-in duration-200">
                     <div className="space-y-1.5" ref={methodRef}>
-                      <label className="text-[12px] font-semibold text-[#0b100e]">Method</label>
+                      <label className="text-[12px] font-semibold text-[#0b100e]">
+                        Method
+                      </label>
                       <div className="relative">
                         <button
                           type="button"
-                          onClick={() => setMethodOpen(v => !v)}
+                          onClick={() => setMethodOpen((v) => !v)}
                           className="w-full h-10 px-3 rounded-[8px] border text-[13px] text-left flex items-center justify-between transition-colors border-black/[0.08] hover:border-black/[0.12] text-[#0b100e] bg-white focus:outline-none focus:border-[#087f70]"
                         >
                           {method === "cac" ? "Business Reg." : "Tax ID"}
-                          <ChevronDown className={`w-4 h-4 text-[#84908a] transition-transform ${methodOpen ? "rotate-180" : ""}`} />
+                          <ChevronDown
+                            className={`w-4 h-4 text-[#84908a] transition-transform ${methodOpen ? "rotate-180" : ""}`}
+                          />
                         </button>
                         {methodOpen && (
                           <div className="absolute left-0 right-0 bottom-full mb-1 z-50 bg-white border border-black/[0.08] rounded-[10px] shadow-lg overflow-hidden p-1 animate-in fade-in zoom-in-95 duration-100">
                             {[
                               { value: "cac", label: "Business Reg." },
-                              { value: "tin", label: "Tax ID" }
+                              { value: "tin", label: "Tax ID" },
                             ].map((opt) => (
                               <button
                                 key={opt.value}
                                 type="button"
-                                onClick={() => { setMethod(opt.value); setMethodOpen(false); }}
+                                onClick={() => {
+                                  setMethod(opt.value);
+                                  setMethodOpen(false);
+                                }}
                                 className={`w-full text-left px-3 py-2 text-[13px] rounded-[6px] transition-colors ${
-                                  method === opt.value ? "bg-[#f0faf8] text-[#087f70] font-medium" : "text-[#0b100e] hover:bg-[#f5f7f6]"
+                                  method === opt.value
+                                    ? "bg-[#f0faf8] text-[#087f70] font-medium"
+                                    : "text-[#0b100e] hover:bg-[#f5f7f6]"
                                 }`}
                               >
                                 {opt.label}
@@ -425,17 +536,32 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-[#0b100e]">Identifier</label>
+                      <label className="text-[12px] font-semibold text-[#0b100e]">
+                        Identifier
+                      </label>
                       <input
                         type="text"
                         value={identifier}
-                        onChange={(e) => { setIdentifier(e.target.value); setErrors(err => ({ ...err, identifier: "" })); }}
-                        placeholder={method === "cac" ? "e.g. Registration number" : "e.g. Tax identifier"}
+                        onChange={(e) => {
+                          setIdentifier(e.target.value);
+                          setErrors((err) => ({ ...err, identifier: "" }));
+                        }}
+                        placeholder={
+                          method === "cac"
+                            ? "e.g. Registration number"
+                            : "e.g. Tax identifier"
+                        }
                         className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
-                          errors.identifier ? "border-[#d33d44]" : "border-black/[0.08]"
+                          errors.identifier
+                            ? "border-[#d33d44]"
+                            : "border-black/[0.08]"
                         }`}
                       />
-                      {errors.identifier && <p className="text-[11px] text-[#d33d44]">{errors.identifier}</p>}
+                      {errors.identifier && (
+                        <p className="text-[11px] text-[#d33d44]">
+                          {errors.identifier}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -449,13 +575,30 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
             >
               {inviteMutation.isPending ? (
                 <>
-                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+                  <svg
+                    className="w-4 h-4 animate-spin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+                    />
                   </svg>
                   Sending...
                 </>
-              ) : "Send invite"}
+              ) : (
+                "Send invite"
+              )}
             </button>
           </div>
         )}
@@ -468,24 +611,44 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
 
 // ─── Vendor Table ─────────────────────────────────────────────────────────────
 
-function SortableHeader({ title, sortKey, currentSort, onSort, className }: { title: string, sortKey: string, currentSort: { key: string, direction: 'asc'|'desc' } | null, onSort: (key: string) => void, className?: string }) {
+function SortableHeader({
+  title,
+  sortKey,
+  currentSort,
+  onSort,
+  className,
+}: {
+  title: string;
+  sortKey: string;
+  currentSort: { key: string; direction: "asc" | "desc" } | null;
+  onSort: (key: string) => void;
+  className?: string;
+}) {
   const isSorted = currentSort?.key === sortKey;
-  
+
   if (sortKey === "action") {
-    return <th className={`px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap bg-[#f9faf9] ${className || ""}`}>{title}</th>;
+    return (
+      <th
+        className={`px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap bg-[#f9faf9] ${className || ""}`}
+      >
+        {title}
+      </th>
+    );
   }
 
   return (
-    <th 
+    <th
       className={`px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap bg-[#f9faf9] cursor-pointer hover:bg-black/[0.02] transition-colors select-none ${className || ""}`}
       onClick={() => onSort(sortKey)}
     >
       <div className="flex items-center gap-1.5">
         <span className={isSorted ? "text-[#0b100e]" : ""}>{title}</span>
         {isSorted ? (
-          currentSort.direction === 'asc' 
-            ? <ArrowUp className="w-3.5 h-3.5 text-[#087f70]" /> 
-            : <ArrowDown className="w-3.5 h-3.5 text-[#087f70]" />
+          currentSort.direction === "asc" ? (
+            <ArrowUp className="w-3.5 h-3.5 text-[#087f70]" />
+          ) : (
+            <ArrowDown className="w-3.5 h-3.5 text-[#087f70]" />
+          )
         ) : (
           <ChevronsUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
         )}
@@ -508,14 +671,19 @@ function VendorTable({
   onPageChange: (page: number) => void;
 }) {
   const [search, setSearch] = useState("");
-  const [sortConfig, setSortConfig] = useState<{ key: keyof Vendor | string; direction: 'asc' | 'desc' } | null>(null);
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Vendor | string;
+    direction: "asc" | "desc";
+  } | null>(null);
   const itemsPerPage = 10;
 
   const handleSort = (key: string) => {
     if (sortConfig?.key === key) {
-      setSortConfig(sortConfig.direction === 'asc' ? { key, direction: 'desc' } : null);
+      setSortConfig(
+        sortConfig.direction === "asc" ? { key, direction: "desc" } : null,
+      );
     } else {
-      setSortConfig({ key, direction: 'asc' });
+      setSortConfig({ key, direction: "asc" });
     }
   };
 
@@ -535,18 +703,21 @@ function VendorTable({
       result = [...result].sort((a, b) => {
         let valA = a[sortConfig.key as keyof Vendor] as string;
         let valB = b[sortConfig.key as keyof Vendor] as string;
-        
+
         if (!valA) valA = "";
         if (!valB) valB = "";
-        
-        if (sortConfig.key === "invitedOn" || sortConfig.key === "lastUpdated") {
+
+        if (
+          sortConfig.key === "invitedOn" ||
+          sortConfig.key === "lastUpdated"
+        ) {
           const dateA = valA === "N/A" ? 0 : new Date(valA).getTime();
           const dateB = valB === "N/A" ? 0 : new Date(valB).getTime();
           return sortConfig.direction === "asc" ? dateA - dateB : dateB - dateA;
         }
 
-        return sortConfig.direction === 'asc' 
-          ? valA.localeCompare(valB) 
+        return sortConfig.direction === "asc"
+          ? valA.localeCompare(valB)
           : valB.localeCompare(valA);
       });
     }
@@ -554,7 +725,10 @@ function VendorTable({
   }, [vendors, search, sortConfig]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-  const paginatedData = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedData = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage,
+  );
 
   // If search changes, reset page to 1
   useEffect(() => {
@@ -572,12 +746,17 @@ function VendorTable({
   }
 
   const portalTarget =
-    typeof window !== "undefined" ? document.getElementById("tab-actions") : null;
+    typeof window !== "undefined"
+      ? document.getElementById("tab-actions")
+      : null;
 
   const searchBar = (
     <div className="flex sm:flex-row flex-col items-center gap-2">
       <div className="relative w-full sm:w-64">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          size={18}
+        />
         <input
           type="text"
           value={search}
@@ -603,42 +782,94 @@ function VendorTable({
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-[#f9faf9] shadow-[0_1px_0_rgba(0,0,0,0.08)]">
                 <tr className="border-b border-black/[0.08]">
-                  <SortableHeader title="VENDOR NAME" sortKey="vendorName" currentSort={sortConfig} onSort={handleSort} />
-                  <SortableHeader title="REG NO." sortKey="regNo" currentSort={sortConfig} onSort={handleSort} />
-                  <SortableHeader title="EMAIL" sortKey="email" currentSort={sortConfig} onSort={handleSort} />
-                  <SortableHeader title="INVITED ON" sortKey="invitedOn" currentSort={sortConfig} onSort={handleSort} />
-                  <SortableHeader title="STATUS" sortKey="status" currentSort={sortConfig} onSort={handleSort} />
-                  <SortableHeader title="LAST UPDATED" sortKey="lastUpdated" currentSort={sortConfig} onSort={handleSort} />
-                  <SortableHeader title="ACTION" sortKey="action" currentSort={sortConfig} onSort={handleSort} />
+                  <SortableHeader
+                    title="VENDOR NAME"
+                    sortKey="vendorName"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    title="REG NO."
+                    sortKey="regNo"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    title="EMAIL"
+                    sortKey="email"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    title="INVITED ON"
+                    sortKey="invitedOn"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    title="STATUS"
+                    sortKey="status"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    title="LAST UPDATED"
+                    sortKey="lastUpdated"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    title="ACTION"
+                    sortKey="action"
+                    currentSort={sortConfig}
+                    onSort={handleSort}
+                  />
                 </tr>
-            </thead>
-            <tbody className="divide-y divide-black/[0.06]">
-              {paginatedData.map((v) => (
-                <tr key={v.id} onClick={() => onAction(v, "View Details")} className="hover:bg-[#f5f7f6] transition-colors cursor-pointer group">
-                  <td className="px-5 py-4 font-semibold text-[#0b100e]">{v.vendorName}</td>
-                  <td className="px-5 py-4 text-[#68726d]">{v.regNo}</td>
-                  <td className="px-5 py-4 text-[#68726d]">{v.email}</td>
-                  <td className="px-5 py-4 text-[#68726d] whitespace-nowrap">{v.invitedOn}</td>
-                  <td className="px-5 py-4"><StatusBadge status={v.status} /></td>
-                  <td className="px-5 py-4 text-[#68726d] whitespace-nowrap">{v.lastUpdated}</td>
-                  <td className="px-5 py-4">
-                    <ActionMenu vendor={v} onAction={onAction} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+              </thead>
+              <tbody className="divide-y divide-black/[0.06]">
+                {paginatedData.map((v) => (
+                  <tr
+                    key={v.id}
+                    onClick={() => onAction(v, "View Details")}
+                    className="hover:bg-[#f5f7f6] transition-colors cursor-pointer group"
+                  >
+                    <td className="px-5 py-4 font-semibold text-[#0b100e]">
+                      {v.vendorName}
+                    </td>
+                    <td className="px-5 py-4 text-[#68726d]">{v.regNo}</td>
+                    <td className="px-5 py-4 text-[#68726d]">{v.email}</td>
+                    <td className="px-5 py-4 text-[#68726d] whitespace-nowrap">
+                      {v.invitedOn}
+                    </td>
+                    <td className="px-5 py-4">
+                      <StatusBadge status={v.status} />
+                    </td>
+                    <td className="px-5 py-4 text-[#68726d] whitespace-nowrap">
+                      {v.lastUpdated}
+                    </td>
+                    <td className="px-5 py-4">
+                      <ActionMenu vendor={v} onAction={onAction} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
 
           {/* Pagination row */}
           <div className="px-5 py-3 border-t border-black/[0.08] flex items-center justify-between text-[13px] text-[#68726d] bg-[#f9faf9] shrink-0">
-            <span>Showing {paginatedData.length} entries on page {currentPage} of {totalPages}</span>
+            <span>
+              Showing {paginatedData.length} entries on page {currentPage} of{" "}
+              {totalPages}
+            </span>
             <div className="flex items-center gap-1">
               <button
                 disabled={currentPage <= 1}
                 onClick={() => onPageChange(currentPage - 1)}
                 className={`px-3 py-1.5 rounded-[8px] transition-colors border border-transparent ${
-                  currentPage <= 1 ? "opacity-50 cursor-not-allowed" : "hover:bg-white hover:border-black/[0.08] hover:text-[#0b100e]"
+                  currentPage <= 1
+                    ? "opacity-50 cursor-not-allowed"
+                    : "hover:bg-white hover:border-black/[0.08] hover:text-[#0b100e]"
                 }`}
               >
                 Previous
@@ -650,7 +881,9 @@ function VendorTable({
                 disabled={currentPage >= totalPages}
                 onClick={() => onPageChange(currentPage + 1)}
                 className={`px-3 py-1.5 rounded-[8px] transition-colors border border-transparent ${
-                  currentPage >= totalPages ? "opacity-50 cursor-not-allowed" : "hover:bg-white hover:border-black/[0.08] hover:text-[#0b100e]"
+                  currentPage >= totalPages
+                    ? "opacity-50 cursor-not-allowed"
+                    : "hover:bg-white hover:border-black/[0.08] hover:text-[#0b100e]"
                 }`}
               >
                 Next
@@ -670,15 +903,18 @@ export default withPermissions(VendorPage, [
 ]);
 
 function VendorPage() {
-  const router      = useRouter();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
-  const canInviteVendor = useAuthorizationPolicies().vendors.canInvite;
+  const policies = useAuthorizationPolicies();
+  const canInviteVendor = policies.vendors.canInvite;
 
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
   const [page, setPage] = useState(1);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [_selectedVendorId, _setSelectedVendorId] = useState<string | null>(null);
+  const [_selectedVendorId, _setSelectedVendorId] = useState<string | null>(
+    null,
+  );
 
   const axiosInstance = useAxios();
   const vendorsApi = useVendorNetworkList({});
@@ -687,11 +923,11 @@ function VendorPage() {
   const vendors = useMemo(() => {
     const json = vendorsApi.data;
     if (!json) return [];
-    
+
     return (json.data?.data || []).map((raw: unknown) => {
       const v = asRecord(raw);
       let computedStatus: VendorStatus = "invited";
-      
+
       const status = getString(v.status);
       const onboardingStatus = getString(v.onboardingStatus);
       const approvalStatus = getString(v.approvalStatus);
@@ -713,20 +949,24 @@ function VendorPage() {
           // null/undefined onboardingStatus means just invited, not yet started
           computedStatus = "invited";
         } else if (onboardingStatus === "submitted") {
-          computedStatus = "pending";          // ready for admin review
+          computedStatus = "pending"; // ready for admin review
         } else {
-          computedStatus = "onboarding";       // in_progress states
+          computedStatus = "onboarding"; // in_progress states
         }
       }
-      
+
       return {
         id: getString(v.vendorId),
         vendorName: pickString(v, "legalName", "displayName") || "Unknown",
         regNo: getString(v.registrationNumber) || getString(v.tin) || "N/A",
         email: getString(v.email),
-        invitedOn: v.invitedAt ? new Date(getString(v.invitedAt)).toLocaleDateString() : "N/A",
+        invitedOn: v.invitedAt
+          ? new Date(getString(v.invitedAt)).toLocaleDateString()
+          : "N/A",
         status: computedStatus,
-        lastUpdated: v.updatedAt ? new Date(getString(v.updatedAt)).toLocaleDateString() : "N/A"
+        lastUpdated: v.updatedAt
+          ? new Date(getString(v.updatedAt)).toLocaleDateString()
+          : "N/A",
       };
     });
   }, [vendorsApi.data]);
@@ -754,19 +994,31 @@ function VendorPage() {
       label: "Invite Vendor",
       items: [
         { label: "Single invite", onClick: () => setShowInviteModal(true) },
-        { label: "Bulk invite",   onClick: () => router.push("/vendors/bulk-invite-page") },
+        {
+          label: "Bulk invite",
+          onClick: () => router.push("/vendors/bulk-invite-page"),
+        },
       ],
     });
     return () => clearAction();
   }, [setAction, clearAction, router, canInviteVendor]);
 
   // Stats
-  const stats = useMemo(() => ({
-    total:    vendors.length,
-    verified: vendors.filter((v) => v.status === "active" || v.status === "approved").length,
-    pending:  vendors.filter((v) => v.status === "pending").length,
-    rejected: vendors.filter((v) => (v.status as string) === "rejected" || (v.status as string) === "flagged").length,
-  }), [vendors]);
+  const stats = useMemo(
+    () => ({
+      total: vendors.length,
+      verified: vendors.filter(
+        (v) => v.status === "active" || v.status === "approved",
+      ).length,
+      pending: vendors.filter((v) => v.status === "pending").length,
+      rejected: vendors.filter(
+        (v) =>
+          (v.status as string) === "rejected" ||
+          (v.status as string) === "flagged",
+      ).length,
+    }),
+    [vendors],
+  );
 
   // Filter vendors by tab
   const filteredByTab = useMemo(() => {
@@ -795,34 +1047,52 @@ function VendorPage() {
       value: stats.total.toString(),
       accent: "#0b100e",
       icon: Users,
-      subtitle: <span className="text-[11px] text-[#68726d]">All vendors added</span>,
+      subtitle: (
+        <span className="text-[11px] text-[#68726d]">All vendors added</span>
+      ),
     },
     {
       title: "Approved Vendors",
       value: stats.verified.toString(),
       accent: "#087f70",
       icon: BadgeCheck,
-      subtitle: <span className="text-[11px] text-[#68726d]">Vendors fully approved</span>,
+      subtitle: (
+        <span className="text-[11px] text-[#68726d]">
+          Vendors fully approved
+        </span>
+      ),
     },
     {
       title: "Approval Pending",
       value: stats.pending.toString(),
       accent: "#f0b132",
       icon: Clock,
-      subtitle: <span className="text-[11px] text-[#68726d]">Vendors who submitted onboarding</span>,
+      subtitle: (
+        <span className="text-[11px] text-[#68726d]">
+          Vendors who submitted onboarding
+        </span>
+      ),
     },
     {
       title: "Rejected Vendors",
       value: stats.rejected.toString(),
       accent: "#d33d44",
       icon: XCircle,
-      subtitle: <span className="text-[11px] text-[#68726d]">Total number of vendors rejected</span>,
+      subtitle: (
+        <span className="text-[11px] text-[#68726d]">
+          Total number of vendors rejected
+        </span>
+      ),
     },
   ];
 
   return (
     <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
-      <InviteVendorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} onSuccess={() => vendorsApi.refetch()} />
+      <InviteVendorModal
+        open={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        onSuccess={() => vendorsApi.refetch()}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
@@ -840,31 +1110,66 @@ function VendorPage() {
       </div>
 
       {/* Tabs + Table */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="flex-1 flex flex-col min-h-0 overflow-hidden"
+      >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
           <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
-            <TabsTrigger value="all"          className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">All Vendors</TabsTrigger>
-            <TabsTrigger value="verified"     className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">Approved</TabsTrigger>
-            <TabsTrigger value="invited"      className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">Invited</TabsTrigger>
-            <TabsTrigger value="under_review" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">Pending</TabsTrigger>
-            <TabsTrigger value="rejected"     className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full">Rejected</TabsTrigger>
+            <TabsTrigger
+              value="all"
+              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
+            >
+              All Vendors
+            </TabsTrigger>
+            <TabsTrigger
+              value="verified"
+              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
+            >
+              Approved
+            </TabsTrigger>
+            <TabsTrigger
+              value="invited"
+              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
+            >
+              Invited
+            </TabsTrigger>
+            <TabsTrigger
+              value="under_review"
+              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
+            >
+              Pending
+            </TabsTrigger>
+            <TabsTrigger
+              value="rejected"
+              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
+            >
+              Rejected
+            </TabsTrigger>
           </TabsList>
 
           {/* Search bar portals here */}
           <div id="tab-actions" className="flex items-center gap-2" />
         </div>
 
-        {["all", "verified", "invited", "under_review", "rejected"].map((tab) => (
-          <TabsContent key={tab} value={tab} className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden m-0">
-            <VendorTable
-              vendors={tab === activeTab ? filteredByTab : []}
-              isLoading={isLoading}
-              onAction={handleAction}
-              currentPage={page}
-              onPageChange={(newPage) => setPage(newPage)}
-            />
-          </TabsContent>
-        ))}
+        {["all", "verified", "invited", "under_review", "rejected"].map(
+          (tab) => (
+            <TabsContent
+              key={tab}
+              value={tab}
+              className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden m-0"
+            >
+              <VendorTable
+                vendors={tab === activeTab ? filteredByTab : []}
+                isLoading={isLoading}
+                onAction={handleAction}
+                currentPage={page}
+                onPageChange={(newPage) => setPage(newPage)}
+              />
+            </TabsContent>
+          ),
+        )}
       </Tabs>
     </div>
   );

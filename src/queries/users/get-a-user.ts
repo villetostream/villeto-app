@@ -1,4 +1,9 @@
-import { UseQueryOptions, UseQueryResult, useQuery } from "@tanstack/react-query";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  UseQueryOptions,
+  UseQueryResult,
+  useQuery,
+} from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
@@ -6,34 +11,33 @@ import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { User } from "@/features/auth/types";
 
 interface Response {
-    data: User
-    error: {
-        error: string;
-        message?: string;
-        success: boolean;
-    };
-    message: string;
-    status: number;
-    statusCode: number;
-    statusText: string;
+  data: User;
+  error: {
+    error: string;
+    message?: string;
+    success: boolean;
+  };
+  message: string;
+  status: number;
+  statusCode: number;
+  statusText: string;
 }
-type Payload = string | number
-
+type Payload = string | number;
 
 export const useGetAUsersApi = (
-    payload: Payload,
-    options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">
+  payload: Payload,
+  options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">,
 ): UseQueryResult<Response, Error> => {
-    const axiosInstance = useAxios();
+  const axiosInstance = useAxios();
 
-    return useQuery<Response, Error>({
-        queryKey: QUERY_KEYS.people.user(payload as string),
-        queryFn: async () => {
-            const apiUrl = `${API_KEYS.USER.USERS}${payload}`;
-            const response = await axiosInstance.get(apiUrl);
-            return response.data;
-        },
-        staleTime: STALE_TIMES.NORMAL,
-        ...options,
-    });
+  return useQuery<Response, Error>({
+    queryKey: workspaceQueryKey(QUERY_KEYS.people.user(payload as string)),
+    queryFn: async () => {
+      const apiUrl = `${API_KEYS.USER.USERS}${payload}`;
+      const response = await axiosInstance.get(apiUrl);
+      return response.data;
+    },
+    staleTime: STALE_TIMES.NORMAL,
+    ...options,
+  });
 };

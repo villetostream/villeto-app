@@ -1,7 +1,13 @@
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { logger } from "@/lib/logger";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { PersonalExpenseStatus } from "@/components/expenses/table/personalColumns";
-import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  UseQueryOptions,
+} from "@tanstack/react-query";
 import { API_KEYS } from "@/lib/constants/apis";
 import { useAxios } from "@/hooks/useAxios";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -14,8 +20,12 @@ import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
 /** Invalidate all personal expense list queries (submitted + drafts). */
 export function invalidatePersonalExpenseQueries(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.reports("own") });
-  queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.drafts });
+  queryClient.invalidateQueries({
+    queryKey: workspaceQueryKey(QUERY_KEYS.expenses.reports("own")),
+  });
+  queryClient.invalidateQueries({
+    queryKey: workspaceQueryKey(QUERY_KEYS.expenses.drafts),
+  });
 }
 
 /** Invalidate all expense queries across all scopes (company, team, personal, drafts, details). */
@@ -81,9 +91,22 @@ export interface CompanyExpenseReport {
   deletedAt: string | null;
   reportId: string;
   reportTitle: string;
-  status: "draft" | "submitted" | "pending" | "pending_policy_check" | "approved" | "declined" | "rejected" | "paid";
+  status:
+    | "draft"
+    | "submitted"
+    | "pending"
+    | "pending_policy_check"
+    | "approved"
+    | "declined"
+    | "rejected"
+    | "paid";
   /** Where the report sits in the approval chain — shown to managers */
-  approvalStatus?: "pending_approval" | "approved" | "rejected" | "declined" | string;
+  approvalStatus?:
+    | "pending_approval"
+    | "approved"
+    | "rejected"
+    | "declined"
+    | string;
   /** Whether the report passed automated policy checks */
   policyStatus?: "passed" | "failed" | string;
   costCenter: string;
@@ -104,9 +127,22 @@ export interface ExpenseItem {
   categoryName: string | null;
   receiptUrl: string;
   receiptMimeType: string;
-  status: "draft" | "submitted" | "pending" | "pending_policy_check" | "approved" | "declined" | "rejected" | "paid";
+  status:
+    | "draft"
+    | "submitted"
+    | "pending"
+    | "pending_policy_check"
+    | "approved"
+    | "declined"
+    | "rejected"
+    | "paid";
   /** Where the report sits in the approval chain — shown to managers */
-  approvalStatus?: "pending_approval" | "approved" | "rejected" | "declined" | string;
+  approvalStatus?:
+    | "pending_approval"
+    | "approved"
+    | "rejected"
+    | "declined"
+    | string;
   /** Whether the report passed automated policy checks */
   policyStatus?: "passed" | "failed" | string;
   transactionDate?: string;
@@ -116,7 +152,9 @@ export interface ExpenseItem {
   expenseType?: "individual" | "split";
   splitParticipants?: string[];
   splitAllocationMode?: "equal" | "manual";
-  splitAllocations?: { amount: number; userId: string }[] | Record<string, string>;
+  splitAllocations?:
+    | { amount: number; userId: string }[]
+    | Record<string, string>;
 }
 
 export interface PersonalExpenseDetailResponse {
@@ -199,14 +237,24 @@ export const usePersonalExpenses = (
   sortBy?: string,
   sortOrder?: "asc" | "desc",
   enabled: boolean = true,
-  options?: Omit<UseQueryOptions<PersonalExpensesResponse, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<PersonalExpensesResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
 ) => {
   const axios = useAxios();
   const authReady = useAuthStore((state) => !state.isLoading);
   const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
-    queryKey: [...QUERY_KEYS.expenses.reports("own"), page, limit, status, sortBy, sortOrder],
+    queryKey: workspaceQueryKey([
+      ...QUERY_KEYS.expenses.reports("own"),
+      page,
+      limit,
+      status,
+      sortBy,
+      sortOrder,
+    ]),
     enabled: enabled && authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -218,7 +266,7 @@ export const usePersonalExpenses = (
       if (sortOrder) params.append("sortOrder", sortOrder);
 
       const response = await axios.get<PersonalExpensesApiResponse>(
-        `reports?${params.toString()}`
+        `reports?${params.toString()}`,
       );
       return {
         reports: response.data.data,
@@ -236,14 +284,23 @@ export const useDraftExpenses = (
   limit: number = 10,
   sortBy?: string,
   sortOrder?: "asc" | "desc",
-  options?: Omit<UseQueryOptions<PersonalExpensesResponse, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<PersonalExpensesResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
 ) => {
   const axios = useAxios();
   const authReady = useAuthStore((state) => !state.isLoading);
   const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
-    queryKey: [...QUERY_KEYS.expenses.drafts, page, limit, sortBy, sortOrder],
+    queryKey: workspaceQueryKey([
+      ...QUERY_KEYS.expenses.drafts,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+    ]),
     enabled: authReady && !!accessToken,
     queryFn: async () => {
       // Ensure we don't send scope/status to the drafts endpoint if it expects them as path/intrinsic
@@ -254,28 +311,37 @@ export const useDraftExpenses = (
       if (sortOrder) params.append("sortOrder", sortOrder);
 
       const response = await axios.get<any>(
-        `reports/drafts?${params.toString()}`
+        `reports/drafts?${params.toString()}`,
       );
-      
+
       const topLevelData = response.data?.data || {};
-      const reportsArray = Array.isArray(topLevelData.data) ? topLevelData.data : (Array.isArray(topLevelData) ? topLevelData : []);
+      const reportsArray = Array.isArray(topLevelData.data)
+        ? topLevelData.data
+        : Array.isArray(topLevelData)
+          ? topLevelData
+          : [];
       const meta = topLevelData.meta || response.data?.meta;
-      
+
       // Map draft fields to match PersonalExpenseReport structure
       const reports = reportsArray.map((r: any) => {
-        const totalAmount = r.totalAmount ?? (Array.isArray(r.expensesPayload)
-          ? r.expensesPayload.reduce((sum: number, exp: any) => sum + (Number(exp.amount) || 0), 0)
-          : 0);
+        const totalAmount =
+          r.totalAmount ??
+          (Array.isArray(r.expensesPayload)
+            ? r.expensesPayload.reduce(
+                (sum: number, exp: any) => sum + (Number(exp.amount) || 0),
+                0,
+              )
+            : 0);
 
         return {
           ...r,
           status: "draft" as const,
           reportId: r.reportId || r.draftId, // Map draftId to reportId so the Edit link works
           totalAmount: totalAmount,
-          costCenter: r.costCenter || "Uncategorized", 
+          costCenter: r.costCenter || "Uncategorized",
         };
       });
-      
+
       return {
         reports,
         meta: meta,
@@ -298,14 +364,23 @@ export const useCompanyExpenses = (
   sortBy?: string,
   sortOrder?: "asc" | "desc",
   enabled: boolean = true,
-  options?: Omit<UseQueryOptions<CompanyExpensesResponse, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<CompanyExpensesResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
 ) => {
   const axios = useAxios();
   const authReady = useAuthStore((state) => !state.isLoading);
   const accessToken = useAuthStore((state) => state.accessToken);
 
   return useQuery({
-    queryKey: [...QUERY_KEYS.expenses.reports(scope), page, limit, sortBy, sortOrder],
+    queryKey: workspaceQueryKey([
+      ...QUERY_KEYS.expenses.reports(scope),
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+    ]),
     enabled: !!scope && enabled && authReady && !!accessToken,
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -316,7 +391,7 @@ export const useCompanyExpenses = (
       if (sortOrder) params.append("sortOrder", sortOrder);
 
       const response = await axios.get<CompanyExpensesApiResponse>(
-        `reports?${params.toString()}`
+        `reports?${params.toString()}`,
       );
       return {
         reports: response.data.data,
@@ -333,10 +408,10 @@ export const usePersonalExpenseDetail = (reportId: string) => {
   const axios = useAxios();
 
   return useQuery({
-    queryKey: QUERY_KEYS.expenses.report(reportId),
+    queryKey: workspaceQueryKey(QUERY_KEYS.expenses.report(reportId)),
     queryFn: async () => {
       const response = await axios.get<PersonalExpenseDetailApiResponse>(
-        `${API_KEYS.EXPENSE.PERSONAL_EXPENSES}/${reportId}`
+        `${API_KEYS.EXPENSE.PERSONAL_EXPENSES}/${reportId}`,
       );
       // Extract the data property from the API response
       return response.data.data;
@@ -373,7 +448,10 @@ export const useSubmitExpense = () => {
     onError: (error: unknown) => {
       logger.error("Error submitting expenses:", error);
       toast.error(
-        getApiErrorMessage(error, "Failed to submit expenses. Please try again.")
+        getApiErrorMessage(
+          error,
+          "Failed to submit expenses. Please try again.",
+        ),
       );
     },
   });
@@ -389,10 +467,7 @@ export const useSaveExpenseAsDraft = () => {
       // Ensure status is 'draft' for saving as draft
       const draftPayload = { ...payload, status: "draft" };
       // Assuming drafts also go to the same reports endpoint
-      const response = await axios.post(
-        API_KEYS.EXPENSE.REPORTS,
-        draftPayload,
-      );
+      const response = await axios.post(API_KEYS.EXPENSE.REPORTS, draftPayload);
       return response.data;
     },
     onSuccess: (_data, _variables) => {
@@ -401,7 +476,9 @@ export const useSaveExpenseAsDraft = () => {
     },
     onError: (error: unknown) => {
       logger.error("Error saving draft:", error);
-      toast.error(getApiErrorMessage(error, "Failed to save draft. Please try again."));
+      toast.error(
+        getApiErrorMessage(error, "Failed to save draft. Please try again."),
+      );
     },
   });
 };
@@ -411,10 +488,10 @@ export const useCompanyExpenseDetail = (reportId: string) => {
   const axios = useAxios();
 
   return useQuery({
-    queryKey: QUERY_KEYS.expenses.companyReport(reportId),
+    queryKey: workspaceQueryKey(QUERY_KEYS.expenses.companyReport(reportId)),
     queryFn: async () => {
       const response = await axios.get<PersonalExpenseDetailApiResponse>(
-        `reports/${reportId}`
+        `reports/${reportId}`,
       );
       // Extract the data property from the API response
       return response.data.data;
@@ -441,24 +518,30 @@ export const useUpdateCompanyExpenseStatus = () => {
     }) => {
       let endpoint = `reports/${reportId}`;
       let data = {};
-      
+
       if (status === "approved") {
         endpoint = `reports/${reportId}/approve`;
       } else if (status === "rejected" || status === "declined") {
         endpoint = `reports/${reportId}/reject`;
         data = { reason };
       }
-      
+
       const response = await axios.patch(endpoint, data);
       return response.data;
     },
     onSuccess: (data, variables) => {
-      const statusLabel = variables.status === "approved" ? "Approved" : "Rejected";
+      const statusLabel =
+        variables.status === "approved" ? "Approved" : "Rejected";
       toast.success(`Report ${statusLabel.toLowerCase()} successfully.`);
       // Invalidate all expense queries across scopes (company, team, personal, drafts)
       invalidateAllExpenseQueries(queryClient);
-      queryClient.invalidateQueries({ 
-        queryKey: QUERY_KEYS.expenses.companyReport(variables.reportId) 
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.companyReports),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(
+          QUERY_KEYS.expenses.companyReport(variables.reportId),
+        ),
       });
       queryClient.invalidateQueries({ 
         queryKey: QUERY_KEYS.expenses.report(variables.reportId) 
@@ -466,7 +549,9 @@ export const useUpdateCompanyExpenseStatus = () => {
     },
     onError: (error: unknown) => {
       logger.error("Error updating expense status:", error);
-      toast.error(getApiErrorMessage(error, "Failed to update status. Please try again."));
+      toast.error(
+        getApiErrorMessage(error, "Failed to update status. Please try again."),
+      );
     },
   });
 };

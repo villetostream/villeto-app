@@ -1,19 +1,40 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
-  PlusCircle, ShieldCheck, MoreHorizontal, Pencil, Shield, Trash2,
-  Search, RefreshCcw,
-  Eye, Archive, X, UserCircle, FileText, Clock, Tag, Loader2, XCircle
+  PlusCircle,
+  ShieldCheck,
+  MoreHorizontal,
+  Pencil,
+  Shield,
+  Trash2,
+  Search,
+  RefreshCcw,
+  Eye,
+  Archive,
+  X,
+  UserCircle,
+  FileText,
+  Clock,
+  Tag,
+  Loader2,
+  XCircle,
 } from "lucide-react";
 import { ReviewPolicyModal } from "@/components/policies/ReviewPolicyModal";
 import { getPolicyRejection } from "@/lib/policies/rejection-store";
-import PolicyCreationModal, { type CreatedPolicyData } from "@/components/policies/PolicyCreationModal";
+import PolicyCreationModal, {
+  type CreatedPolicyData,
+} from "@/components/policies/PolicyCreationModal";
 import SimpleAddExpenseCategoryDialog from "@/components/policies/SimpleAddExpenseCategoryDialog";
 import { ProcurementPolicySection } from "@/components/policies/procurement/ProcurementPolicySection";
 import { ProcurementPolicyWizard } from "@/components/policies/procurement/ProcurementPolicyWizard";
-import { PolicySummaryStrip, PolicyWorkspaceHeader, type PolicySummaryItem } from "@/components/policies/PolicyWorkspace";
+import {
+  PolicySummaryStrip,
+  PolicyWorkspaceHeader,
+  type PolicySummaryItem,
+} from "@/components/policies/PolicyWorkspace";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { DataTable } from "@/components/datatable";
 import { ColumnDef } from "@tanstack/react-table";
@@ -23,7 +44,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,11 +62,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
-import { useGetExpenseCategoriesApi, useGetExpenseCategoryCoverageAllApi } from "@/queries/companies/get-expense-categories";
+import {
+  useGetExpenseCategoriesApi,
+  useGetExpenseCategoryCoverageAllApi,
+} from "@/queries/companies/get-expense-categories";
 import { useDeleteCategoryApi } from "@/queries/companies/delete-category";
 import { useGetPoliciesApi } from "@/queries/companies/get-policies";
 import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
-import { useDeleteExpensePolicyDraft, useGetExpensePolicyDraft } from "@/queries/companies/expense-policy-drafts";
+import {
+  useDeleteExpensePolicyDraft,
+  useGetExpensePolicyDraft,
+} from "@/queries/companies/expense-policy-drafts";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useGetEligibleRoles } from "@/queries/policies/governance";
@@ -67,8 +99,12 @@ import { StatusBadge } from "@/components/ui/status-badge";
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 
-
-type PolicyStatus = "active" | "pending" | "draft" | "inactive" | "pending_approval";
+type PolicyStatus =
+  | "active"
+  | "pending"
+  | "draft"
+  | "inactive"
+  | "pending_approval";
 
 interface Policy {
   id: string;
@@ -118,7 +154,11 @@ type ExpenseCategoryDetails = {
 
 function _todayStr() {
   const d = new Date();
-  return [String(d.getDate()).padStart(2,"0"), String(d.getMonth()+1).padStart(2,"0"), d.getFullYear()].join("-");
+  return [
+    String(d.getDate()).padStart(2, "0"),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    d.getFullYear(),
+  ].join("-");
 }
 
 /* ─── Helpers ───────────────────────────────────────────────────────────────── */
@@ -127,7 +167,8 @@ function formatUser(userObj: unknown, fallbackStr?: string) {
   if (!userObj) return fallbackStr || "—";
   if (typeof userObj === "string") return userObj || fallbackStr || "—";
   const user = asRecord(userObj);
-  const fullName = `${pickString(user, "firstName")} ${pickString(user, "lastName")}`.trim();
+  const fullName =
+    `${pickString(user, "firstName")} ${pickString(user, "lastName")}`.trim();
   return fullName || pickString(user, "email") || fallbackStr || "Unknown User";
 }
 
@@ -148,47 +189,96 @@ function ActionMenu({
   onArchive?: () => void;
   onDeleteDraft?: () => void;
 }) {
-  const canDelete = useAuthStore(s => s.can)('expense.category', 'manage');
-  const canCreatePolicy = useAuthStore(s => s.can)('policy', 'create');
-  const canArchivePolicy = useAuthStore(s => s.can)('policy', 'deactivate');
+  const canDelete = useAuthStore((s) => s.can)("expense.category", "manage");
+  const canCreatePolicy = useAuthStore((s) => s.can)("policy", "create");
+  const canArchivePolicy = useAuthStore((s) => s.can)("policy", "deactivate");
 
   return (
     <div className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-[#f9faf9]/60 transition-colors cursor-pointer">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 hover:bg-[#f9faf9]/60 transition-colors cursor-pointer"
+          >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden">
+        <DropdownMenuContent
+          align="end"
+          className="w-[210px] bg-white rounded-[20px] border border-black/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.08)] py-1.5 overflow-hidden"
+        >
           {onView && (
-            <DropdownMenuItem onClick={onView} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer">
-              <Eye className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} /> View Details
+            <DropdownMenuItem
+              onClick={onView}
+              className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
+            >
+              <Eye
+                className="w-[17px] h-[17px] text-[#68726d] shrink-0"
+                strokeWidth={1.5}
+              />{" "}
+              View Details
             </DropdownMenuItem>
           )}
           {onCreatePolicy && canCreatePolicy && (
-            <DropdownMenuItem onClick={onCreatePolicy} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer">
-              <Shield className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} /> Create policy
+            <DropdownMenuItem
+              onClick={onCreatePolicy}
+              className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
+            >
+              <Shield
+                className="w-[17px] h-[17px] text-[#68726d] shrink-0"
+                strokeWidth={1.5}
+              />{" "}
+              Create policy
             </DropdownMenuItem>
           )}
           {onEdit && (
-            <DropdownMenuItem onClick={onEdit} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer">
-              <Pencil className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} /> Edit
+            <DropdownMenuItem
+              onClick={onEdit}
+              className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
+            >
+              <Pencil
+                className="w-[17px] h-[17px] text-[#68726d] shrink-0"
+                strokeWidth={1.5}
+              />{" "}
+              Edit
             </DropdownMenuItem>
           )}
           {onArchive && canArchivePolicy && (
-            <DropdownMenuItem onClick={onArchive} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer">
-              <Archive className="w-[17px] h-[17px] text-[#68726d] shrink-0" strokeWidth={1.5} /> Archive Policy
+            <DropdownMenuItem
+              onClick={onArchive}
+              className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-foreground hover:bg-[#f9faf9]/40 transition-colors border-b border-black/[0.06]/50 cursor-pointer"
+            >
+              <Archive
+                className="w-[17px] h-[17px] text-[#68726d] shrink-0"
+                strokeWidth={1.5}
+              />{" "}
+              Archive Policy
             </DropdownMenuItem>
           )}
           {onDeleteDraft && (
-            <DropdownMenuItem onClick={onDeleteDraft} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer text-destructive">
-              <Trash2 className="w-[17px] h-[17px] text-destructive shrink-0" strokeWidth={1.5} /> Delete Draft
+            <DropdownMenuItem
+              onClick={onDeleteDraft}
+              className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer text-destructive"
+            >
+              <Trash2
+                className="w-[17px] h-[17px] text-destructive shrink-0"
+                strokeWidth={1.5}
+              />{" "}
+              Delete Draft
             </DropdownMenuItem>
           )}
           {onDelete && canDelete && (
-            <DropdownMenuItem onClick={onDelete} className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer text-destructive">
-              <Trash2 className="w-[17px] h-[17px] text-destructive shrink-0" strokeWidth={1.5} /> Delete Category
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer text-destructive"
+            >
+              <Trash2
+                className="w-[17px] h-[17px] text-destructive shrink-0"
+                strokeWidth={1.5}
+              />{" "}
+              Delete Category
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
@@ -207,18 +297,28 @@ function ExpenseCategoryDetailsModal({
   onClose: () => void;
 }) {
   const [showAllPolicies, setShowAllPolicies] = useState(false);
-  
+
   if (!category && !isLoading) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[500px] flex flex-col" style={{ maxHeight: "92vh" }}>
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-[500px] flex flex-col"
+        style={{ maxHeight: "92vh" }}
+      >
         {/* Header */}
         <div className="px-6 pt-6 shrink-0 flex justify-between items-start">
           <div>
-            <h2 className="text-lg font-bold text-[#0b100e] leading-tight">Category Details</h2>
-            <p className="text-xs text-[#68726d] mt-1">Review the details and configuration of this category.</p>
+            <h2 className="text-lg font-bold text-[#0b100e] leading-tight">
+              Category Details
+            </h2>
+            <p className="text-xs text-[#68726d] mt-1">
+              Review the details and configuration of this category.
+            </p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-[#f9faf9]/40 hover:bg-[#f9faf9]/70 flex items-center justify-center transition-colors shrink-0 mt-0.5">
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-[#f9faf9]/40 hover:bg-[#f9faf9]/70 flex items-center justify-center transition-colors shrink-0 mt-0.5"
+          >
             <X className="w-4 h-4 text-[#68726d]" />
           </button>
         </div>
@@ -228,21 +328,36 @@ function ExpenseCategoryDetailsModal({
           {isLoading ? (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><div className="h-3 w-20 animate-pulse bg-[#f0f2f1] rounded" /><div className="h-5 w-32 animate-pulse bg-[#f0f2f1] rounded" /></div>
-                <div className="space-y-2 items-end flex flex-col"><div className="h-3 w-24 animate-pulse bg-[#f0f2f1] rounded" /><div className="h-6 w-28 animate-pulse bg-[#f0f2f1] rounded-full" /></div>
+                <div className="space-y-2">
+                  <div className="h-3 w-20 animate-pulse bg-[#f0f2f1] rounded" />
+                  <div className="h-5 w-32 animate-pulse bg-[#f0f2f1] rounded" />
+                </div>
+                <div className="space-y-2 items-end flex flex-col">
+                  <div className="h-3 w-24 animate-pulse bg-[#f0f2f1] rounded" />
+                  <div className="h-6 w-28 animate-pulse bg-[#f0f2f1] rounded-full" />
+                </div>
               </div>
               <div className="h-px bg-black/[0.04]" />
-              <div className="space-y-2"><div className="h-3 w-20 animate-pulse bg-[#f0f2f1] rounded" /><div className="h-4 w-full animate-pulse bg-[#f0f2f1] rounded" /></div>
+              <div className="space-y-2">
+                <div className="h-3 w-20 animate-pulse bg-[#f0f2f1] rounded" />
+                <div className="h-4 w-full animate-pulse bg-[#f0f2f1] rounded" />
+              </div>
             </div>
           ) : category ? (
             <>
               <div className="grid grid-cols-[1fr_auto] gap-6">
                 <div>
-                  <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-1.5">Category Name</p>
-                  <p className="text-[14px] font-semibold text-[#0b100e]">{category.name}</p>
+                  <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-1.5">
+                    Category Name
+                  </p>
+                  <p className="text-[14px] font-semibold text-[#0b100e]">
+                    {category.name}
+                  </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-1.5">Policy Status</p>
+                  <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-1.5">
+                    Policy Status
+                  </p>
                   <span
                     className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${
                       category.isPolicyAttached
@@ -250,20 +365,28 @@ function ExpenseCategoryDetailsModal({
                         : "bg-[#f4f7f5] text-[#68726d]"
                     }`}
                   >
-                    {category.isPolicyAttached ? "Policy Attached" : "No Policy"}
+                    {category.isPolicyAttached
+                      ? "Policy Attached"
+                      : "No Policy"}
                   </span>
                 </div>
               </div>
-              
+
               <div className="h-px bg-black/[0.04]" />
-              
+
               <div>
-                <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-1.5">Description</p>
+                <p className="text-[11px] font-bold text-[#68726d] uppercase tracking-wider mb-1.5">
+                  Description
+                </p>
                 <p className="text-[13px] text-[#53615c] leading-relaxed">
-                  {category.description ?? <span className="italic text-[#a3aaa6]">No description provided</span>}
+                  {category.description ?? (
+                    <span className="italic text-[#a3aaa6]">
+                      No description provided
+                    </span>
+                  )}
                 </p>
               </div>
-              
+
               {category.policies && category.policies.length > 0 && (
                 <>
                   <div className="h-px bg-black/[0.04]" />
@@ -278,7 +401,8 @@ function ExpenseCategoryDetailsModal({
                         .slice(0, showAllPolicies ? undefined : 5)
                         .map((pol, i: number) => {
                           const policy = asRecord(pol);
-                          const name = pickString(policy, "name") || `Policy ${i + 1}`;
+                          const name =
+                            pickString(policy, "name") || `Policy ${i + 1}`;
                           return (
                             <TooltipProvider key={i} delayDuration={300}>
                               <Tooltip>
@@ -295,22 +419,25 @@ function ExpenseCategoryDetailsModal({
                                     </span>
                                   </div>
                                 </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-[300px] break-words">
+                                <TooltipContent
+                                  side="top"
+                                  className="max-w-[300px] break-words"
+                                >
                                   <p>{name}</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           );
                         })}
-                      
+
                       {category.policies.length > 5 && (
                         <button
                           type="button"
                           onClick={() => setShowAllPolicies(!showAllPolicies)}
                           className="mt-1 text-[12px] font-semibold text-[#087f70] hover:text-[#066357] transition-colors text-left inline-flex w-max"
                         >
-                          {showAllPolicies 
-                            ? "Show less" 
+                          {showAllPolicies
+                            ? "Show less"
                             : `Show all ${category.policies.length} policies`}
                         </button>
                       )}
@@ -318,20 +445,29 @@ function ExpenseCategoryDetailsModal({
                   </div>
                 </>
               )}
-              
+
               <div className="h-px bg-black/[0.04]" />
-              
+
               <div className="grid grid-cols-2 gap-6 bg-[#f9faf9] rounded-2xl p-4 border border-black/[0.03]">
                 <div>
-                  <p className="text-[10px] font-bold text-[#84908a] uppercase tracking-wider mb-1">Created By</p>
+                  <p className="text-[10px] font-bold text-[#84908a] uppercase tracking-wider mb-1">
+                    Created By
+                  </p>
                   <p className="text-[12px] font-semibold text-[#0b100e]">
                     {formatUser(category.createdBy)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-[#84908a] uppercase tracking-wider mb-1">Created On</p>
+                  <p className="text-[10px] font-bold text-[#84908a] uppercase tracking-wider mb-1">
+                    Created On
+                  </p>
                   <p className="text-[12px] font-semibold text-[#0b100e]">
-                    {category.createdAt ? new Date(category.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "—"}
+                    {category.createdAt
+                      ? new Date(category.createdAt).toLocaleDateString(
+                          "en-US",
+                          { year: "numeric", month: "long", day: "numeric" },
+                        )
+                      : "—"}
                   </p>
                 </div>
               </div>
@@ -343,21 +479,31 @@ function ExpenseCategoryDetailsModal({
   );
 }
 
-
 /* ─── Policy Details Modal ───────────────────────────────────────────────────── */
 
-function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft, onSubmitDraft }: {
-  policy: Policy | null; onClose: () => void;
-  onEdit: (p: Policy) => void; onArchive: (p: Policy) => void;
+function PolicyDetailsModal({
+  policy,
+  onClose,
+  onEdit,
+  onArchive,
+  onDeleteDraft,
+  onSubmitDraft,
+}: {
+  policy: Policy | null;
+  onClose: () => void;
+  onEdit: (p: Policy) => void;
+  onArchive: (p: Policy) => void;
   onDeleteDraft: (draftId: string) => void;
   onSubmitDraft?: (p: Policy) => void;
 }) {
-  const canDeactivate = useAuthStore(s => s.can)('policy', 'deactivate');
-  const canUpdate = useAuthStore(s => s.can)('policy', 'update');
+  const canDeactivate = useAuthStore((s) => s.can)("policy", "deactivate");
+  const canUpdate = useAuthStore((s) => s.can)("policy", "update");
   const isDraft = policy?.status === "draft";
-  const { data: activeDetailData, isLoading: isActiveLoading } = useGetPolicyDetailsApi(isDraft ? null : policy?.id || null);
-  const { data: draftDetailData, isLoading: isDraftLoading } = useGetExpensePolicyDraft(isDraft ? policy?.id || null : null);
-  
+  const { data: activeDetailData, isLoading: isActiveLoading } =
+    useGetPolicyDetailsApi(isDraft ? null : policy?.id || null);
+  const { data: draftDetailData, isLoading: isDraftLoading } =
+    useGetExpensePolicyDraft(isDraft ? policy?.id || null : null);
+
   const detailData = isDraft ? draftDetailData : activeDetailData;
   const isLoading = isDraft ? isDraftLoading : isActiveLoading;
   const fullPolicy = detailData?.data;
@@ -367,7 +513,8 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
 
   if (!policy) return null;
 
-  const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
+  const capitalizeName = (n: string) =>
+    n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
 
   const formatUserRole = (userObj: unknown) => {
     if (!userObj || typeof userObj === "string") return "";
@@ -378,7 +525,9 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
       pickString(villetoRole, "name") ||
       pickString(role, "name") ||
       pickString(user, "jobTitle", "position");
-    return roleName.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+    return roleName
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c: string) => c.toUpperCase());
   };
 
   const mapTimeframe = (tf?: string) => {
@@ -392,41 +541,62 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
   };
 
   const renderScopeDetails = () => {
-    const sType = getString(asRecord(fullPolicy).scopeType) || fullPolicy?.scope?.type;
-    if (sType === "all" || sType === "all_employees" || (fullPolicy as any)?.isApplicableToAllRoles) {
+    const sType =
+      getString(asRecord(fullPolicy).scopeType) || fullPolicy?.scope?.type;
+    if (
+      sType === "all" ||
+      sType === "all_employees" ||
+      (fullPolicy as any)?.isApplicableToAllRoles
+    ) {
       return <span className="capitalize">All Employees</span>;
     }
-    
-    if (!fullPolicy) return <span className="capitalize">{policy.appliedTo}</span>;
+
+    if (!fullPolicy)
+      return <span className="capitalize">{policy.appliedTo}</span>;
 
     // Use arrays from the response
     const fp = fullPolicy as any;
-    const depts = (fp.applicableDepartments || []).map((d: any) => d.departmentName || d.name);
-    const jobGrades = (fp.applicableJobGrades || []).map((j: any) => j.name || j.code);
-    const mgmtLevels = (fp.applicableManagementLevels || []).map((m: any) => m.name || m.code);
-    
-    if (depts.length === 0 && jobGrades.length === 0 && mgmtLevels.length === 0) {
+    const depts = (fp.applicableDepartments || []).map(
+      (d: any) => d.departmentName || d.name,
+    );
+    const jobGrades = (fp.applicableJobGrades || []).map(
+      (j: any) => j.name || j.code,
+    );
+    const mgmtLevels = (fp.applicableManagementLevels || []).map(
+      (m: any) => m.name || m.code,
+    );
+
+    if (
+      depts.length === 0 &&
+      jobGrades.length === 0 &&
+      mgmtLevels.length === 0
+    ) {
       return <span className="capitalize">Specific Employees</span>;
     }
 
     return (
-      <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
+      <div
+        className="flex flex-col gap-1.5 max-h-32 overflow-y-auto pr-1"
+        style={{ scrollbarWidth: "thin" }}
+      >
         {depts.length > 0 && (
           <p className="text-[13px] leading-snug">
             <span className="text-[#84908a] font-normal mr-1">Department:</span>
-            {depts.join(', ')}
+            {depts.join(", ")}
           </p>
         )}
         {mgmtLevels.length > 0 && (
           <p className="text-[13px] leading-snug">
-            <span className="text-[#84908a] font-normal mr-1">Management Level:</span>
-            {mgmtLevels.join(', ')}
+            <span className="text-[#84908a] font-normal mr-1">
+              Management Level:
+            </span>
+            {mgmtLevels.join(", ")}
           </p>
         )}
         {jobGrades.length > 0 && (
           <p className="text-[13px] leading-snug">
             <span className="text-[#84908a] font-normal mr-1">Job Grade:</span>
-            {jobGrades.join(', ')}
+            {jobGrades.join(", ")}
           </p>
         )}
       </div>
@@ -435,16 +605,22 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
 
   const formatDate = (dateStr?: string, fallback?: string) => {
     if (!dateStr) return fallback || "—";
-    try { return new Date(dateStr).toISOString().split("T")[0]; } catch { return fallback || "—"; }
+    try {
+      return new Date(dateStr).toISOString().split("T")[0];
+    } catch {
+      return fallback || "—";
+    }
   };
 
-  const policyName   = fullPolicy?.name   || policy.name;
+  const policyName = fullPolicy?.name || policy.name;
   const policyStatus = fullPolicy?.status || policy.status;
   const policyVersion = (fullPolicy as any)?.version || policy.version;
-  const approvers    = (fullPolicy as any)?.approvers || policy.approvers || [];
-  const createdAt    = (fullPolicy as any)?.createdAt;
-  const approvedBy   = (fullPolicy as any)?.approvedBy || (policy as any)?.approvedBy;
-  const approvedAt   = (fullPolicy as any)?.approvedAt || (policy as any)?.approvedAt;
+  const approvers = (fullPolicy as any)?.approvers || policy.approvers || [];
+  const createdAt = (fullPolicy as any)?.createdAt;
+  const approvedBy =
+    (fullPolicy as any)?.approvedBy || (policy as any)?.approvedBy;
+  const approvedAt =
+    (fullPolicy as any)?.approvedAt || (policy as any)?.approvedAt;
 
   const policyId = policy.id || (policy as any).policyId;
   const storedRejection = getPolicyRejection(policyId);
@@ -521,7 +697,10 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                 <div className="h-3 w-36 animate-pulse rounded-[4px] bg-[#f0f2f1] mb-3" />
                 <div className="space-y-2">
                   {[1, 2].map((i) => (
-                    <div key={i} className="rounded-[14px] border border-black/[0.06] p-3.5">
+                    <div
+                      key={i}
+                      className="rounded-[14px] border border-black/[0.06] p-3.5"
+                    >
                       <div className="flex items-center gap-2 mb-2">
                         <div className="h-4 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
                         <div className="h-5 w-20 animate-pulse rounded-full bg-[#f0f2f1]" />
@@ -550,7 +729,9 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                 <p className="text-[10px] font-bold text-[#68726d] uppercase tracking-[0.12em] mb-2.5">
                   Applies To
                 </p>
-                <div className="text-sm text-[#0b100e]/80 leading-relaxed">{renderScopeDetails()}</div>
+                <div className="text-sm text-[#0b100e]/80 leading-relaxed">
+                  {renderScopeDetails()}
+                </div>
               </div>
 
               {/* EXPENSE CATEGORY */}
@@ -560,22 +741,30 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {(fullPolicy?.expenseCategories || []).length > 0 ? (
-                    (fullPolicy?.expenseCategories || []).map((cat, i: number) => {
-                      const category = isRecord(cat) ? cat : asRecord({ value: cat });
-                      const label =
-                        typeof cat === "string"
+                    (fullPolicy?.expenseCategories || []).map(
+                      (cat, i: number) => {
+                        const category = isRecord(cat)
                           ? cat
-                          : pickString(category, "name", "category") || String(cat);
-                      return (
-                      <span
-                        key={i}
-                        className="px-3 py-1 rounded-full border border-black/[0.06]/60 bg-[#f9faf9]/30 text-foreground/70 text-xs font-medium"
-                      >
-                        {label}
-                      </span>
-                    );})
+                          : asRecord({ value: cat });
+                        const label =
+                          typeof cat === "string"
+                            ? cat
+                            : pickString(category, "name", "category") ||
+                              String(cat);
+                        return (
+                          <span
+                            key={i}
+                            className="px-3 py-1 rounded-full border border-black/[0.06]/60 bg-[#f9faf9]/30 text-foreground/70 text-xs font-medium"
+                          >
+                            {label}
+                          </span>
+                        );
+                      },
+                    )
                   ) : (
-                    <p className="text-sm text-[#68726d] italic">No specific categories attached.</p>
+                    <p className="text-sm text-[#68726d] italic">
+                      No specific categories attached.
+                    </p>
                   )}
                 </div>
               </div>
@@ -590,17 +779,24 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                     (fullPolicy?.rules ?? []).map((rawRule, i: number) => {
                       const r = asRecord(rawRule);
                       const isLimit = getString(r.type) === "spend_limit";
-                      const isBlock = getString(r.enforcementAction) === "block";
-                      const enforcement = isBlock ? "Hard Block" : "Soft Warning";
+                      const isBlock =
+                        getString(r.enforcementAction) === "block";
+                      const enforcement = isBlock
+                        ? "Hard Block"
+                        : "Soft Warning";
                       const currencyCode = pickString(r, "currency") || "NGN";
-                      const currencySymbol = currencyCode === "NGN" ? "₦" : currencyCode;
+                      const currencySymbol =
+                        currencyCode === "NGN" ? "₦" : currencyCode;
                       const description = isLimit
                         ? `Must not exceed ${currencySymbol}${Number(r.amount || 0).toLocaleString()}/${mapTimeframe(getOptionalString(r.timeUnit) || getOptionalString(r.time_unit) || getOptionalString(r.timeframe) || (fullPolicy as any)?.spendLimitPeriod)}`
-                        : (r.receiptAmountThreshold || r.threshold)
+                        : r.receiptAmountThreshold || r.threshold
                           ? `For transactions above ${currencySymbol}${Number(r.receiptAmountThreshold || r.threshold).toLocaleString()}`
                           : "Required for all transactions";
                       return (
-                        <div key={i} className="rounded-[14px] border border-black/[0.06] p-3.5">
+                        <div
+                          key={i}
+                          className="rounded-[14px] border border-black/[0.06] p-3.5"
+                        >
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-sm font-semibold text-[#0b100e]">
                               {isLimit ? "Spend Limit" : "Receipts requirement"}
@@ -615,7 +811,9 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                               {enforcement}
                             </span>
                           </div>
-                          <p className="text-xs text-[#68726d]">{description}</p>
+                          <p className="text-xs text-[#68726d]">
+                            {description}
+                          </p>
                         </div>
                       );
                     })
@@ -639,10 +837,15 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                 <p className="text-sm font-semibold text-[#0b100e] leading-tight">
                   {formatUser((fullPolicy as any)?.createdBy, policy.createdBy)}
                   {formatUserRole((fullPolicy as any)?.createdBy) && (
-                    <span className="text-[#68726d] font-normal"> ({formatUserRole((fullPolicy as any)?.createdBy)})</span>
+                    <span className="text-[#68726d] font-normal">
+                      {" "}
+                      ({formatUserRole((fullPolicy as any)?.createdBy)})
+                    </span>
                   )}
                 </p>
-                <p className="text-xs text-[#68726d] mt-0.5">{formatDate(createdAt, policy.date)}</p>
+                <p className="text-xs text-[#68726d] mt-0.5">
+                  {formatDate(createdAt, policy.date)}
+                </p>
               </div>
               {/* Approved / Rejected by */}
               {isRejected && (rejectedBy || storedRejection) ? (
@@ -662,16 +865,23 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                 </div>
               ) : approvedBy ? (
                 <div className="text-right">
-                  <p className="text-[11px] text-[#68726d] mb-1.5">Approved by</p>
+                  <p className="text-[11px] text-[#68726d] mb-1.5">
+                    Approved by
+                  </p>
                   <div className="space-y-2">
                     <div>
                       <p className="text-sm font-semibold text-[#0b100e] leading-tight">
                         {formatUser(approvedBy)}
                         {formatUserRole(approvedBy) && (
-                          <span className="text-[#68726d] font-normal"> ({formatUserRole(approvedBy)})</span>
+                          <span className="text-[#68726d] font-normal">
+                            {" "}
+                            ({formatUserRole(approvedBy)})
+                          </span>
                         )}
                       </p>
-                      <p className="text-xs text-[#68726d] mt-0.5">{formatDate(approvedAt)}</p>
+                      <p className="text-xs text-[#68726d] mt-0.5">
+                        {formatDate(approvedAt)}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -686,10 +896,15 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                           <p className="text-sm font-semibold text-[#0b100e] leading-tight">
                             {formatUser(a)}
                             {roleLabel && (
-                              <span className="text-[#68726d] font-normal"> ({roleLabel})</span>
+                              <span className="text-[#68726d] font-normal">
+                                {" "}
+                                ({roleLabel})
+                              </span>
                             )}
                           </p>
-                          <p className="text-xs text-[#68726d] mt-0.5">Pending</p>
+                          <p className="text-xs text-[#68726d] mt-0.5">
+                            Pending
+                          </p>
                         </div>
                       );
                     })}
@@ -706,7 +921,10 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
             <>
               {canUpdate && (
                 <button
-                  onClick={() => { onEdit(policy); onClose(); }}
+                  onClick={() => {
+                    onEdit(policy);
+                    onClose();
+                  }}
                   className="flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
                 >
                   Edit
@@ -714,7 +932,10 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
               )}
               {canUpdate && onSubmitDraft && (
                 <button
-                  onClick={() => { onSubmitDraft(policy); onClose(); }}
+                  onClick={() => {
+                    onSubmitDraft(policy);
+                    onClose();
+                  }}
                   className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
                 >
                   Submit
@@ -725,20 +946,28 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
             <>
               {canDeactivate && (
                 <button
-                  onClick={() => { onArchive(policy); onClose(); }}
+                  onClick={() => {
+                    onArchive(policy);
+                    onClose();
+                  }}
                   className="flex-1 h-11 rounded-full border border-[#087f70] text-[#087f70] text-sm font-semibold hover:bg-[#087f70]/5 transition-colors"
                 >
                   Move to Archive
                 </button>
               )}
-              {canUpdate && policyStatus !== "pending" && policyStatus !== "pending_approval" && (
-                <button
-                  onClick={() => { onEdit(policy); onClose(); }}
-                  className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-                >
-                  Edit
-                </button>
-              )}
+              {canUpdate &&
+                policyStatus !== "pending" &&
+                policyStatus !== "pending_approval" && (
+                  <button
+                    onClick={() => {
+                      onEdit(policy);
+                      onClose();
+                    }}
+                    className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                  >
+                    Edit
+                  </button>
+                )}
             </>
           )}
         </div>
@@ -746,7 +975,6 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
     </div>
   );
 }
-
 
 /* ─── Page ───────────────────────────────────────────────────────────────────── */
 
@@ -758,56 +986,72 @@ function PoliciesPage() {
   const { user } = useAuthStore();
   const tabFromUrl = searchParams.get("tab");
   const activeTab: "policies" | "expense" | "archived" =
-    tabFromUrl === "expense" || tabFromUrl === "policies" || tabFromUrl === "archived"
+    tabFromUrl === "expense" ||
+    tabFromUrl === "policies" ||
+    tabFromUrl === "archived"
       ? tabFromUrl
       : "policies";
 
-  const switchTab = useCallback((tab: "policies" | "expense" | "archived") => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", tab);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [router, searchParams, pathname]);
+  const switchTab = useCallback(
+    (tab: "policies" | "expense" | "archived") => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", tab);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams, pathname],
+  );
 
   // Top-level policy type toggle (Expenses Policy vs Procurement Policy).
   // Procurement policies are UI-only for now — no backend/endpoints exist
   // for them yet, so their data lives in local state below.
-  const policyType: "expense" | "procurement" =
-    pathname.includes("procurement") ? "procurement" : "expense";
+  const policyType: "expense" | "procurement" = pathname.includes("procurement")
+    ? "procurement"
+    : "expense";
 
-  const procurementView = searchParams.get("action") === "create" ? "create" : "list";
+  const procurementView =
+    searchParams.get("action") === "create" ? "create" : "list";
   const editingProcurementPolicyId = searchParams.get("policyId");
   const editingProcurementDraftId = searchParams.get("draftId");
   const procurementWizardStep = parseInt(searchParams.get("step") || "1", 10);
 
-  const setProcurementView = useCallback((
-    view: "list" | "create",
-    options?: { policyId?: string | null; draftId?: string | null; step?: number }
-  ) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (view === "create") {
-      params.set("action", "create");
-      if (options?.policyId) params.set("policyId", options.policyId);
-      else params.delete("policyId");
-      if (options?.draftId) params.set("draftId", options.draftId);
-      else params.delete("draftId");
-      if (options?.step) params.set("step", options.step.toString());
-      else params.delete("step");
-    } else {
-      params.delete("action");
-      params.delete("policyId");
-      params.delete("draftId");
-      params.delete("step");
-    }
-    router.push(`${pathname}?${params.toString()}`);
-  }, [searchParams, pathname, router]);
+  const setProcurementView = useCallback(
+    (
+      view: "list" | "create",
+      options?: {
+        policyId?: string | null;
+        draftId?: string | null;
+        step?: number;
+      },
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (view === "create") {
+        params.set("action", "create");
+        if (options?.policyId) params.set("policyId", options.policyId);
+        else params.delete("policyId");
+        if (options?.draftId) params.set("draftId", options.draftId);
+        else params.delete("draftId");
+        if (options?.step) params.set("step", options.step.toString());
+        else params.delete("step");
+      } else {
+        params.delete("action");
+        params.delete("policyId");
+        params.delete("draftId");
+        params.delete("step");
+      }
+      router.push(`${pathname}?${params.toString()}`);
+    },
+    [searchParams, pathname, router],
+  );
 
   const [isCreatePolicyOpen, setIsCreatePolicyOpen] = useState(false);
-  const [isAddCategoryOpen, setIsAddCategoryOpen]   = useState(false);
-  const [detailPolicy, setDetailPolicy]     = useState<Policy | null>(null);
-  const [reviewPolicy, setReviewPolicy]     = useState<Policy | null>(null);
-  const [selectedCategoryDetails, setSelectedCategoryDetails] = useState<ExpenseCategoryDetails | null>(null);
-  const [isCategoryDetailsLoading, setIsCategoryDetailsLoading] = useState(false);
-  const [search, setSearch]                 = useState("");
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [detailPolicy, setDetailPolicy] = useState<Policy | null>(null);
+  const [reviewPolicy, setReviewPolicy] = useState<Policy | null>(null);
+  const [selectedCategoryDetails, setSelectedCategoryDetails] =
+    useState<ExpenseCategoryDetails | null>(null);
+  const [isCategoryDetailsLoading, setIsCategoryDetailsLoading] =
+    useState(false);
+  const [search, setSearch] = useState("");
   const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [editingStep, setEditingStep] = useState<1 | 2 | 3 | 4>(1);
@@ -815,10 +1059,16 @@ function PoliciesPage() {
 
   // (procurement state is now derived from URL)
 
-  const can = useAuthStore(s => s.can);
+  const can = useAuthStore((s) => s.can);
 
-  const canAccessExpense = can('policy.domain', 'all') || can('policy.domain', 'expense') || can('policy', 'manage');
-  const canAccessProcurement = can('policy.domain', 'all') || can('policy.domain', 'procurement') || can('policy', 'manage');
+  const canAccessExpense =
+    can("policy.domain", "all") ||
+    can("policy.domain", "expense") ||
+    can("policy", "manage");
+  const canAccessProcurement =
+    can("policy.domain", "all") ||
+    can("policy.domain", "procurement") ||
+    can("policy", "manage");
 
   useEffect(() => {
     if (pathname === "/policies") {
@@ -833,42 +1083,67 @@ function PoliciesPage() {
     }
 
     if (policyType === "expense" && !canAccessExpense) {
-      router.replace(canAccessProcurement ? "/policies/procurement-policy" : "/dashboard");
+      router.replace(
+        canAccessProcurement ? "/policies/procurement-policy" : "/dashboard",
+      );
     } else if (policyType === "procurement" && !canAccessProcurement) {
-      router.replace(canAccessExpense ? "/policies/expense-policy" : "/dashboard");
+      router.replace(
+        canAccessExpense ? "/policies/expense-policy" : "/dashboard",
+      );
     }
   }, [pathname, router, policyType, canAccessExpense, canAccessProcurement]);
 
-  const canReadExpenseCategories = can('expense.category', 'read') || can('expense.category', 'manage');
-  const canReadPolicies = can('policy', 'read') || can('policy', 'manage') || can('policy', 'create') || can('policy', 'read_company') || can('policy.domain', 'expense') || can('policy.domain', 'procurement');
+  const canReadExpenseCategories =
+    can("expense.category", "read") || can("expense.category", "manage");
+  const canReadPolicies =
+    can("policy", "read") ||
+    can("policy", "manage") ||
+    can("policy", "create") ||
+    can("policy", "read_company") ||
+    can("policy.domain", "expense") ||
+    can("policy.domain", "procurement");
 
   const { data: eligibleRolesData } = useGetEligibleRoles("expense_policy");
   const eligibleRoles = eligibleRolesData?.data || [];
 
-  const expCatApi = useGetExpenseCategoryCoverageAllApi({ enabled: canReadExpenseCategories, refetchInterval: 60_000 });
-  const canManageCategories = can('expense.category', 'manage');
-  const canCreatePolicy = can('policy', 'create');
+  const expCatApi = useGetExpenseCategoryCoverageAllApi({
+    enabled: canReadExpenseCategories,
+    refetchInterval: 60_000,
+  });
+  const canManageCategories = can("expense.category", "manage");
+  const canCreatePolicy = can("policy", "create");
 
   const liveExpenseCategories = useMemo<ExpenseCategory[]>(() => {
-    return asArray(expCatApi.data?.data).filter(isRecord).map((c) => ({
-      id: pickString(c, "categoryId", "id"),
-      category: getString(c.name),
-      description: getString(c.description),
-      createdBy: formatUser(c.createdBy),
-      date: c.createdAt ? new Date(getString(c.createdAt)).toLocaleDateString() : "—",
-      isPolicyAttached: Array.isArray(c.policies) ? (c.policies as unknown[]).length > 0 : Boolean(c.isPolicyAttached),
-      policyCount: typeof c.policyCount === "number" ? c.policyCount : (Array.isArray(c.policies) ? (c.policies as unknown[]).length : 0),
-      policies: Array.isArray(c.policies)
-        ? (c.policies as unknown[]).map((p) => {
-            const pol = p as Record<string, unknown>;
-            return {
-              policyId: String(pol.policyId || pol.id || ""),
-              name: String(pol.name || pol.policyName || "Unnamed Policy"),
-              status: String(pol.status || "active"),
-            };
-          })
-        : [],
-    }));
+    return asArray(expCatApi.data?.data)
+      .filter(isRecord)
+      .map((c) => ({
+        id: pickString(c, "categoryId", "id"),
+        category: getString(c.name),
+        description: getString(c.description),
+        createdBy: formatUser(c.createdBy),
+        date: c.createdAt
+          ? new Date(getString(c.createdAt)).toLocaleDateString()
+          : "—",
+        isPolicyAttached: Array.isArray(c.policies)
+          ? (c.policies as unknown[]).length > 0
+          : Boolean(c.isPolicyAttached),
+        policyCount:
+          typeof c.policyCount === "number"
+            ? c.policyCount
+            : Array.isArray(c.policies)
+              ? (c.policies as unknown[]).length
+              : 0,
+        policies: Array.isArray(c.policies)
+          ? (c.policies as unknown[]).map((p) => {
+              const pol = p as Record<string, unknown>;
+              return {
+                policyId: String(pol.policyId || pol.id || ""),
+                name: String(pol.name || pol.policyName || "Unnamed Policy"),
+                status: String(pol.status || "active"),
+              };
+            })
+          : [],
+      }));
   }, [expCatApi.data?.data]);
 
   const queryClient = useQueryClient();
@@ -883,12 +1158,14 @@ function PoliciesPage() {
   });
   const setPolicyTotalItems = policyTableProps.setTotalItems;
 
-  const policiesApi = useGetPoliciesApi({ 
-    page: 1, 
-    limit: 1000, 
-    excludeDrafts: false
-  }, { enabled: canReadPolicies, refetchInterval: 60_000 });
-
+  const policiesApi = useGetPoliciesApi(
+    {
+      page: 1,
+      limit: 1000,
+      excludeDrafts: false,
+    },
+    { enabled: canReadPolicies, refetchInterval: 60_000 },
+  );
 
   const expenseTableProps = useDataTable({
     initialPage: 1,
@@ -908,72 +1185,115 @@ function PoliciesPage() {
     manualPagination: false,
   });
 
-  const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
+  const capitalizeName = (n: string) =>
+    n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
 
   const policies = useMemo<Policy[]>(() => {
     const rawPolicies = policiesApi.data?.data || [];
-    const sortedPolicies = [...asArray(rawPolicies).filter(isRecord)].sort((a, b) =>
-       new Date(getString(b.createdAt) || 0).getTime() - new Date(getString(a.createdAt) || 0).getTime()
+    const sortedPolicies = [...asArray(rawPolicies).filter(isRecord)].sort(
+      (a, b) =>
+        new Date(getString(b.createdAt) || 0).getTime() -
+        new Date(getString(a.createdAt) || 0).getTime(),
     );
 
     return sortedPolicies.map((p) => {
       const getCatNames = (cats: unknown[]) => {
         if (!cats || !cats.length) return "General";
         const names = cats.map((rawCat) => {
-          if (typeof rawCat === 'string') {
-            return liveExpenseCategories.find(lc => lc.id === rawCat)?.category || rawCat;
+          if (typeof rawCat === "string") {
+            return (
+              liveExpenseCategories.find((lc) => lc.id === rawCat)?.category ||
+              rawCat
+            );
           }
           const c = asRecord(rawCat);
-          return pickString(c, "name", "category") || 'Category';
+          return pickString(c, "name", "category") || "Category";
         });
         return names.join(", ");
       };
 
       const createdByObj = p.createdBy;
       const createdByName = isRecord(createdByObj)
-        ? `${pickString(createdByObj, "firstName")} ${pickString(createdByObj, "lastName")}`.trim() || pickString(createdByObj, "email") || "Admin"
-        : typeof createdByObj === 'string' ? createdByObj : "Admin";
+        ? `${pickString(createdByObj, "firstName")} ${pickString(createdByObj, "lastName")}`.trim() ||
+          pickString(createdByObj, "email") ||
+          "Admin"
+        : typeof createdByObj === "string"
+          ? createdByObj
+          : "Admin";
       const scope = asRecord(p.scope);
       const rules = asArray(p.rules).filter(isRecord);
 
       return {
-        id: pickString(p, "procurementPolicyId", "policyId", "id") || Math.random().toString(),
+        id:
+          pickString(p, "procurementPolicyId", "policyId", "id") ||
+          Math.random().toString(),
         name: getString(p.name),
         version: Number(p.version) || 1,
         category: getCatNames(asArray(p.expenseCategories)),
-        appliedTo: getString(p.scopeType) === "all" || getString(p.scopeType) === "all_employees" || getString(scope.type) === "all" || getString(scope.type) === "all_employees" ? "All Employees" : "Specific Employees",
+        appliedTo:
+          getString(p.scopeType) === "all" ||
+          getString(p.scopeType) === "all_employees" ||
+          getString(scope.type) === "all" ||
+          getString(scope.type) === "all_employees"
+            ? "All Employees"
+            : "Specific Employees",
         createdBy: createdByName,
-        createdById: isRecord(createdByObj) ? pickString(createdByObj, "id", "userId") : pickString(p, "createdById"),
-        date: p.createdAt ? new Date(getString(p.createdAt)).toLocaleDateString() : "—",
-        status: (getString(p.status).toLowerCase() as PolicyStatus) || "inactive",
+        createdById: isRecord(createdByObj)
+          ? pickString(createdByObj, "id", "userId")
+          : pickString(p, "createdById"),
+        date: p.createdAt
+          ? new Date(getString(p.createdAt)).toLocaleDateString()
+          : "—",
+        status:
+          (getString(p.status).toLowerCase() as PolicyStatus) || "inactive",
         approvers: asArray(p.approvers).map((rawApprover) => {
-          if (typeof rawApprover === 'string') return rawApprover;
+          if (typeof rawApprover === "string") return rawApprover;
           const a = asRecord(rawApprover);
           return pickString(a, "firstName")
             ? `${pickString(a, "firstName")} ${pickString(a, "lastName")}`.trim()
-            : pickString(a, "email") || 'User';
+            : pickString(a, "email") || "User";
         }),
         approversRaw: asArray(p.approvers),
         approverIds: asArray(p.approverIds).map(String),
-        dailyLimit: getString(rules.find((r) => getString(r.type) === "spend_limit")?.amount) || "0",
-        receiptRequired: !!rules.find((r) => getString(r.type) === "receipt_requirement")?.amount,
-        archivedOn: p.deletedAt ? new Date(getString(p.deletedAt)).toLocaleDateString() : undefined,
+        dailyLimit:
+          getString(
+            rules.find((r) => getString(r.type) === "spend_limit")?.amount,
+          ) || "0",
+        receiptRequired: !!rules.find(
+          (r) => getString(r.type) === "receipt_requirement",
+        )?.amount,
+        archivedOn: p.deletedAt
+          ? new Date(getString(p.deletedAt)).toLocaleDateString()
+          : undefined,
         approvalSetting: p.approvalSetting,
         rules: rules,
       };
     });
   }, [policiesApi.data?.data, liveExpenseCategories]);
 
-  const { data: spendProgramSettingsResponse, isLoading: isSettingsLoading } = useGetSpendProgramSettings();
-  const isSpendProgramEnabled = spendProgramSettingsResponse?.data?.enabled ?? true;
+  const { data: spendProgramSettingsResponse, isLoading: isSettingsLoading } =
+    useGetSpendProgramSettings();
+  const isSpendProgramEnabled =
+    spendProgramSettingsResponse?.data?.enabled ?? true;
 
   // Protect against URL bypass when Governance is off
   useEffect(() => {
-    if (policyType === "procurement" && procurementView === "create" && !isSettingsLoading && !isSpendProgramEnabled) {
+    if (
+      policyType === "procurement" &&
+      procurementView === "create" &&
+      !isSettingsLoading &&
+      !isSpendProgramEnabled
+    ) {
       toast.error("Spend Programs are disabled in Governance.");
       setProcurementView("list");
     }
-  }, [policyType, procurementView, isSettingsLoading, isSpendProgramEnabled, setProcurementView]);
+  }, [
+    policyType,
+    procurementView,
+    isSettingsLoading,
+    isSpendProgramEnabled,
+    setProcurementView,
+  ]);
 
   // Register dynamic header CTA button
   const { setAction, clearAction } = useHeaderActionStore();
@@ -990,21 +1310,33 @@ function PoliciesPage() {
           dataTourId: "new-procurement-policy-button",
           onClick: () => setProcurementView("create"),
           disabled: isSettingsLoading || !isSpendProgramEnabled,
-          tooltip: !isSpendProgramEnabled && !isSettingsLoading ? "Spend Programs are currently disabled in Governance." : undefined,
+          tooltip:
+            !isSpendProgramEnabled && !isSettingsLoading
+              ? "Spend Programs are currently disabled in Governance."
+              : undefined,
         });
       } else {
         clearAction();
       }
-    } else { // policyType === "expense"
+    } else {
+      // policyType === "expense"
       if (activeTab === "policies") {
         if (canCreatePolicy) {
-          setAction({ label: "New Expense Policy", dataTourId: "new-policy-button", onClick: () => setIsCreatePolicyOpen(true) });
+          setAction({
+            label: "New Expense Policy",
+            dataTourId: "new-policy-button",
+            onClick: () => setIsCreatePolicyOpen(true),
+          });
         } else {
           clearAction();
         }
       } else if (activeTab === "expense") {
         if (canManageCategories) {
-          setAction({ label: "New Expense Category", dataTourId: "new-expense-category-button", onClick: () => setIsAddCategoryOpen(true) });
+          setAction({
+            label: "New Expense Category",
+            dataTourId: "new-expense-category-button",
+            onClick: () => setIsAddCategoryOpen(true),
+          });
         } else {
           clearAction();
         }
@@ -1015,21 +1347,48 @@ function PoliciesPage() {
     }
     // Cleanup on unmount
     return () => clearAction();
-  }, [activeTab, policyType, procurementView, setAction, clearAction, canCreatePolicy, canManageCategories, isSettingsLoading, isSpendProgramEnabled]);
+  }, [
+    activeTab,
+    policyType,
+    procurementView,
+    setAction,
+    clearAction,
+    canCreatePolicy,
+    canManageCategories,
+    isSettingsLoading,
+    isSpendProgramEnabled,
+  ]);
 
   /* derived */
-  const activePolicies   = useMemo(() => policies.filter(p => !p.archivedOn), [policies]);
-  const archivedPolicies = useMemo(() => policies.filter(p =>  p.archivedOn), [policies]);
-  const approvedCount    = useMemo(() => activePolicies.filter(p => p.status === "active").length,  [activePolicies]);
-  const draftedCount     = useMemo(() => activePolicies.filter(p => p.status === "draft").length,   [activePolicies]);
-  const pendingCount     = useMemo(() => activePolicies.filter(p => p.status === "pending").length, [activePolicies]);
+  const activePolicies = useMemo(
+    () => policies.filter((p) => !p.archivedOn),
+    [policies],
+  );
+  const archivedPolicies = useMemo(
+    () => policies.filter((p) => p.archivedOn),
+    [policies],
+  );
+  const approvedCount = useMemo(
+    () => activePolicies.filter((p) => p.status === "active").length,
+    [activePolicies],
+  );
+  const draftedCount = useMemo(
+    () => activePolicies.filter((p) => p.status === "draft").length,
+    [activePolicies],
+  );
+  const pendingCount = useMemo(
+    () => activePolicies.filter((p) => p.status === "pending").length,
+    [activePolicies],
+  );
 
   const filteredPolicies = useMemo(() => {
     const q = search.toLowerCase();
-    return activePolicies.filter(p =>
-      !q || p.name.toLowerCase().includes(q) ||
-            p.category.toLowerCase().includes(q) ||
-            p.createdBy.toLowerCase().includes(q)
+    return activePolicies.filter(
+      (p) =>
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        p.createdBy.toLowerCase().includes(q),
     );
   }, [activePolicies, search]);
 
@@ -1039,26 +1398,33 @@ function PoliciesPage() {
 
   const filteredCategories = useMemo(() => {
     const q = search.toLowerCase();
-    return liveExpenseCategories.filter(c =>
-      !q || c.category.toLowerCase().includes(q) ||
-            c.description.toLowerCase().includes(q) ||
-            c.createdBy.toLowerCase().includes(q)
+    return liveExpenseCategories.filter(
+      (c) =>
+        !q ||
+        c.category.toLowerCase().includes(q) ||
+        c.description.toLowerCase().includes(q) ||
+        c.createdBy.toLowerCase().includes(q),
     );
   }, [search, liveExpenseCategories]);
 
-  const handleViewCategory = useCallback(async (categoryId: string) => {
-    setIsCategoryDetailsLoading(true);
-    setSelectedCategoryDetails(null);
-    try {
-      const response = await axios.get(API_KEYS.EXPENSE.CATEGORY_DETAIL(categoryId));
-      const payload = response?.data?.data ?? response?.data;
-      setSelectedCategoryDetails(payload as ExpenseCategoryDetails);
-    } catch {
-      toast.error("Failed to load expense category details");
-    } finally {
-      setIsCategoryDetailsLoading(false);
-    }
-  }, [axios]);
+  const handleViewCategory = useCallback(
+    async (categoryId: string) => {
+      setIsCategoryDetailsLoading(true);
+      setSelectedCategoryDetails(null);
+      try {
+        const response = await axios.get(
+          API_KEYS.EXPENSE.CATEGORY_DETAIL(categoryId),
+        );
+        const payload = response?.data?.data ?? response?.data;
+        setSelectedCategoryDetails(payload as ExpenseCategoryDetails);
+      } catch {
+        toast.error("Failed to load expense category details");
+      } finally {
+        setIsCategoryDetailsLoading(false);
+      }
+    },
+    [axios],
+  );
 
   const deleteCategoryMutation = useDeleteCategoryApi();
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
@@ -1066,17 +1432,21 @@ function PoliciesPage() {
   const executeDeleteCategory = async () => {
     if (!categoryToDelete) return;
     try {
-      await deleteCategoryMutation.mutateAsync({ categoryId: categoryToDelete });
+      await deleteCategoryMutation.mutateAsync({
+        categoryId: categoryToDelete,
+      });
       toast.success("Expense category deleted successfully");
     } catch (error: unknown) {
-      toast.error(getApiErrorMessage(error, "Failed to delete expense category"));
+      toast.error(
+        getApiErrorMessage(error, "Failed to delete expense category"),
+      );
     } finally {
       setCategoryToDelete(null);
     }
   };
 
   const deleteDraftMutation = useDeleteExpensePolicyDraft();
-  
+
   const executeDeleteDraft = async () => {
     if (!draftToDelete) return;
     try {
@@ -1094,7 +1464,9 @@ function PoliciesPage() {
 
   /* handlers */
   const handleCreated = (_data: CreatedPolicyData) => {
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+    queryClient.invalidateQueries({
+      queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies),
+    });
     notifySetupGuide("policy");
     switchTab("policies");
   };
@@ -1109,21 +1481,37 @@ function PoliciesPage() {
     }
     setIsCreatePolicyOpen(true);
   }, []);
-  const handleArchive = useCallback((_policy: Policy) => toast.info("Archive policy API not integrated yet."), []);
+  const handleArchive = useCallback(
+    (_policy: Policy) => toast.info("Archive policy API not integrated yet."),
+    [],
+  );
 
-  const handleReviewAction = async (policy: Policy, action: "approve" | "reject") => {
+  const handleReviewAction = async (
+    policy: Policy,
+    action: "approve" | "reject",
+  ) => {
     try {
       await axios.patch(API_KEYS.EXPENSE.POLICY_ACTION(policy.id, action));
-      toast.success(`Policy ${action === "approve" ? "approved" : "rejected"} successfully`);
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+      toast.success(
+        `Policy ${action === "approve" ? "approved" : "rejected"} successfully`,
+      );
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies),
+      });
       setReviewPolicy(null);
     } catch (error: unknown) {
-      toast.error(getApiErrorMessage(error, `Failed to ${action === "approve" ? "approve" : "reject"} policy`));
+      toast.error(
+        getApiErrorMessage(
+          error,
+          `Failed to ${action === "approve" ? "approve" : "reject"} policy`,
+        ),
+      );
     }
   };
 
-  const handleApprove = (policy: Policy) => handleReviewAction(policy, "approve");
-  const handleReject  = (policy: Policy) => handleReviewAction(policy, "reject");
+  const handleApprove = (policy: Policy) =>
+    handleReviewAction(policy, "approve");
+  const handleReject = (policy: Policy) => handleReviewAction(policy, "reject");
 
   /**
    * Re-validates approver status against fresh server data before opening
@@ -1132,42 +1520,251 @@ function PoliciesPage() {
    * then, the button should not have appeared, but as a defense-in-depth
    * check we re-fetch and confirm before allowing the action to surface.
    */
-  const handleOpenReview = useCallback(async (policy: Policy) => {
-    // ── Open the modal immediately with the row data so the UI feels instant ──
-    setReviewPolicy(policy as any);
+  const handleOpenReview = useCallback(
+    async (policy: Policy) => {
+      // ── Open the modal immediately with the row data so the UI feels instant ──
+      setReviewPolicy(policy as any);
 
-    // ── Verify in the background that this user is still an approver ──────────
-    // If verification fails we quietly close the modal and notify the user.
-    try {
-      const res = await axios.get(API_KEYS.EXPENSE.POLICY_BY_ID(policy.id));
-      const freshPolicy = asRecord(res.data?.data);
-      const currentUserRoleId = user?.companyRole?.roleId || (user as any)?.villetoRole?.roleId || (user as any)?.role?.roleId || "";
-      
+      // ── Verify in the background that this user is still an approver ──────────
+      // If verification fails we quietly close the modal and notify the user.
+      try {
+        const res = await axios.get(API_KEYS.EXPENSE.POLICY_BY_ID(policy.id));
+        const freshPolicy = asRecord(res.data?.data);
+        const currentUserRoleId =
+          user?.companyRole?.roleId ||
+          (user as any)?.villetoRole?.roleId ||
+          (user as any)?.role?.roleId ||
+          "";
+
+        const { can } = useAuthStore.getState();
+        const hasGodModeApprove = can("policy", "approve");
+
+        let stillApprover = false;
+        const approvalSetting = (freshPolicy as any).approvalSetting;
+        if (approvalSetting?.allRolesCanApprove) {
+          stillApprover = true;
+        } else if (approvalSetting?.approverRoleIds?.length) {
+          stillApprover =
+            approvalSetting.approverRoleIds.includes(currentUserRoleId);
+        } else {
+          const freshApprovers = asArray(
+            freshPolicy.approversRaw ?? freshPolicy.approvers,
+          );
+          stillApprover = freshApprovers.some((rawApprover) => {
+            const a = asRecord(rawApprover);
+            return pickString(a, "userId", "id") === user?.userId;
+          });
+        }
+
+        // Evaluate if the user is the creator
+        const createdByObj = (freshPolicy as any).createdBy;
+        const creatorId = isRecord(createdByObj)
+          ? pickString(createdByObj, "id", "userId")
+          : (freshPolicy as any).createdById;
+
+        let isCreator =
+          Boolean(user?.userId) &&
+          Boolean(creatorId) &&
+          creatorId === user?.userId;
+
+        if (!isCreator && user) {
+          const userFullName = `${user.firstName || ""} ${user.lastName || ""}`
+            .trim()
+            .toLowerCase();
+          let creatorName = "";
+          if (typeof createdByObj === "string") {
+            creatorName = createdByObj.trim().toLowerCase();
+          } else if (isRecord(createdByObj)) {
+            creatorName =
+              `${pickString(createdByObj, "firstName") || ""} ${pickString(createdByObj, "lastName") || ""}`
+                .trim()
+                .toLowerCase();
+          } else if (typeof (freshPolicy as any).createdByName === "string") {
+            creatorName = (freshPolicy as any).createdByName
+              .trim()
+              .toLowerCase();
+          }
+          if (userFullName && creatorName && userFullName === creatorName) {
+            isCreator = true;
+          }
+        }
+
+        if (isCreator) {
+          // Creator cannot approve their own policy — seamlessly route to details view without error
+          setReviewPolicy(null);
+          setDetailPolicy((freshPolicy as any) || policy);
+          return;
+        }
+
+        if (!stillApprover) {
+          // Close the modal we just opened — user is no longer an approver
+          setReviewPolicy(null);
+          toast.error("You are no longer an approver for this policy.");
+          queryClient.invalidateQueries({
+            queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies),
+          });
+          return;
+        }
+
+        // Merge fresher data into the already-open modal (e.g. latest approvers list)
+        setReviewPolicy((prev) =>
+          prev ? ({ ...prev, ...freshPolicy } as any) : prev,
+        );
+      } catch (error: unknown) {
+        setReviewPolicy(null);
+        toast.error(
+          getApiErrorMessage(
+            error,
+            "Failed to load policy details. Please try again.",
+          ),
+        );
+      }
+    },
+    [axios, queryClient, user?.userId],
+  );
+
+  const policySummary: PolicySummaryItem[] = [
+    {
+      label: "Active",
+      value: approvedCount,
+      detail: "Policies currently enforced",
+      icon: ShieldCheck,
+      tone: "teal",
+    },
+    {
+      label: "Pending",
+      value: pendingCount,
+      detail: "Waiting for an approver",
+      icon: Clock,
+      tone: "amber",
+    },
+    {
+      label: "Drafts",
+      value: draftedCount,
+      detail: "Still being configured",
+      icon: FileText,
+      tone: "slate",
+    },
+    {
+      label: "Categories",
+      value: liveExpenseCategories.length,
+      detail: "Expense classifications",
+      icon: Tag,
+      tone: "blue",
+    },
+  ];
+
+  const checkIfReviewable = useCallback(
+    (policy: Policy) => {
+      let isApprover = false;
+      const currentUserRoleId =
+        user?.companyRole?.roleId ||
+        (user as any)?.companyRole?.id ||
+        (user as any)?.villetoRole?.roleId ||
+        (user as any)?.villetoRole?.id ||
+        (user as any)?.role?.roleId ||
+        (user as any)?.role?.id ||
+        "";
+
       const { can } = useAuthStore.getState();
-      const hasGodModeApprove = can('policy', 'approve');
+      const canApprovePolicy = can("policy", "approve");
 
-      let stillApprover = false;
-      const approvalSetting = (freshPolicy as any).approvalSetting;
-      if (approvalSetting?.allRolesCanApprove) {
-        stillApprover = true;
-      } else if (approvalSetting?.approverRoleIds?.length) {
-        stillApprover = approvalSetting.approverRoleIds.includes(currentUserRoleId);
+      if (policy.approvalSetting?.allRolesCanApprove) {
+        isApprover = eligibleRoles.some((r) => r.roleId === currentUserRoleId);
+      } else if (policy.approvalSetting?.approverRoleIds?.length) {
+        isApprover =
+          policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
       } else {
-        const freshApprovers = asArray(freshPolicy.approversRaw ?? freshPolicy.approvers);
-        stillApprover = freshApprovers.some((rawApprover) => {
-          const a = asRecord(rawApprover);
-          return pickString(a, "userId", "id") === user?.userId;
-        });
+        isApprover =
+          (policy.approversRaw || []).some((rawApprover) => {
+            const a = asRecord(rawApprover);
+            return pickString(a, "userId") === user?.userId;
+          }) ||
+          (user?.userId
+            ? (policy.approverIds?.includes(user.userId) ?? false)
+            : false);
       }
 
       // Evaluate if the user is the creator
-      const createdByObj = (freshPolicy as any).createdBy;
+      const createdByObj = (policy as any).createdBy;
+      const creatorId = isRecord(createdByObj)
+        ? pickString(createdByObj, "id", "userId")
+        : (policy as any).createdById;
+
+      let isCreator =
+        Boolean(user?.userId) &&
+        Boolean(creatorId) &&
+        creatorId === user?.userId;
+
+      // Fallback: If ID matching failed (e.g. ID not returned by API), try matching by name
+      if (!isCreator && user) {
+        const userFullName = `${user.firstName || ""} ${user.lastName || ""}`
+          .trim()
+          .toLowerCase();
+
+        let creatorName = "";
+        if (typeof createdByObj === "string") {
+          creatorName = createdByObj.trim().toLowerCase();
+        } else if (isRecord(createdByObj)) {
+          creatorName =
+            `${pickString(createdByObj, "firstName") || ""} ${pickString(createdByObj, "lastName") || ""}`
+              .trim()
+              .toLowerCase();
+        } else if (typeof (policy as any).createdByName === "string") {
+          creatorName = (policy as any).createdByName.trim().toLowerCase();
+        }
+
+        if (userFullName && creatorName && userFullName === creatorName) {
+          isCreator = true;
+        }
+      }
+
+      if (isCreator) {
+        return false;
+      }
+
+      const isPending =
+        policy.status?.toLowerCase() === "pending_approval" ||
+        policy.status?.toLowerCase() === "pending";
+      return isPending && isApprover;
+    },
+    [user, eligibleRoles],
+  );
+
+  // Separate check: can this user actually approve/reject (i.e. not just view)
+  const checkIfCanApprove = useCallback(
+    (policy: Policy) => {
+      let isApprover = false;
+      const currentUserRoleId =
+        user?.companyRole?.roleId ||
+        (user as any)?.companyRole?.id ||
+        (user as any)?.villetoRole?.roleId ||
+        (user as any)?.villetoRole?.id ||
+        (user as any)?.role?.roleId ||
+        (user as any)?.role?.id ||
+        "";
+
+      if (policy.approvalSetting?.allRolesCanApprove) {
+        isApprover = eligibleRoles.some((r) => r.roleId === currentUserRoleId);
+      } else if (policy.approvalSetting?.approverRoleIds?.length) {
+        isApprover =
+          policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
+      } else {
+        isApprover =
+          (policy.approversRaw || []).some((rawApprover) => {
+            const a = asRecord(rawApprover);
+            return pickString(a, "userId") === user?.userId;
+          }) ||
+          (user?.userId
+            ? (policy.approverIds?.includes(user.userId) ?? false)
+            : false);
+      }
+
+      const createdByObj = (policy as any).createdBy;
       const creatorId = isRecord(createdByObj) 
         ? pickString(createdByObj, "id", "userId") 
-        : (freshPolicy as any).createdById;
-        
+        : (policy as any).createdById;
       let isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
-      
       if (!isCreator && user) {
         const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
         let creatorName = "";
@@ -1175,152 +1772,35 @@ function PoliciesPage() {
           creatorName = createdByObj.trim().toLowerCase();
         } else if (isRecord(createdByObj)) {
           creatorName = `${pickString(createdByObj, "firstName") || ''} ${pickString(createdByObj, "lastName") || ''}`.trim().toLowerCase();
-        } else if (typeof (freshPolicy as any).createdByName === 'string') {
-          creatorName = (freshPolicy as any).createdByName.trim().toLowerCase();
+        } else if (typeof (policy as any).createdByName === 'string') {
+          creatorName = (policy as any).createdByName.trim().toLowerCase();
         }
         if (userFullName && creatorName && userFullName === creatorName) {
           isCreator = true;
         }
       }
 
-      if (isCreator || !stillApprover) {
-        // Not an approver or is the creator — seamlessly route to details view without error
-        setReviewPolicy(null);
-        setDetailPolicy((freshPolicy as any) || policy);
-        return;
+      // If creator, cannot approve their own policy
+      if (isCreator) return false;
+
+      const isPending =
+        policy.status?.toLowerCase() === "pending_approval" ||
+        policy.status?.toLowerCase() === "pending";
+      return isPending && isApprover;
+    },
+    [user, eligibleRoles],
+  );
+
+  const handleRowClick = useCallback(
+    (policy: Policy) => {
+      if (checkIfReviewable(policy)) {
+        handleOpenReview(policy);
+      } else {
+        setDetailPolicy(policy);
       }
-
-      // Merge fresher data into the already-open modal (e.g. latest approvers list)
-      setReviewPolicy((prev) => prev ? { ...prev, ...freshPolicy } as any : prev);
-    } catch (error: unknown) {
-      setReviewPolicy(null);
-      toast.error(getApiErrorMessage(error, "Failed to load policy details. Please try again."));
-    }
-  }, [axios, queryClient, user?.userId]);
-
-  const policySummary: PolicySummaryItem[] = [
-    { label: "Active", value: approvedCount, detail: "Policies currently enforced", icon: ShieldCheck, tone: "teal" },
-    { label: "Pending", value: pendingCount, detail: "Waiting for an approver", icon: Clock, tone: "amber" },
-    { label: "Drafts", value: draftedCount, detail: "Still being configured", icon: FileText, tone: "slate" },
-    { label: "Categories", value: liveExpenseCategories.length, detail: "Expense classifications", icon: Tag, tone: "blue" },
-  ];
-
-  const checkIfReviewable = useCallback((policy: Policy) => {
-    let isApprover = false;
-    const currentUserRoleId = 
-      user?.companyRole?.roleId || 
-      (user as any)?.companyRole?.id || 
-      (user as any)?.villetoRole?.roleId || 
-      (user as any)?.villetoRole?.id || 
-      (user as any)?.role?.roleId || 
-      (user as any)?.role?.id || 
-      "";
-
-    const { can } = useAuthStore.getState();
-    const canApprovePolicy = can('policy', 'approve');
-
-    if (policy.approvalSetting?.allRolesCanApprove) {
-      isApprover = eligibleRoles.some(r => r.roleId === currentUserRoleId);
-    } else if (policy.approvalSetting?.approverRoleIds?.length) {
-      isApprover = policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
-    } else {
-      isApprover = (policy.approversRaw || []).some((rawApprover) => {
-        const a = asRecord(rawApprover);
-        return pickString(a, "userId") === user?.userId;
-      }) || (user?.userId ? (policy.approverIds?.includes(user.userId) ?? false) : false);
-    }
-    
-    // Evaluate if the user is the creator
-    const createdByObj = (policy as any).createdBy;
-    const creatorId = isRecord(createdByObj) 
-      ? pickString(createdByObj, "id", "userId") 
-      : (policy as any).createdById;
-      
-    let isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
-    
-    // Fallback: If ID matching failed (e.g. ID not returned by API), try matching by name
-    if (!isCreator && user) {
-      const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
-      
-      let creatorName = "";
-      if (typeof createdByObj === 'string') {
-        creatorName = createdByObj.trim().toLowerCase();
-      } else if (isRecord(createdByObj)) {
-        creatorName = `${pickString(createdByObj, "firstName") || ''} ${pickString(createdByObj, "lastName") || ''}`.trim().toLowerCase();
-      } else if (typeof (policy as any).createdByName === 'string') {
-        creatorName = (policy as any).createdByName.trim().toLowerCase();
-      }
-      
-      if (userFullName && creatorName && userFullName === creatorName) {
-        isCreator = true;
-      }
-    }
-
-    if (isCreator) {
-      return false;
-    }
-
-    const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
-    return isPending && isApprover;
-  }, [user, eligibleRoles]);
-
-  // Separate check: can this user actually approve/reject (i.e. not just view)
-  const checkIfCanApprove = useCallback((policy: Policy) => {
-    let isApprover = false;
-    const currentUserRoleId = 
-      user?.companyRole?.roleId || 
-      (user as any)?.companyRole?.id || 
-      (user as any)?.villetoRole?.roleId || 
-      (user as any)?.villetoRole?.id || 
-      (user as any)?.role?.roleId || 
-      (user as any)?.role?.id || 
-      "";
-
-    if (policy.approvalSetting?.allRolesCanApprove) {
-      isApprover = eligibleRoles.some(r => r.roleId === currentUserRoleId);
-    } else if (policy.approvalSetting?.approverRoleIds?.length) {
-      isApprover = policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
-    } else {
-      isApprover = (policy.approversRaw || []).some((rawApprover) => {
-        const a = asRecord(rawApprover);
-        return pickString(a, "userId") === user?.userId;
-      }) || (user?.userId ? (policy.approverIds?.includes(user.userId) ?? false) : false);
-    }
-
-    const createdByObj = (policy as any).createdBy;
-    const creatorId = isRecord(createdByObj) 
-      ? pickString(createdByObj, "id", "userId") 
-      : (policy as any).createdById;
-    let isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
-    if (!isCreator && user) {
-      const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
-      let creatorName = "";
-      if (typeof createdByObj === 'string') {
-        creatorName = createdByObj.trim().toLowerCase();
-      } else if (isRecord(createdByObj)) {
-        creatorName = `${pickString(createdByObj, "firstName") || ''} ${pickString(createdByObj, "lastName") || ''}`.trim().toLowerCase();
-      } else if (typeof (policy as any).createdByName === 'string') {
-        creatorName = (policy as any).createdByName.trim().toLowerCase();
-      }
-      if (userFullName && creatorName && userFullName === creatorName) {
-        isCreator = true;
-      }
-    }
-
-    // If creator, cannot approve their own policy
-    if (isCreator) return false;
-
-    const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
-    return isPending && isApprover;
-  }, [user, eligibleRoles]);
-
-  const handleRowClick = useCallback((policy: Policy) => {
-    if (checkIfReviewable(policy)) {
-      handleOpenReview(policy);
-    } else {
-      setDetailPolicy(policy);
-    }
-  }, [checkIfReviewable, handleOpenReview]);
+    },
+    [checkIfReviewable, handleOpenReview],
+  );
 
   /* DataTable columns for Policy tab */
   const policyColumns = useMemo<ColumnDef<Policy>[]>(() => [
@@ -1409,195 +1889,230 @@ function PoliciesPage() {
         );
       },
     },
-  ], [handleOpenReview, handleEdit, handleArchive, checkIfReviewable, checkIfCanApprove]);
+  ], [
+    handleOpenReview,
+    handleEdit,
+    handleArchive,
+    checkIfReviewable,
+    checkIfCanApprove,
+  ]);
 
   /* DataTable columns for Archived tab */
-  const archivedColumns = useMemo<ColumnDef<Policy>[]>(() => [
-    {
-      accessorKey: "name",
-      header: "Policy Name",
-      cell: ({ row }) => (
-        <div>
-          <p className="text-sm font-bold text-foreground">{capitalizeName(row.original.name)}</p>
-          <p className="text-xs text-[#68726d]">v{row.original.version}</p>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "category",
-      header: "Category",
-      cell: ({ row }) => <span className="capitalize">{row.original.category}</span>,
-    },
-    { accessorKey: "appliedTo", header: "Applied To" },
-    {
-      accessorKey: "createdBy",
-      header: "Created By",
-      cell: ({ row }) => (
-         <div>
-           <p className="text-sm font-semibold text-foreground">{row.original.createdBy}</p>
-           <p className="text-xs text-[#68726d] tabular-nums">{row.original.date}</p>
-         </div>
-      )
-    },
-    {
-      accessorKey: "archivedOn",
-      header: "Archived On",
-      cell: ({ row }) => <span className="tabular-nums">{row.original.archivedOn}</span>,
-    },
-    {
-      id: "actions",
-      header: () => <div className="text-right w-full">Action</div>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          <button
-            onClick={() => setDetailPolicy(row.original)}
-            className="w-8 h-8 flex items-center justify-center rounded-[8px] text-[#68726d] hover:text-foreground hover:bg-[#f9faf9]/60 transition-colors ml-auto cursor-pointer"
-          >
-            <Eye className="w-5 h-5" strokeWidth={1.5} />
-          </button>
-        </div>
-      ),
-    },
-  ], []);
+  const archivedColumns = useMemo<ColumnDef<Policy>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: "Policy Name",
+        cell: ({ row }) => (
+          <div>
+            <p className="text-sm font-bold text-foreground">
+              {capitalizeName(row.original.name)}
+            </p>
+            <p className="text-xs text-[#68726d]">v{row.original.version}</p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "category",
+        header: "Category",
+        cell: ({ row }) => (
+          <span className="capitalize">{row.original.category}</span>
+        ),
+      },
+      { accessorKey: "appliedTo", header: "Applied To" },
+      {
+        accessorKey: "createdBy",
+        header: "Created By",
+        cell: ({ row }) => (
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {row.original.createdBy}
+            </p>
+            <p className="text-xs text-[#68726d] tabular-nums">
+              {row.original.date}
+            </p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "archivedOn",
+        header: "Archived On",
+        cell: ({ row }) => (
+          <span className="tabular-nums">{row.original.archivedOn}</span>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right w-full">Action</div>,
+        cell: ({ row }) => (
+          <div className="text-right">
+            <button
+              onClick={() => setDetailPolicy(row.original)}
+              className="w-8 h-8 flex items-center justify-center rounded-[8px] text-[#68726d] hover:text-foreground hover:bg-[#f9faf9]/60 transition-colors ml-auto cursor-pointer"
+            >
+              <Eye className="w-5 h-5" strokeWidth={1.5} />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
 
   /* DataTable columns for Expense Category tab */
-  const columns = useMemo<ColumnDef<ExpenseCategory>[]>(() => [
-    {
-      accessorKey: "category",
-      header: "Category",
-      cell: ({ row }) => (
-        <span className="font-medium text-foreground">
-          {row.original.category}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "description",
-      header: "Description",
-      cell: ({ row }) => (
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="max-w-[280px] cursor-default">
-                <span className="text-[#68726d] block truncate">
-                  {row.original.description || "—"}
-                </span>
-              </div>
-            </TooltipTrigger>
-            {row.original.description && (
-              <TooltipContent align="start" className="max-w-[300px] break-words">
-                <p>{row.original.description}</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
-      ),
-    },
-    {
-      accessorKey: "createdBy",
-      header: "Created By",
-      cell: ({ row }) => <span className="text-foreground/75">{row.original.createdBy}</span>,
-    },
-    {
-      accessorKey: "date",
-      header: "Date",
-      cell: ({ row }) => <span className="text-foreground/75 tabular-nums">{row.original.date}</span>,
-    },
-    {
-      accessorKey: "isPolicyAttached",
-      header: "Attached Policies",
-      cell: ({ row }) => {
-        const cat = row.original;
-        if (!cat.isPolicyAttached || cat.policies.length === 0) {
-          return (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#f9faf9] text-[#68726d]">
-              No Policy
-            </span>
-          );
-        }
+  const columns = useMemo<ColumnDef<ExpenseCategory>[]>(
+    () => [
+      {
+        accessorKey: "category",
+        header: "Category",
+        cell: ({ row }) => (
+          <span className="font-medium text-foreground">
+            {row.original.category}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "description",
+        header: "Description",
+        cell: ({ row }) => (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="max-w-[280px] cursor-default">
+                  <span className="text-[#68726d] block truncate">
+                    {row.original.description || "—"}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              {row.original.description && (
+                <TooltipContent
+                  align="start"
+                  className="max-w-[300px] break-words"
+                >
+                  <p>{row.original.description}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        ),
+      },
+      {
+        accessorKey: "createdBy",
+        header: "Created By",
+        cell: ({ row }) => (
+          <span className="text-foreground/75">{row.original.createdBy}</span>
+        ),
+      },
+      {
+        accessorKey: "date",
+        header: "Date",
+        cell: ({ row }) => (
+          <span className="text-foreground/75 tabular-nums">
+            {row.original.date}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "isPolicyAttached",
+        header: "Attached Policies",
+        cell: ({ row }) => {
+          const cat = row.original;
+          if (!cat.isPolicyAttached || cat.policies.length === 0) {
+            return (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#f9faf9] text-[#68726d]">
+                No Policy
+              </span>
+            );
+          }
 
-        const count = cat.policyCount;
-        const visibleNames = cat.policies.slice(0, 5).map(p => p.name);
-        const overflow = count - visibleNames.length;
+          const count = cat.policyCount;
+          const visibleNames = cat.policies.slice(0, 5).map((p) => p.name);
+          const overflow = count - visibleNames.length;
 
-        if (count === 1) {
-          const name = visibleNames[0];
+          if (count === 1) {
+            const name = visibleNames[0];
+            return (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => handleViewCategory(cat.id)}
+                      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[#087f70]/10 text-[#087f70] hover:bg-[#087f70]/20 transition-colors text-[12px] font-semibold max-w-[160px]"
+                    >
+                      <Shield className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{name}</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>{name}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          }
+
           return (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => handleViewCategory(cat.id)}
-                    className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[#087f70]/10 text-[#087f70] hover:bg-[#087f70]/20 transition-colors text-[12px] font-semibold max-w-[160px]"
+                    className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[#087f70]/10 text-[#087f70] hover:bg-[#087f70]/20 transition-colors text-[12px] font-semibold"
                   >
-                    <Shield className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{name}</span>
+                    <Shield className="w-3 h-3" />
+                    <span>{count} policies</span>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>{name}</p>
+                <TooltipContent side="top" className="p-2 max-w-[280px]">
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[10px] font-semibold text-white/70 uppercase tracking-wider mb-1">
+                      Attached Policies
+                    </p>
+                    <ul className="space-y-1">
+                      {visibleNames.map((name, i) => (
+                        <li key={i} className="flex items-center gap-1.5">
+                          <span className="w-1 h-1 rounded-full bg-white/70 shrink-0" />
+                          <span className="text-xs truncate">{name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {overflow > 0 && (
+                      <p className="text-[11px] text-white/70 mt-1 italic font-medium">
+                        + {overflow} more. Click to view all.
+                      </p>
+                    )}
+                  </div>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           );
-        }
-
-        return (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => handleViewCategory(cat.id)}
-                  className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-[#087f70]/10 text-[#087f70] hover:bg-[#087f70]/20 transition-colors text-[12px] font-semibold"
-                >
-                  <Shield className="w-3 h-3" />
-                  <span>{count} policies</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="p-2 max-w-[280px]">
-                <div className="flex flex-col gap-1.5">
-                  <p className="text-[10px] font-semibold text-white/70 uppercase tracking-wider mb-1">Attached Policies</p>
-                  <ul className="space-y-1">
-                    {visibleNames.map((name, i) => (
-                      <li key={i} className="flex items-center gap-1.5">
-                        <span className="w-1 h-1 rounded-full bg-white/70 shrink-0" />
-                        <span className="text-xs truncate">{name}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {overflow > 0 && (
-                    <p className="text-[11px] text-white/70 mt-1 italic font-medium">
-                      + {overflow} more. Click to view all.
-                    </p>
-                  )}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
+        },
       },
-    },
-    {
-      id: "actions",
-      header: () => <div className="text-right w-full">Action</div>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          <ActionMenu
-            onView={() => handleViewCategory(row.original.id)}
-            onCreatePolicy={() => setIsCreatePolicyOpen(true)}
-            onDelete={() => setCategoryToDelete(row.original.id)}
-          />
-        </div>
-      ),
-    },
-  ], [handleViewCategory]);
+      {
+        id: "actions",
+        header: () => <div className="text-right w-full">Action</div>,
+        cell: ({ row }) => (
+          <div className="text-right">
+            <ActionMenu
+              onView={() => handleViewCategory(row.original.id)}
+              onCreatePolicy={() => setIsCreatePolicyOpen(true)}
+              onDelete={() => setCategoryToDelete(row.original.id)}
+            />
+          </div>
+        ),
+      },
+    ],
+    [handleViewCategory],
+  );
 
   if (policyType === "procurement" && procurementView === "create") {
     return (
       <div className="h-full flex flex-col">
         <div className="bg-white rounded-[1.25rem] flex-1 flex flex-col min-h-0 overflow-hidden">
           <ProcurementPolicyWizard
-            key={editingProcurementPolicyId ?? editingProcurementDraftId ?? "new"}
+            key={
+              editingProcurementPolicyId ?? editingProcurementDraftId ?? "new"
+            }
             programId={editingProcurementPolicyId}
             initialDraftId={editingProcurementDraftId}
             initialStep={procurementWizardStep}
@@ -1612,238 +2127,306 @@ function PoliciesPage() {
   return (
     <div className="flex flex-col h-full pb-2">
       <>
-
-      {policyType === "procurement" ? (
-        <ProcurementPolicySection
-          canCreate={canCreatePolicy}
-          onCreateClick={() => {
-            setProcurementView("create", { policyId: null, draftId: null, step: 1 });
-          }}
-          onEdit={(p: any) => {
-            const id = (p as any).procurementSpendProgramId ?? (p as any).procurementPolicyId;
-            setProcurementView("create", { 
-              policyId: p.status !== "draft" ? id : null,
-              draftId: p.status === "draft" ? id : null,
-              step: 1
-            });
-          }}
-          onSubmitDraft={(p: any) => {
-            const id = (p as any).procurementSpendProgramId ?? (p as any).procurementPolicyId;
-            setProcurementView("create", {
-              policyId: null,
-              draftId: id,
-              step: 5 // Used for review/submit mode
-            });
-          }}
-        />
-      ) : (
-      <>
-      <PolicySummaryStrip items={policySummary} isLoading={policiesApi.isLoading || expCatApi.isLoading} />
-
-      {/* ── Main card ── */}
-      <div className="bg-white rounded-[15px] border border-black/[0.07] shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] overflow-hidden flex flex-col flex-1 min-h-0 mt-5">
-
-        {/* Tab row */}
-        <div className="flex items-center justify-between px-4 md:px-5 py-4 shrink-0 flex-wrap gap-3 border-b border-black/[0.055]">
-          {/* Pill tabs */}
-          <div className="flex max-w-full overflow-x-auto bg-[#f5f7f6] rounded-[10px] p-1 h-10">
-            <button
-              data-tour="policies-tab"
-              onClick={() => { switchTab("policies"); setSearch(""); }}
-              className={`h-full px-6 text-[13px] rounded-[6px] transition-all whitespace-nowrap ${
-                activeTab === "policies" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-semibold hover:text-[#0b100e]"
-              }`}
-            >
-              Policies
-            </button>
-            {canManageCategories && (
-              <button
-                data-tour="expense-category-tab"
-                onClick={() => { switchTab("expense"); setSearch(""); }}
-                className={`h-full px-6 text-[13px] rounded-[6px] transition-all whitespace-nowrap ${
-                  activeTab === "expense" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-semibold hover:text-[#0b100e]"
-                }`}
-              >
-                Expense Category
-              </button>
-            )}
-            <button
-              onClick={() => { switchTab("archived"); setSearch(""); }}
-              className={`h-full px-6 text-[13px] rounded-[6px] transition-all whitespace-nowrap ${
-                activeTab === "archived" ? "bg-white text-[#0b100e] font-semibold shadow-sm" : "text-[#68726d] font-semibold hover:text-[#0b100e]"
-              }`}
-            >
-              Archived
-            </button>
-          </div>
-
-          {/* Search + Filter + Refresh */}
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            <div className="relative flex-1 sm:flex-none">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#68726d]" />
-              <input
-                placeholder={activeTab === "expense" ? "Search categories" : "Search policies"}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-10 w-full rounded-[9px] border border-black/[0.07] bg-white pl-9 pr-4 text-[13px] placeholder:text-[#929c97] focus:outline-none focus:border-[#0ea894] transition-colors sm:w-[220px]"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => activeTab === "expense" ? expCatApi.refetch() : policiesApi.refetch()}
-              disabled={activeTab === "expense" ? expCatApi.isRefetching : policiesApi.isRefetching}
-              className="flex size-10 shrink-0 items-center justify-center rounded-[9px] border border-black/[0.07] bg-white text-[#68726d] hover:bg-[#f4f8f6] hover:text-[#087f70] transition-colors"
-            >
-              <RefreshCcw className={`w-4 h-4 ${(activeTab === "expense" ? expCatApi.isRefetching : policiesApi.isRefetching) ? "animate-spin" : ""}`} />
-              <span className="sr-only">Refresh policy data</span>
-            </button>
-          </div>
-        </div>
-
-        {/* ════ POLICIES TAB ════ */}
-        {activeTab === "policies" && (
+        {policyType === "procurement" ? (
+          <ProcurementPolicySection
+            canCreate={canCreatePolicy}
+            onCreateClick={() => {
+              setProcurementView("create", {
+                policyId: null,
+                draftId: null,
+                step: 1,
+              });
+            }}
+            onEdit={(p: any) => {
+              const id =
+                (p as any).procurementSpendProgramId ??
+                (p as any).procurementPolicyId;
+              setProcurementView("create", {
+                policyId: p.status !== "draft" ? id : null,
+                draftId: p.status === "draft" ? id : null,
+                step: 1,
+              });
+            }}
+            onSubmitDraft={(p: any) => {
+              const id =
+                (p as any).procurementSpendProgramId ??
+                (p as any).procurementPolicyId;
+              setProcurementView("create", {
+                policyId: null,
+                draftId: id,
+                step: 5, // Used for review/submit mode
+              });
+            }}
+          />
+        ) : (
           <>
-            {policiesApi.isLoading ? (
-              <div className="border-t border-black/[0.06] flex justify-center items-center py-20 px-6">
-                <div className="flex flex-col items-center gap-4 text-[#68726d]">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
-                  <p className="text-sm font-medium">Fetching policies...</p>
-                </div>
-              </div>
-            ) : activePolicies.length === 0 ? (
-              <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
-                <div className="flex flex-col items-center text-center max-w-sm">
-                  <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
-                    <ShieldCheck className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
-                  </div>
-                  <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No policies created yet</h2>
-                  <p className="text-[13px] text-[#77837e] leading-5 mb-6">
-                    Policies help you automate expense approvals and enforce spending limits. Create your first expense policy to get started.
-                  </p>
-                  {canCreatePolicy && (
-                    <button
-                      onClick={() => setIsCreatePolicyOpen(true)}
-                      className="h-10 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[13px] font-semibold flex items-center gap-2"
-                    >
-                      <PlusCircle className="w-4 h-4" strokeWidth={2} />
-                      Create First Policy
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
-                <DataTable
-                  data={filteredPolicies}
-                  columns={policyColumns}
-                  initialSorting={[{ id: "date", desc: true }]}
-                  height="auto"
-                  manualPagination={false}
-                  emptyState={
-                    <EmptyState 
-                      icon={<Search className="w-6 h-6" />}
-                      title="No policies found"
-                      description="Try adjusting your search query to find what you're looking for."
-                    />
-                  }
-                  onRowClick={handleRowClick}
-                  paginationProps={policyTableProps.paginationProps}
-                />
-              </div>
-            )}
-          </>
-        )}
+            <PolicySummaryStrip
+              items={policySummary}
+              isLoading={policiesApi.isLoading || expCatApi.isLoading}
+            />
 
-        {/* ════ EXPENSE CATEGORY TAB ════ */}
-        {activeTab === "expense" && (
-          <>
-            {expCatApi.isLoading ? (
-              <div className="border-t border-black/[0.06] flex justify-center items-center py-20 px-6">
-                <div className="flex flex-col items-center gap-4 text-[#68726d]">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
-                  <p className="text-sm font-medium">Fetching categories...</p>
-                </div>
-              </div>
-            ) : liveExpenseCategories.length === 0 ? (
-              <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
-                <div className="flex flex-col items-center text-center max-w-sm">
-                  <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
-                    <Tag className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
-                  </div>
-                  <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No expense categories</h2>
-                  <p className="text-[13px] text-[#77837e] leading-5 mb-6">
-                    Expense categories help you organize and control spending across your company. Create your first category to get started.
-                  </p>
+            {/* ── Main card ── */}
+            <div className="bg-white rounded-[15px] border border-black/[0.07] shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] overflow-hidden flex flex-col flex-1 min-h-0 mt-5">
+              {/* Tab row */}
+              <div className="flex items-center justify-between px-4 md:px-5 py-4 shrink-0 flex-wrap gap-3 border-b border-black/[0.055]">
+                {/* Pill tabs */}
+                <div className="flex max-w-full overflow-x-auto bg-[#f5f7f6] rounded-[10px] p-1 h-10">
+                  <button
+                    data-tour="policies-tab"
+                    onClick={() => {
+                      switchTab("policies");
+                      setSearch("");
+                    }}
+                    className={`h-full px-6 text-[13px] rounded-[6px] transition-all whitespace-nowrap ${
+                      activeTab === "policies"
+                        ? "bg-white text-[#0b100e] font-semibold shadow-sm"
+                        : "text-[#68726d] font-semibold hover:text-[#0b100e]"
+                    }`}
+                  >
+                    Policies
+                  </button>
                   {canManageCategories && (
                     <button
-                      onClick={() => setIsAddCategoryOpen(true)}
-                      className="h-10 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[13px] font-semibold flex items-center gap-2"
+                      data-tour="expense-category-tab"
+                      onClick={() => {
+                        switchTab("expense");
+                        setSearch("");
+                      }}
+                      className={`h-full px-6 text-[13px] rounded-[6px] transition-all whitespace-nowrap ${
+                        activeTab === "expense"
+                          ? "bg-white text-[#0b100e] font-semibold shadow-sm"
+                          : "text-[#68726d] font-semibold hover:text-[#0b100e]"
+                      }`}
                     >
-                      <PlusCircle className="w-4 h-4" strokeWidth={2} />
-                      Create First Category
+                      Expense Category
                     </button>
                   )}
+                  <button
+                    onClick={() => {
+                      switchTab("archived");
+                      setSearch("");
+                    }}
+                    className={`h-full px-6 text-[13px] rounded-[6px] transition-all whitespace-nowrap ${
+                      activeTab === "archived"
+                        ? "bg-white text-[#0b100e] font-semibold shadow-sm"
+                        : "text-[#68726d] font-semibold hover:text-[#0b100e]"
+                    }`}
+                  >
+                    Archived
+                  </button>
                 </div>
-              </div>
-            ) : (
-              <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
-                <DataTable
-                  data={filteredCategories}
-                  columns={columns}
-                  height="auto"
-                  emptyState={
-                    <EmptyState 
-                      icon={<Search className="w-6 h-6" />}
-                      title="No expense categories found"
-                      description="Try adjusting your search query to find what you're looking for."
-                    />
-                  }
-                  onRowClick={(row) => handleViewCategory(row.id)}
-                  paginationProps={{ ...expenseTableProps.paginationProps, total: filteredCategories.length }}
-                />
-              </div>
-            )}
-          </>
-        )}
 
-        {/* ════ ARCHIVED TAB ════ */}
-        {activeTab === "archived" && (
-          <>
-            {archivedPolicies.length === 0 ? (
-              <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
-                <div className="flex flex-col items-center text-center max-w-sm">
-                  <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
-                    <Archive className="w-5 h-5 text-[#087f70]" strokeWidth={1.5} />
+                {/* Search + Filter + Refresh */}
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                  <div className="relative flex-1 sm:flex-none">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#68726d]" />
+                    <input
+                      placeholder={
+                        activeTab === "expense"
+                          ? "Search categories"
+                          : "Search policies"
+                      }
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="h-10 w-full rounded-[9px] border border-black/[0.07] bg-white pl-9 pr-4 text-[13px] placeholder:text-[#929c97] focus:outline-none focus:border-[#0ea894] transition-colors sm:w-[220px]"
+                    />
                   </div>
-                  <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">No archived policies</h2>
-                  <p className="text-[13px] text-[#77837e] leading-5">
-                    Policies that you archive will appear here for future reference.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      activeTab === "expense"
+                        ? expCatApi.refetch()
+                        : policiesApi.refetch()
+                    }
+                    disabled={
+                      activeTab === "expense"
+                        ? expCatApi.isRefetching
+                        : policiesApi.isRefetching
+                    }
+                    className="flex size-10 shrink-0 items-center justify-center rounded-[9px] border border-black/[0.07] bg-white text-[#68726d] hover:bg-[#f4f8f6] hover:text-[#087f70] transition-colors"
+                  >
+                    <RefreshCcw
+                      className={`w-4 h-4 ${(activeTab === "expense" ? expCatApi.isRefetching : policiesApi.isRefetching) ? "animate-spin" : ""}`}
+                    />
+                    <span className="sr-only">Refresh policy data</span>
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
-                <DataTable
-                  data={archivedPolicies}
-                  columns={archivedColumns}
-                  height="auto"
-                  emptyState={
-                    <EmptyState 
-                      icon={<Search className="w-6 h-6" />}
-                      title="No archived policies found"
-                      description="Try adjusting your search query to find what you're looking for."
-                    />
-                  }
-                  onRowClick={handleRowClick}
-                  paginationProps={{ ...archivedTableProps.paginationProps, total: archivedPolicies.length }}
-                />
-              </div>
-            )}
+
+              {/* ════ POLICIES TAB ════ */}
+              {activeTab === "policies" && (
+                <>
+                  {policiesApi.isLoading ? (
+                    <div className="border-t border-black/[0.06] flex justify-center items-center py-20 px-6">
+                      <div className="flex flex-col items-center gap-4 text-[#68726d]">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
+                        <p className="text-sm font-medium">
+                          Fetching policies...
+                        </p>
+                      </div>
+                    </div>
+                  ) : activePolicies.length === 0 ? (
+                    <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
+                      <div className="flex flex-col items-center text-center max-w-sm">
+                        <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
+                          <ShieldCheck
+                            className="w-5 h-5 text-[#087f70]"
+                            strokeWidth={1.5}
+                          />
+                        </div>
+                        <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">
+                          No policies created yet
+                        </h2>
+                        <p className="text-[13px] text-[#77837e] leading-5 mb-6">
+                          Policies help you automate expense approvals and
+                          enforce spending limits. Create your first expense
+                          policy to get started.
+                        </p>
+                        {canCreatePolicy && (
+                          <button
+                            onClick={() => setIsCreatePolicyOpen(true)}
+                            className="h-10 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[13px] font-semibold flex items-center gap-2"
+                          >
+                            <PlusCircle className="w-4 h-4" strokeWidth={2} />
+                            Create First Policy
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
+                      <DataTable
+                        data={filteredPolicies}
+                        columns={policyColumns}
+                        initialSorting={[{ id: "date", desc: true }]}
+                        height="auto"
+                        manualPagination={false}
+                        emptyState={
+                          <EmptyState
+                            icon={<Search className="w-6 h-6" />}
+                            title="No policies found"
+                            description="Try adjusting your search query to find what you're looking for."
+                          />
+                        }
+                        onRowClick={handleRowClick}
+                        paginationProps={policyTableProps.paginationProps}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ════ EXPENSE CATEGORY TAB ════ */}
+              {activeTab === "expense" && (
+                <>
+                  {expCatApi.isLoading ? (
+                    <div className="border-t border-black/[0.06] flex justify-center items-center py-20 px-6">
+                      <div className="flex flex-col items-center gap-4 text-[#68726d]">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary/60" />
+                        <p className="text-sm font-medium">
+                          Fetching categories...
+                        </p>
+                      </div>
+                    </div>
+                  ) : liveExpenseCategories.length === 0 ? (
+                    <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
+                      <div className="flex flex-col items-center text-center max-w-sm">
+                        <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
+                          <Tag
+                            className="w-5 h-5 text-[#087f70]"
+                            strokeWidth={1.5}
+                          />
+                        </div>
+                        <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">
+                          No expense categories
+                        </h2>
+                        <p className="text-[13px] text-[#77837e] leading-5 mb-6">
+                          Expense categories help you organize and control
+                          spending across your company. Create your first
+                          category to get started.
+                        </p>
+                        {canManageCategories && (
+                          <button
+                            onClick={() => setIsAddCategoryOpen(true)}
+                            className="h-10 px-4 rounded-[9px] bg-[#087f70] text-white hover:bg-[#076b5e] transition-colors text-[13px] font-semibold flex items-center gap-2"
+                          >
+                            <PlusCircle className="w-4 h-4" strokeWidth={2} />
+                            Create First Category
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
+                      <DataTable
+                        data={filteredCategories}
+                        columns={columns}
+                        height="auto"
+                        emptyState={
+                          <EmptyState
+                            icon={<Search className="w-6 h-6" />}
+                            title="No expense categories found"
+                            description="Try adjusting your search query to find what you're looking for."
+                          />
+                        }
+                        onRowClick={(row) => handleViewCategory(row.id)}
+                        paginationProps={{
+                          ...expenseTableProps.paginationProps,
+                          total: filteredCategories.length,
+                        }}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ════ ARCHIVED TAB ════ */}
+              {activeTab === "archived" && (
+                <>
+                  {archivedPolicies.length === 0 ? (
+                    <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
+                      <div className="flex flex-col items-center text-center max-w-sm">
+                        <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
+                          <Archive
+                            className="w-5 h-5 text-[#087f70]"
+                            strokeWidth={1.5}
+                          />
+                        </div>
+                        <h2 className="text-[15px] font-semibold text-[#0b100e] mb-2">
+                          No archived policies
+                        </h2>
+                        <p className="text-[13px] text-[#77837e] leading-5">
+                          Policies that you archive will appear here for future
+                          reference.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
+                      <DataTable
+                        data={archivedPolicies}
+                        columns={archivedColumns}
+                        height="auto"
+                        emptyState={
+                          <EmptyState
+                            icon={<Search className="w-6 h-6" />}
+                            title="No archived policies found"
+                            description="Try adjusting your search query to find what you're looking for."
+                          />
+                        }
+                        onRowClick={handleRowClick}
+                        paginationProps={{
+                          ...archivedTableProps.paginationProps,
+                          total: archivedPolicies.length,
+                        }}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </>
         )}
-      </div>
-      </>
-      )}
       </>
 
       {/* ── Modals ── */}
@@ -1862,36 +2445,54 @@ function PoliciesPage() {
         initialStep={editingStep}
       />
 
-      <AlertDialog open={categoryToDelete !== null} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
+      <AlertDialog
+        open={categoryToDelete !== null}
+        onOpenChange={(open) => !open && setCategoryToDelete(null)}
+      >
         <AlertDialogContent className="rounded-[14px] border-none">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Expense Category?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this category. This action cannot be undone. 
+              This will permanently delete this category. This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeDeleteCategory} className="bg-red-500 hover:bg-red-600 text-white">
-              {deleteCategoryMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            <AlertDialogAction
+              onClick={executeDeleteCategory}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              {deleteCategoryMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={draftToDelete !== null} onOpenChange={(open) => !open && setDraftToDelete(null)}>
+      <AlertDialog
+        open={draftToDelete !== null}
+        onOpenChange={(open) => !open && setDraftToDelete(null)}
+      >
         <AlertDialogContent className="rounded-[14px] border-none">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Draft Policy?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this drafted policy. This action cannot be undone. 
+              This will permanently delete this drafted policy. This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeDeleteDraft} className="bg-red-500 hover:bg-red-600 text-white">
-              {deleteDraftMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            <AlertDialogAction
+              onClick={executeDeleteDraft}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              {deleteDraftMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1901,7 +2502,9 @@ function PoliciesPage() {
       <SimpleAddExpenseCategoryDialog
         open={isAddCategoryOpen}
         onOpenChange={setIsAddCategoryOpen}
-        onSuccess={() => { notifySetupGuide("expense-category"); }}
+        onSuccess={() => {
+          notifySetupGuide("expense-category");
+        }}
       />
       <ExpenseCategoryDetailsModal
         category={selectedCategoryDetails}
@@ -1913,9 +2516,20 @@ function PoliciesPage() {
       <PolicyDetailsModal
         policy={detailPolicy}
         onClose={() => setDetailPolicy(null)}
-        onEdit={(p) => { handleEdit(p); setEditingStep(1); setDetailPolicy(null); }}
-        onSubmitDraft={(p) => { handleEdit(p); setEditingStep(4); setDetailPolicy(null); }}
-        onArchive={(p) => { handleArchive(p); setDetailPolicy(null); }}
+        onEdit={(p) => {
+          handleEdit(p);
+          setEditingStep(1);
+          setDetailPolicy(null);
+        }}
+        onSubmitDraft={(p) => {
+          handleEdit(p);
+          setEditingStep(4);
+          setDetailPolicy(null);
+        }}
+        onArchive={(p) => {
+          handleArchive(p);
+          setDetailPolicy(null);
+        }}
         onDeleteDraft={(draftId) => setDraftToDelete(draftId)}
       />
       {reviewPolicy && (

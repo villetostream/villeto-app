@@ -1,4 +1,8 @@
 import {
+  workspaceQueryKey,
+  useEntityWorkspaceStore,
+} from "@/features/entity-workspace/store";
+import {
   useQuery,
   useMutation,
   useQueryClient,
@@ -48,7 +52,9 @@ export interface PurchaseRequestLineItem {
   resolvedVendorId?: string;
   conversionStatus?: "open" | "converted";
   convertedQuantity?: number;
-  policyViolations?: { type: string; message: string; ruleType?: string }[] | null;
+  policyViolations?:
+    | { type: string; message: string; ruleType?: string }[]
+    | null;
 }
 
 export type ApprovalStatus =
@@ -147,11 +153,16 @@ export const useCreatePurchaseRequest = (): UseMutationResult<
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload) => {
-      const res = await axiosInstance.post(PROCUREMENT_KEYS.PURCHASE_REQUESTS, payload);
+      const res = await axiosInstance.post(
+        PROCUREMENT_KEYS.PURCHASE_REQUESTS,
+        payload,
+      );
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests),
+      });
     },
   });
 };
@@ -173,11 +184,17 @@ export interface GetPurchaseRequestsParams {
 
 export const useGetPurchaseRequests = <TData = ApiResponse<PurchaseRequest[]>>(
   params: GetPurchaseRequestsParams = {},
-  options?: Omit<UseQueryOptions<ApiResponse<PurchaseRequest[]>, Error, TData>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<ApiResponse<PurchaseRequest[]>, Error, TData>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<TData, Error> => {
   const axiosInstance = useAxios();
   return useQuery<ApiResponse<PurchaseRequest[]>, Error, TData>({
-    queryKey: [...QUERY_KEYS.procurement.purchaseRequests, params],
+    queryKey: workspaceQueryKey([
+      ...QUERY_KEYS.procurement.purchaseRequests,
+      params,
+    ]),
     queryFn: async () => {
       const query = new URLSearchParams();
       if (params.scope) query.set("scope", params.scope);
@@ -204,13 +221,18 @@ export const useGetPurchaseRequests = <TData = ApiResponse<PurchaseRequest[]>>(
 
 export const useGetPurchaseRequestById = (
   id: string,
-  options?: Omit<UseQueryOptions<ApiResponse<PurchaseRequest>, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<ApiResponse<PurchaseRequest>, Error>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<ApiResponse<PurchaseRequest>, Error> => {
   const axiosInstance = useAxios();
   return useQuery({
-    queryKey: QUERY_KEYS.procurement.purchaseRequest(id),
+    queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)),
     queryFn: async () => {
-      const res = await axiosInstance.get(PROCUREMENT_KEYS.PURCHASE_REQUEST(id));
+      const res = await axiosInstance.get(
+        PROCUREMENT_KEYS.PURCHASE_REQUEST(id),
+      );
       return res.data;
     },
     enabled: !!id,
@@ -222,18 +244,29 @@ export const useGetPurchaseRequestById = (
 // ── Update Purchase Request Header ────────────────────────────────────────
 
 export const useUpdatePurchaseRequest = (
-  id: string
-): UseMutationResult<ApiResponse<PurchaseRequest>, Error, Partial<CreatePurchaseRequestPayload>> => {
+  id: string,
+): UseMutationResult<
+  ApiResponse<PurchaseRequest>,
+  Error,
+  Partial<CreatePurchaseRequestPayload>
+> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload) => {
-      const res = await axiosInstance.patch(PROCUREMENT_KEYS.PURCHASE_REQUEST(id), payload);
+      const res = await axiosInstance.patch(
+        PROCUREMENT_KEYS.PURCHASE_REQUEST(id),
+        payload,
+      );
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests),
+      });
     },
   });
 };
@@ -241,17 +274,21 @@ export const useUpdatePurchaseRequest = (
 // ── Delete Purchase Request (Draft) ───────────────────────────────────────
 
 export const useDeletePurchaseRequest = (
-  id: string
+  id: string,
 ): UseMutationResult<ApiResponse<unknown>, Error, void> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const res = await axiosInstance.delete(PROCUREMENT_KEYS.PURCHASE_REQUEST(id));
+      const res = await axiosInstance.delete(
+        PROCUREMENT_KEYS.PURCHASE_REQUEST(id),
+      );
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests),
+      });
     },
   });
 };
@@ -278,20 +315,28 @@ export interface LineItemPayload {
 }
 
 export const useAddLineItem = (
-  purchaseRequestId: string
-): UseMutationResult<ApiResponse<unknown>, Error, { lineItems: LineItemPayload[] }> => {
+  purchaseRequestId: string,
+): UseMutationResult<
+  ApiResponse<unknown>,
+  Error,
+  { lineItems: LineItemPayload[] }
+> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload) => {
       const res = await axiosInstance.post(
         PROCUREMENT_KEYS.LINE_ITEMS(purchaseRequestId),
-        payload
+        payload,
       );
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId) });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(
+          QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId),
+        ),
+      });
     },
   });
 };
@@ -300,20 +345,28 @@ export const useAddLineItem = (
 
 export const useUpdateLineItem = (
   purchaseRequestId: string,
-  lineItemId: string
-): UseMutationResult<ApiResponse<PurchaseRequestLineItem>, Error, LineItemPayload> => {
+  lineItemId: string,
+): UseMutationResult<
+  ApiResponse<PurchaseRequestLineItem>,
+  Error,
+  LineItemPayload
+> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload) => {
       const res = await axiosInstance.patch(
         PROCUREMENT_KEYS.LINE_ITEM(purchaseRequestId, lineItemId),
-        payload
+        payload,
       );
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId) });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(
+          QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId),
+        ),
+      });
     },
   });
 };
@@ -321,19 +374,23 @@ export const useUpdateLineItem = (
 // ── Delete Line Item ──────────────────────────────────────────────────────
 
 export const useDeleteLineItem = (
-  purchaseRequestId: string
+  purchaseRequestId: string,
 ): UseMutationResult<ApiResponse<null>, Error, string> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (lineItemId: string) => {
       const res = await axiosInstance.delete(
-        PROCUREMENT_KEYS.LINE_ITEM(purchaseRequestId, lineItemId)
+        PROCUREMENT_KEYS.LINE_ITEM(purchaseRequestId, lineItemId),
       );
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId) });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(
+          QUERY_KEYS.procurement.purchaseRequest(purchaseRequestId),
+        ),
+      });
     },
   });
 };
@@ -347,20 +404,28 @@ export interface SubmitPurchaseRequestPayload {
 }
 
 export const useSubmitPurchaseRequest = (
-  id: string
+  id: string,
 ): UseMutationResult<ApiResponse<PurchaseRequest>, Error, SubmitPurchaseRequestPayload | void> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload) => {
-      const res = await axiosInstance.patch(PROCUREMENT_KEYS.SUBMIT(id), payload || {}, {
-        _skipErrorToast: true,
-      } as any);
+      const res = await axiosInstance.patch(
+        PROCUREMENT_KEYS.SUBMIT(id),
+        payload || {},
+        {
+          _skipErrorToast: true,
+        } as any,
+      );
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests),
+      });
     },
   });
 };
@@ -368,7 +433,7 @@ export const useSubmitPurchaseRequest = (
 // ── Cancel Purchase Request ───────────────────────────────────────────────
 
 export const useCancelPurchaseRequest = (
-  id: string
+  id: string,
 ): UseMutationResult<ApiResponse<PurchaseRequest>, Error, void> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
@@ -378,8 +443,12 @@ export const useCancelPurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests),
+      });
     },
   });
 };
@@ -412,19 +481,32 @@ export interface ConvertToPOPayload {
 }
 
 export const useConvertToPO = (
-  id: string
-): UseMutationResult<ApiResponse<PurchaseRequest>, Error, ConvertToPOPayload> => {
+  id: string,
+): UseMutationResult<
+  ApiResponse<PurchaseRequest>,
+  Error,
+  ConvertToPOPayload
+> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload) => {
-      const res = await axiosInstance.post(PROCUREMENT_KEYS.CONVERT_TO_PO(id), payload);
+      const res = await axiosInstance.post(
+        PROCUREMENT_KEYS.CONVERT_TO_PO(id),
+        payload,
+      );
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseOrders });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrders),
+      });
     },
   });
 };
@@ -445,21 +527,24 @@ export interface ProcurementCategory {
   isPolicyAttached: boolean;
   policies: unknown[];
   createdBy: {
-      userId: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-      [key: string]: unknown;
+    userId: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    [key: string]: unknown;
   } | null;
   children: ProcurementCategory[];
 }
 
 export const useGetProcurementCategories = (
-  options?: Omit<UseQueryOptions<ApiResponse<ProcurementCategory[]>, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<ApiResponse<ProcurementCategory[]>, Error>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<ApiResponse<ProcurementCategory[]>, Error> => {
   const axiosInstance = useAxios();
   return useQuery({
-    queryKey: QUERY_KEYS.procurement.categories,
+    queryKey: workspaceQueryKey(QUERY_KEYS.procurement.categories),
     queryFn: async () => {
       const res = await axiosInstance.get(PROCUREMENT_KEYS.CATEGORIES);
       return res.data;
@@ -483,28 +568,34 @@ export const useCreateProcurementCategory = (): UseMutationResult<
           {
             name: payload.name,
             module: "procurement",
-            ...(payload.description ? { description: payload.description } : {}),
-            ...(payload.parentCategoryId ? { parentCategoryId: payload.parentCategoryId } : {}),
-          }
-        ]
+            ...(payload.description
+              ? { description: payload.description }
+              : {}),
+            ...(payload.parentCategoryId
+              ? { parentCategoryId: payload.parentCategoryId }
+              : {}),
+          },
+        ],
       };
       const res = await axiosInstance.post(PROCUREMENT_KEYS.CATEGORIES, data);
-      
+
       const responseData = res.data;
       if (Array.isArray(responseData.data)) {
-         responseData.data = responseData.data[0];
+        responseData.data = responseData.data[0];
       }
       return responseData;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.categories });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.categories),
+      });
     },
   });
 };
 // ── Approve Purchase Request ──────────────────────────────────────────────────
 
 export const useApprovePurchaseRequest = (
-  id: string
+  id: string,
 ): UseMutationResult<ApiResponse<PurchaseRequest>, Error, void> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
@@ -514,8 +605,12 @@ export const useApprovePurchaseRequest = (
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests),
+      });
     },
   });
 };
@@ -523,18 +618,29 @@ export const useApprovePurchaseRequest = (
 // ── Reject Purchase Request ───────────────────────────────────────────────────
 
 export const useRejectPurchaseRequest = (
-  id: string
-): UseMutationResult<ApiResponse<PurchaseRequest>, Error, { reason: string }> => {
+  id: string,
+): UseMutationResult<
+  ApiResponse<PurchaseRequest>,
+  Error,
+  { reason: string }
+> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload) => {
-      const res = await axiosInstance.patch(PROCUREMENT_KEYS.REJECT(id), payload);
+      const res = await axiosInstance.patch(
+        PROCUREMENT_KEYS.REJECT(id),
+        payload,
+      );
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests),
+      });
     },
   });
 };
@@ -542,18 +648,29 @@ export const useRejectPurchaseRequest = (
 // ── Withdraw (Cancel) Purchase Request with justification ─────────────────────
 
 export const useWithdrawPurchaseRequest = (
-  id: string
-): UseMutationResult<ApiResponse<PurchaseRequest>, Error, { reason: string }> => {
+  id: string,
+): UseMutationResult<
+  ApiResponse<PurchaseRequest>,
+  Error,
+  { reason: string }
+> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload) => {
-      const res = await axiosInstance.patch(PROCUREMENT_KEYS.WITHDRAW(id), payload);
+      const res = await axiosInstance.patch(
+        PROCUREMENT_KEYS.WITHDRAW(id),
+        payload,
+      );
       return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequest(id) });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.procurement.purchaseRequests });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequest(id)),
+      });
+      qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseRequests),
+      });
     },
   });
 };
@@ -570,15 +687,42 @@ export interface Vendor {
   status: string;
   approvalStatus: string;
   isPaymentEnabled?: boolean;
+  sites?: Array<{
+    vendorSiteId: string;
+    code: string;
+    name: string;
+    isPrimary: boolean;
+  }>;
 }
 
 export const useGetVendors = (
-  options?: Omit<UseQueryOptions<ApiResponse<Vendor[]>, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<ApiResponse<Vendor[]>, Error>,
+    "queryKey" | "queryFn"
+  >,
 ): UseQueryResult<ApiResponse<Vendor[]>, Error> => {
   const axiosInstance = useAxios();
+  const workspace = useEntityWorkspaceStore();
   return useQuery({
-    queryKey: QUERY_KEYS.vendors.approved,
+    queryKey: workspaceQueryKey([
+      ...QUERY_KEYS.vendors.approved,
+      workspace.snapshot?.enabled ? "entity-eligible" : "legacy-directory",
+    ]),
     queryFn: async () => {
+      if (workspace.snapshot?.enabled) {
+        const response = await axiosInstance.get(
+          `/legal-entities/${workspace.selection}/eligible-vendors?purpose=purchasing`,
+        );
+        const payload = response.data?.data || response.data;
+        return {
+          ...response.data,
+          data: (payload.vendors || []).map((vendor: Vendor) => ({
+            ...vendor,
+            status: "Active",
+            approvalStatus: "approved",
+          })),
+        } as ApiResponse<Vendor[]>;
+      }
       // Procurement selection only needs safe lookup fields. The full /vendors
       // endpoint intentionally requires sensitive-vendor access.
       const url = `/vendors/directory?page=1&limit=100&approvalStatus=approved`;
@@ -587,5 +731,13 @@ export const useGetVendors = (
     },
     staleTime: STALE_TIMES.SLOW,
     ...options,
+    enabled:
+      options?.enabled !== false &&
+      (!workspace.snapshot?.enabled ||
+        (!!workspace.selection &&
+          workspace.selection !== "all" &&
+          !workspace.snapshot.entities.find(
+            (entity) => entity.legalEntityId === workspace.selection,
+          )?.readOnly)),
   });
 };
