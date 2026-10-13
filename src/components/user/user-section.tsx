@@ -585,7 +585,7 @@ export function UserSection() {
       return;
     }
     if (isPersonalExpenseDetailPage || isPersonalExpenseEditPage || isPersonalExpenseDeletePage) {
-      router.push(`/expenses?tab=${sessionStorage.getItem("expensesReturnTab") || "personal-expenses"}&page=${sessionStorage.getItem("expensesReturnPage") || "1"}`);
+      router.push(`/expenses?tab=personal-expenses&page=${sessionStorage.getItem("expensesReturnPage") || "1"}`);
       return;
     }
     if (isCompanyExpenseDetailPage) {
@@ -613,7 +613,7 @@ export function UserSection() {
       return;
     }
     if (isNewReportPage) {
-      router.push(`/expenses?tab=${sessionStorage.getItem("expensesReturnTab") || "personal-expenses"}&page=${sessionStorage.getItem("expensesReturnPage") || "1"}`);
+      router.push("/expenses?tab=personal-expenses&page=1");
       return;
     }
     if (pathname === "/people/invite/leadership") { router.push("/people"); return; }
@@ -670,18 +670,47 @@ export function UserSection() {
       return;
     }
     if (isPOEditPage || isPODetailPage) {
+      const fromPr = searchParams.get("fromPr") || searchParams.get("prId");
+      const poReturnUrl = typeof window !== "undefined" ? sessionStorage.getItem("poReturnUrl") : null;
+      const poFromPr = typeof window !== "undefined" ? sessionStorage.getItem("poFromPr") : null;
+
+      if (isPOEditPage) {
+        const outerTab = searchParams.get("outerTab");
+        const innerTab = searchParams.get("innerTab");
+        const params = new URLSearchParams();
+        if (outerTab) params.set("outerTab", outerTab);
+        if (innerTab) params.set("innerTab", innerTab);
+        if (fromPr) params.set("fromPr", fromPr);
+        const query = params.toString();
+        const detailPath = pathname.replace(/\/edit$/, "");
+        router.push(query ? `${detailPath}?${query}` : detailPath);
+        return;
+      }
+
+      // Check if accessed from a Purchase Request
+      const prTarget = (poReturnUrl && poReturnUrl.includes("/procurement/purchase-request"))
+        ? poReturnUrl
+        : fromPr
+          ? (fromPr.startsWith("/") ? fromPr : `/procurement/purchase-request/${fromPr}`)
+          : poFromPr
+            ? `/procurement/purchase-request/${poFromPr}`
+            : null;
+
+      if (prTarget) {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("poReturnUrl");
+          sessionStorage.removeItem("poFromPr");
+        }
+        router.push(prTarget);
+        return;
+      }
+
       const outerTab = searchParams.get("outerTab");
       const innerTab = searchParams.get("innerTab");
       const params = new URLSearchParams();
       if (outerTab) params.set("outerTab", outerTab);
       if (innerTab) params.set("innerTab", innerTab);
       const query = params.toString();
-
-      if (isPOEditPage) {
-        const detailPath = pathname.replace(/\/edit$/, "");
-        router.push(query ? `${detailPath}?${query}` : detailPath);
-        return;
-      }
 
       router.push(query ? `/procurement/purchase-order?${query}` : "/procurement/purchase-order");
       return;

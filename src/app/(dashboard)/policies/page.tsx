@@ -5,9 +5,10 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   PlusCircle, ShieldCheck, MoreHorizontal, Pencil, Shield, Trash2,
   Search, RefreshCcw,
-  Eye, Archive, X, UserCircle, FileText, Clock, Tag, Loader2
+  Eye, Archive, X, UserCircle, FileText, Clock, Tag, Loader2, XCircle
 } from "lucide-react";
 import { ReviewPolicyModal } from "@/components/policies/ReviewPolicyModal";
+import { getPolicyRejection } from "@/lib/policies/rejection-store";
 import PolicyCreationModal, { type CreatedPolicyData } from "@/components/policies/PolicyCreationModal";
 import SimpleAddExpenseCategoryDialog from "@/components/policies/SimpleAddExpenseCategoryDialog";
 import { ProcurementPolicySection } from "@/components/policies/procurement/ProcurementPolicySection";
@@ -15,7 +16,6 @@ import { ProcurementPolicyWizard } from "@/components/policies/procurement/Procu
 import { PolicySummaryStrip, PolicyWorkspaceHeader, type PolicySummaryItem } from "@/components/policies/PolicyWorkspace";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { DataTable } from "@/components/datatable";
-import { SortableColumnHeader } from "@/components/datatable/SortableColumnHeader";
 import { ColumnDef } from "@tanstack/react-table";
 import {
   DropdownMenu,
@@ -446,6 +446,13 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
   const approvedBy   = (fullPolicy as any)?.approvedBy || (policy as any)?.approvedBy;
   const approvedAt   = (fullPolicy as any)?.approvedAt || (policy as any)?.approvedAt;
 
+  const policyId = policy.id || (policy as any).policyId;
+  const storedRejection = getPolicyRejection(policyId);
+  const isRejected = policyStatus === "rejected" || policyStatus === "declined" || !!storedRejection;
+  const rejectionReason = (fullPolicy as any)?.rejectionReason || (fullPolicy as any)?.reason || (policy as any)?.rejectionReason || (policy as any)?.reason || storedRejection?.reason;
+  const rejectedBy = (fullPolicy as any)?.rejectedBy || (policy as any)?.rejectedBy || storedRejection?.rejectedBy;
+  const rejectedAt = (fullPolicy as any)?.rejectedAt || (policy as any)?.rejectedAt || storedRejection?.rejectedAt;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div
@@ -527,6 +534,17 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
             </>
           ) : (
             <>
+              {/* REJECTION REASON CARD */}
+              {isRejected && rejectionReason && (
+                <div className="rounded-[20px] border border-red-200 bg-[#fff8f8] p-4">
+                  <div className="flex items-center gap-2 mb-1.5 text-[#d33d44]">
+                    <XCircle className="w-4 h-4 shrink-0" />
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em]">Rejection Reason</p>
+                  </div>
+                  <p className="text-xs text-[#521c20] leading-relaxed pl-6">{rejectionReason}</p>
+                </div>
+              )}
+
               {/* APPLIES TO */}
               <div className="rounded-[24px] border border-black/[0.06]/70 p-4">
                 <p className="text-[10px] font-bold text-[#68726d] uppercase tracking-[0.12em] mb-2.5">
@@ -626,8 +644,23 @@ function PolicyDetailsModal({ policy, onClose, onEdit, onArchive, onDeleteDraft,
                 </p>
                 <p className="text-xs text-[#68726d] mt-0.5">{formatDate(createdAt, policy.date)}</p>
               </div>
-              {/* Approved by */}
-              {approvedBy ? (
+              {/* Approved / Rejected by */}
+              {isRejected && (rejectedBy || storedRejection) ? (
+                <div className="text-right">
+                  <p className="text-[11px] text-[#d33d44] font-medium mb-1.5">Rejected by</p>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-semibold text-[#0b100e] leading-tight">
+                        {formatUser(rejectedBy || storedRejection?.rejectedBy)}
+                        {formatUserRole(rejectedBy || storedRejection?.rejectedBy) && (
+                          <span className="text-[#68726d] font-normal"> ({formatUserRole(rejectedBy || storedRejection?.rejectedBy)})</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-[#68726d] mt-0.5">{formatDate(rejectedAt, storedRejection?.rejectedAt)}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : approvedBy ? (
                 <div className="text-right">
                   <p className="text-[11px] text-[#68726d] mb-1.5">Approved by</p>
                   <div className="space-y-2">
@@ -1150,15 +1183,10 @@ function PoliciesPage() {
         }
       }
 
-      if (isCreator) {
-        stillApprover = false;
-      }
-
-      if (!stillApprover) {
-        // Close the modal we just opened — user is no longer an approver
+      if (isCreator || !stillApprover) {
+        // Not an approver or is the creator — seamlessly route to details view without error
         setReviewPolicy(null);
-        toast.error("You are no longer an approver for this policy.");
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.policies });
+        setDetailPolicy((freshPolicy as any) || policy);
         return;
       }
 
@@ -1228,13 +1256,12 @@ function PoliciesPage() {
       }
     }
 
-    if (isApprover && isCreator) {
-      isApprover = false;
+    if (isCreator) {
+      return false;
     }
 
     const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
-    // Show the Review button for approvers AND for the creator (so creators can track status)
-    return isPending && (isApprover || isCreator);
+    return isPending && isApprover;
   }, [user, eligibleRoles]);
 
   // Separate check: can this user actually approve/reject (i.e. not just view)
@@ -1264,10 +1291,24 @@ function PoliciesPage() {
     const creatorId = isRecord(createdByObj) 
       ? pickString(createdByObj, "id", "userId") 
       : (policy as any).createdById;
-    const isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
+    let isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
+    if (!isCreator && user) {
+      const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
+      let creatorName = "";
+      if (typeof createdByObj === 'string') {
+        creatorName = createdByObj.trim().toLowerCase();
+      } else if (isRecord(createdByObj)) {
+        creatorName = `${pickString(createdByObj, "firstName") || ''} ${pickString(createdByObj, "lastName") || ''}`.trim().toLowerCase();
+      } else if (typeof (policy as any).createdByName === 'string') {
+        creatorName = (policy as any).createdByName.trim().toLowerCase();
+      }
+      if (userFullName && creatorName && userFullName === creatorName) {
+        isCreator = true;
+      }
+    }
 
-    // If also the creator, cannot approve their own policy
-    if (isApprover && isCreator) isApprover = false;
+    // If creator, cannot approve their own policy
+    if (isCreator) return false;
 
     const isPending = policy.status?.toLowerCase() === "pending_approval" || policy.status?.toLowerCase() === "pending";
     return isPending && isApprover;
@@ -1290,7 +1331,7 @@ function PoliciesPage() {
         const b = String(rowB.getValue(columnId) || "").toLowerCase();
         return a.localeCompare(b);
       },
-      header: ({ column }) => <SortableColumnHeader column={column} title="Policy Name" />,
+      header: "Policy Name",
       cell: ({ row }) => (
         <div>
           <p className="text-sm font-bold text-foreground">{capitalizeName(row.original.name)}</p>
@@ -1299,6 +1340,15 @@ function PoliciesPage() {
       ),
     },
     { accessorKey: "appliedTo", header: "Applied To" },
+    {
+      accessorKey: "createdBy",
+      header: "Created By",
+      cell: ({ row }) => (
+        <span className="text-sm text-[#3a4a44]">
+          {row.original.createdBy || "—"}
+        </span>
+      ),
+    },
     {
       accessorKey: "date",
       sortingFn: (rowA, rowB, columnId) => {
@@ -1314,12 +1364,11 @@ function PoliciesPage() {
         };
         return parseDate(rowA.getValue(columnId) as string) - parseDate(rowB.getValue(columnId) as string);
       },
-      header: ({ column }) => <SortableColumnHeader column={column} title="Date" />,
+      header: "Date",
       cell: ({ row }) => (
-         <div>
-           <p className="text-sm font-semibold text-foreground">{row.original.createdBy}</p>
-           <p className="text-xs text-[#68726d] tabular-nums">{row.original.date}</p>
-         </div>
+        <span className="text-sm text-[#68726d] tabular-nums">
+          {row.original.date}
+        </span>
       ),
     },
     {
@@ -1873,6 +1922,7 @@ function PoliciesPage() {
         <ReviewPolicyModal
           policy={reviewPolicy as any}
           onClose={() => setReviewPolicy(null)}
+          readOnly={!checkIfCanApprove(reviewPolicy)}
         />
       )}
     </div>
@@ -1880,5 +1930,10 @@ function PoliciesPage() {
 }
 
 export default withPermissions(PoliciesPage, [
-  { resource: "policy", action: "read_company" }
+  { resource: "policy", action: "read_company" },
+  { resource: "policy", action: "manage" },
+  { resource: "policy", action: "read" },
+  { resource: "policy.domain", action: "expense" },
+  { resource: "policy.domain", action: "procurement" },
+  { resource: "policy.domain", action: "all" },
 ]);

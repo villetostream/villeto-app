@@ -501,8 +501,13 @@ export const useRejectSpendProgram = () => {
   const axios = useAxios();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await axios.patch(PROCUREMENT_KEYS.SPEND_PROGRAM_ACTION(id, "reject"));
+    mutationFn: async (args: string | { id: string; reason?: string }) => {
+      const id = typeof args === "string" ? args : args.id;
+      const reason = typeof args === "string" ? undefined : args.reason;
+      const res = await axios.patch(
+        PROCUREMENT_KEYS.SPEND_PROGRAM_ACTION(id, "reject"),
+        reason ? { reason, rejectionReason: reason } : {}
+      );
       return res.data;
     },
     onSuccess: async () => {

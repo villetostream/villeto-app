@@ -2,7 +2,7 @@
 
 import withPermissions from "@/components/permissions/permission-protected-routes";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ReceiptUploadSection } from "@/components/expenses/new-report/ReceiptUploadSection";
@@ -19,10 +19,12 @@ import { type ExpenseDetailFormData, type SplitParticipant } from "@/components/
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil, AlertCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { logger } from "@/lib/logger";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
+import { isCategoryWithPolicy } from "@/queries/companies/get-expense-categories";
+import { useAuthStore } from "@/stores/auth-stores";
 import {
   getApiErrorMessage,
   isPolicyViolationError,
@@ -35,6 +37,7 @@ import {
 import { invalidatePersonalExpenseQueries } from "@/lib/react-query/expenses";
 import {
   extractedReceiptValues,
+  getReceiptExtraction,
   type ReceiptExtraction,
 } from "@/lib/receipt-extraction";
 
@@ -198,7 +201,110 @@ function NewReportPage() {
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [draftId, setDraftId] = useState<string | null>(null);
+  const isSubmittingRef = useRef(false);
+
+  const initialDraftId = searchParams.get("draftId") || searchParams.get("id") || null;
+  const [draftId, setDraftId] = useState<string | null>(initialDraftId);
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string | null>(null);
+
+  const serializeReportSnapshot = (title: string, list: ExpenseItem[]): string => {
+    return JSON.stringify({
+      title: (title || "").trim(),
+      expenses: list.map((e) => ({
+        name: (e.name || "").trim(),
+        category: (e.category || "").trim(),
+        amount: Number(e.amount) || 0,
+        merchantName: (e.merchantName || "").trim(),
+        description: (e.description || "").trim(),
+        transactionDate:
+          e.transactionDate instanceof Date
+            ? e.transactionDate.toISOString().split("T")[0]
+            : e.transactionDate
+              ? String(e.transactionDate).split("T")[0]
+              : "",
+        receiptImage: e.receiptImage || "",
+        receiptExtractionId: e.receiptExtractionId || "",
+        isSplit: !!e.isSplit,
+        splitParticipants: (e.splitParticipants || []).map((p) => p.userId).sort(),
+        splitAllocationMode: e.splitAllocationMode || "equal",
+        splitAllocations: e.splitAllocations || {},
+        justification: (e.justification || "").trim(),
+      })),
+    });
+  };
+
+  // If draftId was provided via query param on initial load, fetch its details
+  useEffect(() => {
+    if (!initialDraftId) return;
+    let isCancelled = false;
+
+    const fetchExistingDraft = async () => {
+      try {
+        const res = await axios.get<any>(`reports/drafts/${initialDraftId}`);
+        if (isCancelled) return;
+        const inner = res.data?.data || {};
+        const data = inner.data ? inner.data : inner;
+
+        if (data.reportTitle) {
+          setReportTitle(data.reportTitle);
+        }
+
+        const rawExpenses = data.expenses || data.expensesPayload || [];
+        if (Array.isArray(rawExpenses) && rawExpenses.length > 0) {
+          const mapped: ExpenseItem[] = await Promise.all(
+            rawExpenses.map(async (e: any, index: number) => {
+              let receiptImage = e.receiptImage || "";
+              if (receiptImage && !receiptImage.startsWith("data:") && !receiptImage.startsWith("http")) {
+                receiptImage = `data:image/jpeg;base64,${receiptImage}`;
+              }
+              if (!receiptImage && e.receiptExtractionId) {
+                try {
+                  const extraction = await getReceiptExtraction(axios, e.receiptExtractionId);
+                  receiptImage = extraction.receiptUrl;
+                } catch {
+                  // ignore
+                }
+              }
+
+              return {
+                id: e.expenseId || e.id || `draft-${index}-${Date.now()}`,
+                name: e.title || e.name || `Expense ${index + 1}`,
+                category: e.categoryName || e.category || "",
+                amount: Number(e.amount) || 0,
+                merchantName: e.merchantName || "",
+                description: e.description || "",
+                transactionDate: e.transactionDate ? new Date(e.transactionDate) : new Date(),
+                receiptImage,
+                receiptExtractionId: e.receiptExtractionId,
+                isSplit: e.isSplit,
+                expenseType: e.expenseType,
+                splitParticipants: e.splitParticipants,
+                splitAllocationMode: e.splitAllocationMode,
+                splitAllocations: e.splitAllocations,
+              } as ExpenseItem;
+            })
+          );
+          if (!isCancelled) {
+            setExpenses(mapped);
+            setLastSavedSnapshot(serializeReportSnapshot(data.reportTitle || initialTitle, mapped));
+          }
+        }
+      } catch (err) {
+        logger.warn("[NewReportPage] Failed to load existing draft from query params:", err);
+      }
+    };
+
+    void fetchExistingDraft();
+    return () => {
+      isCancelled = true;
+    };
+  }, [initialDraftId, axios, initialTitle]);
+
+  const canCreatePolicy = useAuthStore((s) => s.can)("policy", "create");
+  const categoriesWithPolicies = useMemo(() => {
+    return categories.filter(isCategoryWithPolicy);
+  }, [categories]);
+  const hasApplicablePolicy = categoriesWithPolicies.length > 0;
 
   // Modal states
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
@@ -413,6 +519,9 @@ function NewReportPage() {
 
   // ── Policy + Submit flow ──────────────────────────────────────────────────
   const runPolicyAndSubmit = async (status: "draft" | "pending") => {
+    if (isSubmitting || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
     try {
       logger.log("[runPolicyAndSubmit] Triggered with status:", status);
 
@@ -452,17 +561,28 @@ function NewReportPage() {
     } catch (err) {
       logger.error("[runPolicyAndSubmit] Sync Crash:", err);
       toast.error("An unexpected error occurred during submission.");
+    } finally {
+      setIsSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 
 
   const handlePolicyContinue = async (justifications: Record<string, string>) => {
-    // Apply justifications to expenses
-    setExpenses((prev) =>
-      prev.map((e) => (justifications[e.id] ? { ...e, justification: justifications[e.id] } : e))
-    );
-    setIsPolicyModalOpen(false);
-    await doSubmit(pendingSubmitStatus!, justifications);
+    if (isSubmitting || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      // Apply justifications to expenses
+      setExpenses((prev) =>
+        prev.map((e) => (justifications[e.id] ? { ...e, justification: justifications[e.id] } : e))
+      );
+      setIsPolicyModalOpen(false);
+      await doSubmit(pendingSubmitStatus!, justifications);
+    } finally {
+      setIsSubmitting(false);
+      isSubmittingRef.current = false;
+    }
   };
 
   const handlePolicyEditExpense = (expenseId: string) => {
@@ -509,7 +629,7 @@ function NewReportPage() {
     setIsSubmitting(true);
     try {
       const expensesPayload = activeExpenses.map((expense) => {
-        const category = categories.find((c) => c.name === expense.category);
+        const category = categoriesWithPolicies.find((c) => c.name === expense.category);
         if (!category) throw new Error(`Category not found: ${expense.category}`);
 
         // Justification: use the one from the modal or the one already saved on the expense.
@@ -583,12 +703,58 @@ function NewReportPage() {
       let finalPayload: any;
       if (status === "draft") {
         finalPayload = { reportTitle, expenses: expensesPayload };
-        if (draftId) finalPayload.draftId = draftId;
-        logger.log("[doSubmit] Final payload being sent to draft endpoint:", finalPayload);
-        const res = await axios.post("reports/draft", finalPayload, { _skipErrorToast: true });
-        const returnedId = res.data?.data?.reportId || res.data?.data?.id || res.data?.data?.draftId;
-        if (returnedId) {
-          setDraftId(returnedId);
+        if (draftId) {
+          finalPayload.draftId = draftId;
+          logger.log("[doSubmit] Updating draft via PATCH reports/drafts/" + draftId, finalPayload);
+          const res = await axios.patch(`reports/drafts/${draftId}`, finalPayload, { _skipErrorToast: true });
+          const returnedId =
+            res.data?.data?.reportId ||
+            res.data?.data?.draftId ||
+            res.data?.data?.id ||
+            res.data?.reportId ||
+            res.data?.draftId ||
+            res.data?.id ||
+            draftId;
+
+          if (returnedId) {
+            setDraftId(returnedId);
+            const url = new URL(window.location.href);
+            url.searchParams.set("draftId", returnedId);
+            window.history.replaceState(null, "", url.toString());
+          }
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("expensesReturnTab", "personal-expenses");
+            sessionStorage.setItem("expensesReturnPage", "1");
+          }
+          setLastSavedSnapshot(serializeReportSnapshot(reportTitle, activeExpenses));
+          toast.success("Draft changes saved successfully");
+          invalidatePersonalExpenseQueries(queryClient);
+          return;
+        } else {
+          logger.log("[doSubmit] Creating new draft via POST reports/draft:", finalPayload);
+          const res = await axios.post("reports/draft", finalPayload, { _skipErrorToast: true });
+          const returnedId =
+            res.data?.data?.reportId ||
+            res.data?.data?.draftId ||
+            res.data?.data?.id ||
+            res.data?.reportId ||
+            res.data?.draftId ||
+            res.data?.id;
+
+          if (returnedId) {
+            setDraftId(returnedId);
+            const url = new URL(window.location.href);
+            url.searchParams.set("draftId", returnedId);
+            window.history.replaceState(null, "", url.toString());
+          }
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("expensesReturnTab", "personal-expenses");
+            sessionStorage.setItem("expensesReturnPage", "1");
+          }
+          setLastSavedSnapshot(serializeReportSnapshot(reportTitle, activeExpenses));
+          toast.success("Report saved as draft");
+          invalidatePersonalExpenseQueries(queryClient);
+          return;
         }
       } else {
         finalPayload = { reportTitle, expenses: expensesPayload };
@@ -689,15 +855,17 @@ function NewReportPage() {
         }
       }
 
-      toast.success(status === "draft" ? "Report saved as draft" : "Report submitted successfully!");
+      toast.success("Report submitted successfully!");
       if (status === "pending") notifySetupGuide("report");
       invalidatePersonalExpenseQueries(queryClient);
 
       if (status === "pending") {
         setTimeout(() => {
-          const tab = sessionStorage.getItem("expensesReturnTab") || "personal-expenses";
-          const page = sessionStorage.getItem("expensesReturnPage") || "1";
-          router.push(`/expenses?tab=${tab}&page=${page}`);
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("expensesReturnTab", "personal-expenses");
+            sessionStorage.setItem("expensesReturnPage", "1");
+          }
+          router.push("/expenses?tab=personal-expenses&page=1");
         }, 500);
       }
     } catch (error: unknown) {
@@ -775,9 +943,19 @@ function NewReportPage() {
         return;
       }
 
-      toast.error(getApiErrorMessage(error, "Failed to submit report"));
+      toast.error(
+        getApiErrorMessage(
+          error,
+          status === "draft"
+            ? draftId
+              ? "Failed to update draft"
+              : "Failed to save draft"
+            : "Failed to submit report"
+        )
+      );
     } finally {
       setIsSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -786,6 +964,14 @@ function NewReportPage() {
   const selectedExpense = expenses.find((e) => e.id === selectedExpenseId) ?? null;
   const selectedReceipt = expenses.find((e) => e.id === selectedReceiptId);
   const isEmpty = expenses.length === 0;
+
+  const isDraftDirty = useMemo(() => {
+    if (!draftId) return true;
+    if (lastSavedSnapshot === null) return false;
+    return serializeReportSnapshot(reportTitle, expenses) !== lastSavedSnapshot;
+  }, [draftId, lastSavedSnapshot, reportTitle, expenses]);
+
+  const isDraftSaveDisabled = isSubmitting || isEmpty || (Boolean(draftId) && !isDraftDirty);
 
   // Fresh violations derived from expenses state — this is the authoritative source
   // passed to the policy modal. Replaces stale policyViolations snapshot state.
@@ -807,9 +993,46 @@ function NewReportPage() {
 
   if (isLoadingCategories) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-3 text-muted-foreground">Loading...</span>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-[#087f70]" />
+        <span className="text-[13px] text-[#68726d]">Checking applicable expense policies...</span>
+      </div>
+    );
+  }
+
+  if (!hasApplicablePolicy) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
+        <div className="max-w-md w-full bg-white border border-black/[0.08] rounded-[16px] p-8 shadow-[0_4px_20px_rgba(14,28,23,0.06)] flex flex-col items-center text-center">
+          <div className="w-14 h-14 bg-[#fdf2f2] text-[#d33d44] rounded-[14px] flex items-center justify-center mb-5">
+            <AlertCircle className="w-7 h-7" strokeWidth={1.7} />
+          </div>
+          <h2 className="text-[19px] font-bold text-[#0b100e] mb-2">
+            Expense Policy Required
+          </h2>
+          <p className="text-[13px] text-[#68726d] leading-relaxed mb-6">
+            {canCreatePolicy
+              ? "You cannot create an expense report because no expense policy has been set up or attached to any category yet. Please create and attach an expense policy before creating reports."
+              : "You cannot create an expense report because no expense policy has been set up yet. Please inform your administrator to create and attach an expense policy first."}
+          </p>
+          <div className="flex gap-3 w-full">
+            <Button
+              variant="outline"
+              onClick={() => router.push("/expenses?tab=personal-expenses")}
+              className="flex-1 h-11 rounded-[10px] text-[13px] font-semibold border-black/[0.08]"
+            >
+              Back to Expenses
+            </Button>
+            {canCreatePolicy && (
+              <Button
+                onClick={() => router.push("/policies")}
+                className="flex-1 h-11 rounded-[10px] text-[13px] font-semibold bg-[#087f70] hover:bg-[#076b5e] text-white"
+              >
+                Go to Policies
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -850,15 +1073,18 @@ function NewReportPage() {
         </TooltipProvider>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <button
+            type="button"
             onClick={() => runPolicyAndSubmit("draft")}
-            disabled={isSubmitting || isEmpty}
+            disabled={isDraftSaveDisabled}
             className={
-              (isSubmitting || isEmpty)
+              isDraftSaveDisabled
                 ? "bg-[#f9faf9] text-[#84908a] border border-black/[0.08] rounded-[8px] h-10 px-6 text-[13px] font-semibold cursor-not-allowed"
                 : "bg-white border border-[#087f70] text-[#087f70] hover:bg-[#f0faf8] rounded-[8px] h-10 px-6 text-[13px] font-semibold transition-colors"
             }
           >
-            {isSubmitting ? "Saving..." : "Save as Draft"}
+            {isSubmitting
+              ? (draftId ? "Saving changes..." : "Saving draft...")
+              : (draftId ? "Save changes" : "Save as Draft")}
           </button>
           <button
             onClick={() => {
@@ -908,7 +1134,7 @@ function NewReportPage() {
         {/* Right: Scan / Manual form — 40% */}
         <div className="w-full lg:w-[40%] min-w-0 lg:overflow-y-auto lg:pl-2 lg:pr-4">
           <ReceiptUploadSection
-            categories={categories}
+            categories={categoriesWithPolicies}
             onReceiptsUpload={handleReceiptsUpload}
             onAddExpense={handleAddExpense}
             existingExpenseNames={expenses.map((e) => e.name)}
@@ -925,7 +1151,7 @@ function NewReportPage() {
         isOpen={isDetailModalOpen}
         onClose={() => { setIsDetailModalOpen(false); setSelectedExpenseId(null); }}
         expense={selectedExpense}
-        categories={categories}
+        categories={categoriesWithPolicies}
         onSave={detailModalReadOnly ? handleSaveExpense : handleSaveExpenseFromPolicy}
         readOnly={detailModalReadOnly}
         existingExpenseNames={expenses.map((e) => e.name)}

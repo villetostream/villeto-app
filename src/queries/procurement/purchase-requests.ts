@@ -109,6 +109,7 @@ export interface PurchaseRequest {
   currentUserActionRequired?: boolean;
   availableActions?: string[];
   timeline?: TimelineEvent[];
+  purchaseOrders?: import("@/lib/types/purchase-request-helpers").PurchaseOrderRecord[];
 }
 
 export interface PurchaseRequestMeta {
@@ -339,9 +340,15 @@ export const useDeleteLineItem = (
 
 // ── Submit Purchase Request ───────────────────────────────────────────────
 
+export interface SubmitPurchaseRequestPayload {
+  policyJustification?: string;
+  spendProgramJustification?: string;
+  spendProgramWarningsAccepted?: boolean;
+}
+
 export const useSubmitPurchaseRequest = (
   id: string
-): UseMutationResult<ApiResponse<PurchaseRequest>, Error, { policyJustification?: string; spendProgramJustification?: string } | void> => {
+): UseMutationResult<ApiResponse<PurchaseRequest>, Error, SubmitPurchaseRequestPayload | void> => {
   const axiosInstance = useAxios();
   const qc = useQueryClient();
   return useMutation({
@@ -401,6 +408,7 @@ export interface ConvertToPOPayload {
   lineAssignments?: unknown[];
   policyJustification?: string;
   spendProgramJustification?: string;
+  spendProgramWarningsAccepted?: boolean;
 }
 
 export const useConvertToPO = (

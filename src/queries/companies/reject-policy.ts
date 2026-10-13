@@ -5,6 +5,7 @@ import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
 interface RejectPolicyArgs {
   policyId: string;
+  reason?: string;
 }
 
 export const useRejectPolicy = () => {
@@ -12,8 +13,11 @@ export const useRejectPolicy = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ policyId }: RejectPolicyArgs) => {
-      const response = await axiosInstance.patch(`${API_KEYS.EXPENSE.POLICIES}/${policyId}/reject`);
+    mutationFn: async ({ policyId, reason }: RejectPolicyArgs) => {
+      const response = await axiosInstance.patch(
+        `${API_KEYS.EXPENSE.POLICIES}/${policyId}/reject`,
+        reason ? { reason, rejectionReason: reason } : {}
+      );
       return response.data;
     },
     onSuccess: () => {

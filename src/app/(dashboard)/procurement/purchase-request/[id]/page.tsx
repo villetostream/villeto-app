@@ -59,6 +59,7 @@ import {
   mergeDepartmentOption,
   resolveDepartmentLabel,
   PurchaseRequestDetail,
+  PurchaseOrderRecord,
   toApiLineItemPayload,
 } from "@/lib/types/purchase-request-helpers";
 
@@ -1605,6 +1606,7 @@ function PRDetailPage() {
       setModal(null);
       toast.success("Purchase request submitted for review!");
     } catch (err: unknown) {
+      setModal(null);
       if (isProcurementPolicyViolationError(err)) {
         setPolicyViolations(getProcurementPolicyViolations(err));
         setIsPolicyModalOpen(true);
@@ -1810,23 +1812,31 @@ function PRDetailPage() {
         {policyViolations && (
           <ProcurementPolicyCheckModal
             isOpen={isPolicyModalOpen}
-            onClose={() => setIsPolicyModalOpen(false)}
+            onClose={() => {
+              setIsPolicyModalOpen(false);
+              setPendingConvertPayload(null);
+            }}
             violations={policyViolations}
-            onEditRequest={() => setIsPolicyModalOpen(false)}
+            onEditRequest={() => {
+              setIsPolicyModalOpen(false);
+              setPendingConvertPayload(null);
+            }}
             onProceedWithWarnings={async (justification) => {
               try {
                 if (pendingConvertPayload) {
                   await convertToPO.mutateAsync({ 
                     ...pendingConvertPayload, 
-                    policyJustification: justification,
-                    spendProgramJustification: justification
+                    policyJustification: justification || undefined,
+                    spendProgramJustification: justification || undefined,
+                    spendProgramWarningsAccepted: true,
                   });
                   toast.success("Purchase orders created successfully!");
                   setPendingConvertPayload(null);
                 } else {
                   await submitPR.mutateAsync({ 
-                    policyJustification: justification,
-                    spendProgramJustification: justification
+                    policyJustification: justification || undefined,
+                    spendProgramJustification: justification || undefined,
+                    spendProgramWarningsAccepted: true,
                   });
                   toast.success("Purchase request submitted for review!");
                 }
@@ -2108,15 +2118,15 @@ function PRDetailPage() {
 
             {/* Line Items — grouped by converted PO if available, otherwise flat table */}
             {(() => {
-              const purchaseOrders = (pr as PurchaseRequestDetail).purchaseOrders || [];
-              const hasPOGroups = purchaseOrders.length > 0 && purchaseOrders.some(po => (po.lineItems || []).length > 0);
+              const purchaseOrders = ((pr as PurchaseRequestDetail).purchaseOrders || (pr as any)?.purchaseOrders || []) as PurchaseOrderRecord[];
+              const hasPOGroups = purchaseOrders.length > 0;
               const hasResolvedVendors = lineItems.some(li => li.resolvedVendorId);
               const showGroupedView = hasPOGroups || ((pr.status === "converted_to_po" || pr.status === "partially_converted") && hasResolvedVendors);
 
               if (showGroupedView) {
                 const poAccents = [
                   { border: "border-violet-300", header: "bg-violet-50 border-b border-violet-200", badge: "bg-violet-100 text-violet-700", dot: "bg-violet-500" },
-                  { border: "border-emerald-300", header: "bg-[#f0faf8] border-b border-emerald-200", badge: "bg-[#e6f5f3] text-[#087f70]", dot: "bg-[#f0faf8]0" },
+                  { border: "border-emerald-300", header: "bg-[#f0faf8] border-b border-emerald-200", badge: "bg-[#e6f5f3] text-[#087f70]", dot: "bg-[#087f70]" },
                   { border: "border-sky-300", header: "bg-sky-50 border-b border-sky-200", badge: "bg-sky-100 text-sky-700", dot: "bg-sky-500" },
                   { border: "border-amber-300", header: "bg-amber-50 border-b border-amber-200", badge: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
                   { border: "border-pink-300", header: "bg-pink-50 border-b border-pink-200", badge: "bg-pink-100 text-pink-700", dot: "bg-pink-500" },
@@ -2125,23 +2135,69 @@ function PRDetailPage() {
 
                 let displayGroups: Array<{
                   id: string;
+                  poId?: string;
                   vendorName: string;
                   poNumber?: string;
                   deliveryDate?: string;
                   status?: string;
+                  currency?: string;
+                  totalAmount?: number | string;
                   lineItems: typeof lineItems;
                 }> = [];
 
                 if (hasPOGroups) {
                   const lineItemById = new Map(lineItems.map(li => [li.purchaseRequestLineItemId, li]));
-                  displayGroups = purchaseOrders.map((po, idx) => ({
-                    id: po.purchaseOrderId || String(idx),
-                    vendorName: po.vendor?.displayName || po.vendor?.legalName || po.vendorId || "Unknown Vendor",
-                    poNumber: po.poNumber,
-                    deliveryDate: po.deliveryDate,
-                    status: po.status,
-                    lineItems: (po.lineItems || []).map(pli => lineItemById.get(pli.purchaseRequestLineItemId)).filter(Boolean) as typeof lineItems,
-                  }));
+                  const matchedLineItemIds = new Set<string>();
+
+                  displayGroups = purchaseOrders.map((po, idx) => {
+                    const poId = po.purchaseOrderId || po.id;
+                    let poItems: typeof lineItems = [];
+
+                    // 1. Check sourcePurchaseRequestLineItemIds
+                    if (Array.isArray(po.sourcePurchaseRequestLineItemIds) && po.sourcePurchaseRequestLineItemIds.length > 0) {
+                      poItems = (po.sourcePurchaseRequestLineItemIds as string[])
+                        .map((itemId: string) => lineItemById.get(itemId))
+                        .filter((item): item is typeof lineItems[number] => Boolean(item));
+                    }
+                    // 2. Check po.lineItems
+                    else if (Array.isArray(po.lineItems) && po.lineItems.length > 0) {
+                      poItems = (po.lineItems as any[])
+                        .map((pli: any) => lineItemById.get(pli.purchaseRequestLineItemId || pli.id))
+                        .filter((item): item is typeof lineItems[number] => Boolean(item));
+                    }
+
+                    // 3. Fallback: match by vendor ID for converted items
+                    if (poItems.length === 0) {
+                      const vId = po.vendor?.vendorId || po.vendorId;
+                      if (vId) {
+                        poItems = lineItems.filter(li => 
+                          li.resolvedVendorId === vId &&
+                          (isPartiallyConverted ? li.conversionStatus === "converted" : true) &&
+                          !matchedLineItemIds.has(li.purchaseRequestLineItemId)
+                        );
+                      }
+                    }
+
+                    poItems.forEach(item => matchedLineItemIds.add(item.purchaseRequestLineItemId));
+
+                    const vendorName = po.vendor?.displayName || 
+                      po.vendor?.legalName || 
+                      (po.vendorId ? vendors.find(v => v.vendorId === po.vendorId || (v as any).id === po.vendorId)?.displayName : null) || 
+                      po.vendorId || 
+                      "Vendor";
+
+                    return {
+                      id: poId || `po-${idx}`,
+                      poId: poId,
+                      vendorName,
+                      poNumber: po.poNumber,
+                      deliveryDate: po.deliveryDate,
+                      status: po.status,
+                      currency: po.currency || currency,
+                      totalAmount: po.totalAmount,
+                      lineItems: poItems,
+                    };
+                  });
                 } else {
                   const groupsByVendor = new Map<string, typeof lineItems>();
                   const unassignedItems: typeof lineItems = [];
@@ -2177,7 +2233,9 @@ function PRDetailPage() {
                 return (
                   <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 space-y-4">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-base font-semibold text-[#0b100e]">Assigned Vendors</h2>
+                      <h2 className="text-base font-semibold text-[#0b100e]">
+                        {hasPOGroups ? "Purchase Orders" : "Assigned Vendors"}
+                      </h2>
                       <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-gray-100 text-xs font-semibold px-1.5">
                         {displayGroups.length}
                       </span>
@@ -2187,7 +2245,10 @@ function PRDetailPage() {
                       const accent = isUnassigned 
                         ? { border: "border-gray-300", header: "bg-gray-50 border-b border-gray-200", badge: "bg-gray-200 text-gray-700", dot: "bg-gray-400" } 
                         : poAccents[idx % poAccents.length];
-                      const poTotal = group.lineItems.reduce((s, li) => s + (li.subtotal || 0), 0);
+                      const cardCurrency = group.currency || currency;
+                      const poTotal = group.lineItems.length > 0
+                        ? group.lineItems.reduce((s, li) => s + (li.subtotal || 0), 0)
+                        : (group.totalAmount ? Number(group.totalAmount) : 0);
 
                       return (
                         <div key={group.id} className={`rounded-[14px] border-2 bg-white overflow-hidden ${accent.border}`}>
@@ -2197,30 +2258,30 @@ function PRDetailPage() {
                               <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${accent.dot}`} />
                               <div>
                                 <p className="text-sm font-bold text-[#0b100e]">{group.vendorName}</p>
-                                {group.poNumber && <p className="text-xs text-[#68726d]">{group.poNumber}</p>}
+                                {group.poNumber && <p className="text-xs text-[#68726d] font-mono">{group.poNumber}</p>}
                               </div>
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${accent.badge}`}>
                                 {group.lineItems.length} item{group.lineItems.length !== 1 ? "s" : ""}
                               </span>
-                              {poTotal > 0 && <span className="text-xs font-semibold text-[#0b100e]">· {formatAmount(poTotal, currency)}</span>}
+                              {poTotal > 0 && <span className="text-xs font-semibold text-[#0b100e]">· {formatAmount(poTotal, cardCurrency)}</span>}
                             </div>
                             <div className="flex items-center gap-4 text-xs text-[#68726d]">
-                              {group.deliveryDate && (
-                                <span>Delivery: <strong className="text-[#0b100e]">{formatDate(group.deliveryDate)}</strong></span>
-                              )}
-                              {group.status && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold capitalize">
-                                  {group.status.replace(/_/g, " ")}
-                                </span>
-                              )}
                               {!isUnassigned && policies.purchaseOrders.canView && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    toast.info("View PO is not yet available.");
+                                    if (!group.poId) {
+                                      toast.error("Purchase Order ID not found.");
+                                      return;
+                                    }
+                                    if (typeof window !== "undefined") {
+                                      sessionStorage.setItem("poReturnUrl", window.location.pathname + window.location.search);
+                                      sessionStorage.setItem("poFromPr", id);
+                                    }
+                                    router.push(`/procurement/purchase-order/${group.poId}?fromPr=${id}`);
                                   }}
-                                  className="font-semibold text-[#087f70] hover:underline ml-2"
+                                  className="font-semibold text-[#087f70] hover:underline cursor-pointer"
                                 >
                                   View PO
                                 </button>
@@ -2831,23 +2892,31 @@ function PRDetailPage() {
     {policyViolations && (
       <ProcurementPolicyCheckModal
         isOpen={isPolicyModalOpen}
-        onClose={() => setIsPolicyModalOpen(false)}
+        onClose={() => {
+          setIsPolicyModalOpen(false);
+          setPendingConvertPayload(null);
+        }}
         violations={policyViolations}
-        onEditRequest={() => setIsPolicyModalOpen(false)}
+        onEditRequest={() => {
+          setIsPolicyModalOpen(false);
+          setPendingConvertPayload(null);
+        }}
         onProceedWithWarnings={async (justification) => {
           try {
             if (pendingConvertPayload) {
               await convertToPO.mutateAsync({ 
-                draftPurchaseOrders: pendingConvertPayload.draftPurchaseOrders, 
-                policyJustification: justification,
-                spendProgramJustification: justification
+                ...pendingConvertPayload, 
+                policyJustification: justification || undefined,
+                spendProgramJustification: justification || undefined,
+                spendProgramWarningsAccepted: true,
               });
               toast.success("Purchase orders created successfully!");
               setPendingConvertPayload(null);
             } else {
               await submitPR.mutateAsync({ 
-                policyJustification: justification,
-                spendProgramJustification: justification
+                policyJustification: justification || undefined,
+                spendProgramJustification: justification || undefined,
+                spendProgramWarningsAccepted: true,
               });
               toast.success("Purchase request submitted for review!");
             }

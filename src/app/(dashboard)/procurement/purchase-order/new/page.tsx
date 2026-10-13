@@ -681,10 +681,18 @@ function NewPurchaseOrderPage() {
                 }
               }}
               className={`h-11 px-8 rounded-[12px] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm ${
-                policyViolations ? "bg-[#d33d44] hover:bg-[#c33339]" : "bg-[#087f70]"
+                policyViolations && policyViolations.some(v => v.resolution === "BLOCK")
+                  ? "bg-[#d33d44] hover:bg-[#c33339]"
+                  : policyViolations && policyViolations.length > 0
+                  ? "bg-amber-600 hover:bg-amber-700"
+                  : "bg-[#087f70]"
               }`}>
               {submitPO.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              {policyViolations ? "Fix Violations to Submit" : "Submit Order"}
+              {policyViolations && policyViolations.some(v => v.resolution === "BLOCK")
+                ? "Fix Violations to Submit"
+                : policyViolations && policyViolations.length > 0
+                ? "Review Warnings to Submit"
+                : "Submit Order"}
             </button>
           </div>
         </div>
@@ -773,8 +781,9 @@ function NewPurchaseOrderPage() {
             if (!purchaseOrderId) return;
             try {
               await submitPO.mutateAsync({ 
-                policyJustification: justification,
-                spendProgramJustification: justification
+                policyJustification: justification || undefined,
+                spendProgramJustification: justification || undefined,
+                spendProgramWarningsAccepted: true,
               });
               toast.success("Purchase order submitted for approval!");
               setPolicyViolations(null);

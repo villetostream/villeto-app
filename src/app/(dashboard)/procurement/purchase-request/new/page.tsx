@@ -1028,12 +1028,18 @@ function NewPurchaseRequestPage() {
                 }
               }}
               className={`h-11 px-8 rounded-[12px] text-white text-sm font-semibold transition-all flex items-center gap-2 ${
-                policyViolations
+                policyViolations && policyViolations.some(v => v.resolution === "BLOCK")
                   ? "bg-[#d33d44] hover:bg-[#c33339] cursor-pointer"
+                  : policyViolations && policyViolations.length > 0
+                  ? "bg-amber-600 hover:bg-amber-700 cursor-pointer"
                   : "bg-[#087f70] hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
               }`}>
               {submitPR.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              {policyViolations ? "Fix Violations to Submit" : "Submit Request"}
+              {policyViolations && policyViolations.some(v => v.resolution === "BLOCK")
+                ? "Fix Violations to Submit"
+                : policyViolations && policyViolations.length > 0
+                ? "Review Warnings to Submit"
+                : "Submit Request"}
             </button>
           </div>
         </div>
@@ -1119,8 +1125,9 @@ function NewPurchaseRequestPage() {
             if (!purchaseRequestId) return;
             try {
               await submitPR.mutateAsync({ 
-                policyJustification: justification,
-                spendProgramJustification: justification
+                policyJustification: justification || undefined,
+                spendProgramJustification: justification || undefined,
+                spendProgramWarningsAccepted: true,
               });
               toast.success("Purchase request submitted for review!");
               setPolicyViolations(null);

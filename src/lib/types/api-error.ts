@@ -426,21 +426,23 @@ export function getDuplicateReceipts(error: unknown): DuplicateReceiptItem[] {
 export function applyProcurementPolicyErrorToLineItems<
   T extends {
     purchaseRequestLineItemId?: string;
+    purchaseOrderLineItemId?: string;
     id?: string;
     name?: string;
-    categoryName?: string;
+    categoryName?: string | null;
     subtotal?: number;
     lineTotal?: number;
     quantity?: number;
     unitPrice?: number;
     policyViolations?: { type: string; message: string; ruleType?: string }[] | null;
+    [key: string]: any;
   }
 >(lineItems: T[], violations: ProcurementPolicyViolation[] | null): T[] {
   if (!violations || violations.length === 0) return lineItems;
 
   return lineItems.map((item) => {
     const itemTotal = item.lineTotal ?? item.subtotal ?? ((item.quantity || 0) * (item.unitPrice || 0));
-    const itemId = item.purchaseRequestLineItemId || item.id;
+    const itemId = item.purchaseRequestLineItemId || item.purchaseOrderLineItemId || item.id;
 
     const matchedViolations = violations.filter(v => {
       // If the backend provided exact line item references (e.g. Spend Program Check)
@@ -451,7 +453,8 @@ export function applyProcurementPolicyErrorToLineItems<
 
         let parsedLimit: number | null = null;
         if (isQuantityViolation) {
-          const qtyLimitMatch = v.message.match(/allowed\s+quantity\s+is\s+([\d,]+)/i)
+          const qtyLimitMatch = v.message.match(/allowed\s+quantity(?:\s+per\s+line\s+item)?\s+is\s+([\d,]+)/i)
+            || v.message.match(/allowed\s+quantity.*?([\d,]+)/i)
             || v.message.match(/quantity\s+limit.*?([\d,]+)/i)
             || v.message.match(/limit\s+is\s+([\d,]+)/i);
           if (qtyLimitMatch) {
@@ -677,6 +680,7 @@ export interface ProcurementPolicyViolation {
   details?: Record<string, any>;
   lineItems?: any[];
   categories?: any[];
+  requiredFields?: string[];
 }
 
 export function isProcurementPolicyViolationError(error: unknown): boolean {
@@ -685,15 +689,48 @@ export function isProcurementPolicyViolationError(error: unknown): boolean {
   const errorMsg = getString(nested.error) || getString(data.error);
   const message = (getString(nested.message) || getString(data.message)).toLowerCase();
   
-  if (errorMsg === "ProcurementPolicyViolation" || errorMsg === "PolicyViolation" || errorMsg === "SpendProgramCheckFailed") {
+  if (
+    errorMsg === "ProcurementPolicyViolation" ||
+    errorMsg === "PolicyViolation" ||
+    errorMsg === "SpendProgramCheckFailed" ||
+    errorMsg === "SpendProgramConfirmationRequired"
+  ) {
     return true;
   }
   
-  if (message.includes("procurement action blocked") || message.includes("policy limit") || message.includes("approved spend controls")) {
+  if (
+    message.includes("procurement action blocked") ||
+    message.includes("policy limit") ||
+    message.includes("approved spend controls") ||
+    message.includes("spend program warning") ||
+    message.includes("spend program confirmation") ||
+    message.includes("spend program warnings")
+  ) {
     return true;
   }
   
   return false;
+}
+
+export function isSpendProgramConfirmationRequired(error: unknown): boolean {
+  if (!error) return false;
+  const data = getApiErrorResponseData(error);
+  const nested = asRecord(data.data);
+  const errorMsg = getString(nested.error) || getString(data.error);
+  if (errorMsg === "SpendProgramConfirmationRequired") return true;
+
+  const target = nested.error ? nested : data;
+  const resolution = (getString(target.resolution) || getString(nested.resolution)).toUpperCase();
+  if (resolution === "WARNING") return true;
+
+  const requiredActions = asArray(target.requiredActions || nested.requiredActions);
+  return requiredActions.some((a) => {
+    if (isRecord(a)) {
+      const rf = asArray(a.requiredFields);
+      return rf.includes("spendProgramWarningsAccepted") || a.action === "confirm";
+    }
+    return false;
+  });
 }
 
 export function getProcurementPolicyViolations(error: unknown): ProcurementPolicyViolation[] {
@@ -701,45 +738,57 @@ export function getProcurementPolicyViolations(error: unknown): ProcurementPolic
   const data = getApiErrorResponseData(error);
   const nested = asRecord(data.data);
   
-  const target = Array.isArray(nested.violations) || Array.isArray(nested.requiredActions) || Array.isArray(nested.issues) ? nested : data;
+  const target = Array.isArray(nested.violations) || Array.isArray(nested.requiredActions) || Array.isArray(nested.issues) || Array.isArray(nested.warnings) ? nested : data;
 
-  const allItems = [
+  const defaultResolution = getString(target.resolution) || getString(nested.resolution) || "";
+
+  const rawItems = [
     ...asArray(target.violations),
-    ...asArray(target.requiredActions),
     ...asArray(target.issues),
+    ...(Array.isArray(target.issues) && target.issues.length > 0 ? [] : asArray(target.warnings)),
   ];
 
-  return allItems.filter(isRecord).map(v => {
-    // Handle Spend Program format where policy details are nested under spendProgram
-    const sp = v.spendProgram ? asRecord(v.spendProgram) : null;
-    const msgStr = getString(v.message) || "";
-    
-    let parsedDetails = v.details ? asRecord(v.details) : undefined;
-    
-    // If backend doesn't provide details object, attempt to parse amounts from standard spend control messages
-    if (!parsedDetails && msgStr) {
-      const matches = [...msgStr.matchAll(/([A-Z]{3})\s*([\d,]+(?:\.\d+)?)/g)];
-      if (matches.length >= 2) {
-        parsedDetails = {
-          currency: matches[0][1],
-          actualAmount: parseFloat(matches[0][2].replace(/,/g, '')),
-          thresholdCurrency: matches[1][1],
-          threshold: parseFloat(matches[1][2].replace(/,/g, '')),
-        };
+  const globalRequiredActions = asArray(target.requiredActions || nested.requiredActions);
+  const globalRequiredFields = globalRequiredActions.flatMap(a => isRecord(a) ? asArray(a.requiredFields).map(x => getString(x)).filter(Boolean) : []);
+
+  return rawItems
+    .filter(isRecord)
+    .filter(v => !!(v.message || v.issueType || v.rule || v.spendProgram || v.policyName))
+    .map(v => {
+      // Handle Spend Program format where policy details are nested under spendProgram
+      const sp = v.spendProgram ? asRecord(v.spendProgram) : null;
+      const msgStr = getString(v.message) || "";
+      
+      let parsedDetails = v.details ? asRecord(v.details) : undefined;
+      
+      // If backend doesn't provide details object, attempt to parse amounts from standard spend control messages
+      if (!parsedDetails && msgStr) {
+        const matches = [...msgStr.matchAll(/([A-Z]{3})\s*([\d,]+(?:\.\d+)?)/g)];
+        if (matches.length >= 2) {
+          parsedDetails = {
+            currency: matches[0][1],
+            actualAmount: parseFloat(matches[0][2].replace(/,/g, '')),
+            thresholdCurrency: matches[1][1],
+            threshold: parseFloat(matches[1][2].replace(/,/g, '')),
+          };
+        }
       }
-    }
-    
-    return {
-      policyId: getString(v.policyId) || (sp ? getString(sp.spendProgramId) : ""),
-      policyName: getString(v.policyName) || (sp ? getString(sp.name) : ""),
-      policyGroup: getString(v.policyGroup) || getString(v.issueType) || "",
-      rule: getString(v.rule) || getString(v.issueType) || "",
-      enforcementAction: getString(v.enforcementAction) || getString(v.action) || "",
-      resolution: getString(v.resolution) || getString(v.actionStatus) || "",
-      message: msgStr,
-      details: parsedDetails,
-      lineItems: v.lineItems ? asArray(v.lineItems) : undefined,
-      categories: v.categories ? asArray(v.categories) : undefined,
-    };
-  });
+
+      const itemRequiredFields = asArray(v.requiredFields).map(x => getString(x)).filter(Boolean);
+      const combinedRequiredFields = Array.from(new Set([...itemRequiredFields, ...globalRequiredFields]));
+      
+      return {
+        policyId: getString(v.policyId) || (sp ? getString(sp.spendProgramId) : ""),
+        policyName: getString(v.policyName) || (sp ? getString(sp.name) : ""),
+        policyGroup: getString(v.policyGroup) || getString(v.issueType) || "",
+        rule: getString(v.rule) || getString(v.issueType) || "",
+        enforcementAction: getString(v.enforcementAction) || getString(v.action) || "",
+        resolution: (getString(v.resolution) || getString(v.actionStatus) || defaultResolution).toUpperCase(),
+        message: msgStr,
+        details: parsedDetails,
+        lineItems: v.lineItems ? asArray(v.lineItems) : undefined,
+        categories: v.categories ? asArray(v.categories) : undefined,
+        requiredFields: combinedRequiredFields,
+      };
+    });
 }
