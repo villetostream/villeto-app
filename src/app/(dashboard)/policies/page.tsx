@@ -20,8 +20,10 @@ import {
   Clock,
   Tag,
   Loader2,
+  XCircle,
 } from "lucide-react";
 import { ReviewPolicyModal } from "@/components/policies/ReviewPolicyModal";
+import { getPolicyRejection } from "@/lib/policies/rejection-store";
 import PolicyCreationModal, {
   type CreatedPolicyData,
 } from "@/components/policies/PolicyCreationModal";
@@ -35,7 +37,6 @@ import {
 } from "@/components/policies/PolicyWorkspace";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { DataTable } from "@/components/datatable";
-import { SortableColumnHeader } from "@/components/datatable/SortableColumnHeader";
 import { ColumnDef } from "@tanstack/react-table";
 import {
   DropdownMenu,
@@ -621,6 +622,13 @@ function PolicyDetailsModal({
   const approvedAt =
     (fullPolicy as any)?.approvedAt || (policy as any)?.approvedAt;
 
+  const policyId = policy.id || (policy as any).policyId;
+  const storedRejection = getPolicyRejection(policyId);
+  const isRejected = policyStatus === "rejected" || policyStatus === "declined" || !!storedRejection;
+  const rejectionReason = (fullPolicy as any)?.rejectionReason || (fullPolicy as any)?.reason || (policy as any)?.rejectionReason || (policy as any)?.reason || storedRejection?.reason;
+  const rejectedBy = (fullPolicy as any)?.rejectedBy || (policy as any)?.rejectedBy || storedRejection?.rejectedBy;
+  const rejectedAt = (fullPolicy as any)?.rejectedAt || (policy as any)?.rejectedAt || storedRejection?.rejectedAt;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div
@@ -705,6 +713,17 @@ function PolicyDetailsModal({
             </>
           ) : (
             <>
+              {/* REJECTION REASON CARD */}
+              {isRejected && rejectionReason && (
+                <div className="rounded-[20px] border border-red-200 bg-[#fff8f8] p-4">
+                  <div className="flex items-center gap-2 mb-1.5 text-[#d33d44]">
+                    <XCircle className="w-4 h-4 shrink-0" />
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em]">Rejection Reason</p>
+                  </div>
+                  <p className="text-xs text-[#521c20] leading-relaxed pl-6">{rejectionReason}</p>
+                </div>
+              )}
+
               {/* APPLIES TO */}
               <div className="rounded-[24px] border border-black/[0.06]/70 p-4">
                 <p className="text-[10px] font-bold text-[#68726d] uppercase tracking-[0.12em] mb-2.5">
@@ -828,8 +847,23 @@ function PolicyDetailsModal({
                   {formatDate(createdAt, policy.date)}
                 </p>
               </div>
-              {/* Approved by */}
-              {approvedBy ? (
+              {/* Approved / Rejected by */}
+              {isRejected && (rejectedBy || storedRejection) ? (
+                <div className="text-right">
+                  <p className="text-[11px] text-[#d33d44] font-medium mb-1.5">Rejected by</p>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-semibold text-[#0b100e] leading-tight">
+                        {formatUser(rejectedBy || storedRejection?.rejectedBy)}
+                        {formatUserRole(rejectedBy || storedRejection?.rejectedBy) && (
+                          <span className="text-[#68726d] font-normal"> ({formatUserRole(rejectedBy || storedRejection?.rejectedBy)})</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-[#68726d] mt-0.5">{formatDate(rejectedAt, storedRejection?.rejectedAt)}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : approvedBy ? (
                 <div className="text-right">
                   <p className="text-[11px] text-[#68726d] mb-1.5">
                     Approved by
@@ -1556,7 +1590,10 @@ function PoliciesPage() {
         }
 
         if (isCreator) {
-          stillApprover = false;
+          // Creator cannot approve their own policy — seamlessly route to details view without error
+          setReviewPolicy(null);
+          setDetailPolicy((freshPolicy as any) || policy);
+          return;
         }
 
         if (!stillApprover) {
@@ -1682,15 +1719,14 @@ function PoliciesPage() {
         }
       }
 
-      if (isApprover && isCreator) {
-        isApprover = false;
+      if (isCreator) {
+        return false;
       }
 
       const isPending =
         policy.status?.toLowerCase() === "pending_approval" ||
         policy.status?.toLowerCase() === "pending";
-      // Show the Review button for approvers AND for the creator (so creators can track status)
-      return isPending && (isApprover || isCreator);
+      return isPending && isApprover;
     },
     [user, eligibleRoles],
   );
@@ -1725,16 +1761,27 @@ function PoliciesPage() {
       }
 
       const createdByObj = (policy as any).createdBy;
-      const creatorId = isRecord(createdByObj)
-        ? pickString(createdByObj, "id", "userId")
+      const creatorId = isRecord(createdByObj) 
+        ? pickString(createdByObj, "id", "userId") 
         : (policy as any).createdById;
-      const isCreator =
-        Boolean(user?.userId) &&
-        Boolean(creatorId) &&
-        creatorId === user?.userId;
+      let isCreator = Boolean(user?.userId) && Boolean(creatorId) && creatorId === user?.userId;
+      if (!isCreator && user) {
+        const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim().toLowerCase();
+        let creatorName = "";
+        if (typeof createdByObj === 'string') {
+          creatorName = createdByObj.trim().toLowerCase();
+        } else if (isRecord(createdByObj)) {
+          creatorName = `${pickString(createdByObj, "firstName") || ''} ${pickString(createdByObj, "lastName") || ''}`.trim().toLowerCase();
+        } else if (typeof (policy as any).createdByName === 'string') {
+          creatorName = (policy as any).createdByName.trim().toLowerCase();
+        }
+        if (userFullName && creatorName && userFullName === creatorName) {
+          isCreator = true;
+        }
+      }
 
-      // If also the creator, cannot approve their own policy
-      if (isApprover && isCreator) isApprover = false;
+      // If creator, cannot approve their own policy
+      if (isCreator) return false;
 
       const isPending =
         policy.status?.toLowerCase() === "pending_approval" ||
@@ -1756,124 +1803,99 @@ function PoliciesPage() {
   );
 
   /* DataTable columns for Policy tab */
-  const policyColumns = useMemo<ColumnDef<Policy>[]>(
-    () => [
-      {
-        accessorKey: "name",
-        sortingFn: (rowA, rowB, columnId) => {
-          const a = String(rowA.getValue(columnId) || "").toLowerCase();
-          const b = String(rowB.getValue(columnId) || "").toLowerCase();
-          return a.localeCompare(b);
-        },
-        header: ({ column }) => (
-          <SortableColumnHeader column={column} title="Policy Name" />
-        ),
-        cell: ({ row }) => (
-          <div>
-            <p className="text-sm font-bold text-foreground">
-              {capitalizeName(row.original.name)}
-            </p>
-            <p className="text-xs text-[#68726d]">v{row.original.version}</p>
+  const policyColumns = useMemo<ColumnDef<Policy>[]>(() => [
+    {
+      accessorKey: "name",
+      sortingFn: (rowA, rowB, columnId) => {
+        const a = String(rowA.getValue(columnId) || "").toLowerCase();
+        const b = String(rowB.getValue(columnId) || "").toLowerCase();
+        return a.localeCompare(b);
+      },
+      header: "Policy Name",
+      cell: ({ row }) => (
+        <div>
+          <p className="text-sm font-bold text-foreground">{capitalizeName(row.original.name)}</p>
+          <p className="text-xs text-[#68726d]">v{row.original.version}</p>
+        </div>
+      ),
+    },
+    { accessorKey: "appliedTo", header: "Applied To" },
+    {
+      accessorKey: "createdBy",
+      header: "Created By",
+      cell: ({ row }) => (
+        <span className="text-sm text-[#3a4a44]">
+          {row.original.createdBy || "—"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "date",
+      sortingFn: (rowA, rowB, columnId) => {
+        const parseDate = (val: string) => {
+          if (!val || val === "—") return 0;
+          // Assumes format like DD/MM/YYYY or MM/DD/YYYY
+          const parts = val.split("/");
+          if (parts.length === 3) {
+            // Convert DD/MM/YYYY to YYYY-MM-DD for reliable Date parsing
+            return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+          }
+          return new Date(val).getTime() || 0;
+        };
+        return parseDate(rowA.getValue(columnId) as string) - parseDate(rowB.getValue(columnId) as string);
+      },
+      header: "Date",
+      cell: ({ row }) => (
+        <span className="text-sm text-[#68726d] tabular-nums">
+          {row.original.date}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
+      id: "actions",
+      header: () => <div className="text-right w-full">Action</div>,
+      cell: ({ row }) => {
+        const policy = row.original;
+        
+        const { can } = useAuthStore.getState();
+        const canUpdate = can('policy', 'update');
+        const canDeactivate = can('policy', 'deactivate');
+        
+        const showReviewOnly = checkIfReviewable(policy);
+
+        return (
+          <div className="flex items-center justify-end gap-2">
+            {showReviewOnly ? (
+              <button
+                onClick={() => handleOpenReview(policy)}
+                className="h-8 px-4 rounded-[12px] bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
+              >
+                Review
+              </button>
+            ) : (
+              <ActionMenu
+                onView={() => setDetailPolicy(policy)}
+                onEdit={canUpdate && policy.status !== "pending" && policy.status !== "pending_approval" ? () => handleEdit(policy) : undefined}
+                onArchive={policy.status !== "draft" && policy.status !== "pending" && policy.status !== "pending_approval" && canDeactivate ? () => handleArchive(policy) : undefined}
+                onDeleteDraft={policy.status === "draft" && canUpdate ? () => setDraftToDelete(policy.id) : undefined}
+              />
+            )}
           </div>
-        ),
+        );
       },
-      { accessorKey: "appliedTo", header: "Applied To" },
-      {
-        accessorKey: "date",
-        sortingFn: (rowA, rowB, columnId) => {
-          const parseDate = (val: string) => {
-            if (!val || val === "—") return 0;
-            // Assumes format like DD/MM/YYYY or MM/DD/YYYY
-            const parts = val.split("/");
-            if (parts.length === 3) {
-              // Convert DD/MM/YYYY to YYYY-MM-DD for reliable Date parsing
-              return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
-            }
-            return new Date(val).getTime() || 0;
-          };
-          return (
-            parseDate(rowA.getValue(columnId) as string) -
-            parseDate(rowB.getValue(columnId) as string)
-          );
-        },
-        header: ({ column }) => (
-          <SortableColumnHeader column={column} title="Date" />
-        ),
-        cell: ({ row }) => (
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              {row.original.createdBy}
-            </p>
-            <p className="text-xs text-[#68726d] tabular-nums">
-              {row.original.date}
-            </p>
-          </div>
-        ),
-      },
-      {
-        accessorKey: "status",
-        header: "Status",
-        cell: ({ row }) => <StatusBadge status={row.original.status} />,
-      },
-      {
-        id: "actions",
-        header: () => <div className="text-right w-full">Action</div>,
-        cell: ({ row }) => {
-          const policy = row.original;
-
-          const { can } = useAuthStore.getState();
-          const canUpdate = can("policy", "update");
-          const canDeactivate = can("policy", "deactivate");
-
-          const showReviewOnly = checkIfReviewable(policy);
-
-          return (
-            <div className="flex items-center justify-end gap-2">
-              {showReviewOnly ? (
-                <button
-                  onClick={() => handleOpenReview(policy)}
-                  className="h-8 px-4 rounded-[12px] bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
-                >
-                  Review
-                </button>
-              ) : (
-                <ActionMenu
-                  onView={() => setDetailPolicy(policy)}
-                  onEdit={
-                    canUpdate &&
-                    policy.status !== "pending" &&
-                    policy.status !== "pending_approval"
-                      ? () => handleEdit(policy)
-                      : undefined
-                  }
-                  onArchive={
-                    policy.status !== "draft" &&
-                    policy.status !== "pending" &&
-                    policy.status !== "pending_approval" &&
-                    canDeactivate
-                      ? () => handleArchive(policy)
-                      : undefined
-                  }
-                  onDeleteDraft={
-                    policy.status === "draft" && canUpdate
-                      ? () => setDraftToDelete(policy.id)
-                      : undefined
-                  }
-                />
-              )}
-            </div>
-          );
-        },
-      },
-    ],
-    [
-      handleOpenReview,
-      handleEdit,
-      handleArchive,
-      checkIfReviewable,
-      checkIfCanApprove,
-    ],
-  );
+    },
+  ], [
+    handleOpenReview,
+    handleEdit,
+    handleArchive,
+    checkIfReviewable,
+    checkIfCanApprove,
+  ]);
 
   /* DataTable columns for Archived tab */
   const archivedColumns = useMemo<ColumnDef<Policy>[]>(
@@ -2514,6 +2536,7 @@ function PoliciesPage() {
         <ReviewPolicyModal
           policy={reviewPolicy as any}
           onClose={() => setReviewPolicy(null)}
+          readOnly={!checkIfCanApprove(reviewPolicy)}
         />
       )}
     </div>
@@ -2522,4 +2545,9 @@ function PoliciesPage() {
 
 export default withPermissions(PoliciesPage, [
   { resource: "policy", action: "read_company" },
+  { resource: "policy", action: "manage" },
+  { resource: "policy", action: "read" },
+  { resource: "policy.domain", action: "expense" },
+  { resource: "policy.domain", action: "procurement" },
+  { resource: "policy.domain", action: "all" },
 ]);

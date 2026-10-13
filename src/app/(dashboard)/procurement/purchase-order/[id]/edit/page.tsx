@@ -273,6 +273,7 @@ function CategoryDropdown({ value, onChange }: { value: string; onChange: (id: s
 
 interface LocalItem extends POLineItemPayload { 
   localId: string; 
+  categoryName?: string;
   policyViolations?: { type: string; message: string; ruleType?: string }[] | null;
 }
 
@@ -499,6 +500,7 @@ function EditPurchaseOrderPage() {
         sku: item.sku,
         unitOfMeasure: item.unitOfMeasure,
         categoryId: item.categoryId,
+        categoryName: item.categoryName,
         departmentId: item.departmentId,
         accountingResolutionStatus: item.accountingResolutionStatus || "unresolved",
       }));
@@ -779,7 +781,7 @@ function EditPurchaseOrderPage() {
                 </thead>
                 <tbody>
                   {lineItems.map((item, i) => {
-                    const catName = getCategoryName(item.categoryId);
+                    const catName = item.categoryName || getCategoryName(item.categoryId);
                     const sub = item.quantity * item.unitPrice;
                     const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
                     const hasBlock = hasViolations && item.policyViolations!.some(v => v.type === "hard_block");
@@ -877,7 +879,7 @@ function EditPurchaseOrderPage() {
           name: editingItem.item.name || "",
           description: editingItem.item.description || "",
           categoryId: editingItem.item.categoryId || "",
-          categoryName: "",
+          categoryName: editingItem.item.categoryName || getCategoryName(editingItem.item.categoryId) || "",
           quantity: editingItem.item.quantity || 0,
           unitPrice: editingItem.item.unitPrice,
           taxAmount: editingItem.item.taxAmount || 0,
@@ -916,10 +918,10 @@ function EditPurchaseOrderPage() {
             if (!id) return;
             try {
               await submitPO.mutateAsync({ 
-                id, 
-                policyJustification: justification,
-                spendProgramJustification: justification
-              } as any);
+                policyJustification: justification || undefined,
+                spendProgramJustification: justification || undefined,
+                spendProgramWarningsAccepted: true,
+              });
               toast.success("Purchase order submitted for approval!");
               setPolicyViolations(null);
               setIsPolicyModalOpen(false);

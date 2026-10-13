@@ -268,15 +268,19 @@ export const useDeletePOLineItem = (poId: string) => {
 
 // ── Submit PO for Approval ──────────────────────────────────────────────────
 
+export interface SubmitPurchaseOrderPayload {
+  id?: string;
+  policyJustification?: string;
+  spendProgramJustification?: string;
+  spendProgramWarningsAccepted?: boolean;
+}
+
 export const useSubmitPurchaseOrderForApproval = (id: string) => {
   const axios = useAxios();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload?: {
-      policyJustification?: string;
-      spendProgramJustification?: string;
-    }) => {
+    mutationFn: async (payload?: SubmitPurchaseOrderPayload) => {
       const response = await axios.patch(
         PROCUREMENT_KEYS.SUBMIT_PURCHASE_ORDER(id),
         payload || {},

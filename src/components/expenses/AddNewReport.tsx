@@ -13,7 +13,7 @@ import { z } from "zod";
 import FormFieldInput from "../form fields/formFieldInput";
 import { Form } from "../ui/form";
 import { useRouter } from "next/navigation";
-import { useGetExpenseCategoriesWithPoliciesApi } from "@/queries/companies/get-expense-categories";
+import { useGetExpenseCategoriesWithPoliciesApi, hasCategoryWithPolicy } from "@/queries/companies/get-expense-categories";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 
@@ -41,7 +41,7 @@ const AddNewReport = ({
   const canCreatePolicy = useAuthStore((s) => s.can)("policy", "create");
   
   const categoriesApi = useGetExpenseCategoriesWithPoliciesApi();
-  const hasPolicies = Array.isArray(categoriesApi.data?.data) && categoriesApi.data.data.length > 0;
+  const hasPolicies = hasCategoryWithPolicy(categoriesApi.data?.data);
   const isLoadingPolicies = categoriesApi.isLoading;
 
   const getPreservedValues = () => {
@@ -79,6 +79,8 @@ const AddNewReport = ({
     const capitalizedName = data.reportName.charAt(0).toUpperCase() + data.reportName.slice(1);
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("uploadedReceipts");
+      sessionStorage.setItem("expensesReturnTab", "personal-expenses");
+      sessionStorage.setItem("expensesReturnPage", "1");
     }
     router.push(`/expenses/new-report?name=${encodeURIComponent(capitalizedName)}`);
     close();

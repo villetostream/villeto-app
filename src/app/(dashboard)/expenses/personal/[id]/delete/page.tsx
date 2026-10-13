@@ -1,4 +1,5 @@
 "use client";
+import { workspaceQueryKey } from "@/features/entity-workspace/store";
 
 import withPermissions from "@/components/permissions/permission-protected-routes";
 
@@ -134,7 +135,7 @@ function DeleteExpenseReportPage() {
       reportDetail.expenses.length === 0
     ) {
       queryClient.invalidateQueries({
-        queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES],
+        queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES]),
       });
       router.replace(getReturnUrl());
       toast.success(
@@ -193,7 +194,7 @@ function DeleteExpenseReportPage() {
       toast.success(`Expense "${expenseToDelete.title}" deleted.`);
       await fetchReportDetail();
       queryClient.invalidateQueries({
-        queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES],
+        queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES]),
       });
     } catch (err: unknown) {
       const e = err as {
@@ -223,7 +224,7 @@ function DeleteExpenseReportPage() {
       setSelectedIds(new Set());
       await fetchReportDetail();
       queryClient.invalidateQueries({
-        queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES],
+        queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES]),
       });
     } catch (err: unknown) {
       const e = err as {
@@ -246,7 +247,7 @@ function DeleteExpenseReportPage() {
       await axios.delete(API_KEYS.EXPENSE.DELETE_REPORT(reportId));
       toast.success("Report deleted successfully.");
       queryClient.invalidateQueries({
-        queryKey: [API_KEYS.EXPENSE.PERSONAL_EXPENSES],
+        queryKey: workspaceQueryKey([API_KEYS.EXPENSE.PERSONAL_EXPENSES]),
       });
       router.replace(getReturnUrl());
     } catch (err: unknown) {
@@ -273,9 +274,8 @@ function DeleteExpenseReportPage() {
           description: (
             <>
               Are you sure you want to delete the expense: &quot;
-              <span className="font-semibold">
-                {expenseToDelete?.title}
-              </span>&quot; ?
+              <span className="font-semibold">{expenseToDelete?.title}</span>
+              &quot; ?
             </>
           ),
           onConfirm: deleteSingleExpense,

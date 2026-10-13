@@ -908,7 +908,8 @@ function VendorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
-  const canInviteVendor = useAuthorizationPolicies().vendors.canInvite;
+  const policies = useAuthorizationPolicies();
+  const canInviteVendor = policies.vendors.canInvite;
 
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
   const [page, setPage] = useState(1);

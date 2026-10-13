@@ -8,7 +8,7 @@ import { useAuthorizationPolicies } from "@/features/auth/use-authorization-poli
 import {
   Search, Eye, Download, Loader2, ChevronLeft, ChevronRight,
   MoreHorizontal, CheckCircle, XCircle, X, AlertCircle, Send,
-  ArrowUp, ArrowDown, ChevronsUpDown
+  ArrowUp, ArrowDown, ChevronsUpDown, RefreshCw
 } from "lucide-react";
 import { buildPODetailUrl } from "@/lib/permissions/purchase-order-permissions";
 import { Pagination } from "@/components/ui/custom-pagination";
@@ -300,13 +300,13 @@ function POTable({
   const statusFilter   = activeTabCfg?.statusFilter || "";
   const isAwaitingTab  = !isMyScope && activeTab === "awaiting_approval";
 
-  const { data, isLoading, isError } = usePurchaseOrders(
+  const { data, isLoading, isFetching, isError, refetch } = usePurchaseOrders(
     page, perPage,
     statusFilter || undefined,
     vendorFilter !== "all" ? vendorFilter : undefined,
     debouncedSearch || undefined,
     scope,
-    { refetchInterval: 60_000 },
+    { refetchInterval: 60_000, refetchOnMount: "always", staleTime: 0 },
   );
 
   // Badge count for "Awaiting Approval" tab (only for All POs / elevated scope)
@@ -484,6 +484,19 @@ function POTable({
                 ))}
               </SelectContent>
             </Select>
+
+            <button
+              onClick={() => {
+                refetch();
+                toast.success("Purchase orders refreshed");
+              }}
+              disabled={isLoading || isFetching}
+              title="Refresh purchase orders"
+              className="flex items-center gap-2 h-9 px-3.5 rounded-[8px] border border-black/[0.12] text-[13px] text-[#0b100e] bg-white hover:bg-[#f9faf9] transition-colors whitespace-nowrap disabled:opacity-60 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#087f70] ${isLoading || isFetching ? "animate-spin" : ""}`} />
+              <span className="font-semibold text-[13px]">{isLoading || isFetching ? "Refreshing..." : "Refresh"}</span>
+            </button>
 
             <button className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#087f70]/30 text-[#087f70] text-[13px] font-semibold hover:bg-[#f0faf8] transition-colors">
               <Download className="w-4 h-4" /> Export

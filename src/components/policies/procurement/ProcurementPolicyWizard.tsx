@@ -22,6 +22,8 @@ import {
   useGetSpendProgramSettings,
   mapSpendProgramFromBackend
 } from "@/queries/procurement/policies";
+import { useAuthStore } from "@/stores/auth-stores";
+import { saveSpendProgramCreator } from "@/lib/policies/spend-program-creator-store";
 
 const TOTAL_STEPS = 4;
 
@@ -129,6 +131,8 @@ export function ProcurementPolicyWizard({
     }
   };
 
+  const currentUser = useAuthStore((s) => s.user);
+
   const goNext = async () => {
     if (!canContinue()) {
       toast.error(validationMessage());
@@ -138,11 +142,31 @@ export function ProcurementPolicyWizard({
     if (step >= TOTAL_STEPS) {
       // Submit to backend
       try {
+        const currentUserId = currentUser?.userId || (currentUser as any)?.id || "";
         if (programId) {
           await updateProgram.mutateAsync(draft);
+          if (currentUserId) {
+            saveSpendProgramCreator({
+              id: programId,
+              name: draft.name,
+              userId: currentUserId,
+              userName: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim(),
+              userEmail: currentUser?.email,
+            });
+          }
           toast.success("Spend program updated successfully.");
         } else {
-          await createProgram.mutateAsync(draft);
+          const res = await createProgram.mutateAsync(draft);
+          const createdId = res?.data?.procurementSpendProgramId || res?.data?.id || (res as any)?.procurementSpendProgramId || (res as any)?.id;
+          if (currentUserId) {
+            saveSpendProgramCreator({
+              id: createdId,
+              name: draft.name,
+              userId: currentUserId,
+              userName: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim(),
+              userEmail: currentUser?.email,
+            });
+          }
           toast.success("Spend program created successfully.");
         }
         onComplete();
@@ -164,12 +188,32 @@ export function ProcurementPolicyWizard({
       return;
     }
     try {
+      const currentUserId = currentUser?.userId || (currentUser as any)?.id || "";
       if (draft.draftId) {
         await updateDraft.mutateAsync({ draftId: draft.draftId, payload: draft });
+        if (currentUserId) {
+          saveSpendProgramCreator({
+            id: draft.draftId,
+            name: draft.name,
+            userId: currentUserId,
+            userName: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim(),
+            userEmail: currentUser?.email,
+          });
+        }
       } else {
         const res = await createDraft.mutateAsync(draft);
-        if (res?.data?.draftId) {
-          patch({ draftId: res.data.draftId });
+        const draftId = res?.data?.draftId || (res as any)?.id;
+        if (draftId) {
+          patch({ draftId });
+        }
+        if (currentUserId) {
+          saveSpendProgramCreator({
+            id: draftId,
+            name: draft.name,
+            userId: currentUserId,
+            userName: `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim(),
+            userEmail: currentUser?.email,
+          });
         }
       }
       toast.success("Draft saved successfully.");

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,7 +20,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { useGetUninvitedUsersApi } from "@/queries/users/get-all-users";
+import { useGetUninvitedUsersApi, useGetInvitedUsersApi } from "@/queries/users/get-all-users";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAxios } from "@/hooks/useAxios";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -49,6 +51,8 @@ interface DirectoryUser {
   managementLevel?: string | null;
   managementLevelRef?: { name?: string | null; code?: string | null } | null;
   jobGrade?: { code?: string | null; name?: string | null } | string | null;
+  /** Client-side flag: user has already been invited (only surfaced via search) */
+  isInvited?: boolean;
 }
 
 function getDepartmentName(dept: DirectoryUser["department"]): string {
@@ -83,7 +87,13 @@ const PAGE_SIZE_OPTIONS = [
 ];
 
 export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageProps) {
-  const usersApi = useGetUninvitedUsersApi();
+  // Default list: only people who can still be invited (invited=false).
+  // limit=1000 makes the query helper fetch every page, since we paginate client-side.
+  const usersApi = useGetUninvitedUsersApi({ params: { limit: 1000 } });
+  // Already-invited users — never shown by default, only surfaced through search
+  // so admins can look someone up for follow-up.
+  const invitedApi = useGetInvitedUsersApi({ params: { limit: 1000, status: "all" } });
+  const queryClient = useQueryClient();
   const router = useRouter();
   const axios = useAxios();
   const user = useAuthStore((state) => state.user);
@@ -94,6 +104,13 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
     () => (usersApi?.data?.data ?? []) as DirectoryUser[],
     [usersApi.data?.data],
   );
+  const invitedUsers = useMemo(() => {
+    const uninvitedIds = new Set(users.map((u) => u.userId || (u as any).id));
+    return ((invitedApi?.data?.data ?? []) as DirectoryUser[])
+      .filter((u) => !uninvitedIds.has(u.userId || (u as any).id))
+      .map((u) => ({ ...u, isInvited: true }));
+  }, [invitedApi.data?.data, users]);
+  const hasAnyEmployees = users.length > 0 || invitedUsers.length > 0;
   const isLoading = usersApi.isLoading;
 
   const [search, setSearch] = useState("");
@@ -116,12 +133,12 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
 
   const uniqueDepartments = useMemo(() => {
     const depts = new Set<string>();
-    users.forEach((u) => {
+    [...users, ...invitedUsers].forEach((u) => {
       const dept = getDepartmentName(u.department);
       if (dept !== "—") depts.add(dept);
     });
     return Array.from(depts).sort();
-  }, [users]);
+  }, [users, invitedUsers]);
 
   useEffect(() => {
     const fetchBusinessName = async () => {
@@ -141,12 +158,14 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
   }, [user?.companyId, axios]);
 
   const filteredUsers = useMemo(() => {
-    const searchLower = search.toLowerCase();
-    return users.filter((u) => {
+    const searchLower = search.trim().toLowerCase();
+    // Invited users only join the pool while a search is active.
+    const pool = searchLower ? [...users, ...invitedUsers] : users;
+    return pool.filter((u) => {
       if (departmentFilter && departmentFilter !== "all" && getDepartmentName(u.department).toLowerCase() !== departmentFilter.toLowerCase()) return false;
       if (!search) return true;
       const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
-      const email = u.email.toLowerCase();
+      const email = (u.email || "").toLowerCase();
       const dept = getDepartmentName(u.department).toLowerCase();
       const job = (u.position || u.jobTitle || "").toLowerCase();
       const managerName = u.manager
@@ -164,7 +183,11 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
         managerName.includes(searchLower)
       );
     });
-  }, [users, search, departmentFilter]);
+  }, [users, invitedUsers, search, departmentFilter]);
+
+  // Only uninvited rows can be selected / invited
+  const selectableUsers = useMemo(() => filteredUsers.filter((u) => !u.isInvited), [filteredUsers]);
+  const invitedMatchCount = filteredUsers.length - selectableUsers.length;
 
   const totalItems = filteredUsers.length;
 
@@ -211,11 +234,11 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
   const handleSelectAllChange = (checked: boolean | "indeterminate") => {
     if (checked === "indeterminate") {
       // indeterminate click → select all filtered users
-      setSelected(new Set(filteredUsers.map((u) => u.userId)));
+      setSelected(new Set(selectableUsers.map((u) => u.userId)));
       return;
     }
     if (checked) {
-      setSelected(new Set(filteredUsers.map((u) => u.userId)));
+      setSelected(new Set(selectableUsers.map((u) => u.userId)));
     } else {
       setSelected(new Set());
     }
@@ -232,8 +255,8 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
   };
 
   // Header checkbox reflects state for ALL filtered users (not just current page)
-  const isAllSelected = filteredUsers.length > 0 && filteredUsers.every((u) => selected.has(u.userId));
-  const isSomeSelected = filteredUsers.some((u) => selected.has(u.userId)) && !isAllSelected;
+  const isAllSelected = selectableUsers.length > 0 && selectableUsers.every((u) => selected.has(u.userId));
+  const isSomeSelected = selectableUsers.some((u) => selected.has(u.userId)) && !isAllSelected;
 
   const handleCorporateCardToggle = (userId: string) => {
     setCorporateCardState((prev) => ({
@@ -251,6 +274,11 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
         employeeIds: Array.from(selected),
       });
       toast.success("Invitations sent successfully!");
+      // Refresh cached lists so freshly invited people drop out of the picker
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.uninvitedUsers });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.invitedUsers });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.directoryUsers });
+      setSelected(new Set());
       // Notify setup guide — ticks "invitations" step
       window.dispatchEvent(new CustomEvent("villeto:invitation-sent"));
       router.push("/people?tab=directory");
@@ -274,6 +302,23 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
 
   const selectedCount = selected.size;
 
+  if (usersApi.isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 px-6 border border-black/[0.08] rounded-[14px] bg-white shadow-[0_4px_16px_rgba(14,28,23,0.04)]">
+        <h3 className="text-[17px] font-semibold text-[#0b100e] mb-2">Couldn&apos;t load employees</h3>
+        <p className="text-[13px] text-[#66706b] mb-6 text-center max-w-sm">
+          {getApiErrorMessage(usersApi.error, "Something went wrong while loading your directory.")}
+        </p>
+        <button
+          onClick={() => usersApi.refetch()}
+          className="inline-flex items-center justify-center h-[42px] bg-[#0ea894] hover:bg-[#0c9785] text-white px-6 rounded-[10px] font-semibold text-[13px]"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full space-y-4 overflow-y-n">
       <div className="flex justify-between items-center flex-shrink-0">
@@ -290,30 +335,14 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
         </div>
       </div>
 
-      {/* Setup guide inline tip — non-blocking, shown only when users exist */}
-      {users.length > 0 && (
-        <div className="flex items-start gap-3 bg-[#f0fdf9] border border-[#a7f3d0] rounded-xl px-4 py-3 flex-shrink-0">
-          <div className="w-5 h-5 rounded-full bg-[#0d9488] flex items-center justify-center flex-shrink-0 mt-0.5">
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5L8.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[#065f46]">Select employees to invite</p>
-            <p className="text-xs text-[#047857] mt-0.5">
-              Tick the <strong>checkbox in the header</strong> to select all, or check employees one by one.
-              Then click <strong>Invite Users</strong> (bottom right) to send invitations.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {users.length === 0 ? (
+      {!hasAnyEmployees ? (
         <div className="flex flex-col items-center justify-center py-24 px-6 border border-black/[0.08] rounded-[14px] bg-white mt-4 shadow-[0_4px_16px_rgba(14,28,23,0.04)]">
           <div className="w-16 h-16 bg-[#e7f6f2] rounded-[14px] flex items-center justify-center mb-5">
             <Users className="w-7 h-7 text-[#087f70]" strokeWidth={1.7} />
           </div>
-          <h3 className="text-[17px] font-semibold text-[#0b100e] mb-2">No uninvited employees</h3>
+          <h3 className="text-[17px] font-semibold text-[#0b100e] mb-2">Organisation Directory is Empty</h3>
           <p className="text-[13px] text-[#66706b] mb-7 text-center max-w-sm leading-relaxed">
-            It looks like everyone in your directory has already been invited or your directory is empty. To invite more employees, please update your directory.
+            You haven&apos;t uploaded your directory yet. Upload it and invite your employees from there.
           </p>
           <button
             onClick={() => {
@@ -347,6 +376,11 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                 ))}
               </SelectContent>
             </Select>
+            {search.trim() && invitedMatchCount > 0 && (
+              <span className="text-xs text-[#66706b]">
+                {invitedMatchCount} already-invited match{invitedMatchCount !== 1 ? "es" : ""} shown for reference
+              </span>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-md border bg-white">
@@ -401,17 +435,26 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                   const rowNum = String(startIndex + index + 1).padStart(2, "0");
 
                   return (
-                    <TableRow key={employee.userId}>
+                    <TableRow key={employee.userId} className={employee.isInvited ? "bg-[#fafbfa]" : undefined}>
                       <TableCell className="text-center px-4 py-2.5">
                         <Checkbox
-                          checked={selected.has(employee.userId)}
+                          checked={!employee.isInvited && selected.has(employee.userId)}
+                          disabled={employee.isInvited}
+                          title={employee.isInvited ? "Already invited" : undefined}
                           onCheckedChange={(checked) => handleSelectChange(employee.userId, !!checked)}
                         />
                       </TableCell>
                       <TableCell className="text-sm px-4 py-2.5 text-[#181D27]">{rowNum}</TableCell>
                       <TableCell className="px-4 py-2.5 text-[#181D27]">
                         <div className="flex flex-col">
-                          <p className="capitalize font-medium">{fullName}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="capitalize font-medium">{fullName}</p>
+                            {employee.isInvited && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#e7f6f2] text-[#087f70] text-[10px] font-semibold">
+                                Already invited
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">{employee.email}</p>
                         </div>
                       </TableCell>
@@ -426,6 +469,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                       <TableCell className="px-4 py-2.5">
                         <div className="flex justify-center">
                           <Switch
+                            disabled={employee.isInvited}
                             checked={corporateCardState[employee.userId] ?? false}
                             onCheckedChange={() => handleCorporateCardToggle(employee.userId)}
                           />
@@ -434,15 +478,27 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                     </TableRow>
                   );
                 })}
-                {paginatedData.length === 0 && users.length > 0 && (
+                {paginatedData.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell colSpan={7} className="p-0 border-0">
                       <div className="w-full flex justify-center py-10 px-4">
-                        <EmptyState 
-                          icon={<Users className="w-6 h-6" />}
-                          title="No members found"
-                          description="Try adjusting your filters or search query to find what you're looking for."
-                        />
+                        {users.length === 0 && !search.trim() ? (
+                          <div className="flex flex-col items-center justify-center text-center max-w-sm">
+                            <div className="w-12 h-12 bg-[#e7f6f2] rounded-full flex items-center justify-center mb-3">
+                              <Users className="w-6 h-6 text-[#087f70]" strokeWidth={1.7} />
+                            </div>
+                            <h4 className="text-[15px] font-semibold text-[#0b100e] mb-1">All employees have been invited</h4>
+                            <p className="text-[13px] text-[#66706b] leading-relaxed">
+                              Everyone in your directory has already received an invitation. You can search above to look up any employee for reference.
+                            </p>
+                          </div>
+                        ) : (
+                          <EmptyState 
+                            icon={<Users className="w-6 h-6" />}
+                            title="No members found"
+                            description="Try adjusting your filters or search query to find what you're looking for."
+                          />
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
