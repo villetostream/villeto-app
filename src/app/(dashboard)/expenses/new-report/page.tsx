@@ -200,8 +200,12 @@ function NewReportPage() {
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<"draft" | "pending" | null>(null);
   const isSubmittingRef = useRef(false);
+
+  const isSavingDraft = submittingAction === "draft";
+  const isSubmittingReport = submittingAction === "pending";
+  const isSubmitting = Boolean(submittingAction);
 
   const initialDraftId = searchParams.get("draftId") || searchParams.get("id") || null;
   const [draftId, setDraftId] = useState<string | null>(initialDraftId);
@@ -521,7 +525,7 @@ function NewReportPage() {
   const runPolicyAndSubmit = async (status: "draft" | "pending") => {
     if (isSubmitting || isSubmittingRef.current) return;
     isSubmittingRef.current = true;
-    setIsSubmitting(true);
+    setSubmittingAction(status);
     try {
       logger.log("[runPolicyAndSubmit] Triggered with status:", status);
 
@@ -560,9 +564,9 @@ function NewReportPage() {
       await doSubmit(status, {});
     } catch (err) {
       logger.error("[runPolicyAndSubmit] Sync Crash:", err);
-      toast.error("An unexpected error occurred during submission.");
+      toast.error(getApiErrorMessage(err, "An unexpected error occurred during submission."));
     } finally {
-      setIsSubmitting(false);
+      setSubmittingAction(null);
       isSubmittingRef.current = false;
     }
   };
@@ -571,7 +575,7 @@ function NewReportPage() {
   const handlePolicyContinue = async (justifications: Record<string, string>) => {
     if (isSubmitting || isSubmittingRef.current) return;
     isSubmittingRef.current = true;
-    setIsSubmitting(true);
+    setSubmittingAction(pendingSubmitStatus || "pending");
     try {
       // Apply justifications to expenses
       setExpenses((prev) =>
@@ -580,7 +584,7 @@ function NewReportPage() {
       setIsPolicyModalOpen(false);
       await doSubmit(pendingSubmitStatus!, justifications);
     } finally {
-      setIsSubmitting(false);
+      setSubmittingAction(null);
       isSubmittingRef.current = false;
     }
   };
@@ -626,11 +630,25 @@ function NewReportPage() {
     const invalid = activeExpenses.filter((e) => !e.name || !e.category);
     if (invalid.length > 0) { toast.error("Please complete all required fields for each expense"); return; }
 
-    setIsSubmitting(true);
+    setSubmittingAction(status);
     try {
-      const expensesPayload = activeExpenses.map((expense) => {
-        const category = categoriesWithPolicies.find((c) => c.name === expense.category);
-        if (!category) throw new Error(`Category not found: ${expense.category}`);
+      const expensesPayload: any[] = [];
+      for (const expense of activeExpenses) {
+        const category =
+          categories.find(
+            (c) =>
+              c.name.toLowerCase() === (expense.category || "").toLowerCase() ||
+              c.categoryId === expense.category,
+          ) ||
+          categoriesWithPolicies.find(
+            (c) =>
+              c.name.toLowerCase() === (expense.category || "").toLowerCase() ||
+              c.categoryId === expense.category,
+          );
+        if (!category) {
+          toast.error(`Category "${expense.category}" not found. Please select a valid category.`);
+          return;
+        }
 
         // Justification: use the one from the modal or the one already saved on the expense.
         const justificationValue = justifications[expense.id] || expense.justification;
@@ -697,8 +715,8 @@ function NewReportPage() {
         if (expense.receiptExtractionId) {
           payload.receiptExtractionId = expense.receiptExtractionId;
         }
-        return payload;
-      });
+        expensesPayload.push(payload);
+      }
 
       let finalPayload: any;
       if (status === "draft") {
@@ -954,7 +972,7 @@ function NewReportPage() {
         )
       );
     } finally {
-      setIsSubmitting(false);
+      setSubmittingAction(null);
       isSubmittingRef.current = false;
     }
   };
@@ -1082,7 +1100,7 @@ function NewReportPage() {
                 : "bg-white border border-[#087f70] text-[#087f70] hover:bg-[#f0faf8] rounded-[8px] h-10 px-6 text-[13px] font-semibold transition-colors"
             }
           >
-            {isSubmitting
+            {isSavingDraft
               ? (draftId ? "Saving changes..." : "Saving draft...")
               : (draftId ? "Save changes" : "Save as Draft")}
           </button>
@@ -1106,7 +1124,7 @@ function NewReportPage() {
                     : "bg-[#087f70] border border-[#087f70] text-white hover:bg-[#076b5e] rounded-[8px] h-10 px-6 text-[13px] font-semibold shadow-sm transition-colors"
             }
           >
-            {isSubmitting
+            {isSubmittingReport
               ? "Submitting..."
               : submitButtonState === "fix"
                 ? "Fix Violations"
