@@ -923,11 +923,7 @@ function EditReportPage() {
               disabled={isSaveDisabled}
               className={saveDraftClass}
             >
-              {isActionInProgress
-                ? isSavingDraft
-                  ? "Saving..."
-                  : "Processing..."
-                : "Save Changes"}
+              {isSavingDraft ? "Saving..." : "Save Changes"}
             </button>
           )}
           <button
@@ -935,12 +931,10 @@ function EditReportPage() {
             disabled={isSubmitDisabled}
             className={submitClass}
           >
-            {isActionInProgress
-              ? isSubmittingReport
-                ? isResubmitMode
-                  ? "Resubmitting..."
-                  : "Submitting..."
-                : "Processing..."
+            {isSubmittingReport
+              ? isResubmitMode
+                ? "Resubmitting..."
+                : "Submitting..."
               : isResubmitMode
                 ? "Resubmit Report"
                 : "Submit Report"}
