@@ -5,7 +5,7 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, XCircle, CheckCircle } from "lucide-react";
+import { AlertTriangle, XCircle, CheckCircle, Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { ProcurementPolicyViolation } from "@/lib/types/api-error";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -16,7 +16,8 @@ interface ProcurementPolicyCheckModalProps {
   onClose: () => void;
   violations: ProcurementPolicyViolation[];
   onEditRequest: () => void;
-  onProceedWithWarnings?: (justification: string) => void;
+  onProceedWithWarnings?: (justification: string) => Promise<void> | void;
+  isSubmitting?: boolean;
 }
 
 export function ProcurementPolicyCheckModal({
@@ -25,15 +26,17 @@ export function ProcurementPolicyCheckModal({
   violations,
   onEditRequest,
   onProceedWithWarnings,
+  isSubmitting,
 }: ProcurementPolicyCheckModalProps) {
   const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
   const userCurrencySymbol = getCurrencySymbol();
   const [justification, setJustification] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   // Deduplicate violations by policyId + rule
   const uniqueViolations = violations.filter((v, index, self) => 
     index === self.findIndex((t) => (
-      t.policyId === v.policyId && t.rule === v.rule
+      t.policyId === v.policyId && t.rule === v.rule && t.message === v.message
     ))
   );
 
@@ -42,19 +45,40 @@ export function ProcurementPolicyCheckModal({
 
   const hasHardBlocks = hardBlocks.length > 0;
   
-  const allWarningsJustified = justification.trim().length > 0;
+  const isSpendProgramConfirmation = softWarnings.some((v) =>
+    v.requiredFields?.includes("spendProgramWarningsAccepted")
+  );
+
+  const needsJustification = softWarnings.some((v) => {
+    const rf = v.requiredFields || [];
+    return rf.includes("justification") || rf.includes("policyJustification") || rf.includes("spendProgramJustification");
+  });
+
+  const allWarningsJustified = !needsJustification || justification.trim().length > 0;
 
   const canProceed = !hasHardBlocks && allWarningsJustified && softWarnings.length > 0;
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (!canProceed || !onProceedWithWarnings) return;
-    onProceedWithWarnings(justification);
+    try {
+      setSubmitting(true);
+      await onProceedWithWarnings(justification);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Header text
-  const headerTitle = hasHardBlocks ? "Policy Violations Found" : "Policy Warnings";
+  const headerTitle = hasHardBlocks
+    ? "Policy Violations Found"
+    : isSpendProgramConfirmation
+    ? "Spend Program Warnings"
+    : "Policy Warnings";
+
   const headerSubtitle = hasHardBlocks
-    ? "This purchase request cannot be submitted due to a hard policy block. Edit your request to resolve the issue."
+    ? "This request cannot be submitted due to a hard policy block. Edit your request to resolve the issue."
+    : isSpendProgramConfirmation
+    ? "Please review the spend program warnings and confirm whether you want to continue."
     : "Some items in this request triggered policy warnings.";
 
   const showHardSection = hardBlocks.length > 0;
@@ -66,8 +90,10 @@ export function ProcurementPolicyCheckModal({
 
     // Quantity-based limit check
     if (isQuantityViolation) {
-      const qtyLimitMatch = v.message.match(/allowed\s+quantity\s+is\s+([\d,]+)/i)
-        || v.message.match(/quantity\s+limit.*?([\d,]+)/i);
+      const qtyLimitMatch = v.message.match(/allowed\s+quantity(?:\s+per\s+line\s+item)?\s+is\s+([\d,]+)/i)
+        || v.message.match(/allowed\s+quantity.*?([\d,]+)/i)
+        || v.message.match(/quantity\s+limit.*?([\d,]+)/i)
+        || v.message.match(/limit\s+is\s+([\d,]+)/i);
       if (qtyLimitMatch) {
         const limit = parseFloat(qtyLimitMatch[1].replace(/,/g, ''));
         const maxQty = v.lineItems
@@ -205,7 +231,8 @@ export function ProcurementPolicyCheckModal({
     // e.g. "The allowed quantity is 100." or "The configured limit is NGN 1,000,000."
     let parsedLimit: number | null = null;
     if (isQuantityViolation) {
-      const qtyLimitMatch = v.message.match(/allowed\s+quantity\s+is\s+([\d,]+)/i)
+      const qtyLimitMatch = v.message.match(/allowed\s+quantity(?:\s+per\s+line\s+item)?\s+is\s+([\d,]+)/i)
+        || v.message.match(/allowed\s+quantity.*?([\d,]+)/i)
         || v.message.match(/quantity\s+limit.*?([\d,]+)/i)
         || v.message.match(/limit\s+is\s+([\d,]+)/i);
       if (qtyLimitMatch) {
@@ -296,7 +323,7 @@ export function ProcurementPolicyCheckModal({
           )}
           {!hasHardBlocks && showSoftSection && (
             <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">
-              Justification required
+              {needsJustification ? "Justification required" : "Confirmation required"}
             </p>
           )}
         </div>
@@ -352,17 +379,29 @@ export function ProcurementPolicyCheckModal({
                 </div>
               ))}
               
-              <div className="mt-4">
-                <label className="text-xs font-medium text-foreground block mb-1.5 mt-2">
-                  Justification Required
-                </label>
-                <Textarea
-                  placeholder="Please provide a justification to proceed..."
-                  value={justification}
-                  onChange={(e) => setJustification(e.target.value)}
-                  className="text-xs min-h-[72px] bg-white border-amber-200 focus:border-amber-400 resize-none"
-                />
-              </div>
+              {needsJustification ? (
+                <div className="mt-4">
+                  <label className="text-xs font-medium text-foreground block mb-1.5 mt-2">
+                    Justification Required
+                  </label>
+                  <Textarea
+                    placeholder="Please provide a justification to proceed..."
+                    value={justification}
+                    onChange={(e) => setJustification(e.target.value)}
+                    className="text-xs min-h-[72px] bg-white border-amber-200 focus:border-amber-400 resize-none"
+                  />
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 flex items-start gap-3">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-xs space-y-1">
+                    <p className="font-semibold text-amber-900">Review before continuing</p>
+                    <p className="text-amber-800 leading-relaxed">
+                      You can cancel to modify line items and resolve these warnings, or choose to continue and submit anyway with the warnings acknowledged.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -399,11 +438,14 @@ export function ProcurementPolicyCheckModal({
         </div>
 
         {/* ── Sticky Footer ── */}
-        <div className="shrink-0 px-6 py-4 border-t border-border flex items-center justify-between gap-3">
+        <div className="shrink-0 px-6 py-4 border-t border-border flex items-center justify-between gap-3 bg-white">
           <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground hover:bg-transparent px-0 underline text-sm"
+            variant="outline"
+            onClick={() => {
+              onClose();
+              if (onEditRequest) onEditRequest();
+            }}
+            className="border-gray-200 text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium"
           >
             Cancel
           </Button>
@@ -412,11 +454,15 @@ export function ProcurementPolicyCheckModal({
           {!hasHardBlocks && showSoftSection && onProceedWithWarnings && (
             <Button
               onClick={handleProceed}
-              disabled={!canProceed}
-              className="bg-primary text-white hover:bg-primary/90 rounded-lg px-6 text-sm"
+              disabled={!canProceed || submitting || isSubmitting}
+              className="bg-[#087f70] text-white hover:bg-[#076c60] rounded-lg px-6 text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm"
             >
-              <CheckCircle className="w-4 h-4 mr-1.5" />
-              Submit Anyway
+              {submitting || isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCircle className="w-4 h-4" />
+              )}
+              Continue Anyway
             </Button>
           )}
 

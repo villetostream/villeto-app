@@ -1,3 +1,5 @@
+import { invalidateAllExpenseQueries } from "./expense-cache";
+export { invalidateAllExpenseQueries } from "./expense-cache";
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { logger } from "@/lib/logger";
 import { getApiErrorMessage } from "@/lib/types/api-error";
@@ -525,7 +527,8 @@ export const useUpdateCompanyExpenseStatus = () => {
       const statusLabel =
         variables.status === "approved" ? "Approved" : "Rejected";
       toast.success(`Report ${statusLabel.toLowerCase()} successfully.`);
-      // Invalidate queries to refetch updated data
+      // Invalidate all expense queries across scopes (company, team, personal, drafts)
+      invalidateAllExpenseQueries(queryClient);
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.expenses.companyReports),
       });
@@ -533,6 +536,9 @@ export const useUpdateCompanyExpenseStatus = () => {
         queryKey: workspaceQueryKey(
           QUERY_KEYS.expenses.companyReport(variables.reportId),
         ),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.report(variables.reportId))
       });
     },
     onError: (error: unknown) => {

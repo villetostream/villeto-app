@@ -424,7 +424,7 @@ function PRTable({
   const { data: deptData } = useGetAllDepartmentsApi({ enabled: canChangeDept });
   const departments = deptData?.data || [];
 
-  const { data, isLoading, isError, refetch } = useGetPurchaseRequests({
+  const { data, isLoading, isFetching, isError, refetch } = useGetPurchaseRequests({
     scope,
     status:   currentStatus || undefined,
     priority: priority      || undefined,
@@ -433,7 +433,7 @@ function PRTable({
     requiresMyConversion: requiresMyConversion || undefined,
     page,
     limit: perPage,
-  });
+  }, { refetchOnMount: "always", staleTime: 0 });
 
   // ── Badge count queries (lightweight — reads meta.totalCount only) ──────────
 
@@ -655,6 +655,19 @@ function PRTable({
                 </div>
               )}
             </div>
+
+            <button
+              onClick={() => {
+                refetch();
+                toast.success("Purchase requests refreshed");
+              }}
+              disabled={isLoading || isFetching}
+              title="Refresh requests"
+              className="flex items-center gap-2 h-9 px-3.5 rounded-[8px] border border-black/[0.12] text-[13px] text-[#0b100e] bg-white hover:bg-[#f9faf9] transition-colors whitespace-nowrap disabled:opacity-60 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#087f70] ${isLoading || isFetching ? "animate-spin" : ""}`} />
+              <span className="font-semibold text-[13px]">{isLoading || isFetching ? "Refreshing..." : "Refresh"}</span>
+            </button>
 
             <button className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#087f70]/30 text-[#087f70] text-[13px] font-semibold hover:bg-[#f0faf8] transition-colors">
               <Download className="w-4 h-4" /> Export

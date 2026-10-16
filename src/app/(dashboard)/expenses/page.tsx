@@ -12,13 +12,19 @@ import {
 import { useSearchParams, useRouter } from "next/navigation";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { usePersonalExpenses, useCompanyExpenses, useDraftExpenses, CompanyExpenseReport } from "@/lib/react-query/expenses";
+import { usePersonalExpenses, useCompanyExpenses, useDraftExpenses, invalidateAllExpenseQueries, CompanyExpenseReport } from "@/lib/react-query/expenses";
 import { PersonalExpensesSkeleton } from "@/components/expenses/PersonalExpensesSkeleton";
 import { getCompanyColumns } from "@/components/expenses/table/companyColumns";
-import { FileText, Clock, CheckCircle2, Banknote, Search, Plus } from "lucide-react";
+import { FileText, Clock, CheckCircle2, Banknote, Search, Plus, RefreshCw } from "lucide-react";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import type { ColumnDef } from "@tanstack/react-table";
 import withPermissions from "@/components/permissions/permission-protected-routes";
+import { useGetExpenseCategoriesWithPoliciesApi, hasCategoryWithPolicy } from "@/queries/companies/get-expense-categories";
+import { useAuthStore } from "@/stores/auth-stores";
+import { useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
+import { logger } from "@/lib/logger";
+import { toast } from "sonner";
 
 type ExpenseTableRow = Record<string, unknown> & {
   status?: string;
@@ -34,6 +40,10 @@ function Reimbursements() {
   const router = useRouter();
   const policies = useAuthorizationPolicies();
   const authReady = policies.ready;
+
+  const categoriesApi = useGetExpenseCategoriesWithPoliciesApi();
+  const hasApplicablePolicy = hasCategoryWithPolicy(categoriesApi.data?.data);
+  const canCreatePolicy = useAuthStore((s) => s.can)("policy", "create");
 
   // ── Scope derivation (safe: false until auth is ready) ───────────────────
   const hasTeamScope    = authReady && policies.expenses.canReadDepartment;
@@ -114,32 +124,90 @@ function Reimbursements() {
     }
   };
 
+  const queryClient = useQueryClient();
+
+  const queryOptions = {
+    refetchInterval: 30_000,
+    refetchOnMount: "always" as const,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  };
+
   const {
     data: personalExpensesData,
     isLoading: isLoadingPersonalExpenses,
+    isFetching: isFetchingPersonalExpenses,
     error: personalExpensesError,
     refetch: refetchPersonalExpenses,
-  } = usePersonalExpenses(page, limit, undefined, undefined, undefined, true, { refetchInterval: 60_000 });
+  } = usePersonalExpenses(page, limit, undefined, undefined, undefined, true, queryOptions);
 
   const {
     data: draftExpensesData,
     isLoading: isLoadingDrafts,
+    isFetching: isFetchingDrafts,
     refetch: refetchDraftExpenses,
-  } = useDraftExpenses(page, limit, undefined, undefined, { refetchInterval: 60_000 });
+  } = useDraftExpenses(page, limit, undefined, undefined, queryOptions);
 
   const {
     data: companyExpensesData,
     isLoading: isLoadingCompanyExpenses,
+    isFetching: isFetchingCompanyExpenses,
     error: companyExpensesError,
     refetch: refetchCompanyExpenses,
-  } = useCompanyExpenses(page, limit, "company", undefined, undefined, hasCompanyScope, { refetchInterval: 60_000 });
+  } = useCompanyExpenses(page, limit, "company", undefined, undefined, hasCompanyScope, queryOptions);
 
   const {
     data: teamExpensesData,
     isLoading: isLoadingTeamExpenses,
+    isFetching: isFetchingTeamExpenses,
     error: teamExpensesError,
     refetch: refetchTeamExpenses,
-  } = useCompanyExpenses(page, limit, "team", undefined, undefined, hasTeamScope, { refetchInterval: 60_000 });
+  } = useCompanyExpenses(page, limit, "team", undefined, undefined, hasTeamScope, queryOptions);
+
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+
+  const isRefreshing =
+    isManualRefreshing ||
+    isFetchingCompanyExpenses ||
+    isFetchingTeamExpenses ||
+    isFetchingPersonalExpenses ||
+    isFetchingDrafts;
+
+  const handleRefresh = async () => {
+    setIsManualRefreshing(true);
+    try {
+      invalidateAllExpenseQueries(queryClient);
+      await Promise.allSettled([
+        refetchCompanyExpenses(),
+        refetchTeamExpenses(),
+        refetchPersonalExpenses(),
+        refetchDraftExpenses(),
+      ]);
+      toast.success("Expenses refreshed successfully");
+    } catch (err) {
+      logger.error("Failed to refresh expenses:", err);
+      toast.error("Failed to refresh expenses");
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  };
+
+  const RefreshButton = ({ className }: { className?: string }) => (
+    <button
+      type="button"
+      onClick={handleRefresh}
+      disabled={isRefreshing}
+      title="Refresh expenses"
+      aria-label="Refresh expenses"
+      className={cn(
+        "h-10 px-3.5 bg-white border border-gray-200 hover:bg-[#f8fbfa] hover:border-[#087f70]/40 text-[#5d6b64] hover:text-[#087f70] rounded-[10px] flex items-center gap-2 shrink-0 font-medium text-[13px] transition-all shadow-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed",
+        className
+      )}
+    >
+      <RefreshCw className={cn("w-4 h-4 text-[#087f70]", isRefreshing && "animate-spin")} />
+      <span className="font-semibold text-[13px]">{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+    </button>
+  );
 
   const isLoadingCompany = isLoadingCompanyExpenses && hasCompanyScope;
   const isLoadingTeam    = isLoadingTeamExpenses    && hasTeamScope;
@@ -268,9 +336,9 @@ function Reimbursements() {
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-4 shrink-0">
-              <TabsList className="bg-[#f9faf9] p-1 h-10 rounded-[8px] border border-black/[0.06] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
-                <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">All</TabsTrigger>
-                <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full flex items-center">
+              <TabsList className="bg-[#edf2ef] p-1 h-10 rounded-[10px] border border-black/[0.08] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
+                <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full transition-all duration-150">All</TabsTrigger>
+                <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full flex items-center transition-all duration-150">
                   Awaiting Approval
                   {scope === "team" && pendingCount > 0 && (
                     <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#d33d44] text-white text-[10px] font-bold leading-none">
@@ -278,9 +346,9 @@ function Reimbursements() {
                     </span>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="approved" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Approved</TabsTrigger>
-                <TabsTrigger value="rejected" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Rejected</TabsTrigger>
-                <TabsTrigger value="paid" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Paid</TabsTrigger>
+                <TabsTrigger value="approved" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full transition-all duration-150">Approved</TabsTrigger>
+                <TabsTrigger value="rejected" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full transition-all duration-150">Rejected</TabsTrigger>
+                <TabsTrigger value="paid" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full transition-all duration-150">Paid</TabsTrigger>
               </TabsList>
               <div id="tab-actions" className="flex items-center gap-2" />
             </div>
@@ -288,7 +356,7 @@ function Reimbursements() {
               <TabsContent key={t.key} value={t.key} className="flex-1 flex flex-col min-h-0 overflow-hidden mt-2">
                 <ExpenseTable
                   isLoading={isLoading}
-                  actionButton={<></>}
+                  actionButton={<RefreshButton />}
                   statusFilter={t.filter}
                   data={data as unknown as ExpenseTableRow[]}
                   columnsOverride={getCompanyColumns(scope) as ColumnDef<ExpenseTableRow>[]}
@@ -335,13 +403,13 @@ function Reimbursements() {
       ) : (
         <Tabs value={personalActiveTab} onValueChange={setPersonalActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-4 shrink-0">
-            <TabsList className="bg-[#f9faf9] p-1 h-10 rounded-[8px] border border-black/[0.06] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
-              <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">All</TabsTrigger>
-              <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Pending Review</TabsTrigger>
-              <TabsTrigger value="approved" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Approved</TabsTrigger>
-              <TabsTrigger value="rejected" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Rejected</TabsTrigger>
-              <TabsTrigger value="paid" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Paid</TabsTrigger>
-              <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-4 text-[13px] font-semibold h-full">Draft</TabsTrigger>
+            <TabsList className="bg-[#edf2ef] p-1 h-10 rounded-[10px] border border-black/[0.08] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
+              <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full transition-all duration-150">All</TabsTrigger>
+              <TabsTrigger value="pending" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full transition-all duration-150">Pending Review</TabsTrigger>
+              <TabsTrigger value="approved" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full transition-all duration-150">Approved</TabsTrigger>
+              <TabsTrigger value="rejected" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full transition-all duration-150">Rejected</TabsTrigger>
+              <TabsTrigger value="paid" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full transition-all duration-150">Paid</TabsTrigger>
+              <TabsTrigger value="draft" className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-4 text-[13px] font-semibold h-full transition-all duration-150">Draft</TabsTrigger>
             </TabsList>
             <div id="tab-actions" className="flex items-center gap-2" />
           </div>
@@ -349,6 +417,7 @@ function Reimbursements() {
             <TabsContent key={t.key} value={t.key} className="flex-1 flex flex-col min-h-0 overflow-hidden mt-2">
               <ExpenseTable
                 isLoading={isLoadingPersonalExpenses || isLoadingDrafts}
+                actionButton={<RefreshButton />}
                 statusFilter={t.filter}
                 data={personalExpenses as ExpenseTableRow[]}
                 columnsOverride={personalExpenseColumns as ColumnDef<ExpenseTableRow>[]}
@@ -360,7 +429,19 @@ function Reimbursements() {
                       description="Try switching to a different status tab or adjusting your filters."
                     />
                     <button
-                      onClick={() => router.push("/expenses/new-report")}
+                      onClick={() => {
+                        if (!hasApplicablePolicy) {
+                          toast.error(
+                            canCreatePolicy
+                              ? "No expense policy has been attached to any category yet. Please set up a policy before creating a report."
+                              : "You cannot create an expense report because no expense policy has been set up yet. Please contact your administrator."
+                          );
+                          return;
+                        }
+                        const params = new URLSearchParams(searchParams.toString());
+                        params.set("openAddReport", "true");
+                        router.push(`/expenses?${params.toString()}`);
+                      }}
                       className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors mt-4"
                     >
                       <Plus className="w-4 h-4" /> Create your first expense
@@ -384,16 +465,19 @@ function Reimbursements() {
       {isPersonalOnly ? (
         // Own-scope only: no tabs, no "My Expenses" heading (moved to user-section)
         <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* NewExpenseHeaderAction registers the CTA into the header store */}
           <NewExpenseHeaderAction />
           {renderPersonalExpenseTab()}
         </div>
       ) : (
         <Tabs value={outerTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0">
           <div className="flex flex-wrap items-center justify-between mb-6 gap-4 shrink-0">
-            <TabsList className="bg-[#f9faf9] p-1 h-10 rounded-[8px] border border-black/[0.06] inline-flex">
+            <TabsList className="bg-[#edf2ef] p-1 h-10 rounded-[10px] border border-black/[0.08] inline-flex">
               {outerTabs.map(t => (
-                <TabsTrigger key={t.key} value={t.key} className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full cursor-pointer">
+                <TabsTrigger
+                  key={t.key}
+                  value={t.key}
+                  className="data-[state=active]:bg-white data-[state=active]:text-[#087f70] data-[state=active]:font-bold data-[state=active]:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] data-[state=active]:border data-[state=active]:border-black/[0.06] text-[#5d6b64] hover:text-[#0b100e] rounded-[7px] px-5 text-[13px] font-semibold h-full cursor-pointer transition-all duration-150"
+                >
                   {t.label}
                 </TabsTrigger>
               ))}

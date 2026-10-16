@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Loader2, AlertCircle, Trash2 } from "lucide-react";
+import { X, Loader2, AlertCircle, Trash2, XCircle } from "lucide-react";
 import { useGetSpendProgramById, mapSpendProgramFromBackend } from "@/queries/procurement/policies";
 import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -9,6 +9,9 @@ import { getApiErrorMessage } from "@/lib/types/api-error";
 import { useState } from "react";
 import { useExceptionFormatter } from "./hooks/useExceptionFormatter";
 import { buildConditionSummary, getActionLabel, getActionStyle, CURRENCY_OPTIONS } from "./constants";
+import { RejectPolicyReasonModal } from "@/components/policies/RejectPolicyReasonModal";
+import { saveSpendProgramRejection, getSpendProgramRejection } from "@/lib/policies/rejection-store";
+import { isUserCreatorOfSpendProgram } from "@/lib/policies/spend-program-creator-store";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -106,7 +109,7 @@ export function ProcurementPolicyDetailsModal({
   onSubmitDraft?: (p: any) => void;
   onDeleteDraft?: (draftId: string) => void;
   onApprove?: (p: any) => void;
-  onReject?: (p: any) => void;
+  onReject?: (p: any, reason?: string) => void | Promise<void>;
   /** Row data already in memory — used as placeholder so the modal renders instantly. */
   initialData?: any;
 }) {
@@ -116,6 +119,8 @@ export function ProcurementPolicyDetailsModal({
   const [activeTab, setActiveTab] = useState<string>("");
   const [pendingAction, setPendingAction] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const currentUser = useAuthStore((s) => s.user);
 
   const { data: programData, isLoading } = useGetSpendProgramById(policyId ?? "", {
     enabled: !!policyId,
@@ -127,7 +132,75 @@ export function ProcurementPolicyDetailsModal({
   const policy = programData?.data ? mapSpendProgramFromBackend(programData.data) : initialData;
 
   const { formatExceptionSummary } = useExceptionFormatter();
-  const currentUserId = useAuthStore.getState().user?.userId;
+  const currentUserId = currentUser?.userId || (currentUser as any)?.id || (currentUser as any)?._id || "";
+  const userFullName = `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim().toLowerCase();
+  const userEmail = (currentUser?.email || '').trim().toLowerCase();
+
+  const programId = policy?.procurementSpendProgramId || policy?.procurementPolicyId || policy?.id || policyId;
+  const storedRejection = getSpendProgramRejection(programId);
+  const isRejected = policy?.status === "rejected" || policy?.status === "declined" || !!storedRejection;
+  const rejectionReason = (policy as any)?.rejectionReason || (policy as any)?.reason || storedRejection?.reason;
+  const rejectedBy = (policy as any)?.rejectedBy || storedRejection?.rejectedBy;
+  const rejectedAt = (policy as any)?.rejectedAt || storedRejection?.rejectedAt;
+
+  // Check if current user is the creator
+  let isCreator = isUserCreatorOfSpendProgram({
+    id: programId,
+    name: policy?.name,
+    userId: currentUserId,
+    userName: userFullName,
+    userEmail: userEmail,
+  });
+
+  if (!isCreator) {
+    const cb = policy?.createdBy || (policy as any)?.creator || (policy as any)?.user;
+    const creatorId = typeof cb === "object" && cb !== null
+      ? ((cb as any).userId ?? (cb as any).id ?? (cb as any)._id ?? "")
+      : ((policy as any)?.createdById ?? (policy as any)?.creatorId ?? (policy as any)?.userId ?? "");
+    isCreator = Boolean(currentUserId) && Boolean(creatorId) && creatorId === currentUserId;
+
+    if (!isCreator && currentUser) {
+      let creatorName = "";
+      if (typeof cb === 'string') {
+        creatorName = cb.trim().toLowerCase();
+      } else if (typeof cb === 'object' && cb !== null) {
+        creatorName = `${(cb as any).firstName || ''} ${(cb as any).lastName || ''}`.trim().toLowerCase() ||
+                      ((cb as any).name || (cb as any).fullName || '').trim().toLowerCase();
+      } else if (typeof (policy as any)?.createdByName === 'string') {
+        creatorName = (policy as any).createdByName.trim().toLowerCase();
+      }
+      if (userFullName && creatorName && userFullName === creatorName) {
+        isCreator = true;
+      }
+
+      const creatorEmail = (typeof cb === 'object' && cb !== null ? (cb as any).email : '') ||
+                           (policy as any)?.creatorEmail || '';
+      if (userEmail && creatorEmail && userEmail === creatorEmail.trim().toLowerCase()) {
+        isCreator = true;
+      }
+    }
+  }
+
+  const currentUserRoleId = 
+    currentUser?.companyRole?.roleId || 
+    (currentUser as any)?.companyRole?.id || 
+    (currentUser as any)?.villetoRole?.roleId || 
+    (currentUser as any)?.villetoRole?.id || 
+    (currentUser as any)?.role?.roleId || 
+    (currentUser as any)?.role?.id || 
+    "";
+
+  const canApprove = useAuthStore.getState().can("policy", "approve");
+  let isApproverRole = canApprove;
+  const approvalSetting = (policy as any)?.approvalSetting;
+  if (approvalSetting?.allRolesCanApprove) {
+    isApproverRole = true;
+  } else if (approvalSetting?.approverRoleIds?.length) {
+    isApproverRole = approvalSetting.approverRoleIds.includes(currentUserRoleId);
+  }
+
+  const isPendingStatus = policy?.status === "pending" || policy?.status === "pending_approval";
+  const canShowReviewActions = isReviewMode && !isCreator && isApproverRole && isPendingStatus;
 
   if (!policyId) return null;
 
@@ -144,16 +217,35 @@ export function ProcurementPolicyDetailsModal({
     }
   };
 
-  const handleReject = async () => {
+  const handleRejectClick = () => {
+    setIsRejectModalOpen(true);
+  };
+
+  const handleRejectConfirm = async (reason: string) => {
     if (!onReject || !policy) return;
     setPendingAction("reject");
     setError(null);
+    const targetId = policy.procurementSpendProgramId || policy.procurementPolicyId || policy.id || policyId;
     try {
-      await onReject(policy);
+      await onReject(policy, reason);
+      saveSpendProgramRejection({
+        id: targetId,
+        reason,
+        rejectedBy: currentUser ? {
+          userId: currentUser.userId,
+          firstName: currentUser.firstName,
+          lastName: currentUser.lastName,
+          roleName: (currentUser as any).roleName,
+          jobTitle: (currentUser as any).jobTitle,
+        } : undefined,
+        rejectedAt: new Date().toISOString(),
+      });
+      setIsRejectModalOpen(false);
       onClose();
     } catch (err: unknown) {
-      setError((err as any)?.response?.data?.message || "Failed to reject policy");
+      setError((err as any)?.response?.data?.message || (err as any)?.message || "Failed to reject policy");
       setPendingAction(null);
+      setIsRejectModalOpen(false);
     }
   };
 
@@ -215,6 +307,17 @@ export function ProcurementPolicyDetailsModal({
               style={{ scrollbarWidth: "thin", scrollbarColor: "#d1d5db transparent" }}
             >
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em]">SPEND PROGRAM DETAILS</p>
+
+              {/* REJECTION REASON CARD */}
+              {isRejected && rejectionReason && (
+                <div className="rounded-[12px] border border-red-200 bg-[#fff8f8] p-4">
+                  <div className="flex items-center gap-2 mb-1.5 text-[#d33d44]">
+                    <XCircle className="w-4 h-4 shrink-0" />
+                    <p className="text-[10px] font-bold uppercase tracking-wider">Rejection Reason</p>
+                  </div>
+                  <p className="text-[12px] text-[#521c20] leading-relaxed pl-6">{rejectionReason}</p>
+                </div>
+              )}
 
               {/* NAME & DESCRIPTION */}
               <div className="rounded-[12px] border border-black/[0.06] bg-[#fafaf9] p-4">
@@ -334,13 +437,28 @@ export function ProcurementPolicyDetailsModal({
                 <div>
                   <p className="text-gray-400 mb-0.5 font-medium">Created by</p>
                   <p className="text-gray-900 font-semibold">
-                    {policy.createdBy
-                      ? `${policy.createdBy.firstName} ${policy.createdBy.lastName}${policy.createdBy.userId === currentUserId ? " (You)" : ""}`
+                    {policy?.createdBy
+                      ? typeof policy.createdBy === "string"
+                        ? policy.createdBy
+                        : `${policy.createdBy.firstName ?? ""} ${policy.createdBy.lastName ?? ""}`.trim() + (policy.createdBy.userId === currentUserId || isCreator ? " (You)" : "")
+                      : isCreator && currentUser
+                      ? `${currentUser.firstName ?? ""} ${currentUser.lastName ?? ""}`.trim() + " (You)"
                       : "—"}
                   </p>
                   <p className="text-gray-400">{formatDate(policy.createdAt)}</p>
                 </div>
-                {policy.approvedBy && (
+                {isRejected && (rejectedBy || storedRejection) ? (
+                  <div className="text-right">
+                    <p className="text-[#d33d44] mb-0.5 font-medium">Rejected by</p>
+                    <p className="text-gray-900 font-semibold">
+                      {rejectedBy?.firstName ?? storedRejection?.rejectedBy?.firstName} {rejectedBy?.lastName ?? storedRejection?.rejectedBy?.lastName}
+                      {rejectedBy?.jobTitle || rejectedBy?.roleName ? (
+                        <span className="text-gray-400 font-normal"> ({rejectedBy?.jobTitle || rejectedBy?.roleName})</span>
+                      ) : null}
+                    </p>
+                    <p className="text-gray-400">{formatDate(rejectedAt || storedRejection?.rejectedAt)}</p>
+                  </div>
+                ) : policy.approvedBy ? (
                   <div className="text-right">
                     <p className="text-gray-400 mb-0.5 font-medium">Approved by</p>
                     <p className="text-gray-900 font-semibold">
@@ -348,7 +466,7 @@ export function ProcurementPolicyDetailsModal({
                     </p>
                     <p className="text-gray-400">{formatDate(policy.approvedAt || policy.updatedAt)}</p>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
 
@@ -364,10 +482,10 @@ export function ProcurementPolicyDetailsModal({
 
             {/* ── Footer buttons ── */}
             <div className="px-6 pb-5 pt-3 shrink-0 flex justify-end gap-2.5">
-              {isReviewMode ? (
+              {canShowReviewActions ? (
                 <>
                   {onReject && (
-                    <button onClick={handleReject} disabled={pendingAction !== null} className="h-10 px-7 rounded-full border border-red-400 text-red-500 text-[13px] font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]">
+                    <button onClick={handleRejectClick} disabled={pendingAction !== null} className="h-10 px-7 rounded-full border border-red-400 text-red-500 text-[13px] font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]">
                       {pendingAction === "reject" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
                     </button>
                   )}
@@ -402,12 +520,26 @@ export function ProcurementPolicyDetailsModal({
                       Edit
                     </button>
                   )}
+                  {(policy.status === "pending" || policy.status === "pending_approval" || isReviewMode) && (
+                    <button onClick={onClose} className="h-10 px-7 rounded-[9px] border border-black/[0.1] text-gray-700 text-[13px] font-semibold hover:bg-black/[0.03] transition-colors">
+                      Close
+                    </button>
+                  )}
                 </>
               )}
             </div>
           </>
         )}
       </div>
+
+      <RejectPolicyReasonModal
+        open={isRejectModalOpen}
+        onClose={() => setIsRejectModalOpen(false)}
+        onConfirm={handleRejectConfirm}
+        isLoading={pendingAction === "reject"}
+        title="Reject Spend Program"
+        entityName={policy?.name}
+      />
     </div>
   );
 }

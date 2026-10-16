@@ -185,7 +185,10 @@ export function ManualExpenseForm({
   const [originalFiles, setOriginalFiles] = useState<string[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<"draft" | "pending" | null>(null);
+  const isSavingDraft = submittingAction === "draft";
+  const isSubmittingReport = submittingAction === "pending";
+  const isSubmitting = Boolean(submittingAction);
   const [policyErrorsByIndex, setPolicyErrorsByIndex] = useState<
     Record<number, string>
   >({});
@@ -975,7 +978,7 @@ export function ManualExpenseForm({
     }
 
     try {
-      setIsSubmitting(true);
+      setSubmittingAction("pending");
 
       if (isEditMode && reportId && reportDetail?.expenses) {
         // Use single PATCH /reports/{reportId} endpoint to update entire report
@@ -1194,7 +1197,7 @@ export function ManualExpenseForm({
 
       toast.error(errorMessage);
     } finally {
-      setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
@@ -1715,7 +1718,7 @@ export function ManualExpenseForm({
                       ))
                   }
                 >
-                  {isSubmitting ? (
+                  {isSubmittingReport ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Submitting...
@@ -1737,7 +1740,7 @@ export function ManualExpenseForm({
                     // Trigger validation so required fields are respected.
                     form.handleSubmit(async (validData) => {
                       try {
-                        setIsSubmitting(true);
+                        setSubmittingAction("draft");
 
                         if (isEditMode && reportId && reportDetail?.expenses) {
                           const basePayload = buildPatchReportPayload(
@@ -1835,7 +1838,7 @@ export function ManualExpenseForm({
                           "Failed to save draft. Please try again.";
                         toast.error(errorMessage);
                       } finally {
-                        setIsSubmitting(false);
+                        setSubmittingAction(null);
                       }
                     })();
                   }}
@@ -1846,7 +1849,7 @@ export function ManualExpenseForm({
                     (isEditMode && !hasFormChanges)
                   }
                 >
-                  {isSubmitting ? (
+                  {isSavingDraft ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Saving...

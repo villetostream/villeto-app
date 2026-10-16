@@ -24,6 +24,7 @@ export type LeaderShipPayload = {
     isUserAnOwner: boolean;
     selfOwnershipPercentage?: number;
     businessOwners: {
+        userId?: string;
         firstName: string;
         lastName: string;
         email: string;

@@ -46,6 +46,33 @@ describe("authorization policies", () => {
     expect(policies.vendors.canViewSensitive).toBe(false);
   });
 
+  const vendorSetupPermissions = [
+    "vendor.read_company",
+    "vendor.sensitive.read",
+    "vendor.entity_configuration.manage",
+  ];
+
+  it("allows organization vendor setup with the backend's required permissions", () => {
+    const policies = buildAuthorizationPolicies(snapshot(vendorSetupPermissions));
+    expect(policies.vendors.canViewOrganizationSetup).toBe(true);
+  });
+
+  it.each(vendorSetupPermissions)("denies organization vendor setup without %s", (missing) => {
+    const policies = buildAuthorizationPolicies(snapshot(
+      vendorSetupPermissions.filter((permission) => permission !== missing),
+    ));
+    expect(policies.vendors.canViewOrganizationSetup).toBe(false);
+  });
+
+  it("does not accept the incorrect sensitive-vendor permission name", () => {
+    const policies = buildAuthorizationPolicies(snapshot([
+      "vendor.read_company",
+      "vendor.read_sensitive",
+      "vendor.entity_configuration.manage",
+    ]));
+    expect(policies.vendors.canViewOrganizationSetup).toBe(false);
+  });
+
   it("uses the seeded people-directory permissions", () => {
     const policies = buildAuthorizationPolicies(snapshot([
       "user.directory.read",

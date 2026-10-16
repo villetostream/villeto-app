@@ -4,8 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDown, ArrowUp, CheckCircle2, ChevronsUpDown,
-  Clock3, Loader2, PackageCheck, Search, Truck,
+  Clock3, Loader2, PackageCheck, Search, Truck, RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
 import { usePurchaseOrders, type PurchaseOrderRecord } from "@/queries/procurement/purchase-orders";
@@ -77,8 +78,8 @@ function statusWeight(status?: string | null) {
 function ConfirmationPage() {
   const policies = useAuthorizationPolicies();
   const scope = policies.purchaseOrders.listScope ?? "own";
-  const { data, isLoading, isError, refetch } = usePurchaseOrders(
-    1, 100, undefined, undefined, undefined, scope, { refetchInterval: 60_000 }
+  const { data, isLoading, isFetching, isError, refetch } = usePurchaseOrders(
+    1, 100, undefined, undefined, undefined, scope, { refetchInterval: 60_000, refetchOnMount: "always", staleTime: 0 }
   );
 
   const [active, setActive] = useState("all");
@@ -165,14 +166,28 @@ function ConfirmationPage() {
               </button>
             ))}
           </div>
-          <div className="relative w-full lg:w-64">
-            <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#89918d]" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search PO or vendor"
-              className="h-9 w-full rounded-[9px] border border-black/[0.08] bg-white pl-9 pr-3 text-[11px] outline-none focus:border-[#0ea894]"
-            />
+          <div className="flex items-center gap-2 w-full lg:w-auto">
+            <div className="relative w-full lg:w-64">
+              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#89918d]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search PO or vendor"
+                className="h-9 w-full rounded-[9px] border border-black/[0.08] bg-white pl-9 pr-3 text-[11px] outline-none focus:border-[#0ea894]"
+              />
+            </div>
+            <button
+              onClick={() => {
+                refetch();
+                toast.success("Receiving queue refreshed");
+              }}
+              disabled={isLoading || isFetching}
+              title="Refresh receiving queue"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-[9px] border border-black/[0.08] bg-white hover:bg-[#f9faf9] text-[11px] font-semibold text-[#111815] transition shrink-0 disabled:opacity-60 cursor-pointer"
+            >
+              <RefreshCw className={`size-3.5 text-[#087f70] ${isLoading || isFetching ? "animate-spin" : ""}`} />
+              <span>{isLoading || isFetching ? "Refreshing..." : "Refresh"}</span>
+            </button>
           </div>
         </div>
 

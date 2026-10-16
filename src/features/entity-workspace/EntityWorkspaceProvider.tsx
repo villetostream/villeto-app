@@ -82,11 +82,5 @@ export function EntityWorkspaceProvider({ children }: { children: ReactNode }) {
         </button>
       </div>
     );
-  if (!identity || state.identity !== identity || !state.snapshot)
-    return (
-      <div role="status" className="p-6">
-        Loading workspace…
-      </div>
-    );
   return children;
 }
