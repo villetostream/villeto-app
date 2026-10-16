@@ -3,6 +3,20 @@ import { buildAuthorizationPolicies } from "@/features/auth/policies";
 import { applyWorkspaceReadOnlyPolicies } from "./read-only-policies";
 
 describe("read-only workspace action controls", () => {
+  it("preserves organization vendor setup visibility in read-only workspaces", () => {
+    const policies = buildAuthorizationPolicies({
+      schemaVersion: 1,
+      revision: "vendor-setup-fixture",
+      capabilityGrants: [],
+      permissions: [
+        "vendor.read_company",
+        "vendor.sensitive.read",
+        "vendor.entity_configuration.manage",
+      ],
+    });
+    expect(applyWorkspaceReadOnlyPolicies(policies, true).vendors.canViewOrganizationSetup).toBe(true);
+  });
+
   it("preserves read and personal expense capabilities while disabling financial mutations", () => {
     const authorization = {
       schemaVersion: 1,

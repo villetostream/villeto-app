@@ -11,7 +11,7 @@ import FlightBooking from "./reservations/FlightReservations";
 import { PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useGetExpenseCategoriesWithPoliciesApi } from "@/queries/companies/get-expense-categories";
+import { useGetExpenseCategoriesWithPoliciesApi, hasCategoryWithPolicy } from "@/queries/companies/get-expense-categories";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -26,14 +26,16 @@ const NewExpenseButtonTrigger = () => {
   const router = useRouter();
 
   const categoriesApi = useGetExpenseCategoriesWithPoliciesApi();
-  const hasPolicies = Array.isArray(categoriesApi.data?.data) && categoriesApi.data.data.length > 0;
+  const hasPolicies = hasCategoryWithPolicy(categoriesApi.data?.data);
   const isLoadingPolicies = categoriesApi.isLoading;
   const canCreatePolicy = useAuthStore((s) => s.can)("policy", "create");
 
-  // Check for openAddReport query param and open modal
+  // Check for openAddReport query param and open modal only if policies exist
   useEffect(() => {
     if (searchParams.get("openAddReport") === "true") {
-      open();
+      if (hasPolicies) {
+        open();
+      }
       // Remove openAddReport param but keep tab param
       const params = new URLSearchParams(searchParams.toString());
       params.delete("openAddReport");
@@ -43,14 +45,15 @@ const NewExpenseButtonTrigger = () => {
         : `/expenses${params.toString() ? `?${params.toString()}` : ''}`;
       router.replace(newUrl, { scroll: false });
     }
-  }, [searchParams, open, router]);
+  }, [hasPolicies, searchParams, open, router]);
 
-  const isStartDisabled = isLoadingPolicies || (!hasPolicies && !canCreatePolicy);
-  const isSetupMode = !isLoadingPolicies && !hasPolicies && canCreatePolicy;
+  const isStartDisabled = isLoadingPolicies || !hasPolicies;
   const tooltipText = isLoadingPolicies 
-    ? "Checking permissions..."
-    : (!hasPolicies && !canCreatePolicy)
-      ? "You cannot create a report because no expense policy has been set up yet. Please inform your administrator to create a policy first." 
+    ? "Checking for applicable policies..."
+    : !hasPolicies
+      ? (canCreatePolicy 
+          ? "No expense policy has been attached to any category yet. Please set up an expense policy before creating a report."
+          : "You cannot create an expense report because no expense policy has been set up yet. Please inform your administrator to create a policy first.")
       : undefined;
 
   const handleStartReport = (e: React.MouseEvent) => {
@@ -58,23 +61,8 @@ const NewExpenseButtonTrigger = () => {
        e.preventDefault();
        return;
     }
-    if (isSetupMode) {
-       router.push('/policies');
-    } else {
-       open();
-    }
+    open();
   };
-
-  const startMenuItem = (
-    <DropdownMenuItem
-      onClick={handleStartReport}
-      disabled={isStartDisabled}
-      className={`bg-primary hover:bg-primary/80! ${isStartDisabled ? 'opacity-50' : ''}`}
-    >
-      <PlusCircle className="w-4 h-4 mr-2" />
-      {isSetupMode ? "Setup Expense Policy" : "Start New Report"}
-    </DropdownMenuItem>
-  );
 
   const mainBtnContent = (
     <>
@@ -100,14 +88,6 @@ const NewExpenseButtonTrigger = () => {
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-      );
-    }
-
-    if (isSetupMode) {
-      return (
-        <Button size="lg" onClick={() => open()}>
-          {mainBtnContent}
-        </Button>
       );
     }
 

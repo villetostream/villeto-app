@@ -11,3 +11,11 @@ Route/helper traces, dynamic consumers, actual authenticated browser workflows,
 deployed registrations and company data readiness require recorded review.
 Pending checklist rows cannot be considered complete. Workspace rollout remains
 disabled; preserve scope enforcement and audit ownership during rollback.
+
+## Stage 5 merge decision — 2026-10-14
+
+The user approved integration after partial local testing; some components are
+not yet available. Full authenticated intake, capture, document access, invoice
+review, All-mode and entity-isolation acceptance remains pending. This merge does
+not certify production rollout readiness. Current main already contains the
+Stage 5 frontend consumers; the remaining frontend diff records delivery status.

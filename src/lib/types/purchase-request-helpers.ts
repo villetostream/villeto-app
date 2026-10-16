@@ -71,7 +71,20 @@ export function getRoleName(u: unknown): string {
 }
 
 export interface PurchaseOrderLineItemRecord {
-  purchaseRequestLineItemId: string;
+  purchaseRequestLineItemId?: string;
+  purchaseOrderLineItemId?: string;
+  name?: string;
+  description?: string | null;
+  quantity?: number;
+  unitPrice?: number;
+  subtotal?: number;
+  taxAmount?: number;
+  lineTotal?: number;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  category?: { id?: string; categoryId?: string; name?: string };
+  departmentId?: string | null;
+  accountingResolutionStatus?: string;
   [key: string]: unknown;
 }
 
@@ -91,6 +104,8 @@ export interface PurchaseOrderRecord {
   deliveredAt?: string | null;
   closedAt?: string | null;
   lineItems?: PurchaseOrderLineItemRecord[];
+  sourcePurchaseRequestLineItemIds?: string[];
+  lineItemCount?: number;
   timeline?: import("../react-query/expenses").TimelineEvent[];
   createdBy?: Record<string, unknown> | string;
   requesterName?: string;
@@ -98,6 +113,7 @@ export interface PurchaseOrderRecord {
   priority?: string;
   currency?: string;
   totalAmount?: string | number;
+  legalEntity?: Record<string, unknown>;
   rejectionReason?: string | null;
   cancelledAt?: string | null;
   [key: string]: unknown;

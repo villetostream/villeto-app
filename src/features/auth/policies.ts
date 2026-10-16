@@ -204,6 +204,11 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
     vendors: {
       canUseDirectory: hasAny(permissionSet, [PERMISSIONS.vendor.directoryRead, PERMISSIONS.vendor.companyRead]),
       canViewSensitive: hasAny(permissionSet, [PERMISSIONS.vendor.sensitiveRead, PERMISSIONS.vendor.companyRead]),
+      canViewOrganizationSetup: [
+        PERMISSIONS.vendor.companyRead,
+        PERMISSIONS.vendor.sensitiveRead,
+        PERMISSIONS.vendor.entityConfigurationManage,
+      ].every((permission) => has(permissionSet, permission)),
       canCreate: has(permissionSet, PERMISSIONS.vendor.create),
       canInvite: has(permissionSet, PERMISSIONS.vendor.invite),
       canReview: has(permissionSet, PERMISSIONS.vendor.review),

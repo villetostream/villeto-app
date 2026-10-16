@@ -7,7 +7,6 @@ import { ColumnDef, Row } from "@tanstack/react-table";
 import { Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { SortableColumnHeader } from "@/components/datatable/SortableColumnHeader";
 import { useAuthStore } from "@/stores/auth-stores";
 
 // Helper for initials
@@ -81,9 +80,7 @@ export const getCompanyColumns = (scope: string): ColumnDef<CompanyExpenseReport
   },
   {
     accessorKey: "totalAmount",
-    header: ({ column }) => (
-      <SortableColumnHeader column={column} title="AMOUNT" />
-    ),
+    header: "AMOUNT",
     cell: ({ row }) => {
         // eslint-disable-next-line react-hooks/rules-of-hooks
         const getCurrencySymbol = useAuthStore((state) => state.getCurrencySymbol);
@@ -110,9 +107,7 @@ export const getCompanyColumns = (scope: string): ColumnDef<CompanyExpenseReport
   },
   {
     accessorKey: "updatedAt",
-    header: ({ column }) => (
-      <SortableColumnHeader column={column} title="MODIFIED DATE" />
-    ),
+    header: "MODIFIED DATE",
     cell: ({ row }) => {
         const updatedAt = row.getValue("updatedAt") as string;
         return <span>{formatDate(updatedAt)}</span>;
@@ -120,9 +115,7 @@ export const getCompanyColumns = (scope: string): ColumnDef<CompanyExpenseReport
   },
   {
     accessorKey: "createdAt",
-    header: ({ column }) => (
-      <SortableColumnHeader column={column} title="CREATED DATE" />
-    ),
+    header: "CREATED DATE",
     cell: ({ row }) => {
       const createdAt = row.getValue("createdAt") as string;
       return <span>{formatDate(createdAt)}</span>;
@@ -131,6 +124,7 @@ export const getCompanyColumns = (scope: string): ColumnDef<CompanyExpenseReport
   },
   {
     id: "actions",
+    enableSorting: false,
     cell: ({ row }) => <ActionsCell row={row} scope={scope} />,
   },
 ];
