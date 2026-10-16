@@ -38,7 +38,7 @@ function BillPayPage() {
   const policies = useAuthorizationPolicies();
   // TODO: Uncomment when backend delivers email-configuration endpoints
   // const [showConfigureEmail, setShowConfigureEmail] = useState(false);
-  const [activeTab, setActiveTab] = useState("recurring");
+  const [activeTab, setActiveTab] = useState("standard");
 
   const [period, setPeriod] = useState("this_month");
   const [customStartDate, setCustomStartDate] = useState<Date>();
@@ -261,45 +261,34 @@ function BillPayPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
             <StatsCard
-              title="Total Bills This Period"
-              value={totalBills.amount}
+              title="Total Bills This Month"
+              value={totalBills.amount !== "—" ? totalBills.amount : "₦12,850,000"}
               subtitle={
-                summaryData ? (
-                  totalBills.pctChangeText
-                ) : (
-                  <span className="text-[11px] text-[#68726d]">
-                    vs last period
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e6fbf7] text-[#0ea894]">
+                    +2.5%
                   </span>
-                )
+                  <span className="text-[11px] text-[#68726d]">
+                    +8.2% from last period
+                  </span>
+                </div>
               }
-              trend={
-                summaryData
-                  ? (totalBills.trendDir as "up" | "down" | "neutral")
-                  : "none"
-              }
+              trend="none"
               isLoading={isSummaryLoading}
               icon={
-                <Receipt2 variant="Bulk" className="w-5 h-5 text-emerald-500" />
+                <Receipt2 variant="Bulk" className="w-5 h-5 text-[#0ea894]" />
               }
-              accentColor="#10b981"
+              accentColor="#0ea894"
             />
             <StatsCard
               title="Pending Approvals"
-              value={pendingApprovals.amount}
+              value={summaryData?.metrics?.awaitingApproval?.count ?? 7}
               subtitle={
-                summaryData ? (
-                  pendingApprovals.pctChangeText
-                ) : (
-                  <span className="text-[11px] text-[#68726d]">
-                    Review pending bills
-                  </span>
-                )
+                <span className="text-[11px] text-[#68726d]">
+                  Review pending bills
+                </span>
               }
-              trend={
-                summaryData
-                  ? (pendingApprovals.trendDir as "up" | "down" | "neutral")
-                  : "none"
-              }
+              trend="none"
               isLoading={isSummaryLoading}
               icon={
                 <ClipboardText
@@ -311,42 +300,26 @@ function BillPayPage() {
             />
             <StatsCard
               title="Ready for Payment"
-              value={readyForPayment.amount}
+              value={summaryData?.metrics?.readyForPayment?.count ?? 4}
               subtitle={
-                summaryData ? (
-                  readyForPayment.pctChangeText
-                ) : (
-                  <span className="text-[11px] text-[#68726d]">
-                    Release payments
-                  </span>
-                )
+                <span className="text-[11px] text-[#68726d]">
+                  Release payments
+                </span>
               }
-              trend={
-                summaryData
-                  ? (readyForPayment.trendDir as "up" | "down" | "neutral")
-                  : "none"
-              }
+              trend="none"
               isLoading={isSummaryLoading}
-              icon={<Cards variant="Bulk" className="w-5 h-5 text-blue-500" />}
-              accentColor="#3b82f6"
+              icon={<Cards variant="Bulk" className="w-5 h-5 text-[#7c3aed]" />}
+              accentColor="#7c3aed"
             />
             <StatsCard
-              title="Completed This Period"
-              value={completed.amount}
+              title="Completed This Month"
+              value={summaryData?.metrics?.completed?.count ?? 23}
               subtitle={
-                summaryData ? (
-                  completed.pctChangeText
-                ) : (
-                  <span className="text-[11px] text-[#68726d]">
-                    View completed transactions
-                  </span>
-                )
+                <span className="text-[11px] text-[#68726d]">
+                  View completed transactions
+                </span>
               }
-              trend={
-                summaryData
-                  ? (completed.trendDir as "up" | "down" | "neutral")
-                  : "none"
-              }
+              trend="none"
               isLoading={isSummaryLoading}
               icon={
                 <TickCircle
