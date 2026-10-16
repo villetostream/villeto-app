@@ -23,7 +23,12 @@ Stage 5 frontend consumers; the remaining frontend diff records delivery status.
 
 ## Stage 6 session handoff — 2026-10-16
 
-**Stopping point:** local preview prepared; PR creation requested. The user
+**Stopping point:** local preview prepared; Stage 6 PRs opened for review.
+
+- [Backend PR #221](https://github.com/villetostream/villeto-monolith/pull/221) → `develop`.
+- [Frontend PR #254](https://github.com/villetostream/villeto-app/pull/254) → `main` (documentation only).
+
+Neither PR was merged as part of this handoff. The user
 explicitly accepts that Stage 6 will not be fully tested at this point. This is
 not full module acceptance, merge authorization, or production rollout approval.
 Stage 5 was merged with partial acceptance; its outstanding checks remain open.
