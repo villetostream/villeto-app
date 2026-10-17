@@ -1051,6 +1051,11 @@ export interface BillPayInvoice {
   vendorInvoiceId: string;
   invoiceNumber: string;
   description: string;
+  vendor: {
+    vendorId: string;
+    legalName: string;
+    displayName: string | null;
+  } | null;
   invoiceDate: string;
   dueDate: string;
   workflowStage: string;
@@ -1129,7 +1134,6 @@ export function useGetBillPayInvoices(
 
 export interface BillPayInvoiceDetail extends BillPayInvoice {
   purchaseOrder?: { purchaseOrderId: string; poNumber: string } | null;
-  vendor?: { vendorId: string; displayName?: string | null; legalName: string } | null;
   paymentStatus?: string;
   lineItems?: Array<{
     name: string;
