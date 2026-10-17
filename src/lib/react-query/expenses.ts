@@ -1,3 +1,5 @@
+import { invalidateAllExpenseQueries } from "./expense-cache";
+export { invalidateAllExpenseQueries } from "./expense-cache";
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { logger } from "@/lib/logger";
 import { getApiErrorMessage } from "@/lib/types/api-error";
@@ -26,14 +28,6 @@ export function invalidatePersonalExpenseQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({
     queryKey: workspaceQueryKey(QUERY_KEYS.expenses.drafts),
   });
-}
-
-/** Invalidate all expense queries across all scopes (company, team, personal, drafts, details). */
-export function invalidateAllExpenseQueries(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: ["expenses", "reports"] });
-  queryClient.invalidateQueries({ queryKey: ["expenses", "company-reports"] });
-  queryClient.invalidateQueries({ queryKey: QUERY_KEYS.expenses.drafts });
-  queryClient.invalidateQueries({ queryKey: ["expenses"] });
 }
 
 // Define the payload type for submitting/saving expenses
@@ -543,8 +537,8 @@ export const useUpdateCompanyExpenseStatus = () => {
           QUERY_KEYS.expenses.companyReport(variables.reportId),
         ),
       });
-      queryClient.invalidateQueries({ 
-        queryKey: QUERY_KEYS.expenses.report(variables.reportId) 
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.report(variables.reportId))
       });
     },
     onError: (error: unknown) => {

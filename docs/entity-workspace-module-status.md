@@ -1,10 +1,10 @@
-# Module delivery stage 06: payments-accounting
+# Module delivery stage 07: expenses
 
-Delivered source stages: foundation, people-administration, vendors-policies, procurement, invoice-intake-ap, payments-accounting.
+Delivered source stages: foundation, people-administration, vendors-policies, procurement, invoice-intake-ap, payments-accounting, expenses.
 
-Current stage: **06 — payments and accounting, review pending**. Both repositories
-use `entity-workspace-06-payments-accounting`. Backend targets `develop`; frontend
-targets `main`. Read the Stage 6 handoff below before continuing.
+Current stage: **07 — expenses, local acceptance pending**. Both repositories
+use `entity-workspace-07-expenses`. Backend targets `develop`; frontend
+targets `main`. Read the latest Stage 7 handoff below before continuing.
 Backend contracts deploy before corresponding frontend consumers.
 
 Scope code and local test evidence remain distinct from module acceptance.
@@ -89,3 +89,55 @@ Stage 5 was merged with partial acceptance; its outstanding checks remain open.
 6. Record actual evidence and remaining blockers in the coverage checklist before
    marking any module complete. Stage 7 (Expenses) and Stage 8 (cross-module audit)
    remain later delivery stages; final rollout/preflight is still outstanding.
+
+## Stage 7 session handoff — 2026-10-16
+
+**Stopping point:** expense workspace branches prepared for local testing; full
+acceptance remains pending. Both repositories use `entity-workspace-07-expenses`.
+Backend targets `develop`; frontend targets `main`. Backend release PR #222 is
+merged into `main` at `37f31a3`; frontend Stage 6 PR #254 is merged at `71eeb5c`.
+The incomplete Stage 5 and Stage 6 acceptance work above remains open.
+
+### Changes and verification
+
+- Reconciled Stage 7 with current backend `develop` and frontend `main`, retaining
+  split-expense visibility joins and the corrected frontend draft/submit loading
+  behavior. Frontend main already contains the expense workspace consumers.
+- Fixed expense-review cache invalidation to refresh this actor's workspace-keyed
+  expense queries across entity selections. A regression test verifies that other
+  users, companies and unrelated query families remain untouched.
+- Added submission ownership tests for effective primary assignment independent
+  of selected workspace, missing/overlapping assignments, and insufficient grants.
+- Nine backend suites passed: 235 tests. Frontend passed 44 Vitest tests and one
+  attachment regression. TypeScript passed using temporary type roots excluding
+  existing duplicate `@types` directories; no dependency directories were deleted.
+- Inventories pass for 354 API routes, 18 system entrypoints and 208 frontend
+  references. Pending review statuses were preserved. API watch compilation and
+  startup passed. These checks are not PostgreSQL fixture or authenticated browser
+  acceptance; no full production-build or production-readiness claim is made.
+
+### Preview and next tests
+
+Use buyer port 3006 and API port 3007. Frontend checkout remains
+`/Users/lanre/Documents/Villeto/villeto-app`; the API reuses
+`/Users/lanre/.codex/worktrees/entity-workspace-stage6/villeto-monolith` despite
+its directory name. The API container is `api-gateway-workspace`, using development
+configuration and `villeto_test`. Verify runtime state when resuming.
+
+1. Personal expense history must remain available when switching entities.
+2. Company/team review queues must intersect existing permission scope with the
+   report's stored reimbursement entity, including counts and pagination.
+3. All mode and inactive history must block review mutations. Opening actionable
+   records must establish their entity context first.
+4. New submissions must use effective primary assignment; test missing assignments
+   and employee transfers without relabeling historical reports.
+5. Verify split-participant list AND detail access, economic allocation permissions,
+   attachments/downloads, self-approval restrictions and permission revocation.
+   Split-participant detail authorization remains a specific review item because
+   the workspace interceptor distinguishes reporter access from approver access.
+6. Run PostgreSQL fixtures and authenticated workflows before completing coverage
+   rows. Stage 8 cross-module audit, ownership lifecycle and final preflight remain.
+
+Preserve unrelated edits in the primary backend checkout and the frontend's
+untracked `docs/entity-workspace-implementation 2.md`. Production flags and data
+were not changed during this preparation.
