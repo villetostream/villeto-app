@@ -2266,15 +2266,11 @@ function PRDetailPage() {
                               {poTotal > 0 && <span className="text-xs font-semibold text-[#0b100e]">· {formatAmount(poTotal, cardCurrency)}</span>}
                             </div>
                             <div className="flex items-center gap-4 text-xs text-[#68726d]">
-                              {!isUnassigned && policies.purchaseOrders.canView && (
+                              {!isUnassigned && group.poId && policies.purchaseOrders.canView && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (!group.poId) {
-                                      toast.error("Purchase Order ID not found.");
-                                      return;
-                                    }
                                     if (typeof window !== "undefined") {
                                       sessionStorage.setItem("poReturnUrl", window.location.pathname + window.location.search);
                                       sessionStorage.setItem("poFromPr", id);

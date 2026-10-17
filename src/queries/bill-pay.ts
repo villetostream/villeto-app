@@ -773,9 +773,9 @@ export function useGetPayments(legalEntityId: string, page = 1, limit = 20) {
       limit,
     ]),
     queryFn: async () => {
-      const res = await axios.get(
-        `/bill-pay/payments?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`,
-      );
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (legalEntityId !== "all") params.set("legalEntityId", legalEntityId);
+      const res = await axios.get(`/bill-pay/payments?${params.toString()}`);
       return res.data.data as { data: Payment[]; meta: any };
     },
     enabled: !!legalEntityId,
@@ -874,9 +874,9 @@ export function useGetBankTransactions(
       limit,
     ]),
     queryFn: async () => {
-      const res = await axios.get(
-        `/bill-pay/bank-transactions?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`,
-      );
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (legalEntityId !== "all") params.set("legalEntityId", legalEntityId);
+      const res = await axios.get(`/bill-pay/bank-transactions?${params.toString()}`);
       return res.data.data as { data: BankTransaction[]; meta: any };
     },
     enabled: !!legalEntityId,
@@ -1051,6 +1051,11 @@ export interface BillPayInvoice {
   vendorInvoiceId: string;
   invoiceNumber: string;
   description: string;
+  vendor: {
+    vendorId: string;
+    legalName: string;
+    displayName: string | null;
+  } | null;
   invoiceDate: string;
   dueDate: string;
   workflowStage: string;
@@ -1128,19 +1133,19 @@ export function useGetBillPayInvoices(
 }
 
 export interface BillPayInvoiceDetail extends BillPayInvoice {
-  purchaseOrderId?: string;
+  purchaseOrder?: { purchaseOrderId: string; poNumber: string } | null;
   paymentStatus?: string;
-  items?: Array<{
-    description: string;
-    quantity: number;
+  lineItems?: Array<{
+    name: string;
+    description?: string | null;
+    quantity: string;
     unitPrice: string;
-    amount: string;
-    accountCode?: string;
+    lineTotal: string;
+    subtotal: string;
   }>;
-  subTotal?: string;
+  subtotal?: string;
   taxAmount?: string;
   totalAmount?: string;
-  vendorName?: string;
 }
 
 export function useGetBillPayInvoiceById(vendorInvoiceId: string) {

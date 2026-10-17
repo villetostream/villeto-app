@@ -141,3 +141,25 @@ configuration and `villeto_test`. Verify runtime state when resuming.
 Preserve unrelated edits in the primary backend checkout and the frontend's
 untracked `docs/entity-workspace-implementation 2.md`. Production flags and data
 were not changed during this preparation.
+
+## Manual acceptance deferral — 2026-10-17
+
+The user requested that all outstanding Stage 5, 6 and 7 manual checks remain
+**OPEN — deferred**. See the backend repository checklist: `villeto-monolith/docs/legal-entities/OPEN_MANUAL_ACCEPTANCE_STAGES_5_7.md`.
+This is the canonical checklist for both repositories. Continue carrying these
+items into Stage 8; merged PRs and automated checks do not close them. Missing
+components must be recorded as blocked with a reason, never passed. No new
+manual acceptance evidence was recorded in this update.
+
+## Stage 8 frontend walkthrough — 2026-10-17
+
+An authenticated local walkthrough found and locally fixed invoice detail
+mapping, invoice-to-PO navigation, Bill Pay list vendor names and unsupported
+sample payment figures. The approved Crane invoice now opens its matching PO
+from the frontend. The
+backend repository records the exact checks and open blockers in
+`docs/legal-entities/STAGE_8_FRONTEND_WALKTHROUGH_2026_10_17.md`. The full
+ownership lifecycle remains unverified because the available PR lacked a
+browser-visible PO relationship. Payment execution is explicitly deferred:
+the user confirmed that the payment gate feature has not been integrated yet.
+The payment ledger read checks remain recorded in the backend walkthrough.

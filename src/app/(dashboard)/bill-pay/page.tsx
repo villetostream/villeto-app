@@ -262,16 +262,11 @@ function BillPayPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
             <StatsCard
               title="Total Bills This Month"
-              value={totalBills.amount !== "—" ? totalBills.amount : "₦12,850,000"}
+              value={totalBills.amount}
               subtitle={
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e6fbf7] text-[#0ea894]">
-                    +2.5%
-                  </span>
-                  <span className="text-[11px] text-[#68726d]">
-                    +8.2% from last period
-                  </span>
-                </div>
+                <span className="text-[11px] text-[#68726d]">
+                  {summaryData?.metrics?.totalBills?.count != null ? `${summaryData.metrics.totalBills.count} bills` : "Total invoices in this period"}
+                </span>
               }
               trend="none"
               isLoading={isSummaryLoading}
@@ -282,7 +277,7 @@ function BillPayPage() {
             />
             <StatsCard
               title="Pending Approvals"
-              value={summaryData?.metrics?.awaitingApproval?.count ?? 7}
+              value={summaryData?.metrics?.awaitingApproval?.count ?? "—"}
               subtitle={
                 <span className="text-[11px] text-[#68726d]">
                   Review pending bills
@@ -300,7 +295,7 @@ function BillPayPage() {
             />
             <StatsCard
               title="Ready for Payment"
-              value={summaryData?.metrics?.readyForPayment?.count ?? 4}
+              value={summaryData?.metrics?.readyForPayment?.count ?? "—"}
               subtitle={
                 <span className="text-[11px] text-[#68726d]">
                   Release payments
@@ -313,7 +308,7 @@ function BillPayPage() {
             />
             <StatsCard
               title="Completed This Month"
-              value={summaryData?.metrics?.completed?.count ?? 23}
+              value={summaryData?.metrics?.completed?.count ?? "—"}
               subtitle={
                 <span className="text-[11px] text-[#68726d]">
                   View completed transactions
