@@ -2,20 +2,12 @@
 import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
 
 import { useMemo, useState } from "react";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { Copy, EyeOff, Eye, Plus, MoreHorizontal, Upload } from "lucide-react";
-import { Receipt2, CalendarTick, Clock, TickCircle } from "iconsax-reactjs";
-import { StatsCard } from "@/components/dashboard/landing/StatCard";
-import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
-import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
 import { useGetPayments, useGetBankTransactions } from "@/queries/bill-pay";
 import { format } from "date-fns";
@@ -53,11 +45,8 @@ const paymentColumnHelper = createColumnHelper<Payment>();
 const bankTxColumnHelper = createColumnHelper<BankTransaction>();
 
 function PaymentsDashboard() {
-  const router = useRouter();
-  const policies = useAuthorizationPolicies();
   const [activeTab, setActiveTab] = useState("payments");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
-  const [showAccountDetails, setShowAccountDetails] = useState(true);
 
   const { data: legalEntitiesData } = useTransactionLegalEntities("finance");
   const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
@@ -80,13 +69,13 @@ function PaymentsDashboard() {
   });
 
   // Queries
-  const { data: paymentsData, isLoading: paymentsLoading } = useGetPayments(
+  const { data: paymentsData, isLoading: paymentsLoading, isError: paymentsError } = useGetPayments(
     legalEntityId,
     paymentTableProps.page,
     paymentTableProps.pageSize,
   );
 
-  const { data: bankData, isLoading: bankLoading } = useGetBankTransactions(
+  const { data: bankData, isLoading: bankLoading, isError: bankError } = useGetBankTransactions(
     legalEntityId,
     bankTableProps.page,
     bankTableProps.pageSize,
@@ -120,10 +109,7 @@ function PaymentsDashboard() {
         header: "AMOUNT",
         cell: (info) => (
           <p className="font-bold text-[#0b100e]">
-            ₦
-            {parseFloat(info.getValue() || "0").toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-            })}
+            {new Intl.NumberFormat("en-NG", { style: "currency", currency: info.row.original.currency || "NGN" }).format(parseFloat(info.getValue() || "0"))}
           </p>
         ),
       }),
@@ -133,7 +119,7 @@ function PaymentsDashboard() {
           const val = info.getValue();
           return (
             <p className="text-[#68726d]">
-              {val ? format(new Date(val), "dd MMM yyyy") : "10 Sept 2025"}
+              {val ? format(new Date(val), "dd MMM yyyy") : "—"}
             </p>
           );
         },
@@ -142,7 +128,7 @@ function PaymentsDashboard() {
         header: "METHOD",
         cell: (info) => (
           <p className="text-[#68726d] capitalize">
-            {info.getValue() || "Bank Transfer"}
+            {info.getValue() || "—"}
           </p>
         ),
       }),
@@ -220,22 +206,8 @@ function PaymentsDashboard() {
           <p className="text-[#68726d]">
             {info.getValue()
               ? format(new Date(info.getValue()), "dd MMM yyyy")
-              : "10 Sept 2025"}
+              : "—"}
           </p>
-        ),
-      }),
-      paymentColumnHelper.display({
-        id: "actions",
-        header: "ACTION",
-        enableHiding: false,
-        cell: () => (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-[#68726d] hover:text-[#0b100e]"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
         ),
       }),
     ],
@@ -278,10 +250,7 @@ function PaymentsDashboard() {
         header: "AMOUNT",
         cell: (info) => (
           <p className="font-bold text-[#0b100e]">
-            ₦
-            {parseFloat(info.getValue() || "0").toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-            })}
+            {new Intl.NumberFormat("en-NG", { style: "currency", currency: info.row.original.currency || "NGN" }).format(parseFloat(info.getValue() || "0"))}
           </p>
         ),
       }),
@@ -301,28 +270,9 @@ function PaymentsDashboard() {
           );
         },
       }),
-      bankTxColumnHelper.display({
-        id: "actions",
-        header: "ACTION",
-        enableHiding: false,
-        cell: () => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-[#087f70] hover:text-[#076b5e] font-semibold border border-[#087f70]/20 hover:bg-[#087f70]/10 rounded-md"
-          >
-            Match
-          </Button>
-        ),
-      }),
     ],
     [],
   );
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard");
-  };
 
   const displayPayments = useMemo(() => {
     let data = (paymentsData as any)?.data || [];
@@ -385,250 +335,8 @@ function PaymentsDashboard() {
   return (
     <div className="flex flex-col h-full pb-2 overflow-y-auto">
       <div className="space-y-6 flex-1 flex flex-col min-h-[600px]">
-        {/* Low Balance Alert Banner */}
-        {showAccountDetails && (
-          <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-[12px] p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="text-amber-500">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-                  <path d="M12 9v4" />
-                  <path d="M12 17h.01" />
-                </svg>
-              </div>
-              <div>
-                <h4 className="text-[13px] font-bold text-amber-800">
-                  Low Balance Alert: Funds are running low
-                </h4>
-                <p className="text-[12px] text-amber-700 mt-0.5">
-                  Your main account has only ₦6,050,541. Please add funds to
-                  ensure that all 7 scheduled payments of ₦14,250,000.00 clear
-                  successfully.
-                </p>
-              </div>
-            </div>
-            <Button className="bg-[#d33d44] hover:bg-[#b9353c] text-white rounded-[8px] h-9 px-4 font-semibold text-[13px] shrink-0 ml-4">
-              Add Funds
-            </Button>
-          </div>
-        )}
-
-        {/* Top Account Details Section */}
-        {policies.billPay.canViewSensitivePayment && showAccountDetails ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
-            {/* Left White Card */}
-            <div className="col-span-2 rounded-[16px] border border-black/[0.08] bg-white p-6 flex flex-col sm:flex-row justify-between">
-              <div className="flex flex-col justify-between">
-                <div>
-                  <p className="text-[12px] font-bold text-[#68726d] tracking-wider mb-1 uppercase">
-                    MAIN ACCOUNT
-                  </p>
-                  <h3 className="text-lg font-bold text-[#0b100e]">
-                    Villeto Bank Account
-                  </h3>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 mt-6 sm:mt-0">
-                  <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-10 px-5 font-semibold flex items-center gap-2 text-[13px]">
-                    <Plus className="w-4 h-4" />
-                    Add Funds
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="border-[#087f70] text-[#087f70] hover:bg-[#f0faf8] rounded-[8px] h-10 px-5 font-semibold text-[13px]"
-                  >
-                    Withdraw
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="border-black/[0.12] text-[#10231d] hover:bg-black/[0.02] rounded-[8px] h-10 px-5 font-semibold text-[13px]"
-                  >
-                    Account details
-                  </Button>
-                </div>
-              </div>
-              <div className="flex flex-col items-start sm:items-end justify-between mt-6 sm:mt-0">
-                <div className="text-left sm:text-right">
-                  <p className="text-[13px] text-[#68726d] font-medium mb-1">
-                    Available Balance
-                  </p>
-                  <h2 className="text-[32px] font-bold text-[#0b100e] leading-none">
-                    ₦150,674.00
-                  </h2>
-                </div>
-                <div className="flex items-center gap-3 bg-[#e6f7f3] px-3 py-1.5 rounded-full mt-4 sm:mt-0">
-                  <span className="text-[13px] font-semibold text-[#087f70]">
-                    12345678900
-                  </span>
-                  <button
-                    onClick={() => copyToClipboard("12345678900")}
-                    className="text-[#087f70] flex items-center gap-1.5 text-[12px] font-medium hover:text-[#076b5e] transition-colors"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Villeto ATM Card (CSS Layout) */}
-            <div className="col-span-1 rounded-[14px] bg-slate-900 text-white relative overflow-hidden flex flex-col justify-between shadow-lg">
-              {/* Background Geometric Watermark Accent */}
-              <div className="absolute -right-8 -top-12 w-32 h-32 rounded-full border-[24px] border-white/20 sm:w-40 sm:h-40 pointer-events-none" />
-
-              {/* Inner Content Layer */}
-              <div className="relative flex h-full flex-col p-5 z-10">
-                {/* Header Section */}
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="relative w-5 h-5 shrink-0">
-                      <Image
-                        src="/images/villeto-logo-v.png"
-                        alt="Villeto"
-                        fill
-                        sizes="20px"
-                        className="object-contain"
-                      />
-                    </div>
-                    <span className="text-[12px] font-semibold tracking-[-0.02em] text-white">
-                      Villeto
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setShowAccountDetails(false)}
-                    className="text-white/80 hover:text-white transition-colors"
-                  >
-                    <EyeOff className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Middle Section (Card Number) */}
-                <div className="relative mt-auto pt-6">
-                  <p className="text-[9px] uppercase tracking-widest text-white/70 font-semibold mb-1">
-                    CARD NUMBER
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <p className="text-[16px] sm:text-[18px] font-bold tracking-[0.1em]">
-                      1234 5678 9012 2345
-                    </p>
-                    <button
-                      onClick={() => copyToClipboard("1234567890122345")}
-                      className="text-white/60 hover:text-white transition-colors"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Footer Section (Expiry & CVV) */}
-                <div className="mt-6 flex gap-10">
-                  <div>
-                    <p className="text-[9px] uppercase tracking-widest text-white/70 font-semibold mb-1">
-                      EXPIRY DATE
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-[12px] sm:text-[14px] font-bold">
-                        13/10
-                      </p>
-                      <button
-                        onClick={() => copyToClipboard("13/10")}
-                        className="text-white/60 hover:text-white transition-colors"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[9px] uppercase tracking-widest text-white/70 font-semibold mb-1">
-                      CVV
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-[12px] sm:text-[14px] font-bold">
-                        272
-                      </p>
-                      <button
-                        onClick={() => copyToClipboard("272")}
-                        className="text-white/60 hover:text-white transition-colors"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : policies.billPay.canViewSensitivePayment ? (
-          <div className="flex justify-end shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAccountDetails(true)}
-              className="text-[#087f70] hover:text-[#076b5e] hover:bg-[#087f70]/10 font-semibold"
-            >
-              <Eye className="w-4 h-4 mr-2" /> Show Account Details
-            </Button>
-          </div>
-        ) : null}
-
-        {/* Stats Cards (Mocked for now since no aggregation API exists) */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
-          <StatsCard
-            title="Awaiting Authorization"
-            value="₦12,850,000"
-            subtitle={
-              <span className="text-[12px] text-[#84908a]">
-                Authorize payments
-              </span>
-            }
-            icon={
-              <Receipt2 variant="Bulk" className="w-5 h-5 text-[#087f70]" />
-            }
-            accentColor="#087f70"
-            trend="none"
-          />
-          <StatsCard
-            title="Scheduled"
-            value="7"
-            subtitle={
-              <span className="text-[12px] text-[#84908a]">₦14,250,000</span>
-            }
-            icon={
-              <CalendarTick variant="Bulk" className="w-5 h-5 text-[#f59e0b]" />
-            }
-            accentColor="#f59e0b"
-            trend="none"
-          />
-          <StatsCard
-            title="Processing"
-            value="4"
-            subtitle={
-              <span className="text-[12px] text-[#84908a]">In progress</span>
-            }
-            icon={<Clock variant="Bulk" className="w-5 h-5 text-[#9333ea]" />}
-            accentColor="#9333ea"
-            trend="none"
-          />
-          <StatsCard
-            title="Completed This Month"
-            value="23"
-            subtitle={
-              <span className="text-[12px] text-[#84908a]">₦52,300,000</span>
-            }
-            icon={
-              <TickCircle variant="Bulk" className="w-5 h-5 text-[#087f70]" />
-            }
-            accentColor="#087f70"
-            trend="none"
-          />
+        <div className="rounded-[12px] border border-black/[0.08] bg-white p-4 text-sm text-[#68726d]">
+          Funding balances and payment totals are not available in this view. The ledger below shows recorded payments for the selected workspace.
         </div>
 
         {/* Main Tabs */}
@@ -653,13 +361,6 @@ function PaymentsDashboard() {
               </TabsTrigger>
             </TabsList>
 
-            {activeTab === "bank" &&
-              policies.billPay.canManageReconciliation && (
-                <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white rounded-[8px] h-9 px-4 font-semibold text-[13px] flex items-center gap-2">
-                  <Upload className="w-4 h-4" />
-                  Import Statement
-                </Button>
-              )}
           </div>
 
           {/* Payments Tab Content */}
@@ -714,6 +415,7 @@ function PaymentsDashboard() {
               </Tabs>
             </div>
             <div className="flex-1 overflow-hidden">
+              {paymentsError && <p role="alert" className="p-4 text-sm text-red-700">Payments could not be loaded for this workspace.</p>}
               <DataTable
                 data={displayPayments}
                 isLoading={paymentsLoading}
@@ -754,6 +456,7 @@ function PaymentsDashboard() {
             className="flex-1 flex flex-col min-h-0 mt-4 border-none outline-none"
           >
             <div className="flex-1 overflow-hidden">
+              {bankError && <p role="alert" className="p-4 text-sm text-red-700">Bank transactions could not be loaded for this workspace.</p>}
               <DataTable
                 data={displayBankTx}
                 isLoading={bankLoading}
