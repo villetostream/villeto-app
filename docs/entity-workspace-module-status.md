@@ -163,3 +163,18 @@ ownership lifecycle remains unverified because the available PR lacked a
 browser-visible PO relationship. Payment execution is explicitly deferred:
 the user confirmed that the payment gate feature has not been integrated yet.
 The payment ledger read checks remain recorded in the backend walkthrough.
+
+## Release follow-ups — 2026-10-17
+
+Stage 6 payment and accounting manual acceptance is deferred by user decision;
+it is not a passed release gate. Stage 5 and 7 checks remain open in the backend
+manual-acceptance checklist. The current frontend release-fix branch is
+`fix/entity-workspace-release-frontend`, based on `main` after Stage 8.
+
+The new-report page locally fixes a draft reload bug: saved drafts carry
+`expenseCategoryId`, while the form needs the category name. Hydration now
+waits for categories and resolves the stored ID. A localhost:3006 draft
+retained its category after save and reload. All 44 frontend Vitest tests and
+TypeScript with temporary clean type roots passed. Existing lint errors in the
+page remain. This fix is pending review, merge and release-build retest; it does
+not close Stage 7 acceptance.
