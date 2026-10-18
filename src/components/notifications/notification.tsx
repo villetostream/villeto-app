@@ -1,6 +1,6 @@
 "use client";
 import { workspaceFetch } from "@/features/entity-workspace/fetch";
-import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
+import { useEntityWorkspaceStore, workspaceReadOnly } from "@/features/entity-workspace/store";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
@@ -187,11 +187,18 @@ const notificationCache = new Map<string, NotificationItem[]>();
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function Notification({
+export default function Notification(props: NotificationProps) {
+  const generation = useEntityWorkspaceStore((state) => state.generation);
+  const identity = useEntityWorkspaceStore((state) => state.identity);
+  return <NotificationView key={`${identity}:${generation}`} {...props} />;
+}
+
+function NotificationView({
   onClose,
   onUnreadChange,
 }: NotificationProps) {
   const generation = useEntityWorkspaceStore((state) => state.generation);
+  const readOnly = workspaceReadOnly();
   const workspace = useEntityWorkspaceStore.getState();
   const cacheKey = `${workspace.identity}:${workspace.selection || "legacy"}:${workspace.generation}`;
   const cachedNotifications = notificationCache.get(cacheKey) || null;
@@ -227,7 +234,7 @@ export default function Notification({
     const h: Record<string, string> = { "Content-Type": "application/json" };
     if (accessToken) h["Authorization"] = `Bearer ${accessToken}`;
     return h;
-  }, [accessToken, generation]);
+  }, [accessToken]);
 
   // ── Fetch + resolve messages ──────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
@@ -239,6 +246,7 @@ export default function Notification({
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
+      if (useEntityWorkspaceStore.getState().generation !== generation) return;
       const list: Record<string, unknown>[] = Array.isArray(json)
         ? json
         : Array.isArray(json?.data)
@@ -269,14 +277,16 @@ export default function Notification({
           }
         }),
       );
+      if (useEntityWorkspaceStore.getState().generation !== generation) return;
       setNotifications(resolved);
       notificationCache.set(cacheKey, resolved);
     } catch (err) {
       console.error("[Notification] fetchAll error:", err);
     } finally {
-      setLoading(false);
+      if (useEntityWorkspaceStore.getState().generation === generation)
+        setLoading(false);
     }
-  }, [authHeaders, accessToken]);
+  }, [authHeaders, accessToken, cacheKey, cachedNotifications, generation]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -337,6 +347,9 @@ export default function Notification({
                 ? await resolveMessageIds(msg, accessToken).catch(() => msg)
                 : msg;
 
+              if (useEntityWorkspaceStore.getState().generation !== generation)
+                return;
+
               setNotifications((prev) => {
                 const idx = prev.findIndex((n) => n.id === incoming.id);
                 const updated = { ...incoming, resolvedMessage };
@@ -362,54 +375,59 @@ export default function Notification({
     })();
 
     return () => controller.abort();
-  }, [accessToken, generation]);
+  }, [accessToken, generation, cacheKey]);
 
   // ── Mark single read ─────────────────────────────────────────────────────────
   const markRead = useCallback(
     async (id: string) => {
-      if (markingId) return;
+      if (markingId || readOnly) return;
       setMarkingId(id);
-      setNotifications((prev) => {
-        const copy = prev.map((n) =>
-          n.id === id ? { ...n, isRead: true } : n,
-        );
-        notificationCache.set(cacheKey, copy);
-        return copy;
-      });
       try {
-        await workspaceFetch(apiUrl(`events/notifications/mark-read/${id}`), {
+        const res = await workspaceFetch(apiUrl(`events/notifications/mark-read/${id}`), {
           headers: authHeaders(),
           credentials: "include",
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (useEntityWorkspaceStore.getState().generation !== generation) return;
+        setNotifications((prev) => {
+          const copy = prev.map((n) =>
+            n.id === id ? { ...n, isRead: true } : n,
+          );
+          notificationCache.set(cacheKey, copy);
+          return copy;
+        });
       } catch {
-        // Optimistic update stays; silently fail
+        // A denied read action must not appear successful.
       } finally {
         setMarkingId(null);
       }
     },
-    [authHeaders, markingId],
+    [authHeaders, markingId, readOnly, generation, cacheKey],
   );
 
   // ── Mark all read ────────────────────────────────────────────────────────────
   const markAllRead = useCallback(async () => {
-    if (markingAllRead || unreadCount === 0) return;
+    if (markingAllRead || unreadCount === 0 || readOnly) return;
     setMarkingAllRead(true);
-    setNotifications((prev) => {
-      const copy = prev.map((n) => ({ ...n, isRead: true }));
-      notificationCache.set(cacheKey, copy);
-      return copy;
-    });
     try {
-      await workspaceFetch(apiUrl("events/notifications/mark-all-read"), {
+      const res = await workspaceFetch(apiUrl("events/notifications/mark-all-read"), {
         headers: authHeaders(),
         credentials: "include",
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (useEntityWorkspaceStore.getState().generation !== generation) return;
+      setNotifications((prev) => {
+        const copy = prev.map((n) => ({ ...n, isRead: true }));
+        notificationCache.set(cacheKey, copy);
+        return copy;
+      });
     } catch {
-      fetchAll();
+      if (useEntityWorkspaceStore.getState().generation === generation)
+        void fetchAll();
     } finally {
       setMarkingAllRead(false);
     }
-  }, [authHeaders, markingAllRead, unreadCount, fetchAll]);
+  }, [authHeaders, markingAllRead, unreadCount, fetchAll, generation, cacheKey, readOnly]);
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
@@ -435,7 +453,8 @@ export default function Notification({
           {unreadCount > 0 && (
             <button
               onClick={markAllRead}
-              disabled={markingAllRead}
+              disabled={markingAllRead || readOnly}
+              title={readOnly ? "Select an active legal entity to mark notifications read" : undefined}
               className="flex items-center gap-1.5 text-[12px] font-semibold text-[#087f70] hover:text-[#076b5e] bg-[#f0faf8] hover:bg-[#e7f6f2] px-3 py-1.5 rounded-[8px] transition-colors disabled:opacity-50 whitespace-nowrap"
             >
               {markingAllRead ? (
@@ -486,10 +505,10 @@ export default function Notification({
             return (
               <div
                 key={n.id}
-                onClick={() => !n.isRead && markRead(n.id)}
+                onClick={() => !n.isRead && !readOnly && markRead(n.id)}
                 className={[
                   "flex items-start gap-3 px-5 py-4 transition-colors group",
-                  n.isRead
+                  n.isRead || readOnly
                     ? "bg-white"
                     : "bg-[#f0faf8]/50 cursor-pointer hover:bg-[#f0faf8]/80",
                   markingId === n.id ? "opacity-60 pointer-events-none" : "",

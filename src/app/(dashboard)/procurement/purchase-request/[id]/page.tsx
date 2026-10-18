@@ -18,6 +18,7 @@ import { SubmissionSuccessWarningsModal } from "@/components/procurement/Submiss
 import { LineItemDetailModal } from "@/components/procurement/LineItemDetailModal";
 import { WorkflowProgress, type WorkflowStep, type StepStatus } from "@/components/procurement/WorkflowProgress";
 import { format } from "date-fns";
+import { parseDateOnly } from "@/lib/date-only";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { useAxios } from "@/hooks/useAxios";
@@ -97,8 +98,10 @@ function formatAmount(n?: number, currency = "USD") {
 
 function formatDate(d?: string) {
   if (!d) return "—";
-  try { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); }
-  catch { return d; }
+  const date = parseDateOnly(d);
+  return date
+    ? date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    : d;
 }
 
 function formatTs(d?: string) {
@@ -591,14 +594,14 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
               <Popover>
                 <PopoverTrigger asChild>
                   <button type="button" className={`w-full h-10 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}>
-                    {neededByDate ? format(new Date(neededByDate), "PPP") : "Pick a date"}
+                    {neededByDate ? format(parseDateOnly(neededByDate)!, "PPP") : "Pick a date"}
                     <CalendarIcon className="w-4 h-4 ml-2 opacity-50" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <CalendarPicker
                     mode="single"
-                    selected={neededByDate ? new Date(neededByDate) : undefined}
+                    selected={parseDateOnly(neededByDate)}
                     onSelect={(d) => d && setNeededByDate(format(d, "yyyy-MM-dd"))}
                     initialFocus
                   />
@@ -1190,14 +1193,14 @@ function CreatePOView({
                             <Popover>
                               <PopoverTrigger asChild>
                                 <button type="button" className={`w-full h-8 px-3 rounded-md border text-xs flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] ${!(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? "text-[#68726d] border-black/[0.06]" : "text-[#0b100e] border-border/80"}`}>
-                                  {(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? format(new Date(vendorDetails[vendorId]?.deliveryDate || defaultDate), "PPP") : "Pick a date"}
+                                  {(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? format(parseDateOnly(vendorDetails[vendorId]?.deliveryDate || defaultDate)!, "PPP") : "Pick a date"}
                                   <CalendarIcon className="w-3.5 h-3.5 ml-1.5 opacity-50 shrink-0" />
                                 </button>
                               </PopoverTrigger>
                               <PopoverContent className="w-auto p-0" align="start">
                                 <CalendarPicker
                                   mode="single"
-                                  selected={(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? new Date(vendorDetails[vendorId]?.deliveryDate || defaultDate) : undefined}
+                                  selected={parseDateOnly(vendorDetails[vendorId]?.deliveryDate || defaultDate)}
                                   onSelect={(d) => {
                                     if (!d) return;
                                     setVendorDetails(p => ({...p, [vendorId]: { ...(p[vendorId] || {notes:""}), deliveryDate: format(d, "yyyy-MM-dd") }}));
@@ -1385,13 +1388,15 @@ function PRDetailPage() {
   // A user could manually type ?scope=company to try to elevate their view.
   // We re-validate the requested scope against the same permission gates used
   // on the list page before honouring it.
-  const hasTeamScopePermission    = policies.purchaseRequests.listScope === "team" || policies.purchaseRequests.listScope === "company";
-  const hasCompanyScopePermission = policies.purchaseRequests.listScope === "company";
+  const hasTeamScopePermission = policies.purchaseRequests.canReadReportingChainScope;
+  const hasDepartmentScopePermission = policies.purchaseRequests.canReadDepartmentScope;
+  const hasCompanyScopePermission = policies.purchaseRequests.canReadCompany;
   const rawScope  = searchParams.get("scope") || searchParams.get("outerTab") || "own";
   const scope = (
     rawScope === "company" && hasCompanyScopePermission ? "company" :
-    rawScope === "team"    && hasTeamScopePermission    ? "team"    : "own"
-  ) as "own" | "team" | "company";
+    rawScope === "team" && hasTeamScopePermission ? "team" :
+    rawScope === "department" && hasDepartmentScopePermission ? "department" : "own"
+  ) as "own" | "team" | "department" | "company";
 
   // Company-scope override unlock state (session-only, resets on navigation)
   const [overrideUnlocked, setOverrideUnlocked] = useState(false);
@@ -1463,7 +1468,7 @@ function PRDetailPage() {
 
   // ── Permission gates ──────────────────────────────────────────────────────
   const isOwnScope     = scope === "own";
-  const isTeamScope    = scope === "team";
+  const isDepartmentScope = scope === "department" || scope === "team";
   const isCompanyScope = scope === "company";
 
   // True if the currently logged-in user is the requester of THIS specific PR —
@@ -1501,10 +1506,10 @@ function PRDetailPage() {
   );
 
   // On own scope — never show approve/reject
-  // On team/company scope — show if permission + submitted, AND the viewer is not the requester
+  // On department/company scope — show if permission + submitted, AND the viewer is not the requester
   // (the backend rejects self-approval, so the UI must not offer it either)
   const canApprove = !isOwnScope && !isOwnRequest && isSubmitted && hasApprovePermission &&
-    (isTeamScope || (isCompanyScope && overrideUnlocked));
+    (isDepartmentScope || (isCompanyScope && overrideUnlocked));
   const _canReject  = canApprove;
 
   // Create PO: available if approved and user has permission

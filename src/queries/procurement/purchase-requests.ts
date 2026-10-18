@@ -173,7 +173,7 @@ export interface GetPurchaseRequestsParams {
   status?: string;
   priority?: string;
   search?: string;
-  scope?: "own" | "team" | "company";
+  scope?: "own" | "team" | "department" | "company";
   /** Only return PRs currently in THIS user's approval queue */
   requiresMyApproval?: boolean;
   /** Only return PRs that are approved and awaiting conversion to PO by this user */

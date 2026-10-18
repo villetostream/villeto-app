@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import {
-  Search, Eye, Download, ChevronDown, ChevronLeft, ChevronRight, Plus, Loader2, RefreshCw,
+  Search, Eye, ChevronDown, ChevronLeft, ChevronRight, Plus, Loader2, RefreshCw,
   CheckCircle, XCircle, X, AlertCircle,
   ArrowUp, ArrowDown, ChevronsUpDown, MoreHorizontal, Check
 } from "lucide-react";
@@ -26,6 +26,7 @@ import {
 } from "@/lib/constants/purchase-request-status";
 import { toast } from "sonner";
 import { ProcurementPageHeader } from "@/components/procurement/ProcurementWorkspace";
+import { parseDateOnly } from "@/lib/date-only";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -326,9 +327,10 @@ const PRIORITY_OPTIONS = [
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return "—";
-  try {
-    return new Date(dateStr).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  } catch { return dateStr; }
+  const date = parseDateOnly(dateStr);
+  return date
+    ? date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    : dateStr;
 }
 
 function getRequesterName(pr: PurchaseRequest): string {
@@ -348,7 +350,7 @@ function PRTable({
   scope,
   initialInnerTab,
 }: {
-  scope: "own" | "team" | "company";
+  scope: "own" | "team" | "department" | "company";
   initialInnerTab?: string;
 }) {
   const router         = useRouter();
@@ -669,9 +671,6 @@ function PRTable({
               <span className="font-semibold text-[13px]">{isLoading || isFetching ? "Refreshing..." : "Refresh"}</span>
             </button>
 
-            <button className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#087f70]/30 text-[#087f70] text-[13px] font-semibold hover:bg-[#f0faf8] transition-colors">
-              <Download className="w-4 h-4" /> Export
-            </button>
           </div>
         </div>
 
@@ -817,13 +816,15 @@ function PurchaseRequestPage() {
   const { setAction, clearAction } = useHeaderActionStore();
   const policies                 = useAuthorizationPolicies();
   const authReady        = policies.ready;
-  const hasTeamScope     = authReady && policies.purchaseRequests.canReadDepartment;
+  const hasTeamScope = authReady && policies.purchaseRequests.canReadReportingChainScope;
+  const hasDepartmentScope = authReady && policies.purchaseRequests.canReadDepartmentScope;
   const hasCompanyScope  = authReady && policies.purchaseRequests.canReadCompany;
 
   // Build outer tab list based on permissions
   const tabs = [
     ...(hasCompanyScope ? [{ key: "company", label: "Company Requests" }] : []),
-    ...(hasTeamScope    ? [{ key: "team",    label: "Team Requests"    }] : []),
+    ...(hasTeamScope ? [{ key: "team", label: "Team Requests" }] : []),
+    ...(hasDepartmentScope ? [{ key: "department", label: "Department Requests" }] : []),
     { key: "own", label: "My Requests" },
   ];
 
@@ -874,7 +875,7 @@ function PurchaseRequestPage() {
         {tabs.map(t => (
           <TabsContent key={t.key} value={t.key} className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden m-0">
             <PRTable
-              scope={t.key as "own" | "team" | "company"}
+              scope={t.key as "own" | "team" | "department" | "company"}
               initialInnerTab={outerTab === t.key ? innerTabFromUrl : undefined}
             />
           </TabsContent>
