@@ -26,6 +26,7 @@ import {
 } from "@/lib/constants/purchase-request-status";
 import { toast } from "sonner";
 import { ProcurementPageHeader } from "@/components/procurement/ProcurementWorkspace";
+import { parseDateOnly } from "@/lib/date-only";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -326,9 +327,10 @@ const PRIORITY_OPTIONS = [
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return "—";
-  try {
-    return new Date(dateStr).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  } catch { return dateStr; }
+  const date = parseDateOnly(dateStr);
+  return date
+    ? date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    : dateStr;
 }
 
 function getRequesterName(pr: PurchaseRequest): string {

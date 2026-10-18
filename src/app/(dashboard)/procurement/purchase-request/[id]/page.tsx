@@ -18,6 +18,7 @@ import { SubmissionSuccessWarningsModal } from "@/components/procurement/Submiss
 import { LineItemDetailModal } from "@/components/procurement/LineItemDetailModal";
 import { WorkflowProgress, type WorkflowStep, type StepStatus } from "@/components/procurement/WorkflowProgress";
 import { format } from "date-fns";
+import { parseDateOnly } from "@/lib/date-only";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { useAxios } from "@/hooks/useAxios";
@@ -97,8 +98,10 @@ function formatAmount(n?: number, currency = "USD") {
 
 function formatDate(d?: string) {
   if (!d) return "—";
-  try { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); }
-  catch { return d; }
+  const date = parseDateOnly(d);
+  return date
+    ? date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    : d;
 }
 
 function formatTs(d?: string) {
@@ -591,14 +594,14 @@ function EditHeaderModal({ pr, onClose, onSave, loading, departments }: {
               <Popover>
                 <PopoverTrigger asChild>
                   <button type="button" className={`w-full h-10 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}>
-                    {neededByDate ? format(new Date(neededByDate), "PPP") : "Pick a date"}
+                    {neededByDate ? format(parseDateOnly(neededByDate)!, "PPP") : "Pick a date"}
                     <CalendarIcon className="w-4 h-4 ml-2 opacity-50" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <CalendarPicker
                     mode="single"
-                    selected={neededByDate ? new Date(neededByDate) : undefined}
+                    selected={parseDateOnly(neededByDate)}
                     onSelect={(d) => d && setNeededByDate(format(d, "yyyy-MM-dd"))}
                     initialFocus
                   />
@@ -1190,14 +1193,14 @@ function CreatePOView({
                             <Popover>
                               <PopoverTrigger asChild>
                                 <button type="button" className={`w-full h-8 px-3 rounded-md border text-xs flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] ${!(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? "text-[#68726d] border-black/[0.06]" : "text-[#0b100e] border-border/80"}`}>
-                                  {(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? format(new Date(vendorDetails[vendorId]?.deliveryDate || defaultDate), "PPP") : "Pick a date"}
+                                  {(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? format(parseDateOnly(vendorDetails[vendorId]?.deliveryDate || defaultDate)!, "PPP") : "Pick a date"}
                                   <CalendarIcon className="w-3.5 h-3.5 ml-1.5 opacity-50 shrink-0" />
                                 </button>
                               </PopoverTrigger>
                               <PopoverContent className="w-auto p-0" align="start">
                                 <CalendarPicker
                                   mode="single"
-                                  selected={(vendorDetails[vendorId]?.deliveryDate || defaultDate) ? new Date(vendorDetails[vendorId]?.deliveryDate || defaultDate) : undefined}
+                                  selected={parseDateOnly(vendorDetails[vendorId]?.deliveryDate || defaultDate)}
                                   onSelect={(d) => {
                                     if (!d) return;
                                     setVendorDetails(p => ({...p, [vendorId]: { ...(p[vendorId] || {notes:""}), deliveryDate: format(d, "yyyy-MM-dd") }}));

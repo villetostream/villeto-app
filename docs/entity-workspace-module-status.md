@@ -178,3 +178,10 @@ retained its category after save and reload. All 44 frontend Vitest tests and
 TypeScript with temporary clean type roots passed. Existing lint errors in the
 page remain. This fix is pending review, merge and release-build retest; it does
 not close Stage 7 acceptance.
+
+The same branch also corrects purchase-request calendar-day display. The
+form, list and detail previously parsed `YYYY-MM-DD` as UTC midnight, so a
+selected October 31 appeared as October 30 in western time zones. They now
+parse date-only fields as local calendar dates. A localhost:3006 picker check
+showed October 31 after selecting October 31; 46 frontend tests and TypeScript
+passed. Persisted list/detail verification remains open.
