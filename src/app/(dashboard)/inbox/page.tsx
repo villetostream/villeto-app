@@ -1,6 +1,6 @@
 "use client";
 import { workspaceFetch } from "@/features/entity-workspace/fetch";
-import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
+import { useEntityWorkspaceStore, workspaceReadOnly } from "@/features/entity-workspace/store";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
@@ -265,6 +265,13 @@ import { useNotificationCountStore } from "@/hooks/useNotificationCount";
 
 export default function InboxPage() {
   const generation = useEntityWorkspaceStore((state) => state.generation);
+  const identity = useEntityWorkspaceStore((state) => state.identity);
+  return <InboxWorkspaceView key={`${identity}:${generation}`} />;
+}
+
+function InboxWorkspaceView() {
+  const generation = useEntityWorkspaceStore((state) => state.generation);
+  const readOnly = workspaceReadOnly();
   const accessToken = useAuthStore.getState().accessToken;
   const setGlobalUnreadCount = useNotificationCountStore(
     (s) => s.setUnreadCount,
@@ -286,7 +293,7 @@ export default function InboxPage() {
     const h: Record<string, string> = { "Content-Type": "application/json" };
     if (accessToken) h["Authorization"] = `Bearer ${accessToken}`;
     return h;
-  }, [accessToken, generation]);
+  }, [accessToken]);
 
   // ── Fetch all ────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(
@@ -300,6 +307,8 @@ export default function InboxPage() {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json: unknown = await res.json();
+        if (useEntityWorkspaceStore.getState().generation !== generation)
+          return;
         const jsonRecord = asRecord(json);
         const rawList = Array.isArray(json) ? json : asArray(jsonRecord.data);
         const list = rawList.filter(isRecord).map(asRecord);
@@ -325,15 +334,20 @@ export default function InboxPage() {
               return n;
             }
           }),
-        ).then(setNotifications);
+        ).then((resolved) => {
+          if (useEntityWorkspaceStore.getState().generation === generation)
+            setNotifications(resolved);
+        });
       } catch (err) {
         logger.error("[Inbox] fetchAll error:", err);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (useEntityWorkspaceStore.getState().generation === generation) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [authHeaders, accessToken],
+    [authHeaders, accessToken, generation],
   );
 
   useEffect(() => {
@@ -390,6 +404,8 @@ export default function InboxPage() {
               const resolvedMessage = msg.match(UUID_RE)
                 ? await resolveMessageIds(msg, accessToken).catch(() => msg)
                 : msg;
+              if (useEntityWorkspaceStore.getState().generation !== generation)
+                return;
               setNotifications((prev) => {
                 const idx = prev.findIndex((n) => n.id === incoming.id);
                 const updated = { ...incoming, resolvedMessage };
@@ -416,41 +432,50 @@ export default function InboxPage() {
   // ── Mark single read ─────────────────────────────────────────────────────────
   const markRead = useCallback(
     async (id: string) => {
-      if (markingId) return;
+      if (markingId || readOnly) return;
       setMarkingId(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
-      );
       try {
-        await workspaceFetch(apiUrl(`events/notifications/mark-read/${id}`), {
+        const res = await workspaceFetch(apiUrl(`events/notifications/mark-read/${id}`), {
           headers: authHeaders(),
           credentials: "include",
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (useEntityWorkspaceStore.getState().generation !== generation) return;
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+        );
+        setSelected((prev) =>
+          prev?.id === id ? { ...prev, isRead: true } : prev,
+        );
       } catch {
-        /* optimistic stays */
+        /* A denied read action must not appear successful. */
       } finally {
         setMarkingId(null);
       }
     },
-    [authHeaders, markingId],
+    [authHeaders, markingId, generation, readOnly],
   );
 
   // ── Mark all read ────────────────────────────────────────────────────────────
   const markAllRead = useCallback(async () => {
-    if (markingAllRead) return;
+    if (markingAllRead || readOnly) return;
     setMarkingAllRead(true);
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     try {
-      await workspaceFetch(apiUrl("events/notifications/mark-all-read"), {
+      const res = await workspaceFetch(apiUrl("events/notifications/mark-all-read"), {
         headers: authHeaders(),
         credentials: "include",
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (useEntityWorkspaceStore.getState().generation !== generation) return;
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setSelected((prev) => (prev ? { ...prev, isRead: true } : prev));
     } catch {
-      fetchAll(true);
+      if (useEntityWorkspaceStore.getState().generation === generation)
+        void fetchAll(true);
     } finally {
       setMarkingAllRead(false);
     }
-  }, [authHeaders, markingAllRead, fetchAll]);
+  }, [authHeaders, markingAllRead, fetchAll, generation, readOnly]);
 
   // ── Derived lists ────────────────────────────────────────────────────────────
   const tabFilter =
@@ -501,7 +526,8 @@ export default function InboxPage() {
             {totalUnread > 0 && (
               <button
                 onClick={markAllRead}
-                disabled={markingAllRead}
+                disabled={markingAllRead || readOnly}
+                title={readOnly ? "Select an active legal entity to mark notifications read" : undefined}
                 className="flex items-center gap-2 h-9 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {markingAllRead ? (
@@ -605,8 +631,8 @@ export default function InboxPage() {
                   key={n.id}
                   onClick={() => {
                     // Mark as read then open detail sheet
-                    if (!n.isRead) markRead(n.id);
-                    setSelected({ ...n, isRead: true });
+                    if (!n.isRead && !readOnly) void markRead(n.id);
+                    setSelected(n);
                   }}
                   className={[
                     "flex items-start gap-4 px-6 py-5 transition-colors cursor-pointer",
@@ -833,11 +859,10 @@ export default function InboxPage() {
 
               {/* Footer */}
               <div className="shrink-0 border-t border-gray-100 px-6 py-4 flex items-center gap-3">
-                {!selected.isRead && (
+                {!selected.isRead && !readOnly && (
                   <button
                     onClick={() => {
-                      markRead(selected.id);
-                      setSelected({ ...selected, isRead: true });
+                      void markRead(selected.id);
                     }}
                     className="flex items-center gap-2 h-9 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium transition-colors"
                   >
