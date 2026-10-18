@@ -1388,13 +1388,15 @@ function PRDetailPage() {
   // A user could manually type ?scope=company to try to elevate their view.
   // We re-validate the requested scope against the same permission gates used
   // on the list page before honouring it.
-  const hasTeamScopePermission    = policies.purchaseRequests.listScope === "team" || policies.purchaseRequests.listScope === "company";
+  const hasTeamScopePermission = policies.purchaseRequests.canReadReportingChainScope;
+  const hasDepartmentScopePermission = policies.purchaseRequests.canReadDepartmentScope;
   const hasCompanyScopePermission = policies.purchaseRequests.listScope === "company";
   const rawScope  = searchParams.get("scope") || searchParams.get("outerTab") || "own";
   const scope = (
     rawScope === "company" && hasCompanyScopePermission ? "company" :
-    rawScope === "team"    && hasTeamScopePermission    ? "team"    : "own"
-  ) as "own" | "team" | "company";
+    rawScope === "team" && hasTeamScopePermission ? "team" :
+    rawScope === "department" && hasDepartmentScopePermission ? "department" : "own"
+  ) as "own" | "team" | "department" | "company";
 
   // Company-scope override unlock state (session-only, resets on navigation)
   const [overrideUnlocked, setOverrideUnlocked] = useState(false);
@@ -1466,7 +1468,7 @@ function PRDetailPage() {
 
   // ── Permission gates ──────────────────────────────────────────────────────
   const isOwnScope     = scope === "own";
-  const isTeamScope    = scope === "team";
+  const isDepartmentScope = scope === "department" || scope === "team";
   const isCompanyScope = scope === "company";
 
   // True if the currently logged-in user is the requester of THIS specific PR —
@@ -1504,10 +1506,10 @@ function PRDetailPage() {
   );
 
   // On own scope — never show approve/reject
-  // On team/company scope — show if permission + submitted, AND the viewer is not the requester
+  // On department/company scope — show if permission + submitted, AND the viewer is not the requester
   // (the backend rejects self-approval, so the UI must not offer it either)
   const canApprove = !isOwnScope && !isOwnRequest && isSubmitted && hasApprovePermission &&
-    (isTeamScope || (isCompanyScope && overrideUnlocked));
+    (isDepartmentScope || (isCompanyScope && overrideUnlocked));
   const _canReject  = canApprove;
 
   // Create PO: available if approved and user has permission

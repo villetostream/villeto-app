@@ -178,7 +178,8 @@ function grantsFor(snapshot: AuthorizationSnapshot | null, keys: string[]) {
 
 export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | null) {
   const permissionSet = new Set(snapshot?.permissions ?? []);
-  const prScope = toApiListScope(strongestScope(grantsFor(snapshot, Object.values(CAPABILITIES.purchaseRequest))));
+  const prGrants = grantsFor(snapshot, Object.values(CAPABILITIES.purchaseRequest));
+  const prScope = toApiListScope(strongestScope(prGrants));
   const poScope = toApiListScope(strongestScope(grantsFor(snapshot, Object.values(CAPABILITIES.purchaseOrder))));
   const expenseScope = toApiListScope(strongestScope(grantsFor(snapshot, Object.values(CAPABILITIES.expense))));
 
@@ -222,6 +223,8 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
       listScope: prScope,
       canView: prScope !== null,
       canReadDepartment: has(permissionSet, PERMISSIONS.purchaseRequest.readDepartment),
+      canReadReportingChainScope: has(permissionSet, PERMISSIONS.purchaseRequest.readDepartment) && prGrants.some((grant) => grant.scopeType === "reporting_chain"),
+      canReadDepartmentScope: has(permissionSet, PERMISSIONS.purchaseRequest.readDepartment) && prGrants.some((grant) => grant.scopeType === "department"),
       canReadCompany: has(permissionSet, PERMISSIONS.purchaseRequest.readCompany),
       canCreate: has(permissionSet, PERMISSIONS.purchaseRequest.create),
       canSubmit: has(permissionSet, PERMISSIONS.purchaseRequest.submit),

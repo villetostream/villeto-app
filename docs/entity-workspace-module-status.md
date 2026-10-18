@@ -185,3 +185,18 @@ selected October 31 appeared as October 30 in western time zones. They now
 parse date-only fields as local calendar dates. A localhost:3006 picker check
 showed October 31 after selecting October 31; 46 frontend tests and TypeScript
 passed. Persisted list/detail verification remains open.
+
+The release follow-up also removes visible export and PDF/download controls
+that had no handler: PR and PO list Export, procurement invoice Download PDF,
+and Bill Pay intake Download PDF/document Download. This prevents a false
+successful-action affordance. It does **not** implement scoped downloads or
+exports; Stage 5 S5-04 and shared X-02 remain open until authenticated,
+entity-scoped endpoints and UI consumers are implemented and tested.
+
+The Purchase Requests reviewer list now distinguishes reporting-chain `team`
+scope from assigned `department` scope. A department-granted reviewer gets a
+Department Requests tab whose query uses the backend's `department` scope;
+reporting-chain reviewers retain Team Requests. The detail context accepts
+either scope after validating the matching grant. This addresses the local
+reviewer-list mismatch recorded in the backend manual checklist. Browser
+verification with the separate reviewer account is still open.

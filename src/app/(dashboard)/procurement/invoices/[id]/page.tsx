@@ -118,11 +118,6 @@ export default function ProcurementInvoiceDetailsPage() {
                    Record Payment
                 </Button>
              )}
-             {(currentStage === "approved" || currentStage === "paid") && (
-                <Button variant="outline" className="h-10 rounded-[8px] font-semibold text-[13px] px-6 text-[#10231d] border-black/[0.12] hover:bg-gray-50">
-                   Download PDF
-                </Button>
-             )}
           </div>
         </div>
       </div>
