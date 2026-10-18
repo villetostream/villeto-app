@@ -1390,7 +1390,7 @@ function PRDetailPage() {
   // on the list page before honouring it.
   const hasTeamScopePermission = policies.purchaseRequests.canReadReportingChainScope;
   const hasDepartmentScopePermission = policies.purchaseRequests.canReadDepartmentScope;
-  const hasCompanyScopePermission = policies.purchaseRequests.listScope === "company";
+  const hasCompanyScopePermission = policies.purchaseRequests.canReadCompany;
   const rawScope  = searchParams.get("scope") || searchParams.get("outerTab") || "own";
   const scope = (
     rawScope === "company" && hasCompanyScopePermission ? "company" :
