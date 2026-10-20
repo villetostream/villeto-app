@@ -26,7 +26,7 @@ export default function ProcurementInvoiceDetailsPage() {
   const policies = useAuthorizationPolicies();
   const { setBackHandler, clearBackHandler } = useHeaderBackStore();
 
-  const { data: invoiceResponse, isLoading } = useGetProcurementInvoiceById(id);
+  const { data: invoiceResponse, isLoading, isError } = useGetProcurementInvoiceById(id);
   const invoiceData = invoiceResponse?.data;
 
   const paymentAction = useInvoicePaymentAction();
@@ -75,6 +75,10 @@ export default function ProcurementInvoiceDetailsPage() {
     );
   }
 
+  if (isError || !invoiceData) {
+    return <div className="flex-1 p-8 text-gray-600">Invoice unavailable in this legal entity workspace.</div>;
+  }
+
   return (
     <div className="flex-1 pb-8 flex flex-col min-h-0 overflow-auto">
       {/* Header Section (Sticky) */}
@@ -114,11 +118,6 @@ export default function ProcurementInvoiceDetailsPage() {
                    Record Payment
                 </Button>
              )}
-             {(currentStage === "approved" || currentStage === "paid") && (
-                <Button variant="outline" className="h-10 rounded-[8px] font-semibold text-[13px] px-6 text-[#10231d] border-black/[0.12] hover:bg-gray-50">
-                   Download PDF
-                </Button>
-             )}
           </div>
         </div>
       </div>
@@ -146,8 +145,8 @@ export default function ProcurementInvoiceDetailsPage() {
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Related PO</p>
                           <p className="text-[13px] font-bold text-[#10231d] flex items-center gap-2">
                              {invoiceData?.purchaseOrder?.poNumber || invoiceData?.poNumber || "N/A"}
-                             {(invoiceData?.purchaseOrder || invoiceData?.poNumber) && (
-                                <Button variant="link" className="h-auto p-0 text-[#087f70] font-semibold text-[12px] hover:text-[#076b5e]">View</Button>
+                             {(invoiceData?.purchaseOrder?.purchaseOrderId || invoiceData?.purchaseOrderId) && (
+                                <Button onClick={() => router.push(`/procurement/purchase-order/${invoiceData.purchaseOrder?.purchaseOrderId || invoiceData.purchaseOrderId}`)} variant="link" className="h-auto p-0 text-[#087f70] font-semibold text-[12px] hover:text-[#076b5e]">View</Button>
                              )}
                           </p>
                        </div>

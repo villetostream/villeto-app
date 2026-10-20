@@ -239,8 +239,7 @@ function AccountingPage() {
                         )}
                       </div>
                       <p className="mt-1 text-[10px] text-[#82908a]">
-                        {entity?.code} · {entity?.countryOfRegistration} ·{" "}
-                        {currency}
+                        {allMode ? "Authorized entities · totals by currency below" : [entity?.code, entity?.countryOfRegistration, currency].filter(Boolean).join(" · ")}
                       </p>
                     </div>
                   </div>
@@ -272,7 +271,7 @@ function AccountingPage() {
               <OverviewMetric
                 label="Outstanding AP shown"
                 value={
-                  allMode ? "Multiple currencies" : money(outstanding, currency)
+                  allMode ? "By currency below" : money(outstanding, currency)
                 }
                 detail={`${obligations.filter((item) => item.status !== "settled").length} obligations`}
                 icon={<CircleDollarSign />}

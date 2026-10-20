@@ -239,7 +239,9 @@ function NewReportPage() {
 
   // If draftId was provided via query param on initial load, fetch its details
   useEffect(() => {
-    if (!initialDraftId) return;
+    // Drafts store expenseCategoryId, while the form uses category names.
+    // Wait for the category directory before hydrating a saved draft.
+    if (!initialDraftId || isLoadingCategories) return;
     let isCancelled = false;
 
     const fetchExistingDraft = async () => {
@@ -273,7 +275,11 @@ function NewReportPage() {
               return {
                 id: e.expenseId || e.id || `draft-${index}-${Date.now()}`,
                 name: e.title || e.name || `Expense ${index + 1}`,
-                category: e.categoryName || e.category || "",
+                category:
+                  categories.find((category) => category.categoryId === e.expenseCategoryId)?.name ||
+                  e.categoryName ||
+                  (typeof e.category === "string" ? e.category : e.category?.name) ||
+                  "",
                 amount: Number(e.amount) || 0,
                 merchantName: e.merchantName || "",
                 description: e.description || "",
@@ -302,7 +308,7 @@ function NewReportPage() {
     return () => {
       isCancelled = true;
     };
-  }, [initialDraftId, axios, initialTitle]);
+  }, [initialDraftId, axios, initialTitle, isLoadingCategories, categories]);
 
   const canCreatePolicy = useAuthStore((s) => s.can)("policy", "create");
   const categoriesWithPolicies = useMemo(() => {

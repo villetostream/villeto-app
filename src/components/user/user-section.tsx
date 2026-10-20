@@ -1324,22 +1324,15 @@ export function UserSection() {
           onClick={() =>
             router.push("/settings/personal-settings?tab=my-profile")
           }
-          className="group flex h-10 items-center gap-2 rounded-[10px] border border-black/[0.06] bg-white p-1 pr-1 shadow-[0_1px_2px_rgba(16,35,29,0.04)] transition-colors hover:bg-[#f4f8f6] xl:pr-2.5"
-          aria-label="Open personal settings"
+          className="group flex size-11 items-center justify-center rounded-xl border border-black/[0.06] bg-white p-1.5 shadow-sm transition-colors hover:bg-[#f4f8f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#087f70] focus-visible:ring-offset-2"
+          aria-label={`Open personal settings for ${[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "your account"}`}
+          title={[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "My profile"}
         >
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[#e6f7f3] text-[11px] font-bold uppercase text-[#087f70] ring-1 ring-[#087f70]/10">
-            {user?.firstName?.[0] || user?.email?.[0] || "U"}
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#087f70] text-[11px] font-semibold tracking-wide text-white ring-2 ring-[#e6f7f3]">
+            {([user?.firstName, user?.lastName]
+              .map((name) => name?.trim().charAt(0) || "")
+              .join("") || user?.email?.charAt(0) || "U").toUpperCase()}
           </span>
-          <span className="hidden max-w-28 text-left xl:block">
-            <span className="block truncate text-[11px] font-semibold leading-4 text-[#10231d]">
-              {[user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
-                "My profile"}
-            </span>
-            <span className="block truncate text-[9px] leading-3 text-[#7a8782]">
-              {user?.companyRole?.name || user?.jobTitle || "Workspace member"}
-            </span>
-          </span>
-          <ChevronDown className="hidden size-3.5 text-[#8a9691] transition-transform group-hover:translate-y-0.5 xl:block" />
         </button>
       </div>
 

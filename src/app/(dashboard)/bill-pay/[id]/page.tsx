@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -26,7 +26,7 @@ function RegularBillDetailsPage() {
   const policies = useAuthorizationPolicies();
   const { setBackHandler, clearBackHandler } = useHeaderBackStore();
 
-  const { data: invoiceResponse, isLoading } = useGetBillPayInvoiceById(id);
+  const { data: invoiceResponse, isLoading, isError } = useGetBillPayInvoiceById(id);
   const invoiceData = invoiceResponse?.data;
 
   // Use the API's workflowStage for the status badge, fallback to pending logic
@@ -54,6 +54,10 @@ function RegularBillDetailsPage() {
     );
   }
 
+  if (isError || !invoiceData) {
+    return <div className="flex-1 p-8 text-gray-600">Invoice unavailable in this legal entity workspace.</div>;
+  }
+
   return (
     <div className="flex-1 pb-8 flex flex-col">
       {/* Header Section (Sticky) */}
@@ -74,18 +78,8 @@ function RegularBillDetailsPage() {
           
           <div className="flex items-center gap-3">
              {currentStage === "awaiting_approval" && canApprove && (
-                <>
-                   <Button variant="outline" className="text-[#d33d44] border-red-200 hover:bg-red-50 hover:text-red-700 h-10 rounded-[8px] font-semibold text-[13px] px-6">
-                      Reject Invoice
-                   </Button>
-                   <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
-                      Approve Bill
-                   </Button>
-                </>
-             )}
-             {(currentStage === "approved" || currentStage === "paid") && (
-                <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
-                   Download PDF
+                <Button onClick={() => router.push(`/procurement/invoices/${id}`)} className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
+                   Open invoice review
                 </Button>
              )}
           </div>
@@ -109,14 +103,14 @@ function RegularBillDetailsPage() {
                        {/* Row 1 */}
                        <div>
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Vendor</p>
-                          <p className="text-[13px] font-bold text-[#10231d]">{invoiceData?.vendorName || "N/A"}</p>
+                          <p className="text-[13px] font-bold text-[#10231d]">{invoiceData?.vendor?.displayName || invoiceData?.vendor?.legalName || "N/A"}</p>
                        </div>
                        <div>
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Related PO</p>
                           <p className="text-[13px] font-bold text-[#10231d] flex items-center gap-2">
-                             {invoiceData?.purchaseOrderId || "N/A"}
-                             {invoiceData?.purchaseOrderId && (
-                                <Button variant="link" className="h-auto p-0 text-[#087f70] font-semibold text-[12px] hover:text-[#076b5e]">View</Button>
+                             {invoiceData?.purchaseOrder?.poNumber || "N/A"}
+                             {invoiceData?.purchaseOrder?.purchaseOrderId && (
+                                <Button onClick={() => router.push(`/procurement/purchase-order/${invoiceData.purchaseOrder!.purchaseOrderId}`)} variant="link" className="h-auto p-0 text-[#087f70] font-semibold text-[12px] hover:text-[#076b5e]">View</Button>
                              )}
                           </p>
                        </div>
@@ -132,7 +126,7 @@ function RegularBillDetailsPage() {
                        {/* Row 2 */}
                        <div>
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Subtotal</p>
-                          <p className="text-[13px] font-bold text-[#10231d]">{invoiceData?.subTotal ? formatter.format(parseFloat(invoiceData.subTotal)) : "—"}</p>
+                          <p className="text-[13px] font-bold text-[#10231d]">{invoiceData?.subtotal != null ? formatter.format(parseFloat(invoiceData.subtotal)) : "—"}</p>
                        </div>
                        <div>
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Tax Amount</p>
@@ -155,7 +149,7 @@ function RegularBillDetailsPage() {
                  <CardHeader className="p-6 border-b border-black/[0.04]">
                     <div className="flex items-center gap-3">
                        <h3 className="text-[15px] font-bold text-[#10231d]">Invoice Items</h3>
-                       <StatusBadge status="provisional" label={(invoiceData?.items?.length || 0).toString()} className="bg-[#f4f7f5] text-[#10231d] border-transparent" />
+                       <StatusBadge status="provisional" label={(invoiceData?.lineItems?.length || 0).toString()} className="bg-[#f4f7f5] text-[#10231d] border-transparent" />
                     </div>
                  </CardHeader>
                  <CardContent className="p-0">
@@ -169,12 +163,12 @@ function RegularBillDetailsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {invoiceData?.items?.length ? invoiceData.items.map((row: any, i: number) => (
+                        {invoiceData?.lineItems?.length ? invoiceData.lineItems.map((row, i) => (
                            <TableRow key={i} className="border-black/[0.04] hover:bg-[#f9faf9]/50 transition-colors">
-                             <TableCell className="text-[13px] font-semibold text-[#10231d] pl-6 py-4">{row.description}</TableCell>
+                             <TableCell className="text-[13px] font-semibold text-[#10231d] pl-6 py-4">{row.name || row.description}</TableCell>
                              <TableCell className="text-[13px] text-[#68726d] py-4">{row.quantity ? parseFloat(row.quantity) : "0"}</TableCell>
                              <TableCell className="text-[13px] text-[#68726d] py-4">{formatter.format(parseFloat(row.unitPrice || "0"))}</TableCell>
-                             <TableCell className="text-[13px] font-semibold text-[#10231d] py-4 pr-6 text-right">{formatter.format(parseFloat(row.amount || "0"))}</TableCell>
+                             <TableCell className="text-[13px] font-semibold text-[#10231d] py-4 pr-6 text-right">{formatter.format(parseFloat(row.lineTotal || row.subtotal || "0"))}</TableCell>
                            </TableRow>
                         )) : (
                           <TableRow>

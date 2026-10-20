@@ -302,5 +302,5 @@ function LegalEntitiesPage() {
 }
 
 export default withPermissions(LegalEntitiesPage, [
-  { resource: "legal_entity", action: "view" },
+  { resource: "legal_entity", action: "manage" },
 ]);
