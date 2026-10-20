@@ -15,9 +15,13 @@ export function useApproveProcurementPolicy() {
       );
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.policies),
+      });
+      // Invalidate individual cache so the detail view reflects the new status
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.policy(id)),
       });
     },
   });
@@ -34,9 +38,13 @@ export function useRejectProcurementPolicy() {
       );
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.policies),
+      });
+      // Invalidate individual cache so the detail view reflects the new status
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.policy(id)),
       });
     },
   });

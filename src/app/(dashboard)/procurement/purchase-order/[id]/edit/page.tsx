@@ -686,10 +686,18 @@ function EditPurchaseOrderPage() {
             </button>
             <button type="button" onClick={handleSubmit} disabled={submitting || lineItems.length === 0}
               className={`h-10 px-6 rounded-[12px] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 ${
-                policyViolations ? "bg-[#d33d44] hover:bg-[#c33339]" : "bg-[#087f70]"
+                policyViolations && policyViolations.some(v => v.resolution === "BLOCK")
+                  ? "bg-[#d33d44] hover:bg-[#c33339]"
+                  : policyViolations && policyViolations.length > 0
+                  ? "bg-amber-600 hover:bg-amber-700"
+                  : "bg-[#087f70]"
               }`}>
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              {policyViolations ? "Fix Violations to Submit" : "Submit for Approval"}
+              {policyViolations && policyViolations.some(v => v.resolution === "BLOCK")
+                ? "Fix Violations to Submit"
+                : policyViolations && policyViolations.length > 0
+                ? "Review Warnings to Submit"
+                : "Submit for Approval"}
             </button>
           </div>
         </div>

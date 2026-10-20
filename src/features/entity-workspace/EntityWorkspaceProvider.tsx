@@ -64,7 +64,13 @@ export function EntityWorkspaceProvider({ children }: { children: ReactNode }) {
           target?.closest('[role="dialog"]')) &&
         !target?.closest("[data-workspace-filter]")
       )
-        useEntityWorkspaceStore.getState().setDirty(true);
+        // Defer: this listener runs in the capture phase, before React's own
+        // onChange. A synchronous store update here re-renders controlled
+        // inputs with their stale value and the keystroke is lost.
+        window.setTimeout(
+          () => useEntityWorkspaceStore.getState().setDirty(true),
+          0,
+        );
     };
     document.addEventListener("input", edited, true);
     document.addEventListener("change", edited, true);

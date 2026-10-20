@@ -567,33 +567,66 @@ function VendorDetailsPage() {
                     " ",
                   );
                   const fileUrl = getString(doc.fileUrl);
+                  const rawIssuedAt = doc.issuedAt;
+                  const rawExpiresAt = doc.expiresAt;
+                  const formatDate = (value: unknown) => {
+                    if (!value || typeof value !== "string") return "N/A";
+                    const d = new Date(value);
+                    return isNaN(d.getTime())
+                      ? "N/A"
+                      : d.toLocaleDateString(undefined, {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        });
+                  };
                   return (
                     <div
                       key={docId || originalName}
-                      className="flex items-center justify-between p-3.5 rounded-[10px] border border-black/[0.06] bg-white"
+                      className="p-3.5 rounded-[10px] border border-black/[0.06] bg-white space-y-3"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#f0faf8] flex items-center justify-center shrink-0">
-                          <CheckCircle2 className="w-4 h-4 text-[#087f70]" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#f0faf8] flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="w-4 h-4 text-[#087f70]" />
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-semibold text-[#0b100e] leading-tight">
+                              {originalName}
+                            </p>
+                            <p className="text-[12px] text-[#84908a] capitalize mt-0.5">
+                              {documentType}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setPreviewDocUrl(fileUrl);
+                            setPreviewDocName(originalName);
+                          }}
+                          className="px-4 py-1.5 rounded-[6px] border border-[#087f70] text-[#087f70] text-[12px] font-semibold hover:bg-[#f0faf8] transition-colors"
+                        >
+                          View
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-black/[0.05]">
+                        <div>
+                          <p className="text-[11px] font-medium text-[#a0aaa5] mb-0.5">
+                            Issue Date
+                          </p>
+                          <p className="text-[12px] font-semibold text-[#39423e]">
+                            {formatDate(rawIssuedAt)}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-[13px] font-semibold text-[#0b100e] leading-tight">
-                            {originalName}
+                          <p className="text-[11px] font-medium text-[#a0aaa5] mb-0.5">
+                            Expiry Date
                           </p>
-                          <p className="text-[12px] text-[#84908a] capitalize mt-0.5">
-                            {documentType}
+                          <p className="text-[12px] font-semibold text-[#39423e]">
+                            {formatDate(rawExpiresAt)}
                           </p>
                         </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          setPreviewDocUrl(fileUrl);
-                          setPreviewDocName(originalName);
-                        }}
-                        className="px-4 py-1.5 rounded-[6px] border border-[#087f70] text-[#087f70] text-[12px] font-semibold hover:bg-[#f0faf8] transition-colors"
-                      >
-                        View
-                      </button>
                     </div>
                   );
                 })}

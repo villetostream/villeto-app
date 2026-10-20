@@ -42,7 +42,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
-import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
+import { usePurchaseOrders, useConfirmationOrders } from "@/queries/procurement/purchase-orders";
 import { useCompanyExpenses } from "@/lib/react-query/expenses";
 import {
   Tooltip,
@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/tooltip";
 import { logoutAndRedirect } from "@/lib/logout";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import { EntityWorkspaceSwitcher } from "@/features/entity-workspace/EntityWorkspaceSwitcher";
 
 function CollapsedNavTooltip({
   label,
@@ -263,36 +264,19 @@ export function DashboardSidebar({
     : 0;
 
   const canReceivePO = policies.purchaseOrders.canReceive;
-  const poListScope = policies.purchaseOrders.listScope || "own";
 
-  const { data: poReadyForDeliveryData } = usePurchaseOrders(
-    1,
-    1,
-    "ready_for_delivery",
-    undefined,
-    undefined,
-    poListScope,
-    { enabled: canReceivePO, select: (d) => d.meta?.totalCount ?? 0 },
+  // Fetch the confirmation queue (dedicated endpoint) and count only POs
+  // that have fulfillmentActionRequired===true — i.e. a new delivery batch
+  // is waiting to be confirmed, even if the PO was already partially confirmed.
+  const { data: confirmationData } = useConfirmationOrders(
+    { limit: 100 },
+    { enabled: canReceivePO, refetchInterval: 60_000, staleTime: 0 },
   );
-  const poReadyForDeliveryCount = canReceivePO
-    ? ((poReadyForDeliveryData as unknown as number) ?? 0)
+  const totalConfirmationCount = canReceivePO
+    ? (confirmationData?.data ?? []).filter(
+        (po) => po.fulfillmentActionRequired === true,
+      ).length
     : 0;
-
-  const { data: poPartiallyDeliveredData } = usePurchaseOrders(
-    1,
-    1,
-    "partially_delivered",
-    undefined,
-    undefined,
-    poListScope,
-    { enabled: canReceivePO, select: (d) => d.meta?.totalCount ?? 0 },
-  );
-  const poPartiallyDeliveredCount = canReceivePO
-    ? ((poPartiallyDeliveredData as unknown as number) ?? 0)
-    : 0;
-
-  const totalConfirmationCount =
-    poReadyForDeliveryCount + poPartiallyDeliveredCount;
 
   const isExpenseManager =
     policies.expenses.listScope === "company" ||
@@ -664,31 +648,20 @@ export function DashboardSidebar({
             )}
           </div>
 
-          {/* ── Company Selector ── */}
+          {/* ── Organization (doubles as legal entity switcher) ── */}
           <div className="pb-4 flex justify-center">
-            {isExpanded ? (
-              <div className="flex items-center gap-2.5 rounded-[11px] border border-white/[0.08] bg-white/[0.05] px-3 py-2.5 w-full">
-                <div className="flex-shrink-0 w-8 h-8 overflow-hidden rounded-[8px] ring-1 ring-white/10">
-                  {renderLogo()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/35">
-                    Workspace
-                  </p>
-                  <p className="truncate text-[13px] font-semibold text-white/90">
-                    {loading ? (
-                      <Skeleton className="h-4 w-28 bg-white/10" />
-                    ) : (
-                      businessName || "Business Name"
-                    )}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <CollapsedNavTooltip label={businessName || "Workspace"} show>
-                <div className="w-8 h-8">{renderCollapsedLogo()}</div>
-              </CollapsedNavTooltip>
-            )}
+            <EntityWorkspaceSwitcher
+              collapsed={!isExpanded}
+              logo={renderLogo()}
+              collapsedLogo={renderCollapsedLogo()}
+              organizationName={
+                loading ? (
+                  <Skeleton className="h-4 w-28 bg-white/10" />
+                ) : (
+                  businessName || "Business Name"
+                )
+              }
+            />
           </div>
         </div>
       </SidebarHeader>

@@ -614,9 +614,14 @@ export const useApproveSpendProgram = () => {
       );
       return res.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, id) => {
       await qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
+      // Invalidate individual cache so the detail view reflects the new status
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
         refetchType: "all",
       });
     },
@@ -636,9 +641,15 @@ export const useRejectSpendProgram = () => {
       );
       return res.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, args) => {
+      const id = typeof args === "string" ? args : args.id;
       await qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
+      // Invalidate individual cache so the detail view reflects the new status
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
         refetchType: "all",
       });
     },

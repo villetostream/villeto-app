@@ -123,6 +123,8 @@ export const PROCUREMENT_KEYS = {
   ACTIVE_VENDORS: "vendors?status=Active",
   // ── Purchase Order endpoints ─────────────────────────────────────────────
   PURCHASE_ORDERS: "procurement/purchase-orders",
+  /** GET — dedicated confirmations/receiving queue endpoint */
+  PURCHASE_ORDER_CONFIRMATIONS: "procurement/purchase-orders/confirmations",
   PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}` as const,
   CANCEL_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/cancel` as const,
   ISSUE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/issue` as const,
