@@ -890,11 +890,17 @@ function PODetailPage() {
                     setModal("submit");
                   }} 
                   className={`h-9 px-5 rounded-lg text-white text-sm font-semibold transition-opacity ${
-                    policyViolations 
+                    policyViolations && policyViolations.some(v => v.resolution === "BLOCK")
                       ? "bg-[#d33d44] hover:bg-[#c33339] opacity-90 cursor-pointer" 
+                      : policyViolations && policyViolations.length > 0
+                      ? "bg-amber-600 hover:bg-amber-700"
                       : "bg-[#087f70] hover:opacity-90"
                   }`}>
-                  {policyViolations ? "Fix Violations to Submit" : "Submit for Approval"}
+                  {policyViolations && policyViolations.some(v => v.resolution === "BLOCK")
+                    ? "Fix Violations to Submit"
+                    : policyViolations && policyViolations.length > 0
+                    ? "Review Warnings to Submit"
+                    : "Submit for Approval"}
                 </button>
               )}
               {showReject && (

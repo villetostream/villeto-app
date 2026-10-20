@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   X, Plus, Trash2, ChevronDown, Loader2, Package2,
   CheckCircle2, AlertCircle,
@@ -551,10 +552,10 @@ export default function LineItemBatchModal({
   );
 
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center">
       {/* Backdrop (intentionally ignores clicks to prevent accidental closure) */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] pointer-events-none" />
 
       {/* Modal Container */}
       <div className={`relative bg-white shadow-2xl rounded-[14px] flex flex-col overflow-hidden m-4 sm:m-6 w-full max-h-[90vh] ${isEditMode ? 'max-w-md' : 'max-w-5xl'}`}>
@@ -704,6 +705,7 @@ export default function LineItemBatchModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

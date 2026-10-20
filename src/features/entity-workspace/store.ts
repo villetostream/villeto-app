@@ -119,7 +119,8 @@ export const useEntityWorkspaceStore = create<WorkspaceState>((set, get) => ({
     persistSelection(state.identity, selection);
     set({ selection, generation: state.generation + 1, dirty: false });
   },
-  setDirty: (dirty) => set({ dirty }),
+  setDirty: (dirty) =>
+    set((s) => (s.dirty === dirty ? s : { dirty })),
   mutationStarted: () =>
     set((s) => ({ pendingMutations: s.pendingMutations + 1 })),
   mutationFinished: () =>
