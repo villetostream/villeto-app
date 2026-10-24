@@ -23,6 +23,24 @@ describe("authorization policies", () => {
       }],
     ));
     expect(policies.purchaseRequests.listScope).toBe("team");
+    expect(policies.purchaseRequests.canReadReportingChainScope).toBe(true);
+    expect(policies.purchaseRequests.canReadDepartmentScope).toBe(false);
+  });
+
+  it("keeps department and reporting-chain purchase request queues separate", () => {
+    const policies = buildAuthorizationPolicies(snapshot(
+      ["procurement.purchase_request.read_department"],
+      [{
+        key: "purchase_request_approver",
+        module: "procurement",
+        scopeType: "department",
+        scopeConfig: { departmentIds: ["department-1"] },
+        isImplied: false,
+        sourceRoleIds: ["role-1"],
+      }],
+    ));
+    expect(policies.purchaseRequests.canReadDepartmentScope).toBe(true);
+    expect(policies.purchaseRequests.canReadReportingChainScope).toBe(false);
   });
 
   it("selects the strongest scope across multiple roles", () => {

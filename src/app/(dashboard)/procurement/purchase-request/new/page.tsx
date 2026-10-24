@@ -39,6 +39,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
+import { parseDateOnly } from "@/lib/date-only";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import {
@@ -1090,7 +1091,7 @@ function NewPurchaseRequestPage() {
                       className={`w-full h-11 px-3 rounded-lg border border-black/[0.06] text-sm flex items-center justify-between transition-colors focus:outline-none focus:border-[#087f70] cursor-pointer ${!neededByDate ? "text-[#68726d]" : "text-[#0b100e]"}`}
                     >
                       {neededByDate
-                        ? format(new Date(neededByDate), "PPP")
+                        ? format(parseDateOnly(neededByDate)!, "PPP")
                         : "Pick a date"}
                       <CalendarIcon className="w-4 h-4 ml-2 opacity-50" />
                     </button>
@@ -1099,7 +1100,7 @@ function NewPurchaseRequestPage() {
                     <CalendarPicker
                       mode="single"
                       selected={
-                        neededByDate ? new Date(neededByDate) : undefined
+                        parseDateOnly(neededByDate)
                       }
                       onSelect={(d) => {
                         if (d) {

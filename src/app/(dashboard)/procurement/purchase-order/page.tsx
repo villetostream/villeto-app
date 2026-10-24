@@ -6,7 +6,7 @@ import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import {
-  Search, Eye, Download, Loader2, ChevronLeft, ChevronRight,
+  Search, Eye, Loader2, ChevronLeft, ChevronRight,
   MoreHorizontal, CheckCircle, XCircle, X, AlertCircle, Send,
   ArrowUp, ArrowDown, ChevronsUpDown, RefreshCw
 } from "lucide-react";
@@ -498,9 +498,6 @@ function POTable({
               <span className="font-semibold text-[13px]">{isLoading || isFetching ? "Refreshing..." : "Refresh"}</span>
             </button>
 
-            <button className="flex items-center gap-2 h-9 px-4 rounded-[8px] border border-[#087f70]/30 text-[#087f70] text-[13px] font-semibold hover:bg-[#f0faf8] transition-colors">
-              <Download className="w-4 h-4" /> Export
-            </button>
           </div>
         </div>
 

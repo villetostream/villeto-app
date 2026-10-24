@@ -355,9 +355,7 @@ export function StandardBillsTable() {
                 const id = inv.vendorInvoiceId;
                 const displayId = inv.invoiceNumber || `—`;
                 const vendorName =
-                  (inv as any).vendorName ||
-                  inv.description ||
-                  "Vendor";
+                  inv.vendor?.displayName || inv.vendor?.legalName || "—";
                 const nextDue = inv.dueDate
                   ? format(new Date(inv.dueDate), "dd MMM yyyy")
                   : "—";

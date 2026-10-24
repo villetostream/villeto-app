@@ -157,11 +157,6 @@ function InvoiceDetailsPage() {
                    </Button>
                 </>
              )}
-             {statusVariant === "approved" && (
-                 <Button className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
-                    Download PDF
-                 </Button>
-             )}
           </div>
         </div>
       </div>
@@ -350,7 +345,6 @@ function InvoiceDetailsPage() {
                                    </div>
                                    <span className="text-[13px] font-medium text-[#10231d] truncate max-w-[120px]">{doc.fileName || `Document ${i+1}`}</span>
                                 </div>
-                                <Button variant="link" className="text-[#087f70] font-semibold text-[12px] h-auto p-0 hover:text-[#076b5e]">Download</Button>
                              </div>
                           ))}
                        </div>
