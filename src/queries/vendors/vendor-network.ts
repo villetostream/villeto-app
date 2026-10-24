@@ -256,8 +256,6 @@ export interface VendorPaymentTerm {
  */
 export const useCompanyPaymentTermsList = (params?: {
   status?: string;
-  vendorId?: string;
-  companyId?: string;
   page?: number;
   limit?: number;
 }) => {
@@ -268,10 +266,8 @@ export const useCompanyPaymentTermsList = (params?: {
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       if (params?.status) queryParams.set("status", params.status);
-      if (params?.vendorId) queryParams.set("vendorId", params.vendorId);
-      if (params?.companyId) queryParams.set("companyId", params.companyId);
       if (params?.page) queryParams.set("page", String(params.page));
-      if (params?.limit) queryParams.set("limit", String(params.limit || 50));
+      if (params?.limit) queryParams.set("limit", String(params.limit || 100));
 
       const queryStr = queryParams.toString();
       const response = await axiosInstance.get(
