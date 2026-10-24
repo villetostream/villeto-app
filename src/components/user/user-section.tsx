@@ -1324,13 +1324,13 @@ export function UserSection() {
           onClick={() =>
             router.push("/settings/personal-settings?tab=my-profile")
           }
-          className="group flex h-10 items-center gap-2 rounded-[10px] border border-black/[0.06] bg-white p-1 pr-1 shadow-[0_1px_2px_rgba(16,35,29,0.04)] transition-colors hover:bg-[#f4f8f6] xl:pr-2.5"
+          className="group flex h-10 items-center gap-2 rounded-[10px] border border-black/[0.06] bg-white p-1 pr-1 shadow-[0_1px_2px_rgba(16,35,29,0.04)] transition-colors hover:bg-[#f4f8f6] md:pr-2.5"
           aria-label="Open personal settings"
         >
           <span className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[#e6f7f3] text-[11px] font-bold uppercase text-[#087f70] ring-1 ring-[#087f70]/10">
             {user?.firstName?.[0] || user?.email?.[0] || "U"}
           </span>
-          <span className="hidden max-w-28 text-left xl:block">
+          <span className="hidden max-w-32 text-left md:block">
             <span className="block truncate text-[11px] font-semibold leading-4 text-[#10231d]">
               {[user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
                 "My profile"}
@@ -1339,7 +1339,7 @@ export function UserSection() {
               {user?.companyRole?.name || user?.jobTitle || "Workspace member"}
             </span>
           </span>
-          <ChevronDown className="hidden size-3.5 text-[#8a9691] transition-transform group-hover:translate-y-0.5 xl:block" />
+          <ChevronDown className="hidden size-3.5 text-[#8a9691] transition-transform group-hover:translate-y-0.5 md:block" />
         </button>
       </div>
 

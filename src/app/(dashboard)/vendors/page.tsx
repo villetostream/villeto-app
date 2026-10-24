@@ -730,10 +730,30 @@ function VendorTable({
     currentPage * itemsPerPage,
   );
 
-  // If search changes, reset page to 1
+  // Clamp page if filtered list is smaller than currentPage
   useEffect(() => {
-    onPageChange(1);
-  }, [search, onPageChange]);
+    if (currentPage > totalPages) {
+      onPageChange(totalPages);
+    }
+  }, [currentPage, totalPages, onPageChange]);
+
+  const getPageNumbers = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages: (number | "...")[] = [1];
+    if (currentPage > 3) pages.push("...");
+    for (
+      let i = Math.max(2, currentPage - 1);
+      i <= Math.min(totalPages - 1, currentPage + 1);
+      i++
+    ) {
+      pages.push(i);
+    }
+    if (currentPage < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+    return pages;
+  };
 
   if (isLoading) {
     return (
@@ -760,7 +780,10 @@ function VendorTable({
         <input
           type="text"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            onPageChange(1);
+          }}
           placeholder="Search vendors..."
           className="w-full h-9 pl-9 pr-4 rounded-[8px] border border-black/[0.08] bg-white text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors"
         />
@@ -859,8 +882,8 @@ function VendorTable({
           {/* Pagination row */}
           <div className="px-5 py-3 border-t border-black/[0.08] flex items-center justify-between text-[13px] text-[#68726d] bg-[#f9faf9] shrink-0">
             <span>
-              Showing {paginatedData.length} entries on page {currentPage} of{" "}
-              {totalPages}
+              Showing {filtered.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}–
+              {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length} entries
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -874,9 +897,28 @@ function VendorTable({
               >
                 Previous
               </button>
-              <button className="px-3 py-1.5 rounded-[8px] transition-colors bg-[#087f70] text-white font-semibold">
-                {currentPage}
-              </button>
+              {getPageNumbers().map((p, idx) =>
+                p === "..." ? (
+                  <span
+                    key={`ellipsis-${idx}`}
+                    className="w-8 h-8 flex items-center justify-center text-sm text-[#84908a]"
+                  >
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => onPageChange(p as number)}
+                    className={`min-w-8 h-8 px-2.5 rounded-[8px] text-[13px] font-semibold transition-colors border ${
+                      p === currentPage
+                        ? "bg-[#087f70] text-white border-[#087f70]"
+                        : "border-transparent text-[#68726d] hover:bg-white hover:border-black/[0.08] hover:text-[#0b100e]"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
               <button
                 disabled={currentPage >= totalPages}
                 onClick={() => onPageChange(currentPage + 1)}
@@ -971,16 +1013,22 @@ function VendorPage() {
     });
   }, [vendorsApi.data]);
 
-  // Sync tab to URL and reset page
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    setPage(1);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", newTab);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
+
+  // Sync tab from URL if URL changes (e.g. browser back/forward)
   useEffect(() => {
     const currentTab = searchParams.get("tab") || "all";
     if (currentTab !== activeTab) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("tab", activeTab);
-      router.replace(`?${params.toString()}`, { scroll: false });
+      setActiveTab(currentTab);
+      setPage(1);
     }
-    setPage(1); // Reset page when tab changes to avoid empty pages
-  }, [activeTab, router, searchParams]);
+  }, [searchParams, activeTab]);
 
   // Header CTA — only show "Invite Vendor" to users who can actually invite.
   // Without this, a read-only vendor viewer would see a button whose click
@@ -1112,7 +1160,7 @@ function VendorPage() {
       {/* Tabs + Table */}
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={handleTabChange}
         className="flex-1 flex flex-col min-h-0 overflow-hidden"
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
@@ -1160,13 +1208,15 @@ function VendorPage() {
               value={tab}
               className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden m-0"
             >
-              <VendorTable
-                vendors={tab === activeTab ? filteredByTab : []}
-                isLoading={isLoading}
-                onAction={handleAction}
-                currentPage={page}
-                onPageChange={(newPage) => setPage(newPage)}
-              />
+              {tab === activeTab && (
+                <VendorTable
+                  vendors={filteredByTab}
+                  isLoading={isLoading}
+                  onAction={handleAction}
+                  currentPage={page}
+                  onPageChange={setPage}
+                />
+              )}
             </TabsContent>
           ),
         )}

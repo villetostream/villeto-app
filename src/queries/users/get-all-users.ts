@@ -140,7 +140,7 @@ export const useGetInvitedUsersApi = (
   });
 };
 
-/** Fetches users where invited=false — used by DirectoryTab */
+/** Fetches users from /users — used by DirectoryTab */
 export const useGetDirectoryUsersApi = (
   options?: UseUserListOptions,
 ): UseQueryResult<Response, Error> => {

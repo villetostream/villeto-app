@@ -70,6 +70,7 @@ export function EntityWorkspaceSwitcher({
   const canSwitch = enabled && !!snapshot?.canSwitch;
   const busy = state.pendingMutations > 0;
   const entities = snapshot?.entities ?? [];
+  const hasSwitchPermission = canSwitch && (entities.length > 1 || !!snapshot?.canViewAll);
   const primaryId = snapshot?.primaryAssignment?.legalEntityId;
   const isAll = state.selection === "all";
   const entity = entities.find((e) => e.legalEntityId === state.selection);
@@ -100,12 +101,38 @@ export function EntityWorkspaceSwitcher({
     await switchTo(selection);
   };
 
-  /* ── Card (trigger) ── */
+  /* ── User without switch permission sees a plain static organization card ── */
+  if (!hasSwitchPermission) {
+    if (collapsed) {
+      return (
+        <div className="h-8 w-8 flex items-center justify-center">
+          {collapsedLogo}
+        </div>
+      );
+    }
+    return (
+      <div className="flex w-full items-center gap-2.5 rounded-[11px] px-3 py-2 text-left">
+        <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-[8px]">
+          {logo}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold text-white/90">
+            {organizationName}
+          </div>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/35">
+            {organizationLabel}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Switcher Card (trigger) for authorized users ── */
   const card = collapsed ? (
     <button
       type="button"
-      aria-label={enabled ? `Switch legal entity (${entityName})` : "Workspace"}
-      disabled={!canSwitch || busy}
+      aria-label={`Switch legal entity (${entityName})`}
+      disabled={busy}
       className="h-8 w-8 rounded-[8px] outline-none focus-visible:ring-2 focus-visible:ring-[#5fd4c4]/60 disabled:cursor-default"
     >
       {collapsedLogo}
@@ -113,12 +140,12 @@ export function EntityWorkspaceSwitcher({
   ) : (
     <button
       type="button"
-      aria-label={canSwitch ? "Switch legal entity" : "Workspace"}
-      disabled={!canSwitch || busy}
+      aria-label="Switch legal entity"
+      disabled={busy}
       className={cn(
         "group flex w-full items-center gap-2.5 rounded-[11px] border border-white/[0.08] bg-white/[0.05] px-3 py-2.5 text-left outline-none transition-colors",
         "focus-visible:ring-2 focus-visible:ring-[#5fd4c4]/60 disabled:cursor-default",
-        canSwitch && "hover:bg-white/[0.09] data-[state=open]:bg-white/[0.09]",
+        "hover:bg-white/[0.09] data-[state=open]:bg-white/[0.09]",
       )}
     >
       <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-[8px] ring-1 ring-white/10">
@@ -128,19 +155,11 @@ export function EntityWorkspaceSwitcher({
         <div className="truncate text-[13px] font-semibold text-white/90">
           {organizationName}
         </div>
-        {enabled ? (
-          <p className="truncate text-[11.5px] text-white/60" title={entityName}>
-            {entityName}
-          </p>
-        ) : (
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/35">
-            {organizationLabel}
-          </p>
-        )}
+        <p className="truncate text-[11.5px] text-white/60" title={entityName}>
+          {entityName}
+        </p>
       </div>
-      {canSwitch && (
-        <ChevronsUpDown className="h-4 w-4 shrink-0 text-white/45 transition-colors group-hover:text-white/80" />
-      )}
+      <ChevronsUpDown className="h-4 w-4 shrink-0 text-white/45 transition-colors group-hover:text-white/80" />
     </button>
   );
 
@@ -149,14 +168,12 @@ export function EntityWorkspaceSwitcher({
       <Tooltip delayDuration={120}>
         <TooltipTrigger asChild>{node}</TooltipTrigger>
         <TooltipContent side="right">
-          {enabled ? entityName : organizationLabel}
+          {entityName}
         </TooltipContent>
       </Tooltip>
     ) : (
       node
     );
-
-  if (!canSwitch) return withTooltip(card);
 
   return (
     <>

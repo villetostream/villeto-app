@@ -567,12 +567,12 @@ export default function LineItemPanel({
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-[#0b100e]">Unit Price</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">{sym}</span>
+                <div className="w-full h-10 px-3 rounded-lg border border-black/[0.06] flex items-center gap-1.5 focus-within:border-[#087f70] transition-colors bg-white">
+                  <span className="text-[#68726d] text-sm font-medium shrink-0 select-none">{sym}</span>
                   <input type="number" min={0} value={form.unitPrice}
                     onChange={e => set("unitPrice", e.target.value === "" ? "" : Number(e.target.value))}
                     placeholder="0.00"
-                    className="w-full h-10 pl-7 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors"
+                    className="w-full h-full bg-transparent text-sm focus:outline-none min-w-0"
                   />
                 </div>
               </div>

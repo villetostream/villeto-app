@@ -73,6 +73,30 @@ function persistSelection(identity: string | null, selection: string | null) {
   }
 }
 
+/**
+ * Produces a stable canonical string representing the policy-relevant fields
+ * of a WorkspaceSnapshot. Only changes that affect capability decisions and
+ * cache scoping should increment `generation`; volatile/transient fields
+ * (e.g. personalExpenseEntityReady, array ordering) must not.
+ */
+function snapshotPolicyKey(snapshot: WorkspaceSnapshot | null): string {
+  if (!snapshot) return "";
+  // Sort entities by id so server-side ordering never causes a false change.
+  const sortedEntities = [...snapshot.entities]
+    .sort((a, b) => a.legalEntityId.localeCompare(b.legalEntityId))
+    .map((e) => `${e.legalEntityId}:${e.status}:${e.readOnly ? "r" : "w"}`);
+  return JSON.stringify({
+    enabled: snapshot.enabled,
+    canSwitch: snapshot.canSwitch,
+    canViewAll: snapshot.canViewAll,
+    primaryAssignment: snapshot.primaryAssignment?.legalEntityId ?? null,
+    defaultSelection: snapshot.defaultSelection,
+    authorizationRevision: snapshot.authorizationRevision ?? null,
+    entities: sortedEntities,
+    blockers: [...(snapshot.blockers ?? [])].sort(),
+  });
+}
+
 export const useEntityWorkspaceStore = create<WorkspaceState>((set, get) => ({
   identity: null,
   snapshot: null,
@@ -100,8 +124,13 @@ export const useEntityWorkspaceStore = create<WorkspaceState>((set, get) => ({
     persistSelection(state.identity, selection);
     // Grants can shrink while an All selection remains valid. Every policy
     // change must invalidate requests and cached data, even without a switch.
+    //
+    // We compare only the fields that affect capability decisions and cache
+    // correctness. Volatile/transient status fields (e.g. personalExpenseEntityReady)
+    // and server-side array ordering must not spuriously bump generation and
+    // trigger a mass refetch of all business-data queries.
     const policyChanged =
-      JSON.stringify(state.snapshot) !== JSON.stringify(snapshot);
+      snapshotPolicyKey(state.snapshot) !== snapshotPolicyKey(snapshot);
     const changed = selection !== state.selection || policyChanged;
     set({
       snapshot,

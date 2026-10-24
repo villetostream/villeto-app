@@ -76,8 +76,19 @@ export function uniqueCapabilityScopes(
     return Array.from(new Set(grants.map(({ scopeType }) => scopeType)));
 }
 
+let _invalidateTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Fires "villeto:authorization-invalidated" to prompt a /users/me + workspace
+ * refresh. Debounced to 5 s so that a burst of 403 responses (e.g. several
+ * queries on page load returning forbidden) collapses into a single event and
+ * therefore a single /users/me call instead of one per failed request.
+ */
 export function invalidateAuthorization() {
-    if (typeof window !== 'undefined') {
+    if (typeof window === 'undefined') return;
+    if (_invalidateTimer !== null) return; // already queued
+    _invalidateTimer = setTimeout(() => {
+        _invalidateTimer = null;
         window.dispatchEvent(new Event(AUTHORIZATION_INVALIDATED_EVENT));
-    }
+    }, 5_000);
 }

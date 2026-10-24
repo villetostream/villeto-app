@@ -21,7 +21,9 @@ function VendorConfigurationPage() {
 
     const loadVendor = async () => {
       try {
-        const response = await axiosInstance.get(`/vendors/${vendorId}`);
+        const response = await axiosInstance.get(
+          `/vendor-network/vendors/${vendorId}`,
+        );
         const vendor = asRecord(response.data?.data);
         const profile = asRecord(vendor.profile);
         setVendorName(

@@ -306,7 +306,7 @@ function POTable({
     vendorFilter !== "all" ? vendorFilter : undefined,
     debouncedSearch || undefined,
     scope,
-    { refetchInterval: 60_000, refetchOnMount: "always", staleTime: 0 },
+    { refetchInterval: 60_000, staleTime: 30_000 },
   );
 
   // Badge count for "Awaiting Approval" tab (only for All POs / elevated scope)

@@ -67,7 +67,7 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
   const assignMutation = useAssignEmployeeLegalEntity();
   
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "unassigned" | "assigned">("unassigned");
+  const [filter, setFilter] = useState<"all" | "unassigned" | "assigned">("all");
   const [page, setPage] = useState(1);
   const limit = 10;
 
@@ -181,9 +181,9 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">All employees</SelectItem>
             <SelectItem value="unassigned">Needs assignment</SelectItem>
             <SelectItem value="assigned">Assigned</SelectItem>
-            <SelectItem value="all">All employees</SelectItem>
           </SelectContent>
         </Select>
       </div>

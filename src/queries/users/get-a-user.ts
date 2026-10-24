@@ -33,7 +33,7 @@ export const useGetAUsersApi = (
   return useQuery<Response, Error>({
     queryKey: workspaceQueryKey(QUERY_KEYS.people.user(payload as string)),
     queryFn: async () => {
-      const apiUrl = `${API_KEYS.USER.USERS}${payload}`;
+      const apiUrl = `${API_KEYS.USER.USERS}/${payload}`;
       const response = await axiosInstance.get(apiUrl);
       return response.data;
     },

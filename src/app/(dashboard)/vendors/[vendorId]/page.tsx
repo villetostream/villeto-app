@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, useParams, useRouter } from "next/navigation";
 import { useAxios } from "@/hooks/useAxios";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +24,11 @@ import {
   useVendorReview,
   useVendorStatusUpdate,
   useVendorPaymentStatusUpdate,
+  useCompanyPaymentTermsList,
+  useVendorPaymentTerms,
+  useApprovePaymentTerms,
+  useRejectPaymentTerms,
+  VendorPaymentTerm,
 } from "@/queries/vendors/vendor-network";
 import { workspaceReadOnly } from "@/features/entity-workspace/store";
 import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
@@ -66,6 +71,9 @@ function VendorDetailsPage() {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentTermsModalOpen, setPaymentTermsModalOpen] = useState(false);
+  const [paymentTermsRejectReason, setPaymentTermsRejectReason] = useState("");
+  const [isPaymentTermsRejecting, setIsPaymentTermsRejecting] = useState(false);
   const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
   const [previewDocName, setPreviewDocName] = useState<string | null>(null);
 
@@ -101,10 +109,94 @@ function VendorDetailsPage() {
   const statusMutation = useVendorStatusUpdate(vendorId);
   const paymentMutation = useVendorPaymentStatusUpdate(vendorId);
 
+  // ── Payment Terms (Stage 2 of approval) ───────────────────────────────────
+  // Query all payment terms awaiting or carrying company decisions
+  const { data: companyPaymentTerms = [], isLoading: isPaymentTermsListLoading } =
+    useCompanyPaymentTermsList();
+
+  // 1. Find payment term matching this vendor from the company payment terms list
+  const paymentTermFromList = useMemo(() => {
+    if (!companyPaymentTerms || !Array.isArray(companyPaymentTerms)) return null;
+    const vendorResolvedId =
+      vendorId ||
+      getString((vendor as any)?.vendorId) ||
+      getString((vendor as any)?.id);
+    const vendorResolvedName = (
+      getString((vendor as any)?.businessDetails?.legalName) ||
+      getString((vendor as any)?.businessDetails?.displayName) ||
+      getString((vendor as any)?.legalName) ||
+      getString((vendor as any)?.displayName) ||
+      getString((vendor as any)?.profile?.legalName) ||
+      getString((vendor as any)?.profile?.displayName)
+    ).toLowerCase().trim();
+
+    const matching = companyPaymentTerms.filter((t) => {
+      if (vendorResolvedId && t.vendorId === vendorResolvedId) return true;
+      if (
+        vendorResolvedName &&
+        t.vendorName &&
+        t.vendorName.trim().toLowerCase() === vendorResolvedName
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    return (
+      matching.find((t) => t.status === "pending_review") ||
+      matching.find((t) => t.isCurrent) ||
+      matching[0] ||
+      null
+    );
+  }, [companyPaymentTerms, vendorId, vendor]);
+
+  // 2. Fall back to any embedded payment term in the vendor object
+  const paymentTermFromVendor = useMemo(() => {
+    const raw =
+      (vendor as any)?.paymentTerm ||
+      (vendor as any)?.paymentTerms ||
+      (vendor as any)?.currentPaymentTerm ||
+      (vendor as any)?.pendingPaymentTerm;
+    if (Array.isArray(raw)) return raw[0] || null;
+    if (raw && typeof raw === "object") return raw;
+    return null;
+  }, [vendor]);
+
+  // 3. Fall back to any explicit paymentTermId on vendor object
+  const pendingPaymentTermId =
+    paymentTermFromList?.paymentTermId ||
+    paymentTermFromVendor?.paymentTermId ||
+    getString(vendor?.currentPaymentTermId) ||
+    getString(vendor?.pendingPaymentTermId) ||
+    getString((vendor as any)?.paymentTermId) ||
+    getString((vendor as any)?.vendorPaymentTermId) ||
+    null;
+
+  const { data: paymentTermData } = useVendorPaymentTerms(
+    paymentTermFromList ? null : pendingPaymentTermId,
+  );
+
+  const paymentTerm: VendorPaymentTerm | null =
+    paymentTermFromList ||
+    (paymentTermData as any) ||
+    paymentTermFromVendor ||
+    null;
+
+  const approvePaymentTermsMutation = useApprovePaymentTerms(
+    paymentTerm?.paymentTermId ?? "",
+    vendorId,
+  );
+  const rejectPaymentTermsMutation = useRejectPaymentTerms(
+    paymentTerm?.paymentTermId ?? "",
+    vendorId,
+  );
+
   const isSubmitting =
     reviewMutation.isPending ||
     statusMutation.isPending ||
-    paymentMutation.isPending;
+    paymentMutation.isPending ||
+    approvePaymentTermsMutation.isPending ||
+    rejectPaymentTermsMutation.isPending;
 
   const handleDecision = async (
     decision: "approved" | "rejected",
@@ -285,8 +377,15 @@ function VendorDetailsPage() {
   const isUnderReview =
     approvalStatus === "pending" && onboardingStatus === "submitted";
   const isRejected = approvalStatus === "rejected";
+  // Vendor approved (Stage 1 done) but never yet activated — awaiting payment
+  // terms review (Stage 2). A deactivatedAt timestamp means they were active
+  // before and were explicitly deactivated, so this is a reactivation scenario.
   const isApprovedPhase4 =
     approvalStatus === "approved" && rawStatus !== "active" && !deactivatedAt;
+  // If payment term is explicitly rejected, vendor is awaiting resubmission.
+  const isPaymentTermRejected = paymentTerm?.status === "rejected";
+  // Stage 2: Approved in Stage 1, awaiting payment terms approval to activate.
+  const isPendingPaymentTerms = isApprovedPhase4 && !isPaymentTermRejected;
   const isDeactivated =
     approvalStatus === "approved" && rawStatus !== "active" && !!deactivatedAt;
   const isActive = approvalStatus === "approved" && rawStatus === "active";
@@ -365,21 +464,36 @@ function VendorDetailsPage() {
               {reviewMutation.isPending ? "Processing..." : "Approve vendor"}
             </button>
           )}
-          {/* Activate */}
-          {(isApprovedPhase4 || isDeactivated) &&
-            policies.vendors.canActivate && (
-              <button
-                disabled={isSubmitting}
-                onClick={() => handleStatusUpdate("Active")}
-                className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm"
-              >
-                {statusMutation.isPending
-                  ? "Processing..."
-                  : isDeactivated
-                    ? "Reactivate vendor"
-                    : "Activate vendor"}
-              </button>
-            )}
+          {/* Stage 2: Approve Payment Terms (newly onboarded, never yet active) */}
+          {isPendingPaymentTerms && (policies.vendors.canApprove || policies.vendors.canActivate) && (
+            <button
+              disabled={isSubmitting}
+              onClick={() => {
+                setIsPaymentTermsRejecting(false);
+                setPaymentTermsRejectReason("");
+                setPaymentTermsModalOpen(true);
+              }}
+              className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm flex items-center gap-2 cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Approve payment terms
+            </button>
+          )}
+          {isApprovedPhase4 && isPaymentTermRejected && (
+            <span className="px-3 py-1.5 rounded-[8px] bg-[#fff9e6] text-[#b27b00] text-[12px] font-semibold border border-[#ffe099]">
+              Payment terms rejected — awaiting vendor resubmission
+            </span>
+          )}
+          {/* Reactivate — deactivated vendors use the old status endpoint */}
+          {isDeactivated && policies.vendors.canActivate && (
+            <button
+              disabled={isSubmitting}
+              onClick={() => handleStatusUpdate("Active")}
+              className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm"
+            >
+              {statusMutation.isPending ? "Processing..." : "Reactivate vendor"}
+            </button>
+          )}
           {/* Deactivate */}
           {isActive && policies.vendors.canDeactivate && (
             <button
@@ -898,6 +1012,260 @@ function VendorDetailsPage() {
               >
                 {isSubmitting ? "Processing..." : "Reject Vendor"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Payment Terms Review Modal (Stage 2) ── */}
+      {paymentTermsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4 animate-in fade-in">
+          <div className="bg-white rounded-[20px] shadow-2xl w-full max-w-lg border border-black/[0.08] overflow-hidden max-h-[85vh] flex flex-col">
+            {/* Header (fixed) */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] bg-[#f9faf9] flex-shrink-0">
+              <div>
+                <h2 className="text-[16px] font-bold text-[#0b100e]">
+                  {isPaymentTermsRejecting
+                    ? "Reject Payment Terms"
+                    : "Approve Payment Terms"}
+                </h2>
+                <p className="text-[12px] text-[#68726d] mt-0.5">
+                  {isPaymentTermsRejecting
+                    ? "Specify the reason so the vendor can update and resubmit"
+                    : "Stage 2 of 2 — Approving also activates this vendor"}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setPaymentTermsModalOpen(false);
+                  setPaymentTermsRejectReason("");
+                  setIsPaymentTermsRejecting(false);
+                }}
+                className="w-8 h-8 rounded-[8px] bg-white hover:bg-[#f5f7f6] border border-black/[0.08] flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4 text-[#68726d]" />
+              </button>
+            </div>
+
+            {/* Scrollable Content Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {/* Step indicator */}
+              <div className="flex items-center gap-0 pb-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-[#087f70] flex items-center justify-center">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                  </span>
+                  <span className="text-[12px] font-semibold text-[#087f70]">
+                    Vendor Info (Approved)
+                  </span>
+                </div>
+                <div className="flex-1 h-px bg-[#087f70] mx-3" />
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-[#087f70] text-white text-[11px] font-bold flex items-center justify-center">
+                    2
+                  </span>
+                  <span className="text-[12px] font-semibold text-[#087f70]">
+                    Payment Terms
+                  </span>
+                </div>
+              </div>
+
+              {/* Payment term details summary card */}
+              {isPaymentTermsListLoading ? (
+                <div className="space-y-3 py-4">
+                  <Skeleton className="h-5 w-full rounded" />
+                  <Skeleton className="h-5 w-3/4 rounded" />
+                  <Skeleton className="h-5 w-1/2 rounded" />
+                </div>
+              ) : paymentTerm ? (
+                <div className="bg-[#f9faf9] rounded-[12px] border border-black/[0.06] p-4 space-y-2.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[12px] font-medium text-[#68726d]">
+                      Term Name
+                    </span>
+                    <span className="text-[13px] font-semibold text-[#0b100e]">
+                      {paymentTerm.name || "—"}
+                    </span>
+                  </div>
+                  <div className="h-px bg-black/[0.05]" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-[12px] font-medium text-[#68726d]">
+                      Payment Window
+                    </span>
+                    <span className="text-[13px] font-semibold text-[#0b100e]">
+                      {paymentTerm.days === 0
+                        ? "Due immediately (0 days)"
+                        : paymentTerm.days != null
+                        ? `Net ${paymentTerm.days} (${paymentTerm.days} days)`
+                        : "—"}
+                    </span>
+                  </div>
+                  {paymentTerm.submittedAt && (
+                    <>
+                      <div className="h-px bg-black/[0.05]" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-[12px] font-medium text-[#68726d]">
+                          Submitted
+                        </span>
+                        <span className="text-[13px] text-[#0b100e]">
+                          {new Intl.DateTimeFormat(undefined, {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          }).format(new Date(paymentTerm.submittedAt))}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  {paymentTerm.revision != null && (
+                    <>
+                      <div className="h-px bg-black/[0.05]" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-[12px] font-medium text-[#68726d]">
+                          Revision
+                        </span>
+                        <span className="text-[13px] text-[#0b100e]">
+                          #{paymentTerm.revision ?? 1}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-[#f9faf9] rounded-[12px] border border-black/[0.06] p-4 text-center">
+                  <p className="text-[13px] font-semibold text-[#0b100e]">
+                    Standard Payment Terms
+                  </p>
+                  <p className="text-[12px] text-[#68726d] mt-1">
+                    No custom payment terms were submitted by this vendor. Approving will activate the vendor with standard terms.
+                  </p>
+                </div>
+              )}
+
+              {/* Vendor context note (only when not in rejection mode) */}
+              {!isPaymentTermsRejecting && (
+                <div className="flex items-start gap-3 bg-[#f0faf8] border border-[#e7f6f2] rounded-[10px] px-4 py-3">
+                  <CheckCircle2 className="w-4 h-4 text-[#087f70] mt-0.5 flex-shrink-0" />
+                  <p className="text-[12px] text-[#087f70] leading-relaxed">
+                    <strong>{legalName || displayName}</strong> has been approved (Stage 1). Approving payment terms will activate the vendor and enable payments.
+                  </p>
+                </div>
+              )}
+
+              {/* Rejection reason form — ONLY displayed when Reject Terms is clicked */}
+              {isPaymentTermsRejecting && (
+                <div className="space-y-2 pt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[12px] font-semibold text-[#0b100e]">
+                      Rejection Reason <span className="text-[#d33d44]">*</span>
+                    </label>
+                    <span className="text-[11px] text-[#68726d]">
+                      Visible to vendor
+                    </span>
+                  </div>
+                  <textarea
+                    autoFocus
+                    value={paymentTermsRejectReason}
+                    onChange={(e) =>
+                      setPaymentTermsRejectReason(e.target.value)
+                    }
+                    placeholder="e.g. Please use our standard Net 30 arrangement."
+                    rows={3}
+                    className="w-full p-3 rounded-[8px] border border-black/[0.12] text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#d33d44] focus:ring-1 focus:ring-[#d33d44] resize-none"
+                  />
+                  <p className="text-[11px] text-[#68726d]">
+                    The vendor will remain on the onboarding screen and can resubmit revised terms.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions (fixed footer) */}
+            <div className="flex flex-col sm:flex-row gap-3 px-6 py-4 border-t border-black/[0.06] bg-[#f9faf9] flex-shrink-0">
+              {isPaymentTermsRejecting ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPaymentTermsRejecting(false);
+                      setPaymentTermsRejectReason("");
+                    }}
+                    disabled={isSubmitting}
+                    className="flex-1 h-10 rounded-[8px] border border-black/[0.15] bg-white text-[#303834] font-semibold text-[13px] hover:bg-[#f5f7f6] transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!paymentTermsRejectReason.trim() || !paymentTerm?.paymentTermId) return;
+                      try {
+                        await rejectPaymentTermsMutation.mutateAsync({
+                          reason: paymentTermsRejectReason,
+                          paymentTermId: paymentTerm.paymentTermId,
+                        });
+                        toast.success(
+                          "Payment terms rejected — vendor will resubmit",
+                        );
+                        setPaymentTermsModalOpen(false);
+                        setPaymentTermsRejectReason("");
+                        setIsPaymentTermsRejecting(false);
+                      } catch {
+                        toast.error(
+                          "Failed to reject payment terms. Please try again.",
+                        );
+                      }
+                    }}
+                    disabled={!paymentTermsRejectReason.trim() || isSubmitting}
+                    className="flex-1 h-10 rounded-[8px] bg-[#d33d44] text-white font-semibold text-[13px] hover:bg-[#c33339] transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                  >
+                    {rejectPaymentTermsMutation.isPending
+                      ? "Rejecting..."
+                      : "Confirm Rejection"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {paymentTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setIsPaymentTermsRejecting(true)}
+                      disabled={isSubmitting}
+                      className="flex-1 h-10 rounded-[8px] border border-[#d33d44] text-[#d33d44] font-semibold text-[13px] hover:bg-[#fdf2f2] transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      Reject Terms
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        if (paymentTerm?.paymentTermId) {
+                          await approvePaymentTermsMutation.mutateAsync(
+                            paymentTerm.paymentTermId,
+                          );
+                          toast.success(
+                            "Payment terms approved — vendor is now active",
+                          );
+                        } else {
+                          await handleStatusUpdate("Active");
+                        }
+                        setPaymentTermsModalOpen(false);
+                      } catch {
+                        toast.error(
+                          "Failed to approve payment terms. Please try again.",
+                        );
+                      }
+                    }}
+                    disabled={isSubmitting}
+                    className="flex-1 h-10 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    {approvePaymentTermsMutation.isPending || statusMutation.isPending
+                      ? "Approving..."
+                      : "Approve & Activate"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

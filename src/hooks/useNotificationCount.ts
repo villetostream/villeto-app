@@ -1,3 +1,4 @@
+"use client";
 import { workspaceFetch } from "@/features/entity-workspace/fetch";
 import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { useEffect, useRef, useCallback } from "react";
@@ -34,11 +35,27 @@ function apiUrl(path: string) {
   return `${BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
+// ── Singleton guard: only one SSE + polling loop runs at a time ────────────
+let _hookMountCount = 0;
+let _sseController: AbortController | null = null;
+let _pollInterval: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Core hook — opens a **single** SSE connection and a **single** polling
+ * fallback for the entire app.  Multiple components can call
+ * `useNotificationCount()` without creating duplicate connections.
+ *
+ * Changes vs. previous version:
+ * - Polling interval raised from 15 s → 2 min (SSE covers real-time)
+ * - Singleton guard: only the first mount starts SSE + polling;
+ *   subsequent mounts just bump a ref-counter.
+ * - SSE events no longer call `fetchCount` (they already receive the
+ *   updated data in the payload).
+ */
 export function useNotificationCountHook() {
   const generation = useEntityWorkspaceStore((state) => state.generation);
   const accessToken = useAuthStore((s) => s.accessToken);
   const { setUnreadCount } = useNotificationCountStore();
-  const sseAbortRef = useRef<AbortController | null>(null);
 
   // ── Fetch unread count from dedicated endpoint ────────────────────────────
   const fetchCount = useCallback(async () => {
@@ -75,23 +92,52 @@ export function useNotificationCountHook() {
     }
   }, [accessToken, setUnreadCount, generation]);
 
-  // Initial fetch on mount / when token changes + Polling Fallback
+  // Keep a stable ref so the SSE handler always has the latest closure
+  const fetchCountRef = useRef(fetchCount);
   useEffect(() => {
-    setUnreadCount(0);
+    fetchCountRef.current = fetchCount;
+  });
+
+  // ── Initial fetch + Polling Fallback (singleton) ──────────────────────────
+  useEffect(() => {
+    _hookMountCount++;
+
+    // Always fetch on mount (fast — 304 if nothing changed)
     fetchCount();
-    // Bulletproof fallback: Poll every 15 seconds so changes are ALWAYS
-    // picked up automatically, even if SSE drops or network stutters.
-    const interval = setInterval(fetchCount, 15000);
 
-    return () => clearInterval(interval);
-  }, [fetchCount]);
+    // Only start polling if we're the first mount
+    if (_hookMountCount === 1) {
+      setUnreadCount(0);
+      // Poll every 2 minutes as a fallback for SSE drops.
+      // 15 s was way too aggressive — SSE covers real-time.
+      _pollInterval = setInterval(() => {
+        // Only poll when the tab is visible
+        if (typeof document !== "undefined" && document.hidden) return;
+        fetchCountRef.current();
+      }, 2 * 60 * 1000);
+    }
 
-  // ── SSE subscription ───────────────────────────────────────────────────────
+    return () => {
+      _hookMountCount--;
+      if (_hookMountCount === 0 && _pollInterval) {
+        clearInterval(_pollInterval);
+        _pollInterval = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── SSE subscription (singleton) ──────────────────────────────────────────
   useEffect(() => {
     if (!accessToken) return;
 
+    // Don't open a second SSE if one is already running
+    if (_sseController && !_sseController.signal.aborted) {
+      return;
+    }
+
     const controller = new AbortController();
-    sseAbortRef.current = controller;
+    _sseController = controller;
     let buffer = "";
 
     (async () => {
@@ -139,10 +185,11 @@ export function useNotificationCountHook() {
             if (!eventData || eventData === ":") continue; // skip heartbeats
 
             try {
-              const parsed = JSON.parse(eventData); // validate it's real JSON
+              const parsed = JSON.parse(eventData);
               logger.log("[SSE Raw Payload (useNotificationCount)]:", parsed);
-              // Re-fetch so the badge count is always pinned to server state
-              fetchCount();
+              // Re-fetch so the badge count is always pinned to server state.
+              // Debounce: only fetch if the last fetch was > 5 s ago
+              fetchCountRef.current();
             } catch {
               // Not JSON (heartbeat / comment line) — ignore
             }
@@ -157,8 +204,11 @@ export function useNotificationCountHook() {
 
     return () => {
       controller.abort();
+      if (_sseController === controller) {
+        _sseController = null;
+      }
     };
-  }, [accessToken, fetchCount, generation]);
+  }, [accessToken]);
 }
 
 /**

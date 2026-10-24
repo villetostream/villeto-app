@@ -285,84 +285,10 @@ export default function Notification({
     return () => clearTimeout(timeoutId);
   }, [fetchAll]);
 
-  // ── SSE for real-time push ─────────────────────────────────────────────────
-  useEffect(() => {
-    if (!accessToken) return;
 
-    const controller = new AbortController();
-    sseAbortRef.current = controller;
-    let buffer = "";
-
-    (async () => {
-      try {
-        const res = await workspaceFetch(apiUrl("events/notifications"), {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: "text/event-stream",
-            "Cache-Control": "no-cache",
-          },
-          credentials: "include",
-          signal: controller.signal,
-        });
-        if (!res.ok || !res.body) return;
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          console.log("[SSE Raw Text Received (Notification Panel)]:", chunk);
-          buffer += chunk;
-
-          const blocks = buffer.split("\n\n");
-          buffer = blocks.pop() ?? "";
-
-          for (const block of blocks) {
-            let eventData = "";
-            for (const line of block.split("\n")) {
-              if (line.startsWith("data:"))
-                eventData += line.slice(5).trimStart();
-            }
-            if (!eventData || eventData === ":") continue;
-            try {
-              const parsed = JSON.parse(eventData);
-              console.log("[SSE Raw Payload (Notification panel)]:", parsed);
-              const incoming = normalise(parsed);
-              // Resolve IDs in the incoming message
-              const msg = incoming.message ?? "";
-              const resolvedMessage = msg.match(UUID_RE)
-                ? await resolveMessageIds(msg, accessToken).catch(() => msg)
-                : msg;
-
-              setNotifications((prev) => {
-                const idx = prev.findIndex((n) => n.id === incoming.id);
-                const updated = { ...incoming, resolvedMessage };
-                let copy;
-                if (idx !== -1) {
-                  copy = [...prev];
-                  copy[idx] = updated;
-                } else {
-                  copy = [updated, ...prev];
-                }
-                notificationCache.set(cacheKey, copy);
-                return copy;
-              });
-            } catch {
-              // heartbeat / non-JSON — ignore
-            }
-          }
-        }
-      } catch (err: unknown) {
-        if (isRecord(err) && err.name !== "AbortError")
-          console.error("[Notification] SSE error:", err);
-      }
-    })();
-
-    return () => controller.abort();
-  }, [accessToken, generation]);
+  // SSE for real-time push is handled by the singleton
+  // useNotificationCountHook — no need for a second connection here.
+  // The panel refreshes via fetchAll on mount, which is sufficient.
 
   // ── Mark single read ─────────────────────────────────────────────────────────
   const markRead = useCallback(

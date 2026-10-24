@@ -32,6 +32,7 @@ import { X } from "lucide-react";
 
 import { useGetInvitedUsersApi } from "@/queries/users/get-all-users";
 import { useGetAllVendors } from "@/queries/vendors/get-all-vendors";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { Skeleton } from "@/components/ui/skeleton";
 
 
@@ -60,8 +61,11 @@ export function ChatWidget() {
 
   const [panelView, setPanelView] = useState<PanelView>({ type: "list" });
 
+  const policies = useAuthorizationPolicies();
+  const canViewVendors = policies.vendors.canUseDirectory;
+
   const { data: usersData, isLoading: usersLoading } = useGetInvitedUsersApi({ params: { limit: 1000, status: "Active" } });
-  const vendorsApi = useGetAllVendors();
+  const vendorsApi = useGetAllVendors({}, { enabled: canViewVendors });
 
   useEffect(() => {
     if (usersData?.data) {
@@ -206,15 +210,17 @@ export function ChatWidget() {
                 icon={<Profile size={14} />}
                 label="Team"
               />
-              <TabButton
-                active={activeTab === "vendors"}
-                onClick={() => {
-                  setActiveTab("vendors");
-                  setPanelView({ type: "list" });
-                }}
-                icon={<Building size={14} />}
-                label="Vendors"
-              />
+              {canViewVendors && (
+                <TabButton
+                  active={activeTab === "vendors"}
+                  onClick={() => {
+                    setActiveTab("vendors");
+                    setPanelView({ type: "list" });
+                  }}
+                  icon={<Building size={14} />}
+                  label="Vendors"
+                />
+              )}
             </div>
           )}
 
