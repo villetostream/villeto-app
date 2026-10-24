@@ -40,7 +40,6 @@ import { EntityWorkspaceContent } from "@/features/entity-workspace/EntityWorksp
 import { EntityWorkspaceProvider } from "@/features/entity-workspace/EntityWorkspaceProvider";
 import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { logoutAndRedirect } from "@/lib/logout";
-import { useGetSpendProgramSettings } from "@/queries/procurement/policies";
 
 function subscribe() {
   return () => {};
@@ -77,11 +76,9 @@ export default function DashboardLayoutContent({
   const isTourActive = useTourStore((s) => s.isTourActive);
   const setupGuideReady = useTourStore((s) => s.setupGuideReady);
 
-  const canViewPolicies = useAuthStore((s) => s.can)("policy", "view");
 
-  // Eagerly fetch spend program settings so they are cached by the time the user navigates to Policies
-  useGetSpendProgramSettings({ enabled: !!user && canViewPolicies });
-
+  // Spend-program settings are fetched lazily by the Policies page when
+  // the user navigates there — no need to prefetch here on login.
   const [profileFetched, setProfileFetched] = useState(false);
   const [silentRefreshDone, setSilentRefreshDone] = useState(false);
 
@@ -151,8 +148,15 @@ export default function DashboardLayoutContent({
       return;
     }
 
-    // Initial fetch on mount
-    refreshRef.current();
+    // Skip the initial /users/me fetch if SilentRefreshGate already hydrated
+    // the user with authorization data — avoids a duplicate request on login.
+    const hasAuthorization = !!currentUser.authorization;
+    if (!hasAuthorization) {
+      refreshRef.current();
+    } else {
+      // Still mark profile as fetched so the sidebar skeleton hides.
+      setProfileFetched(true);
+    }
 
     // Re-check permissions every 2 min so admin role changes propagate without re-login.
     const interval = setInterval(

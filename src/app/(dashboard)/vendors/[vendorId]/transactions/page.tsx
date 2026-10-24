@@ -22,7 +22,9 @@ function VendorTransactionsPage() {
   const fetchVendor = async () => {
     setIsLoading(true);
     try {
-      const res = await axiosInstance.get(`/vendors/${vendorId}`);
+      const res = await axiosInstance.get(
+        `/vendor-network/vendors/${vendorId}`,
+      );
       setVendor(asRecord(res.data.data));
     } catch (err) {
       logger.error("Error fetching vendor details:", err);

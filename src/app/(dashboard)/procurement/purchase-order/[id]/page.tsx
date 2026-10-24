@@ -24,6 +24,8 @@ import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
 import EditPOHeaderModal from "@/components/procurement/EditPOHeaderModal";
 import { SubmissionSuccessWarningsModal } from "@/components/procurement/SubmissionSuccessWarningsModal";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import { workspaceReadOnly } from "@/features/entity-workspace/store";
 import { getPOStatusLabel } from "@/lib/constants/purchase-order-status";
 import {
   canPOApprove,
@@ -292,14 +294,16 @@ function PODetailPage() {
   const isOwnScope = outerTab === "own";
   const listUrl = buildPOListUrl(outerTab, innerTab);
 
-  // Permission flags
-  const canSubmitPO   = canPOSubmit(can);
-  const canApprovePO  = canPOApprove(can);
-  const canIssuePO    = canPOIssue(can);
-  const canClosePO    = canPOClose(can);
-  const canCancelPO   = canPOCancel(can);
-  const canReceivePO  = canPOReceive(can);
-  const canUpdateDraft = canPOUpdateDraft(can);
+  // Permission flags (strictly disabled if workspace is in read-only / all entities mode)
+  const policies = useAuthorizationPolicies();
+  const isReadOnly = workspaceReadOnly();
+  const canSubmitPO   = !isReadOnly && (policies.purchaseOrders.canSubmit || canPOSubmit(can));
+  const canApprovePO  = !isReadOnly && (policies.purchaseOrders.canApprove || canPOApprove(can));
+  const canIssuePO    = !isReadOnly && (policies.purchaseOrders.canIssue || canPOIssue(can));
+  const canClosePO    = !isReadOnly && (policies.purchaseOrders.canClose || canPOClose(can));
+  const canCancelPO   = !isReadOnly && (policies.purchaseOrders.canCancel || canPOCancel(can));
+  const canReceivePO  = !isReadOnly && (policies.purchaseOrders.canReceive || canPOReceive(can));
+  const canUpdateDraft = !isReadOnly && (policies.purchaseOrders.canUpdateDraft || canPOUpdateDraft(can));
 
   type ModalType = "submit" | "issue" | "close" | "cancel" | "withdraw" | "approve" | "reject" | "delete_draft" | "edit_header" | "line_items" | "delete_line_item" | "final_billing" | null;
   const [modal, setModal] = useState<string | null>(null);
@@ -334,7 +338,7 @@ function PODetailPage() {
   const cancelMut   = useCancelPurchaseOrder();
   const approvalMut = usePurchaseOrderApprovalDecision();
   const addLineItemsMut = useAddPOLineItems(id);
-  const updateLineItemMut = useUpdatePOLineItem(id, editingLineItem?.purchaseOrderLineItemId || "");
+  const updateLineItemMut = useUpdatePOLineItem(id);
   const deleteLineItemMut = useDeletePOLineItem(id);
   const deletePOMut = useDeletePurchaseOrder();
   const shortCloseMut = useShortClosePOLine(id);
@@ -791,7 +795,11 @@ function PODetailPage() {
           editSaving={updateLineItemMut.isPending}
           onEditSaved={async (payload) => {
              if (editingLineItem?.purchaseOrderLineItemId) {
-                await updateLineItemMut.mutateAsync(payload as any);
+                await updateLineItemMut.mutateAsync({
+                  purchaseOrderId: id,
+                  lineItemId: editingLineItem.purchaseOrderLineItemId,
+                  payload: payload as any,
+                });
                 toast.success("Line item updated");
                 setPolicyViolations(null);
                 setModal(null);
@@ -810,13 +818,14 @@ function PODetailPage() {
         currency={po?.currency || "NGN"}
         startInEditMode={detailModalStartsInEditMode}
         onSave={
-          (stage === "draft" && isSubmitterView && selectedDetailItem)
+          (stage === "draft" && isSubmitterView && !isReadOnly && selectedDetailItem)
             ? async (updatedItem) => {
-                if (!updatedItem.purchaseOrderLineItemId) return;
+                const targetLineItemId = updatedItem.purchaseOrderLineItemId || selectedDetailItem.purchaseOrderLineItemId;
+                if (!targetLineItemId) return;
                 try {
                   await updateLineItemMut.mutateAsync({
                     purchaseOrderId: id as string,
-                    lineItemId: updatedItem.purchaseOrderLineItemId as string,
+                    lineItemId: targetLineItemId as string,
                     payload: {
                       name: updatedItem.name,
                       categoryId: updatedItem.categoryId!,
@@ -827,7 +836,7 @@ function PODetailPage() {
                       sku: updatedItem.sku,
                       description: updatedItem.description,
                     }
-                  } as any);
+                  });
                   toast.success("Line item updated");
                   setPolicyViolations(null);
                   setIsDetailModalOpen(false);
@@ -1027,7 +1036,7 @@ function PODetailPage() {
               <h2 className="text-base font-semibold text-[#0b100e]">
                 Line Items <span className="text-[#68726d] font-normal ml-1">{po.lineItems?.length || 0}</span>
               </h2>
-              {stage === "draft" && isSubmitterView && (
+              {stage === "draft" && isSubmitterView && !isReadOnly && (
                 <button
                   onClick={() => {
                     setEditingLineItem(null);
@@ -1049,7 +1058,7 @@ function PODetailPage() {
 
                     <th className="px-6 py-3 text-right font-semibold text-[#0b100e]">Unit Price</th>
                     <th className="px-6 py-3 text-right font-semibold text-[#0b100e]">Subtotal</th>
-                    {stage === "draft" && isSubmitterView && (
+                    {stage === "draft" && isSubmitterView && !isReadOnly && (
                       <th className="px-6 py-3 w-20"></th>
                     )}
                   </tr>
@@ -1119,7 +1128,7 @@ function PODetailPage() {
 
                       <td className="px-6 py-4 text-right">{formatCurrency(item.unitPrice, po.currency)}</td>
                       <td className="px-6 py-4 text-right text-[#0b100e] font-medium">{formatCurrency(item.subtotal as string, po.currency as string)}</td>
-                      {stage === "draft" && isSubmitterView && (
+                      {stage === "draft" && isSubmitterView && !isReadOnly && (
                         <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
                             <button

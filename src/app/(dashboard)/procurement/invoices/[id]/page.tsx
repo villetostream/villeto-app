@@ -113,7 +113,7 @@ export default function ProcurementInvoiceDetailsPage() {
                    </Button>
                 </>
              )}
-             {currentStage === "approved" && (
+             {currentStage === "approved" && policies.vendorInvoices?.canUpdatePaymentStatus && (
                 <Button onClick={recordPayment} className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
                    Record Payment
                 </Button>

@@ -116,7 +116,30 @@ export interface PurchaseOrderRecord {
   legalEntity?: Record<string, unknown>;
   rejectionReason?: string | null;
   cancelledAt?: string | null;
+  // ── Confirmation queue fields (GET /purchase-orders/confirmations) ──
+  /** Vendor-side readiness: e.g. "fully_ready" | "backordered" */
+  fulfillmentState?: string;
+  /** True when the VENDOR still has quantity to prepare (backorder) — not a tenant action */
+  fulfillmentActionRequired?: boolean;
+  canClose?: boolean;
+  closeBlockers?: string[];
+  quantityOrdered?: number;
+  quantityReady?: number;
+  quantityRemainingToReady?: number;
+  quantityDispatched?: number;
+  quantityReceived?: number;
+  /** Dispatched by vendor but not yet confirmed as received by the tenant */
+  quantityAwaitingReceipt?: number;
+  updatedAt?: string;
   [key: string]: unknown;
+}
+
+/**
+ * A PO needs the tenant's receipt confirmation when the vendor has dispatched
+ * goods that haven't been confirmed as received yet.
+ */
+export function needsReceiptConfirmation(po: PurchaseOrderRecord): boolean {
+  return Number(po.quantityAwaitingReceipt ?? 0) > 0;
 }
 
 export interface PurchaseRequestDetail extends PurchaseRequest {

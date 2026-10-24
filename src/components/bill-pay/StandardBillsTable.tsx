@@ -216,8 +216,6 @@ export function StandardBillsTable() {
     },
     {
       enabled: !!legalEntityId,   // wait until we have the entity id
-      refetchInterval: 60_000,
-      staleTime: 0,
     }
   );
 

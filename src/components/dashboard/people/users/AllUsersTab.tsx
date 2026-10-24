@@ -10,6 +10,7 @@ import { useResendInvitationApi } from "@/queries/users/resend-invitation";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import { AppUser } from "@/queries/departments/get-all-departments";
+import { useAuthStore } from "@/stores/auth-stores";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Users } from "lucide-react";
@@ -68,12 +69,14 @@ export function AllUsersTab() {
         }
     }, [resendInvitation]);
 
+    const currentUser = useAuthStore((s) => s.user);
+
     // Memoize the columns array so DataTable doesn't see a new reference
     // on every render — prevents the entire table from re-initialising
     // whenever parent state (search, filters, page) changes.
     const tableColumns = useMemo(
-        () => columns(handleViewProfile, handleToggleStatusClick, handleResendInvitation),
-        [handleViewProfile, handleToggleStatusClick, handleResendInvitation]
+        () => columns(handleViewProfile, handleToggleStatusClick, handleResendInvitation, currentUser),
+        [handleViewProfile, handleToggleStatusClick, handleResendInvitation, currentUser]
     );
 
     const tableprops = useDataTable({

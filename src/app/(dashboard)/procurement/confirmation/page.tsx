@@ -13,13 +13,15 @@ import {
   useConfirmationOrders,
   type PurchaseOrderRecord,
 } from "@/queries/procurement/purchase-orders";
+import { needsReceiptConfirmation } from "@/lib/types/purchase-request-helpers";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 
 const labels: Record<string, string> = {
-  ready_for_delivery: "Ready for delivery",
-  partially_delivered: "Partial delivery",
-  delivered: "Delivered",
+  ready_for_delivery: "Awaiting delivery",
+  partially_delivered: "Partially delivered",
+  delivered: "Fully delivered",
 };
 
 const money = (value: number, code: string) =>
@@ -28,12 +30,15 @@ const money = (value: number, code: string) =>
 type SortKey = "poNumber" | "vendor" | "amount" | "delivery" | "status";
 type SortDir = "asc" | "desc";
 
-// Tab definitions map to API status values
+// Tab definitions map to API status values (delivery stage of the PO)
+//  - ready_for_delivery:  issued, nothing received yet
+//  - partially_delivered: some quantity received, more still expected
+//  - delivered:           all ordered quantity received
 const TABS = [
   { key: "all",                  label: "All" },
-  { key: "ready_for_delivery",   label: "Active" },
-  { key: "partially_delivered",  label: "Partial" },
-  { key: "delivered",            label: "Delivered" },
+  { key: "ready_for_delivery",   label: "Awaiting delivery" },
+  { key: "partially_delivered",  label: "Partially delivered" },
+  { key: "delivered",            label: "Fully delivered" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -118,13 +123,14 @@ function ConfirmationPage() {
       search: debouncedSearch || undefined,
       limit: 100,
     },
-    { refetchInterval: 60_000, refetchOnMount: "always", staleTime: 0 },
+    { refetchInterval: POLL_INTERVALS.ACTIVE_LIST, staleTime: STALE_TIMES.LIVE },
   );
 
   // Separate "all" query (no status filter) solely for badge counts on metric cards + tab pills
+  // Same query key as the sidebar badge query, so React Query dedupes it.
   const { data: allData } = useConfirmationOrders(
     { limit: 100 },
-    { refetchInterval: 60_000, staleTime: 0 },
+    { refetchInterval: POLL_INTERVALS.BADGE, staleTime: STALE_TIMES.LIVE },
   );
 
   const orders = useMemo(() => data?.data ?? [], [data?.data]);
@@ -136,14 +142,12 @@ function ConfirmationPage() {
   const deliveredCount = allOrders.filter((i) => i.status === "delivered").length;
   const inTransit      = activeCount + partialCount;
 
-  // Red-badge counts: POs that have fulfillmentActionRequired===true
-  // This is true whenever a PO has a new delivery batch that has NOT yet been
-  // confirmed, even if the same PO was already partially confirmed before.
+  // Red-badge counts: POs with dispatched goods the tenant hasn't confirmed
+  // receipt of yet (quantityAwaitingReceipt > 0). Note: fulfillmentActionRequired
+  // means the VENDOR still has a backorder, so it's not a tenant action.
   const needsConfirmation = (status?: string) =>
     allOrders.filter(
-      (i) =>
-        i.fulfillmentActionRequired === true &&
-        (status == null || i.status === status),
+      (i) => needsReceiptConfirmation(i) && (status == null || i.status === status),
     ).length;
 
   const unconfirmedAll       = needsConfirmation();
@@ -181,9 +185,9 @@ function ConfirmationPage() {
         description="Track what suppliers are preparing, what has arrived, and what still needs a tenant receipt confirmation."
       />
       <div className="grid gap-3 sm:grid-cols-3 shrink-0">
-        <ProcurementMetric label="Active receiving" value={inTransit} detail="Issued through partial delivery" icon={<Truck className="size-4" />} tone="blue" />
-        <ProcurementMetric label="Partial deliveries" value={partialCount} detail="Orders with quantity still open" icon={<PackageCheck className="size-4" />} tone="amber" />
-        <ProcurementMetric label="Delivered" value={deliveredCount} detail="Orders ready for final review" icon={<CheckCircle2 className="size-4" />} />
+        <ProcurementMetric label="Open deliveries" value={inTransit} detail="Awaiting or partially delivered" icon={<Truck className="size-4" />} tone="blue" />
+        <ProcurementMetric label="To confirm" value={unconfirmedAll} detail="Dispatched goods awaiting your receipt" icon={<PackageCheck className="size-4" />} tone="amber" />
+        <ProcurementMetric label="Fully delivered" value={deliveredCount} detail="Orders ready for final review" icon={<CheckCircle2 className="size-4" />} />
       </div>
 
       <ProcurementSection title="Receiving queue" description="Live purchase orders with delivery activity" className="flex-1 flex flex-col min-h-0">
@@ -265,7 +269,15 @@ function ConfirmationPage() {
                       <p className="text-[12px] font-semibold text-[#17211d]">{item.poNumber || "Purchase order"}</p>
                       <p className="mt-0.5 text-[10px] text-[#89918d]">
                         {item.vendor?.displayName || item.vendor?.legalName || "Vendor pending"}
+                        {item.quantityOrdered != null && (
+                          <> · {item.quantityReceived ?? 0}/{item.quantityOrdered} received</>
+                        )}
                       </p>
+                      {needsReceiptConfirmation(item) && (
+                        <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#fdecee] px-2 py-0.5 text-[10px] font-semibold text-[#d33d44]">
+                          {item.quantityAwaitingReceipt} unit{item.quantityAwaitingReceipt === 1 ? "" : "s"} to confirm
+                        </span>
+                      )}
                     </div>
                     <div className="hidden lg:flex lg:items-center">
                       <p className="text-[11px] font-medium text-[#34413b]">
@@ -282,11 +294,11 @@ function ConfirmationPage() {
                     <div className="hidden lg:flex lg:items-center lg:justify-end">
                       {item.status === "ready_for_delivery" ? (
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f0faf8] text-[#087f70]">
-                          Ready
+                          Awaiting delivery
                         </span>
                       ) : item.status === "partially_delivered" ? (
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600">
-                          Partial
+                          Partially delivered
                         </span>
                       ) : (
                         <StatusBadge status={item.status} label={labels[item.status ?? ""] || item.status} />

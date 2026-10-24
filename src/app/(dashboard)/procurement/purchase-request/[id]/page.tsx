@@ -491,12 +491,12 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
               <label className="text-sm font-medium text-[#0b100e]">
                 Unit Price
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">
+              <div className="w-full h-11 px-3 rounded-lg border border-black/[0.06] flex items-center gap-1.5 focus-within:border-[#087f70] transition-colors bg-white">
+                <span className="text-[#68726d] text-sm font-medium shrink-0 select-none">
                   {{ USD: "$", NGN: "₦", EUR: "€", GBP: "£", CAD: "$", AUD: "$" }[currency] || currency}
                 </span>
                 <input type="number" min={0} value={form.unitPrice ?? ""} onChange={e => set("unitPrice", e.target.value === "" ? undefined : Number(e.target.value))} placeholder="0.00"
-                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors" />
+                  className="w-full h-full bg-transparent text-sm focus:outline-none min-w-0" />
               </div>
             </div>
           </div>

@@ -1111,15 +1111,24 @@ function NewPurchaseOrderPage() {
             setPanelSaving(true);
             try {
               if (purchaseOrderId) {
+                const targetLineItemId =
+                  selectedDetailItem?.purchaseOrderLineItemId ||
+                  selectedDetailItem?.id ||
+                  updatedItem.purchaseOrderLineItemId ||
+                  updatedItem.id;
                 await updateLineItem.mutateAsync({
-                  name: updatedItem.name,
-                  categoryId: updatedItem.categoryId!,
-                  quantity: updatedItem.quantity,
-                  unitPrice: updatedItem.unitPrice,
-                  taxAmount: updatedItem.taxAmount || 0,
-                  unitOfMeasure: updatedItem.unitOfMeasure,
-                  sku: updatedItem.sku,
-                  description: updatedItem.description,
+                  purchaseOrderId,
+                  lineItemId: targetLineItemId,
+                  payload: {
+                    name: updatedItem.name,
+                    categoryId: updatedItem.categoryId!,
+                    quantity: updatedItem.quantity,
+                    unitPrice: updatedItem.unitPrice,
+                    taxAmount: updatedItem.taxAmount || 0,
+                    unitOfMeasure: updatedItem.unitOfMeasure,
+                    sku: updatedItem.sku,
+                    description: updatedItem.description,
+                  },
                 });
                 const refetched = await refetchPO();
                 const items = refetched.data?.data?.lineItems || [];

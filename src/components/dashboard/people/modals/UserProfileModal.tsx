@@ -429,32 +429,34 @@ function OverviewTab({
                 </div>
             )}
 
-            {/* ── Action Buttons ── */}
-            <div className="flex justify-between gap-3 pt-4">
-                {isActive && canDeactivate && (
-                    <Button 
-                        className="h-10 px-6 font-medium bg-[#E63946] hover:bg-[#E63946]/90 text-white"
-                        variant="default"
-                        onClick={() => setConfirmOpen(true)}
-                        disabled={isToggling}
-                    >
-                        {isToggling ? "Processing..." : "Deactivate User"}
-                    </Button>
-                )}
+            {/* ── Action Buttons (hidden while in editing mode) ── */}
+            {!isEditing && (
+                <div className="flex justify-between gap-3 pt-4">
+                    {isActive && canDeactivate && (
+                        <Button 
+                            className="h-10 px-6 font-medium bg-[#E63946] hover:bg-[#E63946]/90 text-white"
+                            variant="default"
+                            onClick={() => setConfirmOpen(true)}
+                            disabled={isToggling}
+                        >
+                            {isToggling ? "Processing..." : "Deactivate User"}
+                        </Button>
+                    )}
 
-                {(!isActive && (user.loginCount === 0 || user.loginCount === undefined)) && (
-                    <Button 
-                        className="h-10 px-6 font-medium bg-primary/10 text-primary hover:bg-primary/20 ml-auto"
-                        variant="secondary" 
-                        onClick={onResendInvitation}
-                        disabled={isResending}
-                    >
-                        {isResending ? (
-                            <><Loader2 className="w-4 h-4 animate-spin mr-2" />Resending...</>
-                        ) : "Resend Invitation"}
-                    </Button>
-                )}
-            </div>
+                    {(!isActive && (user.loginCount === 0 || user.loginCount === undefined)) && (
+                        <Button 
+                            className="h-10 px-6 font-medium bg-primary/10 text-primary hover:bg-primary/20 ml-auto"
+                            variant="secondary" 
+                            onClick={onResendInvitation}
+                            disabled={isResending}
+                        >
+                            {isResending ? (
+                                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Resending...</>
+                            ) : "Resend Invitation"}
+                        </Button>
+                    )}
+                </div>
+            )}
 
             <ConfirmDialog 
                 open={confirmOpen}

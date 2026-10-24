@@ -27,7 +27,7 @@ export function OtherSourcesTable() {
   const { data, isLoading } = useGetBillPayIntakes({
     page: tableprops.page,
     limit: tableprops.pageSize,
-  }, { refetchInterval: 60_000 });
+  });
 
   useEffect(() => {
     if (data?.meta?.totalCount !== undefined) {

@@ -6,6 +6,7 @@ import {
   UseQueryOptions,
 } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
+import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 
 export interface FundingAccount {
   fundingAccountId: string;
@@ -81,26 +82,31 @@ export function useBillPayData(legalEntityId?: string) {
     requests: useQuery({
       queryKey: workspaceQueryKey(["bill-pay", "requests", legalEntityId]),
       queryFn: () => get<PaymentRequest[]>("bill-pay/payment-requests"),
+      staleTime: STALE_TIMES.LIVE,
       enabled,
     }),
     payments: useQuery({
       queryKey: workspaceQueryKey(["bill-pay", "payments", legalEntityId]),
       queryFn: () => get<Payment[]>("bill-pay/payments"),
+      staleTime: STALE_TIMES.LIVE,
       enabled,
     }),
     funding: useQuery({
       queryKey: workspaceQueryKey(["bill-pay", "funding", legalEntityId]),
       queryFn: () => get<FundingAccount[]>("bill-pay/funding-accounts"),
+      staleTime: STALE_TIMES.SLOW,
       enabled,
     }),
     beneficiaries: useQuery({
       queryKey: workspaceQueryKey(["bill-pay", "beneficiaries", legalEntityId]),
       queryFn: () => get<Beneficiary[]>("bill-pay/beneficiaries"),
+      staleTime: STALE_TIMES.SLOW,
       enabled,
     }),
     bankTransactions: useQuery({
       queryKey: workspaceQueryKey(["bill-pay", "bank", legalEntityId]),
       queryFn: () => get<BankTransaction[]>("bill-pay/bank-transactions"),
+      staleTime: STALE_TIMES.LIVE,
       enabled,
     }),
   };
@@ -220,6 +226,8 @@ export function useGetBillPayIntakes(
         };
       };
     },
+    staleTime: STALE_TIMES.LIVE,
+    refetchInterval: POLL_INTERVALS.ACTIVE_LIST,
     ...options,
   });
 }
@@ -411,6 +419,7 @@ export function useGetFundingAccounts(
       );
       return res.data.data as { data: FundingAccount[]; meta: any };
     },
+    staleTime: STALE_TIMES.SLOW,
     enabled: !!legalEntityId,
   });
 }
@@ -460,6 +469,7 @@ export function useGetBeneficiaries(
       );
       return res.data.data as { data: Beneficiary[]; meta: any };
     },
+    staleTime: STALE_TIMES.SLOW,
     enabled: !!legalEntityId,
   });
 }
@@ -519,6 +529,7 @@ export function useGetApprovalRules(
       );
       return res.data.data as { data: ApprovalRule[]; meta: any };
     },
+    staleTime: STALE_TIMES.NORMAL,
     enabled: !!legalEntityId,
   });
 }
@@ -580,6 +591,7 @@ export function useGetPaymentRequests(
       );
       return res.data.data as { data: PaymentRequest[]; meta: any };
     },
+    staleTime: STALE_TIMES.LIVE,
     enabled: !!legalEntityId,
   });
 }
@@ -778,6 +790,7 @@ export function useGetPayments(legalEntityId: string, page = 1, limit = 20) {
       const res = await axios.get(`/bill-pay/payments?${params.toString()}`);
       return res.data.data as { data: Payment[]; meta: any };
     },
+    staleTime: STALE_TIMES.LIVE,
     enabled: !!legalEntityId,
   });
 }
@@ -1128,6 +1141,8 @@ export function useGetBillPayInvoices(
         };
       };
     },
+    staleTime: STALE_TIMES.LIVE,
+    refetchInterval: POLL_INTERVALS.ACTIVE_LIST,
     ...options,
   });
 }

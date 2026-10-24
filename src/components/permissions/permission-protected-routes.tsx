@@ -18,21 +18,25 @@ const withPermissions = <P extends object>(
     const pathName = usePathname();
     const can = useAuthStore(state => state.can);
     const isAuthorizationLoading = useAuthStore(state => state.isLoading);
-    const authorizationRevision = useAuthStore(
-      state => state.authorization?.revision,
-    );
+    const authorization = useAuthStore(state => state.authorization);
+    const authorizationRevision = authorization?.revision;
+
+    // Treat missing authorization snapshot as still-loading — never grant
+    // access based on an empty permission set that could be the default
+    // before the server has responded.
+    const isReady = !isAuthorizationLoading && authorization !== null;
 
     const hasAccess = !requiredPermissions || requiredPermissions.length === 0
       ? true
       : requiredPermissions.some(p => can(p.resource, p.action));
 
     useEffect(() => {
-      if (!isAuthorizationLoading && !hasAccess) {
+      if (isReady && !hasAccess) {
         router.push("/dashboard");
       }
-    }, [pathName, authorizationRevision, hasAccess, isAuthorizationLoading, router]);
+    }, [pathName, authorizationRevision, hasAccess, isReady, router]);
 
-    if (isAuthorizationLoading || !hasAccess) {
+    if (!isReady || !hasAccess) {
       return null;
     }
 

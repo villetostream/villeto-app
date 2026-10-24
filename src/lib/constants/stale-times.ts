@@ -51,3 +51,18 @@ export const STALE_TIMES = {
   /** 60 minutes. Session-level data: company branding, logo. Immutable until re-login. */
   SESSION: 60 * MINUTE,
 } as const;
+
+/**
+ * Polling tiers for `refetchInterval`. Polling is paused automatically while
+ * the browser tab is hidden (refetchIntervalInBackground: false). Prefer
+ * invalidating after mutations over polling; poll only for data changed by
+ * OTHER users/vendors that the current user must see without a reload.
+ *
+ * Never poll faster than BADGE — every open tab multiplies the load.
+ */
+export const POLL_INTERVALS = {
+  /** 2 minutes. Action-count badges (sidebar, tab pills). */
+  BADGE: 2 * MINUTE,
+  /** 1 minute. A list the user is actively working through. */
+  ACTIVE_LIST: 1 * MINUTE,
+} as const;

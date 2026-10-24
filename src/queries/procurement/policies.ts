@@ -237,7 +237,8 @@ export const useGetSpendProgramSettings = (options?: { enabled?: boolean }) => {
       return res.data;
     },
     staleTime: STALE_TIMES.NORMAL,
-    refetchInterval: 15000, // actively check every 15s in case another user changes settings
+    // No polling: settings rarely change. Our own updates invalidate this key,
+    // and refetchOnWindowFocus picks up other users' changes once stale.
     enabled: options?.enabled ?? true,
   });
 };

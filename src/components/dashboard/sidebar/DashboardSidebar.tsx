@@ -40,9 +40,10 @@ import { NavItem, navigationItems } from "./sidebar-constants";
 import { useAxios } from "@/hooks/useAxios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
-import { STALE_TIMES } from "@/lib/constants/stale-times";
+import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders, useConfirmationOrders } from "@/queries/procurement/purchase-orders";
+import { needsReceiptConfirmation } from "@/lib/types/purchase-request-helpers";
 import { useCompanyExpenses } from "@/lib/react-query/expenses";
 import {
   Tooltip,
@@ -210,6 +211,15 @@ export function DashboardSidebar({
     policies.expenses.listScope === "team";
 
   // ── Badge Counts ──
+  // Badges are secondary UI — defer them by 3 s after mount so the
+  // primary page content (dashboard / whatever the user navigated to)
+  // gets the concurrency slots first.
+  const [badgesReady, setBadgesReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setBadgesReady(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const canApprovePR = policies.purchaseRequests.canApprove;
   const canConvertPR = policies.purchaseRequests.canConvertToPurchaseOrder;
   const isExplicitPRManager = policies.purchaseRequests.canReadDepartment;
@@ -218,7 +228,7 @@ export function DashboardSidebar({
   const showPRApprovalCount = canApprovePR && isExplicitPRManager;
   const { data: prApprovalData } = useGetPurchaseRequests(
     { scope: "team", status: "submitted", requiresMyApproval: true },
-    { enabled: showPRApprovalCount, select: (d) => d.meta?.totalCount ?? 0 },
+    { enabled: showPRApprovalCount && badgesReady, select: (d) => d.meta?.totalCount ?? 0 },
   );
   const prAwaitingCount = showPRApprovalCount
     ? ((prApprovalData as unknown as number) ?? 0)
@@ -226,7 +236,7 @@ export function DashboardSidebar({
 
   const { data: prConversionData } = useGetPurchaseRequests(
     { scope: prListScope, status: "approved", requiresMyConversion: true },
-    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 },
+    { enabled: canConvertPR && badgesReady, select: (d) => d.meta?.totalCount ?? 0 },
   );
   const prReadyForPOCount = canConvertPR
     ? ((prConversionData as unknown as number) ?? 0)
@@ -238,7 +248,7 @@ export function DashboardSidebar({
       status: "partially_converted",
       requiresMyConversion: true,
     },
-    { enabled: canConvertPR, select: (d) => d.meta?.totalCount ?? 0 },
+    { enabled: canConvertPR && badgesReady, select: (d) => d.meta?.totalCount ?? 0 },
   );
   const prPartialPOCount = canConvertPR
     ? ((prPartialConversionData as unknown as number) ?? 0)
@@ -257,7 +267,7 @@ export function DashboardSidebar({
     undefined,
     undefined,
     "team",
-    { enabled: showPOApprovalCount, select: (d) => d.meta?.totalCount ?? 0 },
+    { enabled: showPOApprovalCount && badgesReady, select: (d) => d.meta?.totalCount ?? 0 },
   );
   const totalPOActionCount = showPOApprovalCount
     ? ((poApprovalData as unknown as number) ?? 0)
@@ -266,16 +276,15 @@ export function DashboardSidebar({
   const canReceivePO = policies.purchaseOrders.canReceive;
 
   // Fetch the confirmation queue (dedicated endpoint) and count only POs
-  // that have fulfillmentActionRequired===true — i.e. a new delivery batch
-  // is waiting to be confirmed, even if the PO was already partially confirmed.
+  // with dispatched quantity not yet confirmed as received by the tenant
+  // (quantityAwaitingReceipt > 0). fulfillmentActionRequired is a VENDOR
+  // backorder flag and must not drive this badge.
   const { data: confirmationData } = useConfirmationOrders(
     { limit: 100 },
-    { enabled: canReceivePO, refetchInterval: 60_000, staleTime: 0 },
+    { enabled: canReceivePO && badgesReady, refetchInterval: POLL_INTERVALS.BADGE, staleTime: STALE_TIMES.LIVE },
   );
   const totalConfirmationCount = canReceivePO
-    ? (confirmationData?.data ?? []).filter(
-        (po) => po.fulfillmentActionRequired === true,
-      ).length
+    ? (confirmationData?.data ?? []).filter(needsReceiptConfirmation).length
     : 0;
 
   const isExpenseManager =
@@ -287,12 +296,13 @@ export function DashboardSidebar({
     "team",
     undefined,
     undefined,
-    isExpenseManager,
+    isExpenseManager && badgesReady,
   );
   const totalExpenseActionCount =
     isExpenseManager && expensesData?.reports
       ? expensesData.reports.filter((e) => e.status === "submitted").length
       : 0;
+
 
   const filterItems = (items: NavItem[]): NavItem[] => {
     return items
@@ -340,7 +350,16 @@ export function DashboardSidebar({
                 currentSub.badge = totalConfirmationCount.toString();
               return currentSub;
             })
-            .filter((sub) => hasNavPermission(sub.permissions));
+            .filter((sub) => {
+              if (
+                sub.href === "/settings/entities" ||
+                sub.label === "Entities" ||
+                sub.label === "Legal Entities"
+              ) {
+                return policies.legalEntities.canManage;
+              }
+              return hasNavPermission(sub.permissions);
+            });
           if (
             !hasNavPermission(currentItem.permissions) &&
             filteredSubs.length === 0

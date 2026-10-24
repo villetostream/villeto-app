@@ -13,6 +13,7 @@ export function applyWorkspaceReadOnlyPolicies(
     "billPay",
     "accounting",
     "vendors",
+    "expenses",
   ] as const) {
     const value = result[key];
     const filtered = Object.fromEntries(
@@ -25,11 +26,16 @@ export function applyWorkspaceReadOnlyPolicies(
     );
     Object.assign(result, { [key]: filtered });
   }
-  result.expenses = {
-    ...result.expenses,
-    canApprove: false,
-    canReject: false,
-    canManageCompany: false,
+  result.people = {
+    ...result.people,
+    canManageUsers: false,
+    canManageDepartments: false,
+    canManageRoles: false,
+  };
+  result.legalEntities = {
+    ...result.legalEntities,
+    canManage: false,
+    canManageAssignments: false,
   };
   return result;
 }
