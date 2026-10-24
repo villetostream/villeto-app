@@ -5,7 +5,7 @@ import { useSearchParams, useParams, useRouter } from "next/navigation";
 import { useAxios } from "@/hooks/useAxios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
-import { CheckCircle2, XCircle, X, FileText } from "lucide-react";
+import { CheckCircle2, XCircle, X, FileText, Clock, AlertCircle, CreditCard } from "lucide-react";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { useAuthStore } from "@/stores/auth-stores";
 import { toast } from "sonner";
@@ -74,6 +74,7 @@ function VendorDetailsPage() {
   const [paymentTermsModalOpen, setPaymentTermsModalOpen] = useState(false);
   const [paymentTermsRejectReason, setPaymentTermsRejectReason] = useState("");
   const [isPaymentTermsRejecting, setIsPaymentTermsRejecting] = useState(false);
+  const [showPaymentTermsHistoryModal, setShowPaymentTermsHistoryModal] = useState(false);
   const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
   const [previewDocName, setPreviewDocName] = useState<string | null>(null);
 
@@ -109,14 +110,16 @@ function VendorDetailsPage() {
   const statusMutation = useVendorStatusUpdate(vendorId);
   const paymentMutation = useVendorPaymentStatusUpdate(vendorId);
 
-  // ── Payment Terms (Stage 2 of approval) ───────────────────────────────────
+  // ── Payment Terms ─────────────────────────────────────────────────────────
   // Query all payment terms awaiting or carrying company decisions
-  const { data: companyPaymentTerms = [], isLoading: isPaymentTermsListLoading } =
-    useCompanyPaymentTermsList();
+  const {
+    data: companyPaymentTerms = [],
+    isLoading: isPaymentTermsListLoading,
+  } = useCompanyPaymentTermsList();
 
-  // 1. Find payment term matching this vendor from the company payment terms list
-  const paymentTermFromList = useMemo(() => {
-    if (!companyPaymentTerms || !Array.isArray(companyPaymentTerms)) return null;
+  // 1. Find all payment terms matching this vendor
+  const matchingPaymentTerms = useMemo(() => {
+    if (!companyPaymentTerms || !Array.isArray(companyPaymentTerms)) return [];
     const vendorResolvedId =
       vendorId ||
       getString((vendor as any)?.vendorId) ||
@@ -130,7 +133,7 @@ function VendorDetailsPage() {
       getString((vendor as any)?.profile?.displayName)
     ).toLowerCase().trim();
 
-    const matching = companyPaymentTerms.filter((t) => {
+    return companyPaymentTerms.filter((t) => {
       if (vendorResolvedId && t.vendorId === vendorResolvedId) return true;
       if (
         vendorResolvedName &&
@@ -141,14 +144,18 @@ function VendorDetailsPage() {
       }
       return false;
     });
+  }, [companyPaymentTerms, vendorId, vendor]);
 
+  const paymentTermFromList = useMemo(() => {
+    if (!matchingPaymentTerms || matchingPaymentTerms.length === 0) return null;
     return (
-      matching.find((t) => t.status === "pending_review") ||
-      matching.find((t) => t.isCurrent) ||
-      matching[0] ||
+      matchingPaymentTerms.find((t) => t.status === "pending_review") ||
+      matchingPaymentTerms.find((t) => t.isCurrent) ||
+      matchingPaymentTerms.find((t) => t.status === "approved") ||
+      matchingPaymentTerms[0] ||
       null
     );
-  }, [companyPaymentTerms, vendorId, vendor]);
+  }, [matchingPaymentTerms]);
 
   // 2. Fall back to any embedded payment term in the vendor object
   const paymentTermFromVendor = useMemo(() => {
@@ -352,7 +359,10 @@ function VendorDetailsPage() {
     getString(vendor.contactFirstName) || getString(profile.contactFirstName);
   const contactLastName =
     getString(vendor.contactLastName) || getString(profile.contactLastName);
-  const decisionNote = getString(vendor.decisionNote);
+  const decisionNote =
+    getString(vendor.decisionNote) ||
+    getString((vendor as any).rejectionReason) ||
+    getString((vendor as any).note);
   const createdBy = asRecord(vendor.createdBy);
   const approvedBy = asRecord(vendor.approvedBy);
   const vendorDocs = asArray(vendor.documents);
@@ -367,16 +377,29 @@ function VendorDetailsPage() {
 
   const rawStatus = status.toLowerCase();
   const isPaymentEnabled = vendor.isPaymentEnabled === true;
+  const nextAction = getString(vendor.nextAction);
+
+  // A vendor is awaiting review if:
+  // 1. nextAction is "awaiting_company_review", OR
+  // 2. onboardingStatus is "submitted" and they are not yet approved
+  const isAwaitingReview =
+    nextAction === "awaiting_company_review" ||
+    (onboardingStatus === "submitted" && approvalStatus !== "approved");
+
+  // Specifically resubmitted after being previously rejected:
+  const isResubmitted = isAwaitingReview && approvalStatus === "rejected";
+  const isUnderReview = isAwaitingReview;
+
+  const isRejected = approvalStatus === "rejected" && !isAwaitingReview;
 
   const isInvited =
+    !isAwaitingReview &&
     approvalStatus === "pending" &&
     (!onboardingStatus || onboardingStatus === "invited");
   const isOnboarding =
+    !isAwaitingReview &&
     approvalStatus === "pending" &&
     !["invited", "submitted", ""].includes(onboardingStatus);
-  const isUnderReview =
-    approvalStatus === "pending" && onboardingStatus === "submitted";
-  const isRejected = approvalStatus === "rejected";
   // Vendor approved (Stage 1 done) but never yet activated — awaiting payment
   // terms review (Stage 2). A deactivatedAt timestamp means they were active
   // before and were explicitly deactivated, so this is a reactivation scenario.
@@ -409,11 +432,16 @@ function VendorDetailsPage() {
                 Onboarding
               </span>
             )}
-            {isUnderReview && (
+            {isResubmitted ? (
+              <span className="px-2.5 py-0.5 rounded-full bg-[#fff9e6] text-[#b27b00] text-xs font-semibold border border-[#ffe099] flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                Resubmitted for Review
+              </span>
+            ) : isUnderReview ? (
               <span className="px-2.5 py-0.5 rounded-full bg-[#fff9e6] text-[#b27b00] text-xs font-semibold border border-[#ffe099]">
                 Under Review
               </span>
-            )}
+            ) : null}
             {isActive && (
               <span className="px-2.5 py-0.5 rounded-full bg-[#f0faf8] text-[#087f70] text-xs font-semibold border border-[#e7f6f2]">
                 Active
@@ -527,6 +555,21 @@ function VendorDetailsPage() {
           )}
         </div>
       </div>
+
+      {/* ── Resubmission Notice Banner ── */}
+      {isResubmitted && (
+        <div className="rounded-[14px] border border-[#ffe099] bg-[#fffdf5] p-4 flex items-start gap-3 shadow-sm">
+          <Clock className="h-5 w-5 text-[#b27b00] mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <h3 className="text-[13px] font-semibold text-[#8a5f00]">
+              Application Resubmitted for Review
+            </h3>
+            <p className="text-[12px] text-[#8a5f00]/90 mt-0.5 leading-relaxed">
+              This vendor was previously rejected, but has updated their details/documents and resubmitted for review. You can inspect their latest information below and click &ldquo;Approve vendor&rdquo; or &ldquo;Reject vendor&rdquo; above.
+            </p>
+          </div>
+        </div>
+      )}
 
       <nav
         aria-label="Vendor sections"
@@ -859,6 +902,137 @@ function VendorDetailsPage() {
             </div>
           </div>
 
+          {/* ── Payment Terms Card ── */}
+          <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-[#68726d]" />
+                <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em]">
+                  PAYMENT TERMS
+                </h2>
+              </div>
+              {paymentTerm && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                      paymentTerm.status === "approved"
+                        ? "text-[#087f70] bg-[#f0faf8] border-[#c8ece4]"
+                        : paymentTerm.status === "rejected"
+                        ? "text-[#d33d44] bg-[#fdf2f2] border-[#fbd5d5]"
+                        : "text-[#b27b00] bg-[#fff9e6] border-[#ffe099]"
+                    }`}
+                  >
+                    {paymentTerm.status === "approved"
+                      ? "Approved"
+                      : paymentTerm.status === "rejected"
+                      ? "Rejected"
+                      : "Pending Review"}
+                  </span>
+                  {matchingPaymentTerms.length > 1 && (
+                    <button
+                      onClick={() => setShowPaymentTermsHistoryModal(true)}
+                      className="text-[11px] font-semibold text-[#087f70] hover:underline cursor-pointer"
+                    >
+                      History ({matchingPaymentTerms.length})
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {isPaymentTermsListLoading ? (
+              <div className="space-y-3 py-2">
+                <Skeleton className="h-4 w-full rounded" />
+                <Skeleton className="h-4 w-3/4 rounded" />
+              </div>
+            ) : paymentTerm ? (
+              <div className="space-y-3">
+                <div className="border border-black/[0.06] rounded-[10px] p-4 bg-[#f9faf9]/50">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[12px] font-medium text-[#68726d] mb-0.5">
+                        Term Name
+                      </p>
+                      <p className="text-[13px] font-semibold text-[#0b100e]">
+                        {paymentTerm.name || "Net 30"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[12px] font-medium text-[#68726d] mb-0.5">
+                        Payment Window
+                      </p>
+                      <p className="text-[13px] font-semibold text-[#0b100e]">
+                        {paymentTerm.days === 0
+                          ? "Due on receipt (0 days)"
+                          : paymentTerm.days != null
+                          ? `Net ${paymentTerm.days} (${paymentTerm.days} days)`
+                          : "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-black/[0.05]">
+                    <div>
+                      <p className="text-[12px] font-medium text-[#68726d] mb-0.5">
+                        Revision
+                      </p>
+                      <p className="text-[13px] font-semibold text-[#0b100e]">
+                        v{paymentTerm.revision ?? 1} {paymentTerm.isCurrent && "(Current)"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[12px] font-medium text-[#68726d] mb-0.5">
+                        {paymentTerm.reviewedAt ? "Reviewed On" : "Submitted On"}
+                      </p>
+                      <p className="text-[13px] font-semibold text-[#0b100e]">
+                        {paymentTerm.reviewedAt || paymentTerm.submittedAt
+                          ? new Date(
+                              (paymentTerm.reviewedAt || paymentTerm.submittedAt)!,
+                            ).toLocaleDateString(undefined, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {paymentTerm.status === "rejected" && paymentTerm.rejectionReason && (
+                    <div className="mt-3 p-3 rounded-[8px] bg-[#fdf2f2] border border-[#fbd5d5] text-[12px] text-[#d33d44]">
+                      <span className="font-semibold">Rejection reason: </span>
+                      {paymentTerm.rejectionReason}
+                    </div>
+                  )}
+
+                  {isPendingPaymentTerms && (
+                    <div className="mt-3 pt-3 border-t border-black/[0.05] flex items-center justify-between">
+                      <span className="text-[12px] font-medium text-[#b27b00]">
+                        Action required: Payment terms await review
+                      </span>
+                      <button
+                        onClick={() => {
+                          setIsPaymentTermsRejecting(false);
+                          setPaymentTermsRejectReason("");
+                          setPaymentTermsModalOpen(true);
+                        }}
+                        className="px-3 h-7 rounded-[6px] bg-[#087f70] text-white text-[11px] font-semibold hover:bg-[#076b5e] transition-colors cursor-pointer"
+                      >
+                        Review Terms
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="border border-black/[0.06] rounded-[10px] p-4 bg-[#f9faf9]/50 text-center">
+                <p className="text-[13px] font-medium text-[#68726d]">
+                  No payment terms recorded for this vendor yet.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Vendor Note */}
           {(isUnderReview ||
             isRejected ||
@@ -868,7 +1042,7 @@ function VendorDetailsPage() {
             decisionNote && (
               <div className="bg-[#f0faf8] rounded-[14px] border border-[#e7f6f2] p-5 shadow-sm">
                 <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em] mb-3">
-                  VENDOR NOTE
+                  {isResubmitted || isRejected ? "REJECTION REASON / FEEDBACK NOTE" : "VENDOR NOTE"}
                 </h2>
                 <p className="text-[13px] text-[#0b100e] leading-relaxed font-medium">
                   {decisionNote}
@@ -1012,6 +1186,80 @@ function VendorDetailsPage() {
               >
                 {isSubmitting ? "Processing..." : "Reject Vendor"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Payment Terms History Modal ── */}
+      {showPaymentTermsHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4 animate-in fade-in">
+          <div className="bg-white rounded-[16px] shadow-2xl w-full max-w-lg border border-black/[0.08] overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] bg-[#f9faf9] flex-shrink-0">
+              <div>
+                <h2 className="text-[15px] font-bold text-[#0b100e]">
+                  Payment Terms History
+                </h2>
+                <p className="text-[12px] text-[#68726d]">
+                  All payment terms recorded for {legalName || displayName}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPaymentTermsHistoryModal(false)}
+                className="w-8 h-8 rounded-[8px] bg-white hover:bg-[#f5f7f6] border border-black/[0.08] flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4 text-[#68726d]" />
+              </button>
+            </div>
+            <div className="p-6 space-y-3 overflow-y-auto">
+              {matchingPaymentTerms.map((term, idx) => (
+                <div
+                  key={term.paymentTermId || idx}
+                  className="p-4 rounded-[10px] border border-black/[0.08] bg-[#f9faf9]/50 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-semibold text-[#0b100e]">
+                      {term.name || "Payment Term"} (v{term.revision ?? 1})
+                    </span>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                        term.status === "approved"
+                          ? "text-[#087f70] bg-[#f0faf8] border-[#c8ece4]"
+                          : term.status === "rejected"
+                          ? "text-[#d33d44] bg-[#fdf2f2] border-[#fbd5d5]"
+                          : "text-[#b27b00] bg-[#fff9e6] border-[#ffe099]"
+                      }`}
+                    >
+                      {term.status === "approved"
+                        ? "Approved"
+                        : term.status === "rejected"
+                        ? "Rejected"
+                        : "Pending Review"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[12px] text-[#68726d]">
+                    <div>
+                      Window:{" "}
+                      <span className="font-medium text-[#0b100e]">
+                        {term.days === 0 ? "Due on receipt" : `${term.days} days`}
+                      </span>
+                    </div>
+                    {term.submittedAt && (
+                      <div className="text-right">
+                        Submitted:{" "}
+                        <span className="font-medium text-[#0b100e]">
+                          {new Date(term.submittedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {term.rejectionReason && (
+                    <p className="text-[11px] text-[#d33d44] bg-[#fdf2f2] p-2 rounded">
+                      Reason: {term.rejectionReason}
+                    </p>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -50,6 +50,7 @@ type VendorStatus =
   | "active"
   | "deactivated"
   | "pending"
+  | "resubmitted"
   | "invited"
   | "onboarding"
   | "flagged"
@@ -101,6 +102,12 @@ const STATUS_CONFIG: Record<
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
   },
+  resubmitted: {
+    label: "Resubmitted",
+    classes: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]",
+    actionLabel: "View Details",
+    actionIcon: <Eye className="w-4 h-4" />,
+  },
   flagged: {
     label: "Flagged",
     classes: "text-[#d33d44] bg-[#fdf2f2] border border-[#fbd5d5]",
@@ -131,7 +138,7 @@ const TAB_STATUS_MAP: Record<string, VendorStatus[] | null> = {
   all: null,
   verified: ["active", "approved"],
   invited: ["invited", "onboarding"],
-  under_review: ["pending"],
+  under_review: ["pending", "resubmitted"],
   rejected: ["rejected", "flagged"],
 };
 
@@ -987,9 +994,17 @@ function VendorPage() {
       const status = getString(v.status);
       const onboardingStatus = getString(v.onboardingStatus);
       const approvalStatus = getString(v.approvalStatus);
+      const nextAction = getString(v.nextAction);
       const normalizedStatus = status.toLowerCase();
 
-      if (approvalStatus === "rejected") {
+      const isAwaitingReview =
+        nextAction === "awaiting_company_review" ||
+        (onboardingStatus === "submitted" && approvalStatus !== "approved");
+
+      if (isAwaitingReview) {
+        // If previously rejected, tag as resubmitted to clearly notify reviewer
+        computedStatus = approvalStatus === "rejected" ? "resubmitted" : "pending";
+      } else if (approvalStatus === "rejected") {
         computedStatus = "rejected";
       } else if (approvalStatus === "approved") {
         if (normalizedStatus === "active") {
@@ -1072,7 +1087,9 @@ function VendorPage() {
       verified: vendors.filter(
         (v) => v.status === "active" || v.status === "approved",
       ).length,
-      pending: vendors.filter((v) => v.status === "pending").length,
+      pending: vendors.filter(
+        (v) => v.status === "pending" || v.status === "resubmitted",
+      ).length,
       rejected: vendors.filter(
         (v) =>
           (v.status as string) === "rejected" ||
