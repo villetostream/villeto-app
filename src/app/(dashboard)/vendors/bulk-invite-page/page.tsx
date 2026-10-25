@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { useInviteVendorV2 } from "@/queries/vendors/vendor-network";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Download, Trash2, Loader2 } from "lucide-react";
 import {
@@ -77,9 +79,9 @@ function SuccessModal({ count, onClose }: { count: number; onClose: () => void }
             </svg>
           </div>
         </div>
-        <h2 className="text-xl font-bold text-foreground mb-2">Vendor Invite{count > 1 ? "s" : ""} Sent</h2>
+        <h2 className="text-xl font-bold text-foreground mb-2">{count} vendor{count > 1 ? "s" : ""} processed</h2>
         <p className="text-sm text-muted-foreground leading-relaxed mb-8">
-          The vendor{count > 1 ? "s have" : " has"} received an onboarding link and can now begin verification.
+          New suppliers have an onboarding invitation. Existing organization vendors were reused without another invitation.
         </p>
         <button
           onClick={onClose}
@@ -105,6 +107,8 @@ const REQUIRED_FIELDS = [
 
 function VendorBulkInvitePage() {
   const router = useRouter();
+  const invite = useInviteVendorV2();
+  const [processedCount, setProcessedCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<"upload" | "preview">("upload");
@@ -220,16 +224,26 @@ function VendorBulkInvitePage() {
   const handleSend = async () => {
     if (selected.size === 0) return;
     setIsSending(true);
-    await new Promise((r) => setTimeout(r, 1000));
+    const failed = new Set<string>();
+    let processed = 0;
+    for (const row of rows.filter((row) => selected.has(row.id))) {
+      try {
+        await invite.mutateAsync({ email: row.email.trim(), legalName: row.vendorName.trim(), verificationRequested: false });
+        processed += 1;
+      } catch { failed.add(row.id); }
+    }
     setIsSending(false);
-    setShowSuccess(true);
+    setProcessedCount(processed);
+    setSelected(failed);
+    if (processed) setShowSuccess(true);
+    if (failed.size) toast.error(`${failed.size} vendors could not be processed. They remain selected for retry.`);
   };
 
   return (
     <div className="space-y-0 h-full flex flex-col">
       {showSuccess && (
         <SuccessModal
-          count={selected.size}
+          count={processedCount}
           onClose={() => { setShowSuccess(false); router.push("/vendors"); }}
         />
       )}

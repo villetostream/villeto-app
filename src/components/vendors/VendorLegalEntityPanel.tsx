@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { isAxiosError, type AxiosInstance } from "axios";
 import {
   Building2,
@@ -15,10 +21,9 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  useEntityWorkspaceStore,
-  workspaceReadOnly,
-} from "@/features/entity-workspace/store";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateVendorManagement } from "@/queries/vendors/cache";
 import { useAuthStore } from "@/stores/auth-stores";
 import {
   Dialog,
@@ -448,7 +453,9 @@ export function VendorLegalEntityPanel(props: {
   vendorId: string;
   axiosInstance: AxiosInstance;
 }) {
-  const workspaceGeneration = useEntityWorkspaceStore((state) => state.generation);
+  const workspaceGeneration = useEntityWorkspaceStore(
+    (state) => state.generation,
+  );
   // Reset coverage, site selection, and dialogs when the workspace changes.
   return (
     <VendorLegalEntityPanelContent
@@ -468,16 +475,18 @@ function VendorLegalEntityPanelContent({
   axiosInstance: AxiosInstance;
   workspaceGeneration: number;
 }) {
+  const queryClient = useQueryClient();
   const can = useAuthStore((state) => state.can);
   const canManageSites = can("vendor", "create");
   const canReadEntityConfiguration = can(
     "vendor.entity_configuration",
     "manage",
   );
-  const canManageEntityConfiguration =
-    canReadEntityConfiguration && !workspaceReadOnly();
+  const canManageEntityConfiguration = canReadEntityConfiguration;
   const [sites, setSites] = useState<VendorSite[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+  const [controlsRelationship, setControlsRelationship] =
+    useState<EntityRelationship | null>(null);
   const [relationships, setRelationships] = useState<EntityRelationship[]>([]);
   const [legalEntities, setLegalEntities] = useState<LegalEntityOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -497,37 +506,46 @@ function VendorLegalEntityPanelContent({
     assignment: SiteAssignment;
   } | null>(null);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    const isCurrent = () =>
-      !signal?.aborted &&
-      workspaceGeneration === useEntityWorkspaceStore.getState().generation;
-    if (!isCurrent()) return;
-    setLoading(true);
-    setMatrixError(false);
-    try {
-      const sitesRequest = axiosInstance.get(`/vendors/${vendorId}/sites`, { signal });
-      const relationshipRequest = canReadEntityConfiguration
-        ? axiosInstance.get(`/vendors/${vendorId}/entity-relationships`, { signal })
-        : Promise.resolve(null);
-      const [sitesResponse, relationshipsResponse] = await Promise.all([
-        sitesRequest,
-        relationshipRequest,
-      ]);
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      const isCurrent = () =>
+        !signal?.aborted &&
+        workspaceGeneration === useEntityWorkspaceStore.getState().generation;
       if (!isCurrent()) return;
-      setSites(unwrap<VendorSite[]>(sitesResponse));
-      setRelationships(
-        relationshipsResponse
-          ? unwrap<EntityRelationship[]>(relationshipsResponse)
-          : [],
-      );
-    } catch {
-      if (!isCurrent()) return;
-      setMatrixError(true);
-      toast.error("Could not load vendor legal-entity setup.");
-    } finally {
-      if (isCurrent()) setLoading(false);
-    }
-  }, [axiosInstance, vendorId, canReadEntityConfiguration, workspaceGeneration]);
+      setLoading(true);
+      setMatrixError(false);
+      try {
+        const sitesRequest = axiosInstance.get(
+          `/vendor-management/${vendorId}/sites`,
+          { signal },
+        );
+        const relationshipRequest = canReadEntityConfiguration
+          ? axiosInstance.get(
+              `/vendor-management/${vendorId}/entity-relationships`,
+              { signal },
+            )
+          : Promise.resolve(null);
+        const [sitesResponse, relationshipsResponse] = await Promise.all([
+          sitesRequest,
+          relationshipRequest,
+        ]);
+        if (!isCurrent()) return;
+        setSites(unwrap<VendorSite[]>(sitesResponse));
+        setRelationships(
+          relationshipsResponse
+            ? unwrap<EntityRelationship[]>(relationshipsResponse)
+            : [],
+        );
+      } catch {
+        if (!isCurrent()) return;
+        setMatrixError(true);
+        toast.error("Could not load vendor legal-entity setup.");
+      } finally {
+        if (isCurrent()) setLoading(false);
+      }
+    },
+    [axiosInstance, vendorId, canReadEntityConfiguration, workspaceGeneration],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -552,17 +570,21 @@ function VendorLegalEntityPanelContent({
     try {
       if (editingSite) {
         await axiosInstance.patch(
-          `/vendors/${vendorId}/sites/${editingSite.vendorSiteId}`,
+          `/vendor-management/${vendorId}/sites/${editingSite.vendorSiteId}`,
           payload,
         );
       } else {
-        await axiosInstance.post(`/vendors/${vendorId}/sites`, payload);
+        await axiosInstance.post(
+          `/vendor-management/${vendorId}/sites`,
+          payload,
+        );
       }
       toast.success(
         editingSite ? "Vendor site updated." : "Vendor site added.",
       );
       setSiteDialogOpen(false);
       setEditingSite(null);
+      await invalidateVendorManagement(queryClient);
       await load();
     } catch {
       toast.error(
@@ -577,7 +599,7 @@ function VendorLegalEntityPanelContent({
     setSubmitting(true);
     try {
       await axiosInstance.patch(
-        `/vendors/${vendorId}/sites/${site.vendorSiteId}`,
+        `/vendor-management/${vendorId}/sites/${site.vendorSiteId}`,
         {
           status: "inactive",
           inactivationReason: reason.trim(),
@@ -588,6 +610,7 @@ function VendorLegalEntityPanelContent({
       );
       setSiteDialogOpen(false);
       setEditingSite(null);
+      await invalidateVendorManagement(queryClient);
       await load();
     } catch {
       toast.error("Could not inactivate the vendor site. Try again.");
@@ -598,8 +621,12 @@ function VendorLegalEntityPanelContent({
 
   const loadLegalEntities = async () => {
     try {
-      const response = await axiosInstance.get("/legal-entities");
-      setLegalEntities(unwrap<LegalEntityOption[]>(response));
+      const response = await axiosInstance.get(
+        "/vendor-management/legal-entities",
+      );
+      setLegalEntities(
+        unwrap<{ entities: LegalEntityOption[] }>(response).entities || [],
+      );
       return true;
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not load legal entities."));
@@ -615,13 +642,17 @@ function VendorLegalEntityPanelContent({
   const createRelationship = async (legalEntityId: string) => {
     setSubmitting(true);
     try {
-      await axiosInstance.post(`/vendors/${vendorId}/entity-relationships`, {
-        legalEntityId,
-      });
+      await axiosInstance.post(
+        `/vendor-management/${vendorId}/entity-relationships`,
+        {
+          legalEntityId,
+        },
+      );
       toast.success(
         "Vendor relationship started. Approve it when the entity is ready to transact.",
       );
       setCreateRelationshipOpen(false);
+      await invalidateVendorManagement(queryClient);
       await load();
     } catch (error) {
       toast.error(
@@ -640,7 +671,7 @@ function VendorLegalEntityPanelContent({
     setSubmitting(true);
     try {
       await axiosInstance.post(
-        `/vendors/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/${action}`,
+        `/vendor-management/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/${action}`,
         {
           expectedVersion: relationship.configurationVersion,
           ...(reason.trim() ? { reason: reason.trim() } : {}),
@@ -650,12 +681,14 @@ function VendorLegalEntityPanelContent({
         `Vendor relationship ${action === "approve" ? "approved" : action === "suspend" ? "suspended" : "reactivated"}.`,
       );
       setLifecycleAction(null);
+      await invalidateVendorManagement(queryClient);
       await load();
     } catch (error) {
       if (isVersionConflict(error)) {
         toast.error(
           "This relationship changed elsewhere. The latest configuration has been loaded for review.",
         );
+        await invalidateVendorManagement(queryClient);
         await load();
       } else {
         toast.error(
@@ -677,7 +710,7 @@ function VendorLegalEntityPanelContent({
     setSubmitting(true);
     try {
       await axiosInstance.post(
-        `/vendors/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/site-assignments`,
+        `/vendor-management/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/site-assignments`,
         {
           vendorSiteId: siteId,
           purpose,
@@ -687,6 +720,7 @@ function VendorLegalEntityPanelContent({
       );
       toast.success(`${purposeLabel[purpose]} site assigned.`);
       setAssignmentRelationship(null);
+      await invalidateVendorManagement(queryClient);
       await load();
     } catch (error) {
       toast.error(apiErrorMessage(error, "Could not assign this vendor site."));
@@ -703,13 +737,14 @@ function VendorLegalEntityPanelContent({
     setSubmitting(true);
     try {
       await axiosInstance.patch(
-        `/vendors/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/site-assignments/${assignment.vendorEntitySiteAssignmentId}`,
+        `/vendor-management/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/site-assignments/${assignment.vendorEntitySiteAssignmentId}`,
         { status: "inactive", inactivationReason: reason.trim() },
       );
       toast.success(
         "Site assignment ended. Historical transactions were preserved.",
       );
       setEndingAssignment(null);
+      await invalidateVendorManagement(queryClient);
       await load();
     } catch (error) {
       toast.error(
@@ -733,7 +768,7 @@ function VendorLegalEntityPanelContent({
     setSubmitting(true);
     try {
       await axiosInstance.patch(
-        `/vendors/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/controls`,
+        `/vendor-management/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/controls`,
         {
           expectedVersion: relationship.configurationVersion,
           purchasingEnabled: enabled,
@@ -744,12 +779,14 @@ function VendorLegalEntityPanelContent({
           ? "Purchasing enabled for this legal entity."
           : "Purchasing placed on hold for this legal entity.",
       );
+      await invalidateVendorManagement(queryClient);
       await load();
     } catch (error) {
       if (isVersionConflict(error)) {
         toast.error(
           "This relationship changed elsewhere. The latest configuration has been loaded for review.",
         );
+        await invalidateVendorManagement(queryClient);
         await load();
       } else {
         toast.error(
@@ -912,6 +949,9 @@ function VendorLegalEntityPanelContent({
                       onEndAssignment={(assignment) =>
                         setEndingAssignment({ relationship, assignment })
                       }
+                      onEditControls={() =>
+                        setControlsRelationship(relationship)
+                      }
                       onSetPurchasing={(enabled) =>
                         void setPurchasing(relationship, enabled)
                       }
@@ -980,6 +1020,25 @@ function VendorLegalEntityPanelContent({
           </div>
         </>
       )}
+      <RelationshipControlsDialog
+        key={controlsRelationship?.vendorEntityRelationshipId || "closed"}
+        relationship={controlsRelationship}
+        onClose={() => setControlsRelationship(null)}
+        onSave={async (controls) => {
+          if (!controlsRelationship) return;
+          await axiosInstance.patch(
+            `/vendor-management/${vendorId}/entity-relationships/${controlsRelationship.vendorEntityRelationshipId}/controls`,
+            {
+              ...controls,
+              taxCountryCode: controls.taxCountryCode || null,
+              expectedVersion: controlsRelationship.configurationVersion,
+            },
+          );
+          setControlsRelationship(null);
+          await invalidateVendorManagement(queryClient);
+          await load();
+        }}
+      />
       <SiteDialog
         open={siteDialogOpen}
         site={editingSite}
@@ -1063,6 +1122,7 @@ function RelationshipRow({
   onAssignSite,
   onEndAssignment,
   onSetPurchasing,
+  onEditControls,
 }: {
   relationship: EntityRelationship;
   canApprove: boolean;
@@ -1074,6 +1134,7 @@ function RelationshipRow({
   onAssignSite: () => void;
   onEndAssignment: (assignment: SiteAssignment) => void;
   onSetPurchasing: (enabled: boolean) => void;
+  onEditControls: () => void;
 }) {
   const entityName =
     relationship.legalEntity?.displayName ||
@@ -1247,6 +1308,16 @@ function RelationshipRow({
             </div>
           )}
         </div>
+        {canApprove && (
+          <button
+            type="button"
+            onClick={onEditControls}
+            disabled={submitting}
+            className="mt-3 text-xs font-semibold text-[#087f70] underline"
+          >
+            Terms, tax and purpose controls
+          </button>
+        )}
         {relationship.status === "approved" &&
           relationship.purchasingEnabled &&
           canApprove && (
@@ -1395,7 +1466,8 @@ function CreateRelationshipForm({
       </DialogHeader>
       {entities.length === 0 ? (
         <div className="rounded-[8px] border border-dashed border-black/[0.12] p-4 text-sm text-[#68726d]">
-          Every active legal entity already has a relationship with this vendor.
+          Every active legal entity you may administer already has a
+          relationship with this vendor.
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -2130,5 +2202,147 @@ function LoadFailure({ onRetry }: { onRetry: () => void }) {
         Try again
       </button>
     </div>
+  );
+}
+
+type RelationshipControls = {
+  purchasingEnabled: boolean;
+  invoicingEnabled: boolean;
+  paymentEnabled: boolean;
+  paymentTermsCode: string;
+  paymentTermsDays: number | null;
+  taxCountryCode: string;
+  taxRegistrationNumber: string;
+};
+function RelationshipControlsDialog({
+  relationship,
+  onClose,
+  onSave,
+}: {
+  relationship: EntityRelationship | null;
+  onClose: () => void;
+  onSave: (controls: RelationshipControls) => Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const values = relationship as
+    | (EntityRelationship & Partial<RelationshipControls>)
+    | null;
+  const [controls, setControls] = useState<RelationshipControls>({
+    purchasingEnabled: !!values?.purchasingEnabled,
+    invoicingEnabled: !!values?.invoicingEnabled,
+    paymentEnabled: !!values?.paymentEnabled,
+    paymentTermsCode: values?.paymentTermsCode || "",
+    paymentTermsDays: values?.paymentTermsDays ?? null,
+    taxCountryCode: values?.taxCountryCode || "",
+    taxRegistrationNumber: values?.taxRegistrationNumber || "",
+  });
+  return (
+    <Dialog
+      open={!!relationship}
+      onOpenChange={(open) => !open && !saving && onClose()}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Legal-entity terms and controls</DialogTitle>
+          <DialogDescription>
+            These settings apply only to this relationship. Enabled purposes
+            require an active site assignment. Payments also require an active
+            beneficiary for this vendor and entity.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {(
+            ["purchasingEnabled", "invoicingEnabled", "paymentEnabled"] as const
+          ).map((field) => (
+            <label key={field} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={controls[field]}
+                disabled={saving || relationship?.status !== "approved"}
+                onChange={(event) =>
+                  setControls({ ...controls, [field]: event.target.checked })
+                }
+              />
+              {field.replace("Enabled", " enabled")}
+            </label>
+          ))}
+          {(
+            [
+              "paymentTermsCode",
+              "taxCountryCode",
+              "taxRegistrationNumber",
+            ] as const
+          ).map((field) => (
+            <label key={field} className="block text-sm">
+              {
+                {
+                  paymentTermsCode: "Payment terms",
+                  taxCountryCode: "Tax country (two-letter code)",
+                  taxRegistrationNumber: "Tax registration number",
+                }[field]
+              }
+              <input
+                className="mt-1 w-full rounded border p-2"
+                value={controls[field]}
+                maxLength={field === "taxCountryCode" ? 2 : 100}
+                onChange={(event) =>
+                  setControls({
+                    ...controls,
+                    [field]:
+                      field === "taxCountryCode"
+                        ? event.target.value.toUpperCase()
+                        : event.target.value,
+                  })
+                }
+              />
+            </label>
+          ))}
+          <label className="block text-sm">
+            Payment terms (days)
+            <input
+              className="mt-1 w-full rounded border p-2"
+              type="number"
+              min="0"
+              value={controls.paymentTermsDays ?? ""}
+              onChange={(event) =>
+                setControls({
+                  ...controls,
+                  paymentTermsDays:
+                    event.target.value === ""
+                      ? null
+                      : Number(event.target.value),
+                })
+              }
+            />
+          </label>
+        </div>
+        <DialogFooter>
+          <button disabled={saving} onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            disabled={saving}
+            className="rounded bg-[#087f70] px-4 py-2 text-white"
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await onSave(controls);
+              } catch (error) {
+                toast.error(
+                  apiErrorMessage(
+                    error,
+                    "Could not save entity controls. Refresh if another administrator changed this relationship.",
+                  ),
+                );
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            {saving ? "Saving…" : "Save controls"}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -259,7 +259,7 @@ export const navigationItems: NavItem[] = [
     icon: <Shop />,
     label: "Vendors",
     href: "/vendors",
-    permissions: [{ resource: "vendor", action: "read_company" }],
+    permissions: [{ resource: "vendor.directory", action: "read" }],
     section: "MANAGEMENT",
   },
   {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useParams, useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAxios } from "@/hooks/useAxios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
@@ -17,28 +17,14 @@ import {
   isRecord,
   pickString,
 } from "@/lib/types/api-error";
-import { useQueryClient } from "@tanstack/react-query";
-import { useGetBeneficiaries, useCreateBeneficiary } from "@/queries/bill-pay";
 import {
   useVendorNetworkDetail,
   useVendorReview,
   useVendorStatusUpdate,
-  useVendorPaymentStatusUpdate,
 } from "@/queries/vendors/vendor-network";
-import { workspaceReadOnly } from "@/features/entity-workspace/store";
-import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { VendorSummary } from "@/components/vendors/VendorSummary";
+
+
 import Link from "next/link";
 import { Rnd } from "react-rnd";
 import dynamic from "next/dynamic";
@@ -50,38 +36,23 @@ const PdfViewer = dynamic(() => import("@/components/ui/pdf-viewer"), {
 function VendorDetailsPage() {
   const { vendorId } = useParams() as { vendorId: string };
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const organizationAdmin = searchParams.get("scope") === "administration";
   const axiosInstance = useAxios();
-  const queryClient = useQueryClient();
   const policies = useAuthorizationPolicies();
-  const canManageEntityConfiguration = useAuthStore(
-    (state) =>
-      state.can("vendor.entity_configuration", "manage") &&
-      !workspaceReadOnly(),
+  const canManageEntityConfiguration = useAuthStore((state) =>
+    state.can("vendor.entity_configuration", "manage"),
   );
 
   const [requestInfoModalOpen, setRequestInfoModalOpen] = useState(false);
   const [infoMessage, setInfoMessage] = useState("");
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
   const [previewDocName, setPreviewDocName] = useState<string | null>(null);
-
-  const { data: legalEntitiesData } = useTransactionLegalEntities(
-    "vendor_administration",
-  );
-  const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId || "";
-
-  const { data: beneficiariesData } = useGetBeneficiaries(legalEntityId);
-  const beneficiaries = (beneficiariesData as any)?.data || [];
 
   const {
     data: vendorResponse,
     isLoading: isVendorLoading,
-    refetch: refetchVendor,
-  } = useVendorNetworkDetail(vendorId, organizationAdmin);
+  } = useVendorNetworkDetail(vendorId);
   const vendor = vendorResponse?.data || null;
   const isLoading = isVendorLoading;
 
@@ -99,12 +70,9 @@ function VendorDetailsPage() {
 
   const reviewMutation = useVendorReview(vendorId);
   const statusMutation = useVendorStatusUpdate(vendorId);
-  const paymentMutation = useVendorPaymentStatusUpdate(vendorId);
 
   const isSubmitting =
-    reviewMutation.isPending ||
-    statusMutation.isPending ||
-    paymentMutation.isPending;
+    reviewMutation.isPending || statusMutation.isPending;
 
   const handleDecision = async (
     decision: "approved" | "rejected",
@@ -124,8 +92,8 @@ function VendorDetailsPage() {
       }
       toast.success(
         decision === "approved"
-          ? "Vendor approved successfully"
-          : "Vendor rejected",
+          ? "Supplier onboarding approved"
+          : "Supplier onboarding rejected",
       );
     } catch (err) {
       logger.error(`Failed to ${decision} vendor`, err);
@@ -139,36 +107,11 @@ function VendorDetailsPage() {
       toast.success(
         `Vendor ${statusPayload === "Active" ? "activated" : "deactivated"} successfully`,
       );
-
-      const enablePayment = statusPayload === "Active";
-      try {
-        await paymentMutation.mutateAsync({ enabled: enablePayment });
-        toast.success(
-          `Vendor payments ${enablePayment ? "enabled" : "disabled"} automatically`,
-        );
-      } catch (paymentErr) {
-        logger.error(`Failed to auto-update vendor payment status`, paymentErr);
-        toast.error(
-          `Failed to automatically ${enablePayment ? "enable" : "disable"} payments. Please update it manually.`,
-        );
-      }
     } catch (err) {
       logger.error(`Failed to update vendor status to ${statusPayload}`, err);
       toast.error(
         `Failed to ${statusPayload === "Active" ? "activate" : "deactivate"} vendor. Please try again.`,
       );
-    }
-  };
-
-  const handlePaymentStatusUpdate = async (enabled: boolean) => {
-    try {
-      await paymentMutation.mutateAsync({ enabled });
-      toast.success(
-        `Vendor payments ${enabled ? "enabled" : "disabled"} successfully`,
-      );
-    } catch (err) {
-      logger.error(`Failed to update vendor payment status`, err);
-      toast.error(`Failed to update payment status. Please try again.`);
     }
   };
 
@@ -274,7 +217,6 @@ function VendorDetailsPage() {
     `${pickString(approvedBy, "firstName")} ${pickString(approvedBy, "lastName")}`.trim();
 
   const rawStatus = status.toLowerCase();
-  const isPaymentEnabled = vendor.isPaymentEnabled === true;
 
   const isInvited =
     approvalStatus === "pending" &&
@@ -376,8 +318,8 @@ function VendorDetailsPage() {
                 {statusMutation.isPending
                   ? "Processing..."
                   : isDeactivated
-                    ? "Reactivate vendor"
-                    : "Activate vendor"}
+                    ? "Reactivate organization vendor"
+                    : "Activate organization vendor"}
               </button>
             )}
           {/* Deactivate */}
@@ -387,20 +329,11 @@ function VendorDetailsPage() {
               onClick={() => handleStatusUpdate("Inactive")}
               className="px-4 h-9 rounded-[8px] border border-[#d33d44] text-[#d33d44] font-semibold text-[13px] hover:bg-[#fdf2f2] transition-colors disabled:opacity-50"
             >
-              {statusMutation.isPending ? "Processing..." : "Deactivate vendor"}
+              {statusMutation.isPending
+                ? "Processing..."
+                : "Deactivate organization vendor"}
             </button>
           )}
-          {/* Enable / Disable Payment - Commented out as handled by Activate/Deactivate */}
-          {/* {isActive && (
-            <button disabled={isSubmitting} onClick={() => handlePaymentStatusUpdate(!isPaymentEnabled)}
-              className={`px-4 h-9 rounded-[8px] border font-semibold text-[13px] transition-colors disabled:opacity-50 ${
-                isPaymentEnabled 
-                  ? "border-black/[0.15] text-[#303834] hover:bg-[#f5f7f6]" // Neutral styling for Disable
-                  : "border-[#087f70] text-[#087f70] hover:bg-[#f0faf8]" // Teal outline for Enable
-              }`}>
-              {paymentMutation.isPending ? "Processing..." : isPaymentEnabled ? "Disable payments" : "Enable payments"}
-            </button>
-          )} */}
           {/* Resend Invitation */}
           {(isInvited || isOnboarding) && policies.vendors.canInvite && (
             <button
@@ -605,43 +538,16 @@ function VendorDetailsPage() {
             )}
           </div>
 
-          <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em]">
-                PAYMENT METHODS
-              </h2>
-            </div>
-
-            {beneficiaries.length > 0 ? (
-              <div className="space-y-3">
-                {beneficiaries.map((ben: any) => (
-                  <div
-                    key={ben.vendorBeneficiaryId}
-                    className="flex items-center justify-between p-3.5 rounded-[10px] border border-black/[0.06] bg-white"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#f0faf8] flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="w-4 h-4 text-[#087f70]" />
-                      </div>
-                      <div>
-                        <p className="text-[13px] font-semibold text-[#0b100e] leading-tight">
-                          {ben.name}
-                        </p>
-                        <p className="text-[12px] text-[#84908a] mt-0.5">
-                          Account: ***
-                          {ben.maskedIdentifier?.slice(-4) ||
-                            ben.maskedIdentifier}{" "}
-                          • {ben.currency}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[13px] font-medium text-[#68726d]">
-                No payment methods found.
-              </p>
+          <div className="rounded-xl border bg-white p-5 text-sm">
+            Payment eligibility and beneficiary setup are specific to each legal
+            entity.{" "}
+            {canManageEntityConfiguration && (
+              <Link
+                className="underline"
+                href={`/vendors/${vendorId}/configuration`}
+              >
+                Open entity configuration
+              </Link>
             )}
           </div>
         </div>
@@ -958,6 +864,14 @@ function VendorDetailsPage() {
   );
 }
 
-export default withPermissions(VendorDetailsPage, [
-  { resource: "vendor", action: "sensitive.read" },
+function OrganizationVendorDetails() {
+  const canReadProfile = useAuthStore(
+    (state) =>
+      state.can("vendor", "read_company") &&
+      state.can("vendor", "sensitive.read"),
+  );
+  return canReadProfile ? <VendorDetailsPage /> : <VendorSummary />;
+}
+export default withPermissions(OrganizationVendorDetails, [
+  { resource: "vendor.directory", action: "read" },
 ]);

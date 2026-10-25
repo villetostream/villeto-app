@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuthStore } from "@/stores/auth-stores";
-import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,7 +36,6 @@ import {
   XCircle,
   BadgeCheck,
   Search,
-  SlidersHorizontal,
   CheckCircle2,
   ArrowUp,
   ArrowDown,
@@ -127,14 +125,6 @@ const STATUS_CONFIG: Record<
   },
 };
 
-const TAB_STATUS_MAP: Record<string, VendorStatus[] | null> = {
-  all: null,
-  verified: ["active", "approved"],
-  invited: ["invited", "onboarding"],
-  under_review: ["pending"],
-  rejected: ["rejected", "flagged"],
-};
-
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -148,6 +138,8 @@ function ActionMenu({
   vendor: Vendor;
   onAction: (v: Vendor, label: string) => void;
 }) {
+  const canConfigure = useAuthStore((state) => state.can("vendor.entity_configuration", "manage"));
+  const canInvite = useAuthStore((state) => state.can("vendor", "invite"));
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const cfg = STATUS_CONFIG[vendor.status];
@@ -185,7 +177,8 @@ function ActionMenu({
             {cfg.actionIcon}
             {cfg.actionLabel}
           </button>
-          {vendor.status === "invited" && (
+          {canConfigure && <button className="w-full rounded px-3 py-2 text-left text-[13px] hover:bg-[#f5f7f6]" onClick={(event) => { event.stopPropagation(); onAction(vendor, "Manage legal entities"); setOpen(false); }}>Manage legal entities</button>}
+          {vendor.status === "invited" && canInvite && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -233,6 +226,7 @@ interface InviteModalProps {
 }
 
 function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [legalName, setLegalName] = useState("");
   const [sponsorVerification, setSponsorVerification] = useState(false);
@@ -266,6 +260,8 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
     !!debouncedEmail && debouncedEmail.includes("@"),
   );
 
+  const existingVendor = lookupResult?.data?.vendor?.email?.toLowerCase() === email.trim().toLowerCase()
+    ? lookupResult.data.vendor : null;
   const inviteMutation = useInviteVendorV2();
 
   useEffect(() => {
@@ -283,13 +279,6 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
     });
   }, [open]);
 
-  // Pre-fill from lookup
-  useEffect(() => {
-    if (lookupResult?.data?.found && lookupResult.data.vendor) {
-      setLegalName(lookupResult.data.vendor.legalName || "");
-    }
-  }, [lookupResult]);
-
   const validate = () => {
     const e: Record<string, string> = {};
     if (!email.trim()) e.email = "Required";
@@ -303,6 +292,11 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
   };
 
   const handleSubmit = async () => {
+    if (existingVendor?.vendorId) {
+      onClose();
+      router.push(`/vendors/${existingVendor.vendorId}`);
+      return;
+    }
     if (!validate()) return;
 
     const payload = {
@@ -319,8 +313,13 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
     };
 
     try {
-      await inviteMutation.mutateAsync(payload);
-      setSuccess(true);
+      const result = await inviteMutation.mutateAsync(payload);
+      if (result.data?.invitationCreated === false) {
+        onClose();
+        router.push(`/vendors/${result.data.vendorId}`);
+      } else {
+        setSuccess(true);
+      }
       if (onSuccess) onSuccess();
     } catch (err: unknown) {
       logger.error("Invite vendor error", err);
@@ -364,11 +363,11 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
               </div>
             </div>
             <h2 className="text-[18px] font-bold text-[#0b100e] mb-2">
-              Vendor Invite Sent
+              Invitation created
             </h2>
             <p className="text-[13px] text-[#68726d] leading-relaxed mb-8">
-              The vendor has received an onboarding link and can now begin
-              verification.
+              An onboarding invitation has been created. Other legal entities
+              can reuse this vendor without inviting it again.
             </p>
             <button
               onClick={onClose}
@@ -425,16 +424,16 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
                   <p className="text-[11px] text-[#d33d44]">{errors.email}</p>
                 )}
 
-                {lookupResult?.data?.found && (
+                {existingVendor && (
                   <div className="mt-2 p-2.5 rounded-lg border border-[#e7f6f2] bg-[#f0faf8] flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-[#087f70] mt-0.5 shrink-0" />
                     <div>
                       <p className="text-[12px] font-medium text-[#087f70]">
-                        Vendor found on Villeto Network
+                        Vendor already in your organization
                       </p>
                       <p className="text-[11px] text-[#087f70]/80 mt-0.5">
-                        {lookupResult.data.vendor.legalName} •{" "}
-                        {lookupResult.data.vendor.country || "Nigeria"}
+                        {existingVendor.legalName} •{" "}
+                        {existingVendor.country || "Existing organization supplier"}
                       </p>
                     </div>
                   </div>
@@ -572,7 +571,11 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
 
             <button
               onClick={handleSubmit}
-              disabled={inviteMutation.isPending || !isFormValid}
+              disabled={
+                inviteMutation.isPending ||
+                isLookingUp ||
+                (!existingVendor && !isFormValid)
+              }
               className="mt-6 w-full h-10 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
             >
               {inviteMutation.isPending ? (
@@ -598,8 +601,10 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
                   </svg>
                   Sending...
                 </>
+              ) : existingVendor ? (
+                "Open existing vendor"
               ) : (
-                "Send invite"
+                "Send invitation"
               )}
             </button>
           </div>
@@ -665,77 +670,26 @@ function VendorTable({
   onAction,
   currentPage,
   onPageChange,
+  search,
+  onSearchChange,
+  totalPages,
+  sortConfig,
+  onSort,
 }: {
   vendors: Vendor[];
   isLoading: boolean;
   onAction: (v: Vendor, label: string) => void;
   currentPage: number;
   onPageChange: (page: number) => void;
+  search: string;
+  onSearchChange: (search: string) => void;
+  totalPages: number;
+  sortConfig: { key: string; direction: "asc" | "desc" } | null;
+  onSort: (key: string) => void;
 }) {
-  const [search, setSearch] = useState("");
-  const [sortConfig, setSortConfig] = useState<{
-    key: keyof Vendor | string;
-    direction: "asc" | "desc";
-  } | null>(null);
-  const itemsPerPage = 10;
-
-  const handleSort = (key: string) => {
-    if (sortConfig?.key === key) {
-      setSortConfig(
-        sortConfig.direction === "asc" ? { key, direction: "desc" } : null,
-      );
-    } else {
-      setSortConfig({ key, direction: "asc" });
-    }
-  };
-
-  const filtered = useMemo(() => {
-    let result = vendors;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (v) =>
-          v.vendorName.toLowerCase().includes(q) ||
-          v.email.toLowerCase().includes(q) ||
-          v.regNo.toLowerCase().includes(q),
-      );
-    }
-
-    if (sortConfig) {
-      result = [...result].sort((a, b) => {
-        let valA = a[sortConfig.key as keyof Vendor] as string;
-        let valB = b[sortConfig.key as keyof Vendor] as string;
-
-        if (!valA) valA = "";
-        if (!valB) valB = "";
-
-        if (
-          sortConfig.key === "invitedOn" ||
-          sortConfig.key === "lastUpdated"
-        ) {
-          const dateA = valA === "N/A" ? 0 : new Date(valA).getTime();
-          const dateB = valB === "N/A" ? 0 : new Date(valB).getTime();
-          return sortConfig.direction === "asc" ? dateA - dateB : dateB - dateA;
-        }
-
-        return sortConfig.direction === "asc"
-          ? valA.localeCompare(valB)
-          : valB.localeCompare(valA);
-      });
-    }
-    return result;
-  }, [vendors, search, sortConfig]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-  const paginatedData = filtered.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  );
-
-  // If search changes, reset page to 1
-  useEffect(() => {
-    onPageChange(1);
-  }, [search, onPageChange]);
+  const filtered = vendors;
+  const paginatedData = vendors;
+  const handleSort = onSort;
 
   if (isLoading) {
     return (
@@ -762,7 +716,7 @@ function VendorTable({
         <input
           type="text"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search vendors..."
           className="w-full h-9 pl-9 pr-4 rounded-[8px] border border-black/[0.08] bg-white text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors"
         />
@@ -901,7 +855,7 @@ function VendorTable({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default withPermissions(VendorPage, [
-  { resource: "vendor", action: "sensitive.read" },
+  { resource: "vendor.directory", action: "read" },
 ]);
 
 function VendorPage() {
@@ -909,29 +863,30 @@ function VendorPage() {
   const searchParams = useSearchParams();
   const { setAction, clearAction } = useHeaderActionStore();
   const policies = useAuthorizationPolicies();
-  const canInviteVendor = policies.vendors.canInvite;
+  const canInviteVendor =
+    policies.vendors.canInvite && policies.vendors.canCreate;
 
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: "asc" | "desc";
+  } | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [_selectedVendorId, _setSelectedVendorId] = useState<string | null>(
     null,
   );
 
   const axiosInstance = useAxios();
-  const workspaceEnabled = useEntityWorkspaceStore(
-    (state) => !!state.snapshot?.enabled,
-  );
-  const canAdminDirectory = useAuthStore(
-    (state) =>
-      state.can("vendor.entity_configuration", "manage") &&
-      state.can("vendor", "read_sensitive"),
-  );
-  const organizationAdmin =
-    workspaceEnabled &&
-    canAdminDirectory &&
-    searchParams.get("scope") === "administration";
-  const vendorsApi = useVendorNetworkList({ organizationAdmin });
+  const vendorsApi = useVendorNetworkList({
+    limit: 10,
+    page,
+    search,
+    view: activeTab,
+    sortBy: sortConfig?.key,
+    sortDirection: sortConfig?.direction,
+  });
   const isLoading = vendorsApi.isLoading;
 
   const vendors = useMemo(() => {
@@ -993,7 +948,6 @@ function VendorPage() {
       params.set("tab", activeTab);
       router.replace(`?${params.toString()}`, { scroll: false });
     }
-    setPage(1); // Reset page when tab changes to avoid empty pages
   }, [activeTab, router, searchParams]);
 
   // Header CTA — only show "Invite Vendor" to users who can actually invite.
@@ -1005,9 +959,12 @@ function VendorPage() {
       return;
     }
     setAction({
-      label: "Invite Vendor",
+      label: "Add vendor",
       items: [
-        { label: "Single invite", onClick: () => setShowInviteModal(true) },
+        {
+          label: "Find or invite vendor",
+          onClick: () => setShowInviteModal(true),
+        },
         {
           label: "Bulk invite",
           onClick: () => router.push("/vendors/bulk-invite-page"),
@@ -1018,30 +975,17 @@ function VendorPage() {
   }, [setAction, clearAction, router, canInviteVendor]);
 
   // Stats
-  const stats = useMemo(
-    () => ({
-      total: vendors.length,
-      verified: vendors.filter(
-        (v) => v.status === "active" || v.status === "approved",
-      ).length,
-      pending: vendors.filter((v) => v.status === "pending").length,
-      rejected: vendors.filter(
-        (v) =>
-          (v.status as string) === "rejected" ||
-          (v.status as string) === "flagged",
-      ).length,
-    }),
-    [vendors],
-  );
-
-  // Filter vendors by tab
-  const filteredByTab = useMemo(() => {
-    const statuses = TAB_STATUS_MAP[activeTab];
-    if (!statuses) return vendors;
-    return vendors.filter((v) => statuses.includes(v.status));
-  }, [vendors, activeTab]);
+  const summary = vendorsApi.data?.data?.summary;
+  const stats = {
+    total: summary?.total || 0,
+    verified: summary?.approved || 0,
+    pending: summary?.pending || 0,
+    rejected: summary?.rejected || 0,
+  };
+  const filteredByTab = vendors;
 
   const handleAction = async (vendor: Vendor, actionLabel: string) => {
+    if (actionLabel === "Manage legal entities") { router.push(`/vendors/${vendor.id}/configuration`); return; }
     if (actionLabel === "Resend Invitation") {
       try {
         await axiosInstance.post(`/vendors/${vendor.id}/invitations/resend`);
@@ -1053,7 +997,7 @@ function VendorPage() {
       return;
     }
     router.push(
-      `/vendors/${vendor.id}${organizationAdmin ? "?scope=administration" : ""}`,
+      `/vendors/${vendor.id}`,
     );
   };
 
@@ -1102,6 +1046,8 @@ function VendorPage() {
     },
   ];
 
+  if (vendorsApi.isError) return <div role="alert" className="rounded-xl border bg-white p-6"><p>Could not load the organization vendor directory.</p><button className="mt-3 underline" onClick={() => void vendorsApi.refetch()}>Try again</button></div>;
+
   return (
     <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
       <InviteVendorModal
@@ -1110,29 +1056,10 @@ function VendorPage() {
         onSuccess={() => vendorsApi.refetch()}
       />
 
-      {workspaceEnabled && canAdminDirectory && (
-        <div className="flex items-center justify-between rounded-xl border bg-white p-3">
-          <span className="text-sm">
-            {organizationAdmin
-              ? "Organization vendor setup · shared identities and onboarding"
-              : "Vendors visible in your legal entity workspace"}
-          </span>
-          <button
-            className="text-sm underline"
-            onClick={() =>
-              router.push(
-                organizationAdmin
-                  ? "/vendors"
-                  : "/vendors?scope=administration",
-              )
-            }
-          >
-            {organizationAdmin
-              ? "Return to workspace vendors"
-              : "Organization vendor setup"}
-          </button>
-        </div>
-      )}
+      <div className="rounded-xl border bg-white p-3 text-sm text-[#5e6863]">
+        Organization vendor directory · Invite a supplier once. Each legal
+        entity approves its own relationship, sites and transaction purposes.
+      </div>
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
         {statCards.map((s) => (
@@ -1151,7 +1078,10 @@ function VendorPage() {
       {/* Tabs + Table */}
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={(tab) => {
+          setActiveTab(tab);
+          setPage(1);
+        }}
         className="flex-1 flex flex-col min-h-0 overflow-hidden"
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
@@ -1204,7 +1134,27 @@ function VendorPage() {
                 isLoading={isLoading}
                 onAction={handleAction}
                 currentPage={page}
-                onPageChange={(newPage) => setPage(newPage)}
+                onPageChange={setPage}
+                search={search}
+                onSearchChange={(value) => {
+                  setSearch(value);
+                  setPage(1);
+                }}
+                totalPages={Math.max(
+                  1,
+                  vendorsApi.data?.data?.meta?.totalPages || 1,
+                )}
+                sortConfig={sortConfig}
+                onSort={(key) => {
+                  setSortConfig({
+                    key,
+                    direction:
+                      sortConfig?.key === key && sortConfig.direction === "asc"
+                        ? "desc"
+                        : "asc",
+                  });
+                  setPage(1);
+                }}
               />
             </TabsContent>
           ),
