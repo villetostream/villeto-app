@@ -12,7 +12,6 @@ export function applyWorkspaceReadOnlyPolicies(
     "vendorInvoices",
     "billPay",
     "accounting",
-    "vendors",
     "expenses",
   ] as const) {
     const value = result[key];
