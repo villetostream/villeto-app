@@ -691,16 +691,6 @@ function VendorTable({
   const paginatedData = vendors;
   const handleSort = onSort;
 
-  if (isLoading) {
-    return (
-      <div className="space-y-3 mt-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-14 w-full rounded-lg" />
-        ))}
-      </div>
-    );
-  }
-
   const portalTarget =
     typeof window !== "undefined"
       ? document.getElementById("tab-actions")
@@ -730,7 +720,13 @@ function VendorTable({
       {portalTarget ? createPortal(searchBar, portalTarget) : searchBar}
 
       {/* Table */}
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <div className="space-y-3 mt-4" aria-label="Loading vendors">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 w-full rounded-lg" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <VendorEmptyState filtered={vendors.length > 0} />
       ) : (
         <div className="rounded-[14px] border border-black/[0.08] overflow-hidden bg-white shadow-sm flex-1 flex flex-col min-h-0">

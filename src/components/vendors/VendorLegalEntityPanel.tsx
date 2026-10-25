@@ -1,5 +1,6 @@
 "use client";
 
+import { changedRelationshipControls, controlsDraft, type RelationshipControls } from "./relationship-controls";
 import {
   useCallback,
   useEffect,
@@ -1026,11 +1027,15 @@ function VendorLegalEntityPanelContent({
         onClose={() => setControlsRelationship(null)}
         onSave={async (controls) => {
           if (!controlsRelationship) return;
+          const changes = changedRelationshipControls(controlsRelationship, controls);
+          if (!Object.keys(changes).length) {
+            setControlsRelationship(null);
+            return;
+          }
           await axiosInstance.patch(
             `/vendor-management/${vendorId}/entity-relationships/${controlsRelationship.vendorEntityRelationshipId}/controls`,
             {
-              ...controls,
-              taxCountryCode: controls.taxCountryCode || null,
+              ...changes,
               expectedVersion: controlsRelationship.configurationVersion,
             },
           );
@@ -2205,15 +2210,6 @@ function LoadFailure({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-type RelationshipControls = {
-  purchasingEnabled: boolean;
-  invoicingEnabled: boolean;
-  paymentEnabled: boolean;
-  paymentTermsCode: string;
-  paymentTermsDays: number | null;
-  taxCountryCode: string;
-  taxRegistrationNumber: string;
-};
 function RelationshipControlsDialog({
   relationship,
   onClose,
@@ -2224,18 +2220,7 @@ function RelationshipControlsDialog({
   onSave: (controls: RelationshipControls) => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
-  const values = relationship as
-    | (EntityRelationship & Partial<RelationshipControls>)
-    | null;
-  const [controls, setControls] = useState<RelationshipControls>({
-    purchasingEnabled: !!values?.purchasingEnabled,
-    invoicingEnabled: !!values?.invoicingEnabled,
-    paymentEnabled: !!values?.paymentEnabled,
-    paymentTermsCode: values?.paymentTermsCode || "",
-    paymentTermsDays: values?.paymentTermsDays ?? null,
-    taxCountryCode: values?.taxCountryCode || "",
-    taxRegistrationNumber: values?.taxRegistrationNumber || "",
-  });
+  const [controls, setControls] = useState<RelationshipControls>(() => controlsDraft(relationship));
   return (
     <Dialog
       open={!!relationship}

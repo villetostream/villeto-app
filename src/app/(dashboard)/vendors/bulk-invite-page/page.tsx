@@ -61,7 +61,7 @@ const PAGE_SIZE_OPTIONS = [
 
 // ─── Success Modal ────────────────────────────────────────────────────────────
 
-function SuccessModal({ count, onClose }: { count: number; onClose: () => void }) {
+function SuccessModal({ count, failedCount, onClose }: { count: number; failedCount: number; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[440px] overflow-hidden p-10 flex flex-col items-center text-center">
@@ -82,12 +82,13 @@ function SuccessModal({ count, onClose }: { count: number; onClose: () => void }
         <h2 className="text-xl font-bold text-foreground mb-2">{count} vendor{count > 1 ? "s" : ""} processed</h2>
         <p className="text-sm text-muted-foreground leading-relaxed mb-8">
           New suppliers have an onboarding invitation. Existing organization vendors were reused without another invitation.
+          {failedCount > 0 && ` ${failedCount} failed and remain selected for retry.`}
         </p>
         <button
           onClick={onClose}
           className="w-full h-11 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors"
         >
-          Close
+          {failedCount > 0 ? "Return to failed rows" : "Close"}
         </button>
       </div>
     </div>
@@ -244,7 +245,11 @@ function VendorBulkInvitePage() {
       {showSuccess && (
         <SuccessModal
           count={processedCount}
-          onClose={() => { setShowSuccess(false); router.push("/vendors"); }}
+          failedCount={selected.size}
+          onClose={() => {
+            setShowSuccess(false);
+            if (selected.size === 0) router.push("/vendors");
+          }}
         />
       )}
 
