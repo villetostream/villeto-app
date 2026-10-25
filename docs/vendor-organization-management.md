@@ -2,7 +2,7 @@
 
 Management → Vendors opens the organization-wide directory. Search, status filters, sorting, counts and pagination come from `/vendor-management`. The transaction workspace selector does not filter this directory.
 
-The Add vendor dialog finds an existing organization supplier by exact email before inviting. Opening an existing supplier allows an authorized administrator to add a legal-entity relationship, reuse shared sites, approve the entity relationship, and configure terms, tax and purpose controls. Server-side invitation retries also reuse the existing supplier. Suppliers complete one organization onboarding; entity adoption does not send another invitation.
+Add vendor opens a required directory-search step before showing invitation fields. Users search by name, email or public registration number, review server-paginated results, and choose an existing supplier or explicitly continue to a new invitation. An invitation option appears only after a successful search for the current input; editing the query, loading, or a search error prevents continuing until the directory is checked. Opening an existing supplier allows an authorized administrator to add a legal-entity relationship, reuse shared sites, approve the entity relationship, and configure terms, tax and purpose controls. Server-side invitation retries also reuse the existing supplier. Suppliers complete one organization onboarding; entity adoption does not send another invitation.
 
 Directory-only users receive a safe summary. Full supplier profiles remain behind company-read and sensitive-read permissions. Entity configuration requires Vendor Entity Configuration Manager and effective grants for the target entity. The picker uses `/vendor-management/legal-entities`, independently of the global transaction workspace. All-mode transaction mutation restrictions remain unchanged.
 
@@ -21,3 +21,8 @@ Additional authenticated checks verified rejection of purchasing without a site 
 
 
 Current-target merge preserves vendor resubmission labels, shared organization payment-term review and expense read-only controls. Supplier payment terms are matched by vendor ID and successful decisions refresh this actor's vendor caches across entity selections. Backend shared-term approval never approves/enables entity relationships or overwrites their terms. Merged source TypeScript and 53 frontend tests pass; final backend evidence is 299 tests in 14 suites plus the API build.
+
+
+Search-first UI follow-up: Add vendor opens the search dialog directly; Bulk invite is a separate secondary action. Using an existing supplier opens entity configuration for authorized entity managers, otherwise its permission-appropriate profile. The invitation step retains exact-email lookup and server-side idempotency, supports returning to the search results, and carries a searched email into the form. Closing and reopening starts with a new directory check.
+
+Local authenticated browser verification covered: no invitation action before searching; name search returning an existing supplier; existing selection opening entity configuration; changed search hiding the invite option; completed no-match search revealing the separate invitation form; email prefill (confirmed by form validation); back navigation; and reset on reopen. No invitation was submitted or sent. Existing 53 frontend tests, source TypeScript and focused UI lint passed.
