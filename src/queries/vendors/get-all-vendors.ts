@@ -46,9 +46,22 @@ export const useGetAllVendors = (
       if (params.approvalStatus)
         query.set("approvalStatus", params.approvalStatus);
 
-      const url = `/vendors${query.toString() ? `?${query.toString()}` : ""}`;
+      const url = `/vendor-network/vendors${query.toString() ? `?${query.toString()}` : ""}`;
       const res = await axiosInstance.get(url);
-      return res.data;
+      const body = res.data;
+      const rawList = Array.isArray(body?.data?.data)
+        ? body.data.data
+        : Array.isArray(body?.data)
+        ? body.data
+        : Array.isArray(body)
+        ? body
+        : [];
+      const meta = body?.data?.meta ?? body?.meta;
+      return {
+        ...body,
+        data: rawList,
+        meta,
+      };
     },
     staleTime: STALE_TIMES.SLOW,
     ...options,

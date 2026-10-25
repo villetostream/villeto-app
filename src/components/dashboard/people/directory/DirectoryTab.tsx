@@ -11,7 +11,8 @@ import { useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
 import { AppUser } from "@/queries/departments/get-all-departments";
 import { DataTable } from "@/components/datatable";
 import { useDataTable } from "@/components/datatable/useDataTable";
-import { directoryColumns } from "./directory-columns";
+import { getDirectoryColumns } from "./directory-columns";
+import { useAuthStore } from "@/stores/auth-stores";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Users } from "lucide-react";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
@@ -74,6 +75,9 @@ export function DirectoryTab() {
     const roles = useGetAllRolesApi();
     const router = useRouter();
     const axiosInstance = useAxios();
+    const currentUser = useAuthStore((s) => s.user);
+
+    const columns = useMemo(() => getDirectoryColumns(currentUser), [currentUser]);
 
     const handleDownloadDirectory = useCallback(async (format: "csv" | "xlsx") => {
         try {
@@ -184,7 +188,7 @@ export function DirectoryTab() {
                         description="Try adjusting your filters or search query to find what you're looking for."
                     />
                 }
-                columns={directoryColumns}
+                columns={columns}
                 paginationProps={tableProps.paginationProps}
                 enableRowSelection={false}
                 enableColumnVisibility={true}

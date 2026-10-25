@@ -56,6 +56,7 @@ export const QUERY_KEYS = {
         purchaseRequest:   (id: string) => ['procurement', 'purchase-requests', id] as const,
         purchaseOrders:    ['procurement', 'purchase-orders'] as const,
         purchaseOrder:     (id: string) => ['procurement', 'purchase-orders', id] as const,
+        confirmations:     (params?: Record<string, unknown>) => params ? ['procurement', 'confirmations', params] as const : ['procurement', 'confirmations'] as const,
         categories:        ['procurement', 'categories'] as const,
         policies:          ['procurement', 'policies'] as const,
         policy:            (id: string) => ['procurement', 'policies', id] as const,

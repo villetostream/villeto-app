@@ -345,20 +345,20 @@ function LineItemModal({
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-[#0b100e]">Unit Price <span className="text-[#d33d44]">*</span></label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">{currencySymbol}</span>
+              <div className="w-full h-11 px-3 rounded-lg border border-black/[0.06] flex items-center gap-1.5 focus-within:border-[#087f70] transition-colors bg-white">
+                <span className="text-[#68726d] text-sm font-medium shrink-0 select-none">{currencySymbol}</span>
                 <input type="number" min={0} value={form.unitPrice || ""} onChange={e => set("unitPrice", Number(e.target.value))} placeholder="0.00"
-                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
+                  className="w-full h-full bg-transparent text-sm focus:outline-none min-w-0" />
               </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-[#0b100e]">Tax Amount</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">{currencySymbol}</span>
+              <div className="w-full h-11 px-3 rounded-lg border border-black/[0.06] flex items-center gap-1.5 focus-within:border-[#087f70] transition-colors bg-white">
+                <span className="text-[#68726d] text-sm font-medium shrink-0 select-none">{currencySymbol}</span>
                 <input type="number" min={0} value={form.taxAmount || ""} onChange={e => set("taxAmount", Number(e.target.value))} placeholder="0.00"
-                  className="w-full h-11 pl-8 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors bg-white" />
+                  className="w-full h-full bg-transparent text-sm focus:outline-none min-w-0" />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -686,10 +686,18 @@ function EditPurchaseOrderPage() {
             </button>
             <button type="button" onClick={handleSubmit} disabled={submitting || lineItems.length === 0}
               className={`h-10 px-6 rounded-[12px] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 ${
-                policyViolations ? "bg-[#d33d44] hover:bg-[#c33339]" : "bg-[#087f70]"
+                policyViolations && policyViolations.some(v => v.resolution === "BLOCK")
+                  ? "bg-[#d33d44] hover:bg-[#c33339]"
+                  : policyViolations && policyViolations.length > 0
+                  ? "bg-amber-600 hover:bg-amber-700"
+                  : "bg-[#087f70]"
               }`}>
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              {policyViolations ? "Fix Violations to Submit" : "Submit for Approval"}
+              {policyViolations && policyViolations.some(v => v.resolution === "BLOCK")
+                ? "Fix Violations to Submit"
+                : policyViolations && policyViolations.length > 0
+                ? "Review Warnings to Submit"
+                : "Submit for Approval"}
             </button>
           </div>
         </div>

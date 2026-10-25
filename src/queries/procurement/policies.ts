@@ -237,7 +237,8 @@ export const useGetSpendProgramSettings = (options?: { enabled?: boolean }) => {
       return res.data;
     },
     staleTime: STALE_TIMES.NORMAL,
-    refetchInterval: 15000, // actively check every 15s in case another user changes settings
+    // No polling: settings rarely change. Our own updates invalidate this key,
+    // and refetchOnWindowFocus picks up other users' changes once stale.
     enabled: options?.enabled ?? true,
   });
 };
@@ -614,9 +615,14 @@ export const useApproveSpendProgram = () => {
       );
       return res.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, id) => {
       await qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
+      // Invalidate individual cache so the detail view reflects the new status
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
         refetchType: "all",
       });
     },
@@ -636,9 +642,15 @@ export const useRejectSpendProgram = () => {
       );
       return res.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, args) => {
+      const id = typeof args === "string" ? args : args.id;
       await qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
+        refetchType: "all",
+      });
+      // Invalidate individual cache so the detail view reflects the new status
+      await qc.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
         refetchType: "all",
       });
     },

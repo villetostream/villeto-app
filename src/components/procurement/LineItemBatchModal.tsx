@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   X, Plus, Trash2, ChevronDown, Loader2, Package2,
   CheckCircle2, AlertCircle,
@@ -473,12 +474,12 @@ export default function LineItemBatchModal({
         </div>
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-[#0b100e]">Unit Price</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">{sym}</span>
+          <div className="w-full h-10 px-3 rounded-lg border border-black/[0.06] flex items-center gap-1.5 focus-within:border-[#087f70] transition-colors bg-white">
+            <span className="text-[#68726d] text-sm font-medium shrink-0 select-none">{sym}</span>
             <input type="text" value={form.unitPrice}
               onChange={e => set("unitPrice", formatNumberInput(e.target.value))}
               placeholder="0.00"
-              className="w-full h-10 pl-7 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors"
+              className="w-full h-full bg-transparent text-sm focus:outline-none min-w-0"
             />
           </div>
         </div>
@@ -488,12 +489,12 @@ export default function LineItemBatchModal({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-[#0b100e]">Tax Amount</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d] text-sm font-medium">{sym}</span>
+          <div className="w-full h-10 px-3 rounded-lg border border-black/[0.06] flex items-center gap-1.5 focus-within:border-[#087f70] transition-colors bg-white">
+            <span className="text-[#68726d] text-sm font-medium shrink-0 select-none">{sym}</span>
             <input type="text" value={form.taxAmount}
               onChange={e => set("taxAmount", formatNumberInput(e.target.value))}
               placeholder="0.00"
-              className="w-full h-10 pl-7 pr-3 rounded-lg border border-black/[0.06] text-sm focus:outline-none focus:border-[#087f70] transition-colors"
+              className="w-full h-full bg-transparent text-sm focus:outline-none min-w-0"
             />
           </div>
         </div>
@@ -551,10 +552,10 @@ export default function LineItemBatchModal({
   );
 
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center">
       {/* Backdrop (intentionally ignores clicks to prevent accidental closure) */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] pointer-events-none" />
 
       {/* Modal Container */}
       <div className={`relative bg-white shadow-2xl rounded-[14px] flex flex-col overflow-hidden m-4 sm:m-6 w-full max-h-[90vh] ${isEditMode ? 'max-w-md' : 'max-w-5xl'}`}>
@@ -704,6 +705,7 @@ export default function LineItemBatchModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

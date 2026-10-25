@@ -91,6 +91,49 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
   });
 };
 
+// ── Confirmation / Receiving Queue Orders ────────────────────────────────────
+
+export interface GetConfirmationOrdersParams {
+  page?: number;
+  limit?: number;
+  /** Filter by status: all | ready_for_delivery | partially_delivered | delivered */
+  status?: string;
+  vendorId?: string;
+  search?: string;
+}
+
+export const useConfirmationOrders = <TData = PaginatedPurchaseOrdersResponse>(
+  params: GetConfirmationOrdersParams = {},
+  options?: Omit<
+    UseQueryOptions<PaginatedPurchaseOrdersResponse, Error, TData>,
+    "queryKey" | "queryFn"
+  >,
+) => {
+  const axios = useAxios();
+  const { page = 1, limit = 100, status, vendorId, search } = params;
+
+  return useQuery<PaginatedPurchaseOrdersResponse, Error, TData>({
+    queryKey: workspaceQueryKey(
+      QUERY_KEYS.procurement.confirmations({ page, limit, status, vendorId, search }),
+    ),
+    queryFn: async () => {
+      const qp = new URLSearchParams();
+      qp.append("page", page.toString());
+      qp.append("limit", limit.toString());
+      if (status && status !== "all") qp.append("status", status);
+      if (vendorId) qp.append("vendorId", vendorId);
+      if (search) qp.append("search", search);
+
+      const response = await axios.get<PaginatedPurchaseOrdersResponse>(
+        `${PROCUREMENT_KEYS.PURCHASE_ORDER_CONFIRMATIONS}?${qp.toString()}`,
+      );
+      return response.data;
+    },
+    staleTime: STALE_TIMES.LIVE,
+    ...options,
+  });
+};
+
 // ── Single Purchase Order ───────────────────────────────────────────────────
 
 export const usePurchaseOrder = (id: string) => {
@@ -227,22 +270,60 @@ export const useAddPOLineItems = (id: string) => {
   });
 };
 
-export const useUpdatePOLineItem = (poId: string, lineItemId: string) => {
+export interface UpdatePOLineItemVariables {
+  purchaseOrderId?: string;
+  lineItemId?: string;
+  payload?: Partial<POLineItemPayload>;
+  name?: string;
+  description?: string;
+  quantity?: number;
+  unitPrice?: number;
+  taxAmount?: number;
+  sku?: string;
+  unitOfMeasure?: string;
+  categoryId?: string;
+  departmentId?: string;
+  [key: string]: any;
+}
+
+export const useUpdatePOLineItem = (poId?: string, defaultLineItemId?: string) => {
   const axios = useAxios();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: POLineItemPayload) => {
+    mutationFn: async (variables: UpdatePOLineItemVariables | Partial<POLineItemPayload>) => {
+      const vars = variables as UpdatePOLineItemVariables;
+      const targetPoId = vars.purchaseOrderId || poId;
+      const targetLineItemId = vars.lineItemId || defaultLineItemId;
+
+      if (!targetPoId) {
+        throw new Error("purchaseOrderId is required to update a line item");
+      }
+      if (!targetLineItemId) {
+        throw new Error("lineItemId is required to update a line item");
+      }
+
+      let body: Partial<POLineItemPayload>;
+      if (vars.payload) {
+        body = vars.payload;
+      } else {
+        const { purchaseOrderId: _p, lineItemId: _l, ...rest } = vars;
+        body = rest as Partial<POLineItemPayload>;
+      }
+
       const response = await axios.patch(
-        `${PROCUREMENT_KEYS.PO_LINE_ITEMS(poId)}/${lineItemId}`,
-        payload,
+        PROCUREMENT_KEYS.PO_LINE_ITEM(targetPoId, targetLineItemId),
+        body,
       );
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(poId)),
-      });
+    onSuccess: (_data, variables) => {
+      const targetPoId = (variables as UpdatePOLineItemVariables)?.purchaseOrderId || poId;
+      if (targetPoId) {
+        queryClient.invalidateQueries({
+          queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(targetPoId)),
+        });
+      }
     },
   });
 };
@@ -254,7 +335,7 @@ export const useDeletePOLineItem = (poId: string) => {
   return useMutation({
     mutationFn: async (lineItemId: string) => {
       const response = await axios.delete(
-        `${PROCUREMENT_KEYS.PO_LINE_ITEMS(poId)}/${lineItemId}`,
+        PROCUREMENT_KEYS.PO_LINE_ITEM(poId, lineItemId),
       );
       return response.data;
     },

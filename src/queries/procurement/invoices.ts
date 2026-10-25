@@ -1,6 +1,7 @@
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
+import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 
 export interface ProcurementInvoice {
   vendorInvoiceId: string;
@@ -52,7 +53,8 @@ export function useProcurementInvoices(
           params: { page: 1, limit: 100, ...(status ? { status } : {}) },
         })
       ).data,
-    ...options,
+    staleTime: STALE_TIMES.LIVE,
+    refetchInterval: options?.refetchInterval ?? POLL_INTERVALS.ACTIVE_LIST,
   });
 }
 

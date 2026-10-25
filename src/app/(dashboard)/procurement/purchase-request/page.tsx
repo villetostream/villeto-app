@@ -435,7 +435,7 @@ function PRTable({
     requiresMyConversion: requiresMyConversion || undefined,
     page,
     limit: perPage,
-  }, { refetchOnMount: "always", staleTime: 0 });
+  }, { staleTime: 30_000 });
 
   // ── Badge count queries (lightweight — reads meta.totalCount only) ──────────
 
@@ -722,7 +722,7 @@ function PRTable({
                         title="No purchase requests found"
                         description="Try adjusting your filters or search query to find what you're looking for."
                       />
-                      {scope === "own" && (
+                      {scope === "own" && policies.purchaseRequests.canCreate && (
                         <button
                           onClick={() => router.push("/procurement/purchase-request/new")}
                           className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors mt-4 mb-10"

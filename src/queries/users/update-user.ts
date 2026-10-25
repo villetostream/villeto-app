@@ -53,7 +53,7 @@ export const useUpdateUserApi = () => {
     mutationFn: async (payload: UserUpdatePayload) => {
       const { id, ...latestPayload } = payload;
       const res = await axiosInstance.patch(
-        `${API_KEYS.USER.USERS}${id}`,
+        `${API_KEYS.USER.USERS}/${id}`,
         latestPayload,
       );
       return res.data;

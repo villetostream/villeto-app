@@ -225,3 +225,138 @@ export const useVendorPaymentStatusUpdate = (vendorId: string) => {
     },
   });
 };
+
+// ─── Payment Terms ────────────────────────────────────────────────────────────
+
+export interface VendorPaymentTerm {
+  paymentTermId: string;
+  companyId: string;
+  companyName: string;
+  vendorId: string;
+  vendorName: string;
+  code: string;
+  name: string;
+  days: number;
+  status: "pending_review" | "approved" | "rejected";
+  revision: number;
+  isCurrent: boolean;
+  rejectionReason: string | null;
+  submittedAt: string;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * List vendor payment terms awaiting or carrying company decisions.
+ */
+export const useCompanyPaymentTermsList = (params?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const axiosInstance = useAxios();
+
+  return useQuery({
+    queryKey: workspaceQueryKey(["vendor-network", "payment-terms", "list", params]),
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+      if (params?.status) queryParams.set("status", params.status);
+      if (params?.page) queryParams.set("page", String(params.page));
+      if (params?.limit) queryParams.set("limit", String(params.limit || 100));
+
+      const queryStr = queryParams.toString();
+      const response = await axiosInstance.get(
+        `/vendor-network/payment-terms${queryStr ? `?${queryStr}` : ""}`,
+      );
+
+      const body: any = response.data;
+      const items = Array.isArray(body?.data?.data)
+        ? body.data.data
+        : Array.isArray(body?.data)
+        ? body.data
+        : Array.isArray(body)
+        ? body
+        : [];
+      return items as VendorPaymentTerm[];
+    },
+    staleTime: STALE_TIMES.LIVE,
+  });
+};
+
+/**
+ * Fetch a single payment term submission by ID.
+ */
+export const useVendorPaymentTerms = (
+  paymentTermId: string | null | undefined,
+) => {
+  const axiosInstance = useAxios();
+
+  return useQuery({
+    queryKey: workspaceQueryKey(["vendor-network", "payment-terms", paymentTermId]),
+    queryFn: async () => {
+      const response = await axiosInstance.get(
+        `/vendor-network/payment-terms/${paymentTermId}`,
+      );
+      const body: any = response.data;
+      const item = body?.data?.data ?? body?.data ?? body;
+      return item as VendorPaymentTerm;
+    },
+    enabled: !!paymentTermId,
+    staleTime: STALE_TIMES.LIVE,
+  });
+};
+
+/**
+ * Approve a vendor's payment terms — also activates the vendor.
+ */
+export const useApprovePaymentTerms = (
+  paymentTermId?: string,
+  _vendorId?: string,
+) => {
+  const axiosInstance = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (overrideId?: string) => {
+      const targetId = overrideId || paymentTermId;
+      if (!targetId) throw new Error("Payment term ID is required to approve");
+      const response = await axiosInstance.post(
+        `/vendor-network/payment-terms/${targetId}/approve`,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      void invalidateVendorManagement(queryClient);
+    },
+  });
+};
+
+/**
+ * Reject a vendor's payment terms with a reason.
+ * The vendor remains in the approved-but-pending-payment-terms state
+ * so they can resubmit from the onboarding screen.
+ */
+export const useRejectPaymentTerms = (
+  paymentTermId?: string,
+  _vendorId?: string,
+) => {
+  const axiosInstance = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: { reason: string; paymentTermId?: string }) => {
+      const targetId = payload.paymentTermId || paymentTermId;
+      if (!targetId) throw new Error("Payment term ID is required to reject");
+      const response = await axiosInstance.post(
+        `/vendor-network/payment-terms/${targetId}/reject`,
+        { reason: payload.reason },
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      void invalidateVendorManagement(queryClient);
+    },
+  });
+};
+

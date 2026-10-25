@@ -25,6 +25,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
+import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 
 type ExpenseTableRow = Record<string, unknown> & {
   status?: string;
@@ -127,10 +128,8 @@ function Reimbursements() {
   const queryClient = useQueryClient();
 
   const queryOptions = {
-    refetchInterval: 30_000,
-    refetchOnMount: "always" as const,
-    refetchOnWindowFocus: true,
-    staleTime: 0,
+    refetchInterval: POLL_INTERVALS.ACTIVE_LIST,
+    staleTime: STALE_TIMES.LIVE,
   };
 
   const {
@@ -428,24 +427,26 @@ function Reimbursements() {
                       title="No expenses found"
                       description="Try switching to a different status tab or adjusting your filters."
                     />
-                    <button
-                      onClick={() => {
-                        if (!hasApplicablePolicy) {
-                          toast.error(
-                            canCreatePolicy
-                              ? "No expense policy has been attached to any category yet. Please set up a policy before creating a report."
-                              : "You cannot create an expense report because no expense policy has been set up yet. Please contact your administrator."
-                          );
-                          return;
-                        }
-                        const params = new URLSearchParams(searchParams.toString());
-                        params.set("openAddReport", "true");
-                        router.push(`/expenses?${params.toString()}`);
-                      }}
-                      className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors mt-4"
-                    >
-                      <Plus className="w-4 h-4" /> Create your first expense
-                    </button>
+                    {policies.expenses.canCreate && (
+                      <button
+                        onClick={() => {
+                          if (!hasApplicablePolicy) {
+                            toast.error(
+                              canCreatePolicy
+                                ? "No expense policy has been attached to any category yet. Please set up a policy before creating a report."
+                                : "You cannot create an expense report because no expense policy has been set up yet. Please contact your administrator."
+                            );
+                            return;
+                          }
+                          const params = new URLSearchParams(searchParams.toString());
+                          params.set("openAddReport", "true");
+                          router.push(`/expenses?${params.toString()}`);
+                        }}
+                        className="flex items-center gap-2 h-9 px-4 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors mt-4"
+                      >
+                        <Plus className="w-4 h-4" /> Create your first expense
+                      </button>
+                    )}
                   </div>
                 }
                 page={page}

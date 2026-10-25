@@ -43,7 +43,7 @@ export function EntityWorkspaceContent({ children }: { children: ReactNode }) {
     <>
       {workspaceReadOnly() && (
         <p className="mb-4 text-sm text-[#68726d]">
-          Read-only workspace. Open a record to view its legal entity.
+          Read-only workspace. All entities mode is for reading and reporting only.
         </p>
       )}
       {children}

@@ -51,7 +51,7 @@ function ColHeader({
 function ProcurementInvoicesPage() {
   const router = useRouter();
   const policies = useAuthorizationPolicies();
-  const { data, isPending, isError, refetch } = useProcurementInvoices(undefined, { refetchInterval: 60_000 });
+  const { data, isPending, isError, refetch } = useProcurementInvoices(undefined);
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
   const [sortState, setSortState] = useState<{ key: SortKey; dir: SortDir } | null>({ key: "date", dir: "desc" });

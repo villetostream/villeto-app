@@ -71,3 +71,59 @@ export function getDepartmentOptionValue(dept: Department): string {
   const d = dept as any;
   return d.departmentId || d.id || d._id || d.code || "Unknown";
 }
+
+export function resolveUserEmail(u: any): string {
+  if (!u) return "";
+  return (
+    u.email ||
+    u.workEmail ||
+    u.work_email ||
+    u.user?.email ||
+    u.userEmail ||
+    u.emailAddress ||
+    u.officialEmail ||
+    u.corporateEmail ||
+    u.employeeEmail ||
+    ""
+  );
+}
+
+export function checkIsCurrentUser(rowUser: any, currentUser: any): boolean {
+  if (!currentUser || !rowUser) return false;
+
+  const currentUserId = currentUser.userId || currentUser.id;
+  const rowUserId = rowUser.userId || rowUser.id || rowUser.user?.userId || rowUser.user?.id;
+  if (currentUserId && rowUserId && String(currentUserId) === String(rowUserId)) {
+    return true;
+  }
+
+  const currentUserEmail = currentUser.email?.trim().toLowerCase();
+  const rowEmail = resolveUserEmail(rowUser).trim().toLowerCase();
+  if (currentUserEmail && rowEmail && currentUserEmail === rowEmail) {
+    return true;
+  }
+
+  const currentExtId = currentUser.employeeExternalId || currentUser.employee_external_id;
+  const rowExtId = rowUser.employeeExternalId || rowUser.employee_external_id;
+  if (
+    currentExtId &&
+    rowExtId &&
+    String(currentExtId).trim().toLowerCase() === String(rowExtId).trim().toLowerCase()
+  ) {
+    return true;
+  }
+
+  if (
+    currentUser.firstName &&
+    currentUser.lastName &&
+    rowUser.firstName &&
+    rowUser.lastName &&
+    currentUser.firstName.trim().toLowerCase() === rowUser.firstName.trim().toLowerCase() &&
+    currentUser.lastName.trim().toLowerCase() === rowUser.lastName.trim().toLowerCase()
+  ) {
+    return true;
+  }
+
+  return false;
+}
+

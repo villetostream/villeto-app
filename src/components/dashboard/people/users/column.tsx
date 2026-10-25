@@ -15,6 +15,7 @@ import { Close as PopoverClose } from "@radix-ui/react-popover";
 import { Eye, Lock, MoreHorizontal, Mail, X } from "lucide-react";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import { useAuthStore } from "@/stores/auth-stores";
+import { resolveUserEmail, checkIsCurrentUser } from "../user-table-utils";
 
 
 function formatName(value: string | null | undefined): string {
@@ -31,7 +32,8 @@ const columnHelper = createColumnHelper<AppUser>();
 export const columns = (
     onViewProfile: (userId: string) => void,
     onToggleStatus?: (user: AppUser) => void,
-    onResendInvitation?: (user: AppUser) => void
+    onResendInvitation?: (user: AppUser) => void,
+    currentUser?: any
 ) => [
     columnHelper.display({
         id: "idNo",
@@ -46,14 +48,25 @@ export const columns = (
         header: "USER NAME",
         cell: (info) => {
             const firstName = info.getValue() || "";
-            const lastName = info.row.original.lastName || "";
-            const email = info.row.original.email || "";
+            const original = info.row.original;
+            const lastName = original.lastName || "";
+            const email = resolveUserEmail(original);
             const fullName = `${firstName} ${lastName}`.trim() || "-";
+            const isMe = checkIsCurrentUser(original, currentUser);
             
             return (
-                <div className="flex flex-col">
-                    <p className="capitalize font-medium">{fullName}</p>
-                    <p className="text-xs text-muted-foreground">{email}</p>
+                <div className="flex flex-col justify-center min-w-0">
+                    <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                        <span className="capitalize font-medium text-sm text-[#0b100e] truncate">{fullName}</span>
+                        {isMe && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] text-[10px] font-semibold bg-[#e6f5f3] text-[#087f70] border border-[#087f70]/20 tracking-wide uppercase shrink-0">
+                                Me
+                            </span>
+                        )}
+                    </div>
+                    {email ? (
+                        <span className="text-xs text-[#68726d] lowercase truncate leading-tight mt-0.5">{email}</span>
+                    ) : null}
                 </div>
             );
         },

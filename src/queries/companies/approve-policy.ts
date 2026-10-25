@@ -19,10 +19,15 @@ export const useApprovePolicy = () => {
       );
       return response.data;
     },
-    onSuccess: () => {
-      // Invalidate the policies query to instantly refresh the table
+    onSuccess: (_data, { policyId }) => {
+      // Invalidate the list so the table refreshes
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policies),
+      });
+      // Also invalidate the individual policy cache so the modal
+      // shows the updated status without requiring a page reload
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.policy(policyId)),
       });
     },
   });

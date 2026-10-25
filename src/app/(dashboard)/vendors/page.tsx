@@ -48,6 +48,7 @@ type VendorStatus =
   | "active"
   | "deactivated"
   | "pending"
+  | "resubmitted"
   | "invited"
   | "onboarding"
   | "flagged"
@@ -95,6 +96,12 @@ const STATUS_CONFIG: Record<
   },
   pending: {
     label: "Pending",
+    classes: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]",
+    actionLabel: "View Details",
+    actionIcon: <Eye className="w-4 h-4" />,
+  },
+  resubmitted: {
+    label: "Resubmitted",
     classes: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]",
     actionLabel: "View Details",
     actionIcon: <Eye className="w-4 h-4" />,
@@ -811,8 +818,7 @@ function VendorTable({
           {/* Pagination row */}
           <div className="px-5 py-3 border-t border-black/[0.08] flex items-center justify-between text-[13px] text-[#68726d] bg-[#f9faf9] shrink-0">
             <span>
-              Showing {paginatedData.length} entries on page {currentPage} of{" "}
-              {totalPages}
+              Showing {paginatedData.length} entries on page {currentPage} of {totalPages}
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -862,7 +868,7 @@ function VendorPage() {
   const canInviteVendor =
     policies.vendors.canInvite && policies.vendors.canCreate;
 
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
+  const activeTab = searchParams.get("tab") || "all";
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [sortConfig, setSortConfig] = useState<{
@@ -896,9 +902,17 @@ function VendorPage() {
       const status = getString(v.status);
       const onboardingStatus = getString(v.onboardingStatus);
       const approvalStatus = getString(v.approvalStatus);
+      const nextAction = getString(v.nextAction);
       const normalizedStatus = status.toLowerCase();
 
-      if (approvalStatus === "rejected") {
+      const isAwaitingReview =
+        nextAction === "awaiting_company_review" ||
+        (onboardingStatus === "submitted" && approvalStatus !== "approved");
+
+      if (isAwaitingReview) {
+        // If previously rejected, tag as resubmitted to clearly notify reviewer
+        computedStatus = approvalStatus === "rejected" ? "resubmitted" : "pending";
+      } else if (approvalStatus === "rejected") {
         computedStatus = "rejected";
       } else if (approvalStatus === "approved") {
         if (normalizedStatus === "active") {
@@ -936,15 +950,12 @@ function VendorPage() {
     });
   }, [vendorsApi.data]);
 
-  // Sync tab to URL and reset page
-  useEffect(() => {
-    const currentTab = searchParams.get("tab") || "all";
-    if (currentTab !== activeTab) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("tab", activeTab);
-      router.replace(`?${params.toString()}`, { scroll: false });
-    }
-  }, [activeTab, router, searchParams]);
+  const handleTabChange = (newTab: string) => {
+    setPage(1);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", newTab);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
 
   // Header CTA — only show "Invite Vendor" to users who can actually invite.
   // Without this, a read-only vendor viewer would see a button whose click
@@ -1074,10 +1085,7 @@ function VendorPage() {
       {/* Tabs + Table */}
       <Tabs
         value={activeTab}
-        onValueChange={(tab) => {
-          setActiveTab(tab);
-          setPage(1);
-        }}
+        onValueChange={handleTabChange}
         className="flex-1 flex flex-col min-h-0 overflow-hidden"
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">

@@ -9,15 +9,19 @@ import {
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
-import { usePurchaseOrders, type PurchaseOrderRecord } from "@/queries/procurement/purchase-orders";
+import {
+  useConfirmationOrders,
+  type PurchaseOrderRecord,
+} from "@/queries/procurement/purchase-orders";
+import { needsReceiptConfirmation } from "@/lib/types/purchase-request-helpers";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 
-const receivingStatuses = ["ready_for_delivery", "partially_delivered", "delivered"];
 const labels: Record<string, string> = {
-  ready_for_delivery: "Ready for delivery",
-  partially_delivered: "Partial delivery",
-  delivered: "Delivered",
+  ready_for_delivery: "Awaiting delivery",
+  partially_delivered: "Partially delivered",
+  delivered: "Fully delivered",
 };
 
 const money = (value: number, code: string) =>
@@ -25,6 +29,19 @@ const money = (value: number, code: string) =>
 
 type SortKey = "poNumber" | "vendor" | "amount" | "delivery" | "status";
 type SortDir = "asc" | "desc";
+
+// Tab definitions map to API status values (delivery stage of the PO)
+//  - ready_for_delivery:  issued, nothing received yet
+//  - partially_delivered: some quantity received, more still expected
+//  - delivered:           all ordered quantity received
+const TABS = [
+  { key: "all",                  label: "All" },
+  { key: "ready_for_delivery",   label: "Awaiting delivery" },
+  { key: "partially_delivered",  label: "Partially delivered" },
+  { key: "delivered",            label: "Fully delivered" },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
 
 function ActionBadge({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -77,52 +94,82 @@ function statusWeight(status?: string | null) {
 
 function ConfirmationPage() {
   const policies = useAuthorizationPolicies();
-  const scope = policies.purchaseOrders.listScope ?? "own";
-  const { data, isLoading, isFetching, isError, refetch } = usePurchaseOrders(
-    1, 100, undefined, undefined, undefined, scope, { refetchInterval: 60_000, refetchOnMount: "always", staleTime: 0 }
-  );
 
-  const [active, setActive] = useState("all");
+  const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortState, setSortState] = useState<{ key: SortKey; dir: SortDir } | null>({
     key: "delivery",
     dir: "asc",
   });
 
-  const orders = useMemo(
-    () => (data?.data || []).filter((item) => receivingStatuses.includes(item.status ?? "")),
-    [data?.data]
+  // Debounce search input
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    clearTimeout((handleSearchChange as any)._t);
+    (handleSearchChange as any)._t = setTimeout(() => setDebouncedSearch(value), 350);
+  };
+
+  // Main data query — uses the active tab as the status filter
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+  } = useConfirmationOrders(
+    {
+      status: activeTab === "all" ? undefined : activeTab,
+      search: debouncedSearch || undefined,
+      limit: 100,
+    },
+    { refetchInterval: POLL_INTERVALS.ACTIVE_LIST, staleTime: STALE_TIMES.LIVE },
   );
 
-  const filtered = useMemo(() => {
-    const base = orders.filter((item) => {
-      const statusMatch =
-        active === "all" ||
-        (active === "active" && item.status !== "delivered") ||
-        (active === "partial" && item.status === "partially_delivered") ||
-        (active === "delivered" && item.status === "delivered");
-      const value = `${item.poNumber ?? ""} ${item.vendor?.displayName ?? ""} ${item.vendor?.legalName ?? ""}`.toLowerCase();
-      return statusMatch && value.includes(search.trim().toLowerCase());
-    });
+  // Separate "all" query (no status filter) solely for badge counts on metric cards + tab pills
+  // Same query key as the sidebar badge query, so React Query dedupes it.
+  const { data: allData } = useConfirmationOrders(
+    { limit: 100 },
+    { refetchInterval: POLL_INTERVALS.BADGE, staleTime: STALE_TIMES.LIVE },
+  );
 
-    if (!sortState) return base;
+  const orders = useMemo(() => data?.data ?? [], [data?.data]);
+  const allOrders = useMemo(() => allData?.data ?? [], [allData?.data]);
 
-    return [...base].sort((a: PurchaseOrderRecord, b: PurchaseOrderRecord) => {
+  // Counts derived from the full dataset (not the filtered view)
+  const activeCount    = allOrders.filter((i) => i.status === "ready_for_delivery").length;
+  const partialCount   = allOrders.filter((i) => i.status === "partially_delivered").length;
+  const deliveredCount = allOrders.filter((i) => i.status === "delivered").length;
+  const inTransit      = activeCount + partialCount;
+
+  // Red-badge counts: POs with dispatched goods the tenant hasn't confirmed
+  // receipt of yet (quantityAwaitingReceipt > 0). Note: fulfillmentActionRequired
+  // means the VENDOR still has a backorder, so it's not a tenant action.
+  const needsConfirmation = (status?: string) =>
+    allOrders.filter(
+      (i) => needsReceiptConfirmation(i) && (status == null || i.status === status),
+    ).length;
+
+  const unconfirmedAll       = needsConfirmation();
+  const unconfirmedActive    = needsConfirmation("ready_for_delivery");
+  const unconfirmedPartial   = needsConfirmation("partially_delivered");
+  const unconfirmedDelivered = needsConfirmation("delivered");
+
+  // Client-side sort only (filtering is server-side)
+  const sorted = useMemo(() => {
+    if (!sortState) return orders;
+    return [...orders].sort((a: PurchaseOrderRecord, b: PurchaseOrderRecord) => {
       let valA: any, valB: any;
-      if (sortState.key === "poNumber") { valA = a.poNumber ?? ""; valB = b.poNumber ?? ""; }
-      else if (sortState.key === "vendor") { valA = a.vendor?.displayName ?? a.vendor?.legalName ?? ""; valB = b.vendor?.displayName ?? b.vendor?.legalName ?? ""; }
-      else if (sortState.key === "amount") { valA = Number(a.totalAmount ?? 0); valB = Number(b.totalAmount ?? 0); }
+      if (sortState.key === "poNumber")  { valA = a.poNumber ?? ""; valB = b.poNumber ?? ""; }
+      else if (sortState.key === "vendor")   { valA = a.vendor?.displayName ?? a.vendor?.legalName ?? ""; valB = b.vendor?.displayName ?? b.vendor?.legalName ?? ""; }
+      else if (sortState.key === "amount")   { valA = Number(a.totalAmount ?? 0); valB = Number(b.totalAmount ?? 0); }
       else if (sortState.key === "delivery") { valA = a.deliveryDate ? new Date(a.deliveryDate).getTime() : 0; valB = b.deliveryDate ? new Date(b.deliveryDate).getTime() : 0; }
-      else if (sortState.key === "status") { valA = statusWeight(a.status); valB = statusWeight(b.status); }
+      else if (sortState.key === "status")   { valA = statusWeight(a.status); valB = statusWeight(b.status); }
       if (valA < valB) return sortState.dir === "asc" ? -1 : 1;
       if (valA > valB) return sortState.dir === "asc" ? 1 : -1;
       return 0;
     });
-  }, [active, orders, search, sortState]);
-
-  const partial = orders.filter((i) => i.status === "partially_delivered").length;
-  const delivered = orders.filter((i) => i.status === "delivered").length;
-  const inTransit = orders.length - delivered;
+  }, [orders, sortState]);
 
   const handleSort = (key: SortKey) => {
     setSortState((prev) => {
@@ -138,31 +185,28 @@ function ConfirmationPage() {
         description="Track what suppliers are preparing, what has arrived, and what still needs a tenant receipt confirmation."
       />
       <div className="grid gap-3 sm:grid-cols-3 shrink-0">
-        <ProcurementMetric label="Active receiving" value={inTransit} detail="Issued through partial delivery" icon={<Truck className="size-4" />} tone="blue" />
-        <ProcurementMetric label="Partial deliveries" value={partial} detail="Orders with quantity still open" icon={<PackageCheck className="size-4" />} tone="amber" />
-        <ProcurementMetric label="Delivered" value={delivered} detail="Orders ready for final review" icon={<CheckCircle2 className="size-4" />} />
+        <ProcurementMetric label="Open deliveries" value={inTransit} detail="Awaiting or partially delivered" icon={<Truck className="size-4" />} tone="blue" />
+        <ProcurementMetric label="To confirm" value={unconfirmedAll} detail="Dispatched goods awaiting your receipt" icon={<PackageCheck className="size-4" />} tone="amber" />
+        <ProcurementMetric label="Fully delivered" value={deliveredCount} detail="Orders ready for final review" icon={<CheckCircle2 className="size-4" />} />
       </div>
 
       <ProcurementSection title="Receiving queue" description="Live purchase orders with delivery activity" className="flex-1 flex flex-col min-h-0">
         {/* Toolbar */}
         <div className="flex flex-col gap-3 border-b border-black/[0.06] p-4 lg:flex-row lg:items-center lg:justify-between shrink-0">
           <div className="flex max-w-full gap-1 overflow-x-auto rounded-[9px] bg-[#f3f6f5] p-1">
-            {[
-              { key: "all", label: "All" },
-              { key: "active", label: "Active" },
-              { key: "partial", label: "Partial" },
-              { key: "delivered", label: "Delivered" },
-            ].map((tab) => (
+            {TABS.map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActive(tab.key)}
+                onClick={() => setActiveTab(tab.key)}
                 className={`h-8 whitespace-nowrap rounded-[7px] px-4 text-[11px] font-semibold transition flex items-center ${
-                  active === tab.key ? "bg-white text-[#111815] shadow-sm" : "text-[#75807b] hover:text-[#111815]"
+                  activeTab === tab.key ? "bg-white text-[#111815] shadow-sm" : "text-[#75807b] hover:text-[#111815]"
                 }`}
               >
                 {tab.label}
-                {tab.key === "active" && <ActionBadge count={inTransit} />}
-                {tab.key === "partial" && <ActionBadge count={partial} />}
+                {tab.key === "all"                 && <ActionBadge count={unconfirmedAll} />}
+                {tab.key === "ready_for_delivery"  && <ActionBadge count={unconfirmedActive} />}
+                {tab.key === "partially_delivered" && <ActionBadge count={unconfirmedPartial} />}
+                {tab.key === "delivered"            && <ActionBadge count={unconfirmedDelivered} />}
               </button>
             ))}
           </div>
@@ -171,7 +215,7 @@ function ConfirmationPage() {
               <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#89918d]" />
               <input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Search PO or vendor"
                 className="h-9 w-full rounded-[9px] border border-black/[0.08] bg-white pl-9 pr-3 text-[11px] outline-none focus:border-[#0ea894]"
               />
@@ -201,23 +245,19 @@ function ConfirmationPage() {
             <p className="text-[12px] text-[#b93643]">Unable to load receiving activity.</p>
             <button onClick={() => refetch()} className="mt-3 text-[11px] font-semibold text-[#087f70]">Try again</button>
           </div>
-        ) : filtered.length ? (
-          /*
-           * KEY FIX: header is sticky INSIDE the same scroll container as the rows.
-           * This means the scrollbar offset is shared — no misalignment.
-           */
+        ) : sorted.length ? (
           <div className="overflow-y-auto flex-1 min-h-0">
             {/* Sticky column header */}
             <div className="hidden lg:grid lg:grid-cols-[2.5fr_1.5fr_1.5fr_140px] gap-3 px-5 py-3 border-b border-black/[0.055] bg-[#f9faf9] sticky top-0 z-10">
               <ColHeader label="Purchase Order" sortKey="poNumber" current={sortState} onSort={handleSort} />
-              <ColHeader label="Total Amount" sortKey="amount" current={sortState} onSort={handleSort} />
+              <ColHeader label="Total Amount"   sortKey="amount"   current={sortState} onSort={handleSort} />
               <ColHeader label="Expected Delivery" sortKey="delivery" current={sortState} onSort={handleSort} />
               <ColHeader label="Status" sortKey="status" current={sortState} onSort={handleSort} className="justify-end" />
             </div>
 
             {/* Data rows */}
             <div className="divide-y divide-black/[0.055]">
-              {filtered.map((item) => {
+              {sorted.map((item) => {
                 const id = item.purchaseOrderId || item.id || "";
                 return (
                   <Link
@@ -229,7 +269,15 @@ function ConfirmationPage() {
                       <p className="text-[12px] font-semibold text-[#17211d]">{item.poNumber || "Purchase order"}</p>
                       <p className="mt-0.5 text-[10px] text-[#89918d]">
                         {item.vendor?.displayName || item.vendor?.legalName || "Vendor pending"}
+                        {item.quantityOrdered != null && (
+                          <> · {item.quantityReceived ?? 0}/{item.quantityOrdered} received</>
+                        )}
                       </p>
+                      {needsReceiptConfirmation(item) && (
+                        <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#fdecee] px-2 py-0.5 text-[10px] font-semibold text-[#d33d44]">
+                          {item.quantityAwaitingReceipt} unit{item.quantityAwaitingReceipt === 1 ? "" : "s"} to confirm
+                        </span>
+                      )}
                     </div>
                     <div className="hidden lg:flex lg:items-center">
                       <p className="text-[11px] font-medium text-[#34413b]">
@@ -244,13 +292,13 @@ function ConfirmationPage() {
                       </p>
                     </div>
                     <div className="hidden lg:flex lg:items-center lg:justify-end">
-                      {item.fulfillmentState === "fully_ready" || item.status === "ready_for_delivery" ? (
+                      {item.status === "ready_for_delivery" ? (
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f0faf8] text-[#087f70]">
-                          Ready
+                          Awaiting delivery
                         </span>
-                      ) : item.fulfillmentState === "partial" || item.status === "partially_delivered" ? (
+                      ) : item.status === "partially_delivered" ? (
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600">
-                          Partial
+                          Partially delivered
                         </span>
                       ) : (
                         <StatusBadge status={item.status} label={labels[item.status ?? ""] || item.status} />
@@ -266,8 +314,14 @@ function ConfirmationPage() {
             <span className="flex size-11 items-center justify-center rounded-xl bg-[#edf4ff] text-[#3b67b0]">
               <Clock3 className="size-5" />
             </span>
-            <p className="mt-3 text-[13px] font-semibold">No receiving activity</p>
-            <p className="mt-1 text-[11px] text-[#89918d]">Issued purchase orders will appear here as suppliers prepare delivery.</p>
+            <p className="mt-3 text-[13px] font-semibold">
+              {activeTab === "all" ? "No receiving activity" : `No ${labels[activeTab] ?? activeTab} orders`}
+            </p>
+            <p className="mt-1 text-[11px] text-[#89918d]">
+              {activeTab === "all"
+                ? "Issued purchase orders will appear here as suppliers prepare delivery."
+                : "Try switching to a different tab or clearing the search."}
+            </p>
           </div>
         )}
       </ProcurementSection>
@@ -280,4 +334,3 @@ export default withPermissions(ConfirmationPage, [
   { resource: "procurement.purchase_order", action: "read_department" },
   { resource: "procurement.purchase_order", action: "read_company" },
 ]);
-

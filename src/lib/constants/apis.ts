@@ -40,9 +40,9 @@ export const API_KEYS = {
     ROLE_CAPABILITIES: (roleId: string) => `roles/${roleId}/capabilities` as const,
   },
   USER: {
-    USERS: "users/",
+    USERS: "users",
     INVITED_USERS: "users?invited=true",
-    DIRECTORY_USERS: "users/directory",
+    DIRECTORY_USERS: "users",
     SPLIT_EXPENSE_USERS: "users/directory?status=all",
     UNINVITED_USERS: "users?invited=false&status=all",
     INVITEUSER: "users/invite",
@@ -123,6 +123,8 @@ export const PROCUREMENT_KEYS = {
   ACTIVE_VENDORS: "vendors?status=Active",
   // ── Purchase Order endpoints ─────────────────────────────────────────────
   PURCHASE_ORDERS: "procurement/purchase-orders",
+  /** GET — dedicated confirmations/receiving queue endpoint */
+  PURCHASE_ORDER_CONFIRMATIONS: "procurement/purchase-orders/confirmations",
   PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}` as const,
   CANCEL_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/cancel` as const,
   ISSUE_PURCHASE_ORDER: (id: string) => `procurement/purchase-orders/${id}/issue` as const,
@@ -140,6 +142,9 @@ export const PROCUREMENT_KEYS = {
     `procurement/purchase-orders/${purchaseOrderId}/fulfillments/${fulfillmentId}/receipts` as const,
   /** POST — add line items to a draft (non-PR) PO */
   PO_LINE_ITEMS: (id: string) => `procurement/purchase-orders/${id}/line-items` as const,
+  /** PATCH, DELETE — individual line item on a purchase order */
+  PO_LINE_ITEM: (purchaseOrderId: string, lineItemId: string) =>
+    `procurement/purchase-orders/${purchaseOrderId}/line-items/${lineItemId}` as const,
   // ── Procurement Policy endpoints ─────────────────────────────────────────
   PROCUREMENT_POLICIES: "policy/procurement",
   PROCUREMENT_POLICY: (id: string) => `policy/procurement/${id}` as const,

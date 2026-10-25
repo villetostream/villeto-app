@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 export type UnifiedStatus = 
   | "active" | "approved" | "posted" | "verified" | "delivered" | "confirmed" | "done"
-  | "pending" | "submitted" | "pending_approval" | "under_review" | "pending_policy_check" | "awaiting_authorization" | "partially_delivered"
+  | "pending" | "submitted" | "resubmitted" | "pending_approval" | "under_review" | "pending_policy_check" | "awaiting_authorization" | "partially_delivered"
   | "draft" | "provisional"
   | "rejected" | "declined" | "returned" | "cancelled" | "withdrawn"
   | "paid" 
@@ -50,13 +50,16 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     // Amber (Pending Action)
     case "pending":
     case "submitted":
+    case "resubmitted":
     case "pending_approval":
     case "pending_policy_check":
     case "under_review":
     case "awaiting_authorization":
     case "partially_delivered":
       colorClasses = "text-[#b27b00] bg-[#fff9e6] border-[#ffe099]";
-      if (["pending_approval", "pending_policy_check", "under_review", "awaiting_authorization"].includes(normalizedStatus)) {
+      if (normalizedStatus === "resubmitted") {
+        defaultLabel = "Resubmitted";
+      } else if (["pending_approval", "pending_policy_check", "under_review", "awaiting_authorization"].includes(normalizedStatus)) {
         defaultLabel = "Pending";
       }
       break;
