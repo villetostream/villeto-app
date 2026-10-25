@@ -1,5 +1,7 @@
 "use client";
 
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { FindVendorDialog } from "@/components/vendors/FindVendorDialog";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -232,7 +234,27 @@ interface InviteModalProps {
   onSuccess?: () => void;
 }
 
-function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
+function AddVendorModal(props: InviteModalProps) {
+  const [step, setStep] = useState<"directory" | "invite">("directory");
+  const [initialEmail, setInitialEmail] = useState("");
+  return (
+    <>
+      <FindVendorDialog
+        open={props.open && step === "directory"}
+        onClose={props.onClose}
+        onInvite={(email) => { setInitialEmail(email); setStep("invite"); }}
+      />
+      <InviteVendorModal
+        {...props}
+        open={props.open && step === "invite"}
+        initialEmail={initialEmail}
+        onBack={() => setStep("directory")}
+      />
+    </>
+  );
+}
+
+function InviteVendorModal({ open, onClose, onSuccess, onBack, initialEmail }: InviteModalProps & { onBack: () => void; initialEmail: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [legalName, setLegalName] = useState("");
@@ -264,7 +286,7 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
   const { data: lookupResult, isFetching: isLookingUp } = useVendorLookup(
     "email",
     debouncedEmail,
-    !!debouncedEmail && debouncedEmail.includes("@"),
+    open && !!debouncedEmail && debouncedEmail.includes("@"),
   );
 
   const existingVendor = lookupResult?.data?.vendor?.email?.toLowerCase() === email.trim().toLowerCase()
@@ -274,7 +296,7 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
   useEffect(() => {
     if (!open) return;
     queueMicrotask(() => {
-      setEmail("");
+      setEmail(initialEmail);
       setLegalName("");
       setSponsorVerification(false);
       setMethod("cac");
@@ -284,7 +306,7 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
       setSuccess(false);
       setDebouncedEmail("");
     });
-  }, [open]);
+  }, [open, initialEmail]);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -349,8 +371,8 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
-      <div className="bg-white rounded-[14px] shadow-xl w-full max-w-[480px] border border-black/[0.08]">
+    <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
+      <DialogContent showCloseButton={false} className="max-w-[480px] p-0 bg-white rounded-[14px]">
         {success ? (
           <div className="p-10 flex flex-col items-center text-center">
             <div className="relative mb-6">
@@ -369,13 +391,13 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
                 <CheckCircle2 className="w-8 h-8 text-white" />
               </div>
             </div>
-            <h2 className="text-[18px] font-bold text-[#0b100e] mb-2">
+            <DialogTitle className="text-[18px] font-bold text-[#0b100e] mb-2">
               Invitation created
-            </h2>
-            <p className="text-[13px] text-[#68726d] leading-relaxed mb-8">
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-[#68726d] leading-relaxed mb-8">
               An onboarding invitation has been created. Other legal entities
               can reuse this vendor without inviting it again.
-            </p>
+            </DialogDescription>
             <button
               onClick={onClose}
               className="w-full h-10 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors"
@@ -387,21 +409,25 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
           <div className="p-6">
             <div className="flex items-start justify-between mb-1">
               <div>
-                <h2 className="text-[18px] font-bold text-[#0b100e]">
-                  Invite Vendor
-                </h2>
-                <p className="text-[13px] text-[#68726d] mt-0.5">
-                  Invite a vendor to join your network.
-                </p>
+                <DialogTitle className="text-[18px] font-bold text-[#0b100e]">
+                  Invite a new vendor
+                </DialogTitle>
+                <DialogDescription className="text-[13px] text-[#68726d] mt-0.5">
+                  Send one onboarding invitation. Other legal entities can reuse this vendor.
+                </DialogDescription>
               </div>
               <button
                 onClick={onClose}
+                aria-label="Close invitation"
                 className="w-8 h-8 rounded-[8px] bg-[#f9faf9] hover:bg-[#f5f7f6] flex items-center justify-center transition-colors border border-black/[0.08] ml-4 shrink-0"
               >
                 <X className="w-4 h-4 text-[#68726d]" />
               </button>
             </div>
 
+            <button type="button" onClick={onBack} className="mt-3 text-sm font-semibold text-[#087f70] underline">
+              Back to directory search
+            </button>
             <div className="w-full h-px bg-black/[0.08] my-5" />
 
             <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2 pb-2">
@@ -616,8 +642,8 @@ function InviteVendorModal({ open, onClose, onSuccess }: InviteModalProps) {
             </button>
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -967,16 +993,12 @@ function VendorPage() {
     }
     setAction({
       label: "Add vendor",
-      items: [
-        {
-          label: "Find or invite vendor",
-          onClick: () => setShowInviteModal(true),
-        },
-        {
-          label: "Bulk invite",
-          onClick: () => router.push("/vendors/bulk-invite-page"),
-        },
-      ],
+      onClick: () => setShowInviteModal(true),
+      secondaryAction: {
+        label: "Bulk invite",
+        iconName: "upload",
+        onClick: () => router.push("/vendors/bulk-invite-page"),
+      },
     });
     return () => clearAction();
   }, [setAction, clearAction, router, canInviteVendor]);
@@ -1057,11 +1079,13 @@ function VendorPage() {
 
   return (
     <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
-      <InviteVendorModal
-        open={showInviteModal}
-        onClose={() => setShowInviteModal(false)}
-        onSuccess={() => vendorsApi.refetch()}
-      />
+      {showInviteModal && (
+        <AddVendorModal
+          open
+          onClose={() => setShowInviteModal(false)}
+          onSuccess={() => vendorsApi.refetch()}
+        />
+      )}
 
       <div className="rounded-xl border bg-white p-3 text-sm text-[#5e6863]">
         Organization vendor directory · Invite a supplier once. Each legal

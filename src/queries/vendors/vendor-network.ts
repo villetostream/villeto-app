@@ -46,11 +46,12 @@ export interface VendorNetworkListParams {
  * List organization suppliers independently of the transaction workspace.
  * Supports filters like status, onboardingStatus, approvalStatus, isPaymentEnabled, search
  */
-export const useVendorNetworkList = (params: VendorNetworkListParams) => {
+export const useVendorNetworkList = (params: VendorNetworkListParams, enabled = true) => {
   const axiosInstance = useAxios();
 
   return useQuery({
     queryKey: workspaceQueryKey(["vendor-network", "list", params]),
+    enabled,
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       if (params.view) queryParams.set("view", params.view);
