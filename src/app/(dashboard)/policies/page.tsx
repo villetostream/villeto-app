@@ -108,11 +108,13 @@ type PolicyStatus =
 
 interface Policy {
   id: string;
+  policyId?: string;
   name: string;
   version: number;
   category: string;
   appliedTo: string;
   createdBy: string;
+  createdById?: string;
   date: string;
   status: PolicyStatus;
   approvers: string[];
@@ -122,6 +124,14 @@ interface Policy {
   receiptRequired: boolean;
   archivedOn?: string;
   approvalSetting?: any;
+  approvedBy?: unknown;
+  approvedAt?: string | null;
+  rejectedBy?: unknown;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+  reason?: string | null;
+  autoApproved?: boolean;
+  rules?: any[];
 }
 
 type ExpenseCategory = {
@@ -499,10 +509,11 @@ function PolicyDetailsModal({
   const canDeactivate = useAuthStore((s) => s.can)("policy", "deactivate");
   const canUpdate = useAuthStore((s) => s.can)("policy", "update");
   const isDraft = policy?.status === "draft";
+  const targetPolicyId = policy?.id || (policy as any)?.policyId || null;
   const { data: activeDetailData, isLoading: isActiveLoading } =
-    useGetPolicyDetailsApi(isDraft ? null : policy?.id || null);
+    useGetPolicyDetailsApi(isDraft ? null : targetPolicyId);
   const { data: draftDetailData, isLoading: isDraftLoading } =
-    useGetExpensePolicyDraft(isDraft ? policy?.id || null : null);
+    useGetExpensePolicyDraft(isDraft ? targetPolicyId : null);
 
   const detailData = isDraft ? draftDetailData : activeDetailData;
   const isLoading = isDraft ? isDraftLoading : isActiveLoading;
@@ -606,7 +617,13 @@ function PolicyDetailsModal({
   const formatDate = (dateStr?: string, fallback?: string) => {
     if (!dateStr) return fallback || "—";
     try {
-      return new Date(dateStr).toISOString().split("T")[0];
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return fallback || "—";
+      return d.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
     } catch {
       return fallback || "—";
     }
@@ -621,13 +638,36 @@ function PolicyDetailsModal({
     (fullPolicy as any)?.approvedBy || (policy as any)?.approvedBy;
   const approvedAt =
     (fullPolicy as any)?.approvedAt || (policy as any)?.approvedAt;
+  const isAutoApproved = Boolean(
+    (fullPolicy as any)?.autoApproved ??
+    (policy as any)?.autoApproved ??
+    (fullPolicy as any)?.isAutoApproved ??
+    (policy as any)?.isAutoApproved ??
+    (fullPolicy as any)?.autoApprove ??
+    (policy as any)?.autoApprove ??
+    (((fullPolicy as any)?.approvalSetting || (policy as any)?.approvalSetting)?.approvalRequired === false && policyStatus === "active")
+  );
 
-  const policyId = policy.id || (policy as any).policyId;
+  const policyId = policy.id || (policy as any).policyId || (fullPolicy as any)?.policyId;
   const storedRejection = getPolicyRejection(policyId);
-  const isRejected = policyStatus === "rejected" || policyStatus === "declined" || !!storedRejection;
-  const rejectionReason = (fullPolicy as any)?.rejectionReason || (fullPolicy as any)?.reason || (policy as any)?.rejectionReason || (policy as any)?.reason || storedRejection?.reason;
-  const rejectedBy = (fullPolicy as any)?.rejectedBy || (policy as any)?.rejectedBy || storedRejection?.rejectedBy;
-  const rejectedAt = (fullPolicy as any)?.rejectedAt || (policy as any)?.rejectedAt || storedRejection?.rejectedAt;
+  const isRejected =
+    policyStatus?.toLowerCase() === "rejected" ||
+    policyStatus?.toLowerCase() === "declined" ||
+    !!storedRejection;
+  const rejectionReason =
+    (fullPolicy as any)?.rejectionReason ||
+    (fullPolicy as any)?.reason ||
+    (policy as any)?.rejectionReason ||
+    (policy as any)?.reason ||
+    storedRejection?.reason;
+  const rejectedBy =
+    (fullPolicy as any)?.rejectedBy ||
+    (policy as any)?.rejectedBy ||
+    storedRejection?.rejectedBy;
+  const rejectedAt =
+    (fullPolicy as any)?.rejectedAt ||
+    (policy as any)?.rejectedAt ||
+    storedRejection?.rejectedAt;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -714,13 +754,33 @@ function PolicyDetailsModal({
           ) : (
             <>
               {/* REJECTION REASON CARD */}
-              {isRejected && rejectionReason && (
+              {isRejected && (
                 <div className="rounded-[20px] border border-red-200 bg-[#fff8f8] p-4">
-                  <div className="flex items-center gap-2 mb-1.5 text-[#d33d44]">
-                    <XCircle className="w-4 h-4 shrink-0" />
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em]">Rejection Reason</p>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2 text-[#d33d44]">
+                      <XCircle className="w-4 h-4 shrink-0" />
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em]">Rejection Reason</p>
+                    </div>
+                    {rejectedAt && (
+                      <span className="text-[10px] text-[#84908a]">
+                        {formatDate(rejectedAt, storedRejection?.rejectedAt)}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-[#521c20] leading-relaxed pl-6">{rejectionReason}</p>
+                  <p className="text-xs text-[#521c20] leading-relaxed pl-6">
+                    {rejectionReason || "No specific reason provided."}
+                  </p>
+                  {(rejectedBy || storedRejection?.rejectedBy) && (
+                    <p className="text-[11px] text-[#84908a] pl-6 mt-1.5">
+                      Rejected by{" "}
+                      <span className="font-semibold text-[#0b100e]">
+                        {formatUser(rejectedBy || storedRejection?.rejectedBy)}
+                      </span>
+                      {formatUserRole(rejectedBy || storedRejection?.rejectedBy) && (
+                        <span> ({formatUserRole(rejectedBy || storedRejection?.rejectedBy)})</span>
+                      )}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -848,18 +908,34 @@ function PolicyDetailsModal({
                 </p>
               </div>
               {/* Approved / Rejected by */}
-              {isRejected && (rejectedBy || storedRejection) ? (
+              {isRejected ? (
                 <div className="text-right">
                   <p className="text-[11px] text-[#d33d44] font-medium mb-1.5">Rejected by</p>
                   <div className="space-y-2">
                     <div>
                       <p className="text-sm font-semibold text-[#0b100e] leading-tight">
-                        {formatUser(rejectedBy || storedRejection?.rejectedBy)}
+                        {formatUser(rejectedBy || storedRejection?.rejectedBy, "Reviewer")}
                         {formatUserRole(rejectedBy || storedRejection?.rejectedBy) && (
                           <span className="text-[#68726d] font-normal"> ({formatUserRole(rejectedBy || storedRejection?.rejectedBy)})</span>
                         )}
                       </p>
                       <p className="text-xs text-[#68726d] mt-0.5">{formatDate(rejectedAt, storedRejection?.rejectedAt)}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : isAutoApproved ? (
+                <div className="text-right">
+                  <p className="text-[11px] text-[#087f70] mb-1.5 font-medium">
+                    Approval
+                  </p>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-semibold text-[#087f70] leading-tight">
+                        Auto-approved
+                      </p>
+                      <p className="text-xs text-[#68726d] mt-0.5">
+                        {formatDate(approvedAt || (fullPolicy as any)?.updatedAt || createdAt)}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1227,6 +1303,7 @@ function PoliciesPage() {
         id:
           pickString(p, "procurementPolicyId", "policyId", "id") ||
           Math.random().toString(),
+        policyId: pickString(p, "policyId", "procurementPolicyId", "id"),
         name: getString(p.name),
         version: Number(p.version) || 1,
         category: getCatNames(asArray(p.expenseCategories)),
@@ -1246,6 +1323,13 @@ function PoliciesPage() {
           : "—",
         status:
           (getString(p.status).toLowerCase() as PolicyStatus) || "inactive",
+        approvedBy: p.approvedBy,
+        approvedAt: (p.approvedAt as string | null | undefined) ?? null,
+        rejectedBy: p.rejectedBy,
+        rejectedAt: (p.rejectedAt as string | null | undefined) ?? null,
+        rejectionReason: (p.rejectionReason as string | null | undefined) ?? null,
+        reason: (p.reason as string | null | undefined) ?? null,
+        autoApproved: Boolean((p as any).autoApproved),
         approvers: asArray(p.approvers).map((rawApprover) => {
           if (typeof rawApprover === "string") return rawApprover;
           const a = asRecord(rawApprover);
@@ -1675,14 +1759,21 @@ function PoliciesPage() {
         isApprover =
           policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
       } else {
-        isApprover =
-          (policy.approversRaw || []).some((rawApprover) => {
-            const a = asRecord(rawApprover);
-            return pickString(a, "userId") === user?.userId;
-          }) ||
-          (user?.userId
-            ? (policy.approverIds?.includes(user.userId) ?? false)
-            : false);
+        const hasDirectApprovers =
+          (policy.approversRaw && policy.approversRaw.length > 0) ||
+          (policy.approverIds && policy.approverIds.length > 0);
+        if (hasDirectApprovers) {
+          isApprover =
+            (policy.approversRaw || []).some((rawApprover) => {
+              const a = asRecord(rawApprover);
+              return pickString(a, "userId") === user?.userId;
+            }) ||
+            (user?.userId
+              ? (policy.approverIds?.includes(user.userId) ?? false)
+              : false);
+        } else {
+          isApprover = canApprovePolicy || can("policy", "manage");
+        }
       }
 
       // Evaluate if the user is the creator
@@ -1750,14 +1841,21 @@ function PoliciesPage() {
         isApprover =
           policy.approvalSetting.approverRoleIds.includes(currentUserRoleId);
       } else {
-        isApprover =
-          (policy.approversRaw || []).some((rawApprover) => {
-            const a = asRecord(rawApprover);
-            return pickString(a, "userId") === user?.userId;
-          }) ||
-          (user?.userId
-            ? (policy.approverIds?.includes(user.userId) ?? false)
-            : false);
+        const hasDirectApprovers =
+          (policy.approversRaw && policy.approversRaw.length > 0) ||
+          (policy.approverIds && policy.approverIds.length > 0);
+        if (hasDirectApprovers) {
+          isApprover =
+            (policy.approversRaw || []).some((rawApprover) => {
+              const a = asRecord(rawApprover);
+              return pickString(a, "userId") === user?.userId;
+            }) ||
+            (user?.userId
+              ? (policy.approverIds?.includes(user.userId) ?? false)
+              : false);
+        } else {
+          isApprover = can("policy", "approve") || can("policy", "manage");
+        }
       }
 
       const createdByObj = (policy as any).createdBy;

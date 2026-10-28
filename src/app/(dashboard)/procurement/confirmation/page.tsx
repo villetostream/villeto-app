@@ -27,7 +27,29 @@ const labels: Record<string, string> = {
 const money = (value: number, code: string) =>
   new Intl.NumberFormat("en-NG", { style: "currency", currency: code }).format(value);
 
-type SortKey = "poNumber" | "vendor" | "amount" | "delivery" | "status";
+const formatDate = (dateStr?: string | null) => {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(d);
+  } catch {
+    return "—";
+  }
+};
+
+const formatTime = (dateStr?: string | null) => {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    return new Intl.DateTimeFormat("en-US", { timeStyle: "short" }).format(d);
+  } catch {
+    return "";
+  }
+};
+
+type SortKey = "poNumber" | "vendor" | "amount" | "shipmentDate" | "confirmationDate" | "status";
 type SortDir = "asc" | "desc";
 
 // Tab definitions map to API status values (delivery stage of the PO)
@@ -99,8 +121,8 @@ function ConfirmationPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortState, setSortState] = useState<{ key: SortKey; dir: SortDir } | null>({
-    key: "delivery",
-    dir: "asc",
+    key: "shipmentDate",
+    dir: "desc",
   });
 
   // Debounce search input
@@ -160,11 +182,31 @@ function ConfirmationPage() {
     if (!sortState) return orders;
     return [...orders].sort((a: PurchaseOrderRecord, b: PurchaseOrderRecord) => {
       let valA: any, valB: any;
-      if (sortState.key === "poNumber")  { valA = a.poNumber ?? ""; valB = b.poNumber ?? ""; }
-      else if (sortState.key === "vendor")   { valA = a.vendor?.displayName ?? a.vendor?.legalName ?? ""; valB = b.vendor?.displayName ?? b.vendor?.legalName ?? ""; }
-      else if (sortState.key === "amount")   { valA = Number(a.totalAmount ?? 0); valB = Number(b.totalAmount ?? 0); }
-      else if (sortState.key === "delivery") { valA = a.deliveryDate ? new Date(a.deliveryDate).getTime() : 0; valB = b.deliveryDate ? new Date(b.deliveryDate).getTime() : 0; }
-      else if (sortState.key === "status")   { valA = statusWeight(a.status); valB = statusWeight(b.status); }
+      if (sortState.key === "poNumber") {
+        valA = a.poNumber ?? "";
+        valB = b.poNumber ?? "";
+      } else if (sortState.key === "vendor") {
+        valA = a.vendor?.displayName ?? a.vendor?.legalName ?? "";
+        valB = b.vendor?.displayName ?? b.vendor?.legalName ?? "";
+      } else if (sortState.key === "amount") {
+        valA = Number(a.totalAmount ?? 0);
+        valB = Number(b.totalAmount ?? 0);
+      } else if (sortState.key === "shipmentDate") {
+        valA = a.shipmentDate ? new Date(a.shipmentDate).getTime() : 0;
+        valB = b.shipmentDate ? new Date(b.shipmentDate).getTime() : 0;
+        if (!valA && !valB) return 0;
+        if (!valA) return 1;
+        if (!valB) return -1;
+      } else if (sortState.key === "confirmationDate") {
+        valA = a.confirmationDate ? new Date(a.confirmationDate).getTime() : 0;
+        valB = b.confirmationDate ? new Date(b.confirmationDate).getTime() : 0;
+        if (!valA && !valB) return 0;
+        if (!valA) return 1;
+        if (!valB) return -1;
+      } else if (sortState.key === "status") {
+        valA = statusWeight(a.status);
+        valB = statusWeight(b.status);
+      }
       if (valA < valB) return sortState.dir === "asc" ? -1 : 1;
       if (valA > valB) return sortState.dir === "asc" ? 1 : -1;
       return 0;
@@ -248,10 +290,11 @@ function ConfirmationPage() {
         ) : sorted.length ? (
           <div className="overflow-y-auto flex-1 min-h-0">
             {/* Sticky column header */}
-            <div className="hidden lg:grid lg:grid-cols-[2.5fr_1.5fr_1.5fr_140px] gap-3 px-5 py-3 border-b border-black/[0.055] bg-[#f9faf9] sticky top-0 z-10">
+            <div className="hidden lg:grid lg:grid-cols-[2fr_1.1fr_1.3fr_1.3fr_140px] gap-3 px-5 py-3 border-b border-black/[0.055] bg-[#f9faf9] sticky top-0 z-10">
               <ColHeader label="Purchase Order" sortKey="poNumber" current={sortState} onSort={handleSort} />
               <ColHeader label="Total Amount"   sortKey="amount"   current={sortState} onSort={handleSort} />
-              <ColHeader label="Expected Delivery" sortKey="delivery" current={sortState} onSort={handleSort} />
+              <ColHeader label="Shipment Date"  sortKey="shipmentDate" current={sortState} onSort={handleSort} />
+              <ColHeader label="Confirmation Date" sortKey="confirmationDate" current={sortState} onSort={handleSort} />
               <ColHeader label="Status" sortKey="status" current={sortState} onSort={handleSort} className="justify-end" />
             </div>
 
@@ -263,7 +306,7 @@ function ConfirmationPage() {
                   <Link
                     key={id}
                     href={`/procurement/confirmation/${id}`}
-                    className="group grid gap-3 px-5 py-4 transition hover:bg-[#f8fbfa] lg:grid-cols-[2.5fr_1.5fr_1.5fr_140px] lg:items-center"
+                    className="group grid gap-3 px-5 py-4 transition hover:bg-[#f8fbfa] lg:grid-cols-[2fr_1.1fr_1.3fr_1.3fr_140px] lg:items-center"
                   >
                     <div>
                       <p className="text-[12px] font-semibold text-[#17211d]">{item.poNumber || "Purchase order"}</p>
@@ -278,18 +321,38 @@ function ConfirmationPage() {
                           {item.quantityAwaitingReceipt} unit{item.quantityAwaitingReceipt === 1 ? "" : "s"} to confirm
                         </span>
                       )}
+                      {(item.shipmentDate || item.confirmationDate) && (
+                        <p className="mt-1 text-[10px] text-[#89918d] lg:hidden">
+                          {item.shipmentDate && <>Shipped: {formatDate(item.shipmentDate)}</>}
+                          {item.shipmentDate && item.confirmationDate && <> · </>}
+                          {item.confirmationDate && <>Confirmed: {formatDate(item.confirmationDate)}</>}
+                        </p>
+                      )}
                     </div>
                     <div className="hidden lg:flex lg:items-center">
                       <p className="text-[11px] font-medium text-[#34413b]">
                         {item.totalAmount ? money(Number(item.totalAmount), item.currency || "NGN") : "—"}
                       </p>
                     </div>
-                    <div className="hidden lg:flex lg:items-center">
+                    <div className="hidden lg:flex lg:flex-col lg:justify-center">
                       <p className="text-[11px] font-medium text-[#34413b]">
-                        {item.deliveryDate
-                          ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(item.deliveryDate))
-                          : "Not specified"}
+                        {formatDate(item.shipmentDate)}
                       </p>
+                      {item.shipmentDate && (
+                        <p className="mt-0.5 text-[10px] text-[#89918d]">
+                          {formatTime(item.shipmentDate)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="hidden lg:flex lg:flex-col lg:justify-center">
+                      <p className="text-[11px] font-medium text-[#34413b]">
+                        {formatDate(item.confirmationDate)}
+                      </p>
+                      {item.confirmationDate && (
+                        <p className="mt-0.5 text-[10px] text-[#89918d]">
+                          {formatTime(item.confirmationDate)}
+                        </p>
+                      )}
                     </div>
                     <div className="hidden lg:flex lg:items-center lg:justify-end">
                       {item.status === "ready_for_delivery" ? (

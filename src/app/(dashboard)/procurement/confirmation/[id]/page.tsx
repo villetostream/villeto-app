@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, ChevronRight, AlertCircle, Clock3, Loader2, Package, Truck, Monitor, Wrench, X, History } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, AlertCircle, Clock3, Loader2, Package, Truck, Monitor, Wrench, X, History, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
@@ -68,12 +68,61 @@ function WorkflowStep({ label, person, timestamp, done, pending, isLast, badge, 
   );
 }
 
-function FulfillmentHistoryCard({ notice, index, canReceive, onReceive, purchaseOrderLineItems, outstandingAfterReceiptByFulfillmentLineId, outstandingAfterReadyByFulfillmentLineId }: { notice: any; index: number; canReceive: boolean; onReceive: () => void; purchaseOrderLineItems: any[]; outstandingAfterReceiptByFulfillmentLineId: Map<string, number>; outstandingAfterReadyByFulfillmentLineId?: Map<string, number>; }) {
+function FulfillmentHistoryCard({
+  notice,
+  index,
+  canReceive,
+  onReceive,
+  purchaseOrderLineItems,
+  outstandingAfterReceiptByFulfillmentLineId,
+  outstandingAfterReadyByFulfillmentLineId,
+  receiptConfirmations,
+}: {
+  notice: any;
+  index: number;
+  canReceive: boolean;
+  onReceive: () => void;
+  purchaseOrderLineItems: any[];
+  outstandingAfterReceiptByFulfillmentLineId: Map<string, number>;
+  outstandingAfterReadyByFulfillmentLineId?: Map<string, number>;
+  receiptConfirmations?: any[];
+}) {
   const [expanded, setExpanded] = useState(false);
   const isDigital = notice.fulfillmentMethod === "digital";
   const titlePrefix = isDigital ? "Digital Delivery" : "Shipment";
+
+  const matchingReceipt = (receiptConfirmations || []).find(
+    (rc: any) =>
+      (notice.vendorDeliveryNoticeId && rc.fulfillmentId === notice.vendorDeliveryNoticeId) ||
+      (notice.fulfillmentReference && rc.fulfillmentReference === notice.fulfillmentReference) ||
+      (notice.shipmentReference && rc.fulfillmentReference === notice.shipmentReference)
+  );
+
+  const totalReady = (notice.lineItems || []).reduce(
+    (sum: number, item: any) => sum + Number(item.quantityReady || item.quantityShipped || item.quantity || 0),
+    0
+  );
+  const totalReceived = (notice.lineItems || []).reduce(
+    (sum: number, item: any) => sum + Number(item.quantityReceived || 0),
+    0
+  );
+  const totalAwaitingReceipt = (notice.lineItems || []).reduce(
+    (sum: number, item: any) => sum + Number(item.quantityAwaitingReceipt || 0),
+    0
+  );
+
+  const isConfirmed =
+    (matchingReceipt?.status === "confirmed" && totalAwaitingReceipt === 0) ||
+    (totalReceived > 0 && totalAwaitingReceipt === 0) ||
+    (totalReady > 0 && totalReceived >= totalReady);
+
+  const isPartiallyConfirmed =
+    !isConfirmed &&
+    (totalReceived > 0 || matchingReceipt?.status === "partially_confirmed");
+
   const canReceiveThisFulfillment =
     canReceive &&
+    !isConfirmed &&
     (notice.dispatchStatus === "dispatched" || notice.fulfillmentMethod === "digital" || notice.fulfillmentMethod === "service") &&
     (notice.lineItems || []).some((item: any) => Number(item.quantityAwaitingReceipt || 0) > 0);
 
@@ -89,16 +138,27 @@ function FulfillmentHistoryCard({ notice, index, canReceive, onReceive, purchase
           </h3>
           <p className="text-xs text-[#68726d] mt-1">
             {formatDate(notice.readyAt)} • {notice.declaration === "full" ? "Full Delivery" : "Partial Delivery"}
+            {isConfirmed && matchingReceipt?.receivedAt && (
+              <> • Confirmed {formatDate(matchingReceipt.receivedAt)}</>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {notice.dispatchStatus && notice.dispatchStatus !== "not_applicable" && (
+          {isConfirmed ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#f0faf8] text-[#087f70] border border-[#087f70]/20">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#087f70]" /> Confirmed
+            </span>
+          ) : isPartiallyConfirmed ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+              <Clock3 className="w-3.5 h-3.5" /> Partially Confirmed
+            </span>
+          ) : notice.dispatchStatus && notice.dispatchStatus !== "not_applicable" ? (
             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${
               notice.dispatchStatus === "dispatched" ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-600"
             }`}>
               {notice.dispatchStatus === "dispatched" ? "Dispatched" : "Pending Dispatch"}
             </span>
-          )}
+          ) : null}
           {canReceiveThisFulfillment && (
             <button
               onClick={(e) => {
@@ -116,6 +176,21 @@ function FulfillmentHistoryCard({ notice, index, canReceive, onReceive, purchase
 
       {expanded && (
         <div className="border-t border-black/[0.06]">
+          {matchingReceipt && (
+            <div className="px-5 py-3 bg-[#f0faf8]/60 border-b border-black/[0.05] flex flex-wrap items-center justify-between gap-2 text-xs text-[#087f70]">
+              <div className="flex items-center gap-1.5 font-medium">
+                <CheckCircle2 className="w-4 h-4 text-[#087f70]" />
+                <span>
+                  Receipt {matchingReceipt.receiptNumber || "Confirmed"} · Confirmed by {matchingReceipt.confirmedByName || "Buyer"}
+                </span>
+              </div>
+              {matchingReceipt.receivedAt && (
+                <span className="text-[#68726d] text-[11px]">
+                  Confirmed on {formatDate(matchingReceipt.receivedAt)}
+                </span>
+              )}
+            </div>
+          )}
           <div className="p-5 grid grid-cols-4 gap-4 bg-[#fcfcfc]">
             <div>
               <p className="text-[10px] font-medium text-[#89918d] uppercase tracking-wide">Method</p>
@@ -334,10 +409,21 @@ function ItemFulfillmentDrawer({
                     runningReady += li.quantityReady || 0;
                     const remainingAtTime = Math.max(0, item.quantity - runningReady);
 
-                    const badgeColor =
-                      f.notice.dispatchStatus === "dispatched"
-                        ? "bg-blue-50 text-blue-600 border-blue-200"
-                        : "bg-gray-50 text-gray-600 border-gray-200";
+                    const liConfirmed = (li.quantityReceived || 0) > 0 && (li.quantityAwaitingReceipt == null || Number(li.quantityAwaitingReceipt) === 0);
+                    const liPartiallyConfirmed = !liConfirmed && Number(li.quantityReceived || 0) > 0;
+
+                    let badgeText = f.notice.dispatchStatus === "dispatched" ? "Dispatched" : "Pending Dispatch";
+                    let badgeColor = f.notice.dispatchStatus === "dispatched"
+                      ? "bg-blue-50 text-blue-600 border-blue-200"
+                      : "bg-gray-50 text-gray-600 border-gray-200";
+
+                    if (liConfirmed) {
+                      badgeText = "Confirmed";
+                      badgeColor = "bg-[#f0faf8] text-[#087f70] border-[#087f70]/20";
+                    } else if (liPartiallyConfirmed) {
+                      badgeText = "Partially Confirmed";
+                      badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
+                    }
 
                     return (
                       <div key={f.notice.vendorDeliveryNoticeId || idx} className="relative flex items-start gap-4 group">
@@ -349,9 +435,9 @@ function ItemFulfillmentDrawer({
                             <p className="text-xs font-semibold text-[#0b100e]">
                               {formatDate(f.notice.readyAt || f.notice.shippedAt)}
                             </p>
-                            {isPhysical && (
+                            {(isPhysical || liConfirmed || liPartiallyConfirmed) && (
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${badgeColor}`}>
-                                {f.notice.dispatchStatus === "dispatched" ? "Dispatched" : "Pending Dispatch"}
+                                {badgeText}
                               </span>
                             )}
                           </div>
@@ -415,7 +501,10 @@ function ConfirmationDetailPage() {
 
   const po = data.data as any;
   const canReceive = po.status === "ready_for_delivery" || po.status === "partially_delivered";
-  const fulfillmentHistory = [...(po.deliveryNotices || [])].sort(
+  const rawNotices = (po.deliveryNotices && po.deliveryNotices.length > 0)
+    ? po.deliveryNotices
+    : (po.fulfillments || []);
+  const fulfillmentHistory = [...rawNotices].sort(
     (left: any, right: any) =>
       new Date(left.readyAt || left.shippedAt).getTime() -
       new Date(right.readyAt || right.shippedAt).getTime(),
@@ -799,7 +888,7 @@ function ConfirmationDetailPage() {
           </div>
 
           {/* Fulfillment History Section */}
-          {(po.deliveryNotices && po.deliveryNotices.length > 0) && (
+          {fulfillmentHistory.length > 0 && (
             <div className="space-y-4">
               <h2 className="text-base font-semibold text-[#0b100e]">Fulfillments</h2>
               <div className="flex flex-col gap-4">
@@ -813,6 +902,7 @@ function ConfirmationDetailPage() {
                     purchaseOrderLineItems={po.lineItems || []}
                     outstandingAfterReceiptByFulfillmentLineId={outstandingAfterReceiptByFulfillmentLineId}
                     outstandingAfterReadyByFulfillmentLineId={outstandingAfterReadyByFulfillmentLineId}
+                    receiptConfirmations={po.receiptConfirmations || []}
                   />
                 ))}
               </div>

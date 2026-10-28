@@ -2,9 +2,9 @@
 
 import React, { useState } from "react";
 import { X, Loader2, AlertCircle, XCircle } from "lucide-react";
-import { useApproveSpendProgram, useRejectSpendProgram } from "@/queries/procurement/policies";
+import { useApproveSpendProgram, useRejectSpendProgram, useGetSpendProgramById } from "@/queries/procurement/policies";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { getApiErrorMessage } from "@/lib/types/api-error";
+import { asRecord, pickString, getApiErrorMessage } from "@/lib/types/api-error";
 import { toast } from "sonner";
 import { RejectPolicyReasonModal } from "@/components/policies/RejectPolicyReasonModal";
 import { saveSpendProgramRejection, getSpendProgramRejection } from "@/lib/policies/rejection-store";
@@ -31,15 +31,37 @@ const groupLabel = (g: string) => {
 const formatDate = (iso?: string | null) => {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
+    return new Date(iso).toLocaleDateString("en-US", {
       year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   } catch {
     return "—";
   }
 };
+
+function formatUser(userObj: unknown, fallbackStr = "—") {
+  if (!userObj) return fallbackStr;
+  if (typeof userObj === "string") return userObj || fallbackStr;
+  const user = asRecord(userObj);
+  const fullName = `${pickString(user, "firstName")} ${pickString(user, "lastName")}`.trim();
+  return fullName || pickString(user, "email") || fallbackStr;
+}
+
+function formatUserRole(userObj: unknown) {
+  if (!userObj || typeof userObj === "string") return "";
+  const user = asRecord(userObj);
+  const villetoRole = asRecord(user.villetoRole);
+  const role = asRecord(user.role);
+  const roleName =
+    pickString(villetoRole, "name") ||
+    pickString(role, "name") ||
+    pickString(user, "jobTitle", "position", "roleName");
+  return roleName
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c: string) => c.toUpperCase());
+}
 
 const createdByName = (record: SpendProgramListItem) => {
   const cb = record.createdBy;
@@ -63,12 +85,39 @@ export function ReviewSpendProgramModal({
 
   if (!program) return null;
 
-  const id = (program as any).spendProgramId || program.procurementSpendProgramId || (program as any).procurementPolicyId || (program as any).id;
+  const id = (program as any)?.spendProgramId || program?.procurementSpendProgramId || (program as any)?.procurementPolicyId || (program as any)?.id || "";
+  const { data: freshProgramData } = useGetSpendProgramById(id, { enabled: !!id });
+  const activeProgram = (freshProgramData?.data as any) || program;
+
   const storedRejection = getSpendProgramRejection(id);
-  const isRejected = (program.status as string) === "rejected" || (program.status as string) === "declined" || !!storedRejection;
-  const rejectionReason = (program as any).rejectionReason || (program as any).reason || storedRejection?.reason;
-  const rejectedBy = (program as any).rejectedBy || storedRejection?.rejectedBy;
-  const rejectedAt = (program as any).rejectedAt || storedRejection?.rejectedAt;
+  const rawStatus = (activeProgram?.status as string) || (program?.status as string);
+  const isRejected =
+    rawStatus?.toLowerCase() === "rejected" ||
+    rawStatus?.toLowerCase() === "declined" ||
+    !!storedRejection;
+  const rejectionReason =
+    (activeProgram as any)?.rejectionReason ||
+    (activeProgram as any)?.reason ||
+    (program as any)?.rejectionReason ||
+    (program as any)?.reason ||
+    storedRejection?.reason;
+  const rejectedBy =
+    (activeProgram as any)?.rejectedBy ||
+    (program as any)?.rejectedBy ||
+    storedRejection?.rejectedBy;
+  const rejectedAt =
+    (activeProgram as any)?.rejectedAt ||
+    (program as any)?.rejectedAt ||
+    storedRejection?.rejectedAt;
+  const isAutoApproved = Boolean(
+    (activeProgram as any)?.autoApproved ??
+    (program as any)?.autoApproved ??
+    (activeProgram as any)?.isAutoApproved ??
+    (program as any)?.isAutoApproved ??
+    (activeProgram as any)?.autoApprove ??
+    (program as any)?.autoApprove ??
+    (((activeProgram as any)?.approvalSetting || (program as any)?.approvalSetting)?.approvalRequired === false && rawStatus === "active")
+  );
 
   const isPending = approveMutation.isPending || rejectMutation.isPending;
 
@@ -266,14 +315,44 @@ export function ReviewSpendProgramModal({
                 {createdByName(program)}
               </p>
             </div>
-            {isRejected && (rejectedBy || storedRejection) ? (
+            {isRejected ? (
               <div className="text-right">
                 <p className="text-xs text-[#d33d44] font-medium mb-1">Rejected By</p>
                 <p className="text-[14px] font-semibold text-[#0b100e]">
-                  {rejectedBy?.firstName ?? storedRejection?.rejectedBy?.firstName} {rejectedBy?.lastName ?? storedRejection?.rejectedBy?.lastName}
+                  {formatUser(rejectedBy || storedRejection?.rejectedBy, "Reviewer")}
+                  {formatUserRole(rejectedBy || storedRejection?.rejectedBy) && (
+                    <span className="text-xs text-[#84908a] font-normal"> ({formatUserRole(rejectedBy || storedRejection?.rejectedBy)})</span>
+                  )}
                 </p>
                 <p className="text-xs text-[#84908a] mt-0.5">
                   {formatDate(rejectedAt || storedRejection?.rejectedAt)}
+                </p>
+              </div>
+            ) : isAutoApproved ? (
+              <div className="text-right">
+                <p className="text-xs text-[#087f70] font-medium mb-1">Approval</p>
+                <p className="text-[14px] font-semibold text-[#087f70]">
+                  Auto-approved
+                </p>
+                <p className="text-xs text-[#84908a] mt-0.5">
+                  {formatDate(
+                    (activeProgram as any)?.approvedAt ||
+                    (activeProgram as any)?.updatedAt ||
+                    (activeProgram as any)?.createdAt
+                  )}
+                </p>
+              </div>
+            ) : ((activeProgram as any)?.approvedBy || (program as any)?.approvedBy) ? (
+              <div className="text-right">
+                <p className="text-xs text-[#84908a] mb-1">Approved By</p>
+                <p className="text-[14px] font-semibold text-[#0b100e]">
+                  {formatUser((activeProgram as any)?.approvedBy || (program as any)?.approvedBy)}
+                  {formatUserRole((activeProgram as any)?.approvedBy || (program as any)?.approvedBy) && (
+                    <span className="text-xs text-[#84908a] font-normal"> ({formatUserRole((activeProgram as any)?.approvedBy || (program as any)?.approvedBy)})</span>
+                  )}
+                </p>
+                <p className="text-xs text-[#84908a] mt-0.5">
+                  {formatDate((activeProgram as any)?.approvedAt || (program as any)?.approvedAt || program.updatedAt)}
                 </p>
               </div>
             ) : (
@@ -286,13 +365,33 @@ export function ReviewSpendProgramModal({
             )}
           </div>
 
-          {isRejected && rejectionReason && (
+          {isRejected && (
             <div className="rounded-xl border border-red-200 bg-red-50/60 p-4">
-              <div className="flex items-center gap-1.5 mb-1 text-[#d33d44] font-semibold text-xs">
-                <XCircle className="w-4 h-4" />
-                <span>Rejection Reason</span>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="flex items-center gap-1.5 text-[#d33d44] font-semibold text-xs">
+                  <XCircle className="w-4 h-4" />
+                  <span>Rejection Reason</span>
+                </div>
+                {(rejectedAt || storedRejection?.rejectedAt) && (
+                  <span className="text-[11px] text-[#84908a]">
+                    {formatDate(rejectedAt || storedRejection?.rejectedAt)}
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-[#521c20] leading-relaxed">{rejectionReason}</p>
+              <p className="text-xs text-[#521c20] leading-relaxed pl-5">
+                {rejectionReason || "No specific reason provided."}
+              </p>
+              {(rejectedBy || storedRejection?.rejectedBy) && (
+                <p className="text-[11px] text-[#84908a] pl-5 mt-1.5">
+                  Rejected by{" "}
+                  <span className="font-semibold text-[#0b100e]">
+                    {formatUser(rejectedBy || storedRejection?.rejectedBy)}
+                  </span>
+                  {formatUserRole(rejectedBy || storedRejection?.rejectedBy) && (
+                    <span> ({formatUserRole(rejectedBy || storedRejection?.rejectedBy)})</span>
+                  )}
+                </p>
+              )}
             </div>
           )}
         </div>

@@ -54,6 +54,13 @@ export interface ProcurementPolicyApiRecord {
   createdBy?: any;
   createdAt: string;
   updatedAt: string;
+  approvedBy?: any;
+  approvedAt?: string | null;
+  rejectedBy?: any;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+  reason?: string | null;
+  autoApproved?: boolean;
 }
 
 interface PoliciesListResponse {
@@ -629,16 +636,21 @@ export const useApproveSpendProgram = () => {
   });
 };
 
+export interface RejectSpendProgramArgs {
+  id: string;
+  reason?: string;
+}
+
 export const useRejectSpendProgram = () => {
   const axios = useAxios();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: string | { id: string; reason?: string }) => {
+    mutationFn: async (args: string | RejectSpendProgramArgs) => {
       const id = typeof args === "string" ? args : args.id;
       const reason = typeof args === "string" ? undefined : args.reason;
       const res = await axios.patch(
         PROCUREMENT_KEYS.SPEND_PROGRAM_ACTION(id, "reject"),
-        reason ? { reason, rejectionReason: reason } : {}
+        reason ? { reason: reason.trim() } : {}
       );
       return res.data;
     },
