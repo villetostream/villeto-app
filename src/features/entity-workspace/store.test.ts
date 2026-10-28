@@ -130,6 +130,9 @@ describe("workspace state and request boundaries", () => {
   });
   it("keeps profile and personal expense requests outside workspace filtering", () => {
     expect(workspaceRoute("/users/me")).toBe(false);
+    expect(workspaceRoute("users?invited=true")).toBe(true);
+    expect(workspaceRoute("users", "POST")).toBe(false);
+    expect(workspaceRoute("/users/invite", "POST")).toBe(false);
     expect(workspaceRoute("/reports")).toBe(false);
     expect(reportReviewRoute("/reports?scope=own")).toBe(false);
     expect(reportReviewRoute("/reports?scope=department")).toBe(true);

@@ -156,6 +156,12 @@ export interface SpendProgramListItem {
   categories: { name: string; categoryId: string }[];
   createdBy?: any;
   approvedBy?: any;
+  approvedAt?: string | null;
+  rejectedBy?: any;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+  reason?: string | null;
+  autoApproved?: boolean;
   createdAt: string;
   updatedAt: string;
 }

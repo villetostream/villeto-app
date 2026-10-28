@@ -4,7 +4,7 @@ import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
 
-interface ApprovePolicyArgs {
+export interface ApprovePolicyArgs {
   policyId: string;
 }
 
@@ -15,7 +15,7 @@ export const useApprovePolicy = () => {
   return useMutation({
     mutationFn: async ({ policyId }: ApprovePolicyArgs) => {
       const response = await axiosInstance.patch(
-        `${API_KEYS.EXPENSE.POLICIES}/${policyId}/approve`,
+        API_KEYS.EXPENSE.POLICY_ACTION(policyId, "approve"),
       );
       return response.data;
     },

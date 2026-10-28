@@ -5,6 +5,8 @@ export function workspaceRoute(url: string, method = "GET"): boolean {
   const route = url.split("?")[0].replace(/^\/+/, "");
   const reading = ["GET", "HEAD"].includes(method.toUpperCase());
   if (route === "bill-pay/mailbox-connections/google/callback") return false;
+  // People list (directory, invited/uninvited users and their stat counts).
+  if (/^users\/?$/.test(route)) return reading;
   if (route.startsWith("policy/procurement"))
     return (
       reading &&

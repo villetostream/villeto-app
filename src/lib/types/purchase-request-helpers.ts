@@ -131,6 +131,9 @@ export interface PurchaseOrderRecord {
   /** Dispatched by vendor but not yet confirmed as received by the tenant */
   quantityAwaitingReceipt?: number;
   updatedAt?: string;
+  shipmentDate?: string | null;
+  confirmationDate?: string | null;
+  approvalDate?: string | null;
   [key: string]: unknown;
 }
 

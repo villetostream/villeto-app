@@ -9,6 +9,8 @@ import { RejectPolicyReasonModal } from "@/components/policies/RejectPolicyReaso
 import { savePolicyRejection, getPolicyRejection } from "@/lib/policies/rejection-store";
 import { useAuthStore } from "@/stores/auth-stores";
 
+import { useGetPolicyByIdApi } from "@/queries/companies/get-policy-by-id";
+
 interface ReviewPolicyModalProps {
   policy: Policy | null;
   onClose: () => void;
@@ -17,23 +19,73 @@ interface ReviewPolicyModalProps {
 
 const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
 
+function formatUser(userObj: unknown, fallbackStr = "—") {
+  if (!userObj) return fallbackStr;
+  if (typeof userObj === "string") return userObj || fallbackStr;
+  const user = asRecord(userObj);
+  const fullName = `${pickString(user, "firstName")} ${pickString(user, "lastName")}`.trim();
+  return fullName || pickString(user, "email") || fallbackStr;
+}
+
+function formatUserRole(userObj: unknown) {
+  if (!userObj || typeof userObj === "string") return "";
+  const user = asRecord(userObj);
+  const villetoRole = asRecord(user.villetoRole);
+  const role = asRecord(user.role);
+  const roleName =
+    pickString(villetoRole, "name") ||
+    pickString(role, "name") ||
+    pickString(user, "jobTitle", "position");
+  return roleName
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c: string) => c.toUpperCase());
+}
+
 export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyModalProps) {
   const approveMutation = useApprovePolicy();
   const rejectMutation = useRejectPolicy();
+  const currentUser = useAuthStore((state) => state.user);
+  const [error, setError] = useState<string | null>(null);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
 
-  if (!policy) return null;
+  const policyId = policy?.policyId || (policy as any)?.id;
+  const { data: freshPolicyData } = useGetPolicyByIdApi(policyId || "", { enabled: !!policyId });
+  const activePolicy = (freshPolicyData?.data as any) || policy;
+
+  if (!policy || !activePolicy) return null;
 
   const isPending = approveMutation.isPending || rejectMutation.isPending;
-  const [error, setError] = React.useState<string | null>(null);
-  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
-  const currentUser = useAuthStore((state) => state.user);
 
-  const policyId = policy.policyId || (policy as any).id;
   const storedRejection = getPolicyRejection(policyId);
-  const isRejected = policy.status === "rejected" || policy.status === "declined" || !!storedRejection;
-  const rejectionReason = (policy as any).rejectionReason || (policy as any).reason || storedRejection?.reason;
-  const rejectedBy = (policy as any).rejectedBy || storedRejection?.rejectedBy;
-  const rejectedAt = (policy as any).rejectedAt || storedRejection?.rejectedAt;
+  const isRejected =
+    activePolicy.status?.toLowerCase() === "rejected" ||
+    activePolicy.status?.toLowerCase() === "declined" ||
+    !!storedRejection;
+  const rejectionReason =
+    (activePolicy as any).rejectionReason ||
+    (activePolicy as any).reason ||
+    (policy as any)?.rejectionReason ||
+    (policy as any)?.reason ||
+    storedRejection?.reason;
+  const rejectedBy =
+    (activePolicy as any).rejectedBy ||
+    (policy as any)?.rejectedBy ||
+    storedRejection?.rejectedBy;
+  const rejectedAt =
+    (activePolicy as any).rejectedAt ||
+    (policy as any)?.rejectedAt ||
+    storedRejection?.rejectedAt;
+  const isAutoApproved = Boolean(
+    (activePolicy as any)?.autoApproved ??
+    (policy as any)?.autoApproved ??
+    (activePolicy as any)?.isAutoApproved ??
+    (policy as any)?.isAutoApproved ??
+    (activePolicy as any)?.autoApprove ??
+    (policy as any)?.autoApprove ??
+    (((activePolicy as any)?.approvalSetting || (policy as any)?.approvalSetting)?.approvalRequired === false && activePolicy?.status === "active")
+  );
+  const approvedBy = (activePolicy as any)?.approvedBy || (policy as any)?.approvedBy;
+  const approvedAt = (activePolicy as any)?.approvedAt || (policy as any)?.approvedAt;
 
   // Evaluate if current user is the creator
   const createdByObj = (policy as any).createdBy;
@@ -74,7 +126,7 @@ export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyMod
   } else if (policy.approvers && policy.approvers.length > 0) {
     isEligibleApprover = policy.approvers.some((a: any) => (a.userId || a.id) === currentUser?.userId);
   } else {
-    isEligibleApprover = useAuthStore.getState().can("policy", "approve");
+    isEligibleApprover = useAuthStore.getState().can("policy", "approve") || useAuthStore.getState().can("policy", "manage");
   }
 
   const isPendingStatus = policy.status === "pending" || policy.status === "pending_approval";
@@ -258,26 +310,56 @@ export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyMod
                 )}
               </p>
             </div>
-            {isRejected && (rejectedBy || storedRejection) && (
+            {isRejected ? (
               <div className="text-right">
                 <p className="text-xs text-[#d33d44] font-medium mb-1">Rejected By</p>
                 <p className="text-[15px] font-semibold text-[#0b100e]">
-                  {rejectedBy?.firstName ?? storedRejection?.rejectedBy?.firstName} {rejectedBy?.lastName ?? storedRejection?.rejectedBy?.lastName}
+                  {formatUser(rejectedBy || storedRejection?.rejectedBy, "Reviewer")}
+                  {formatUserRole(rejectedBy || storedRejection?.rejectedBy) && (
+                    <span className="text-xs text-[#84908a] font-normal"> ({formatUserRole(rejectedBy || storedRejection?.rejectedBy)})</span>
+                  )}
                 </p>
                 <p className="text-xs text-[#84908a] mt-0.5">
                   {rejectedAt ? new Date(rejectedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—"}
                 </p>
               </div>
-            )}
+            ) : isAutoApproved ? (
+              <div className="text-right">
+                <p className="text-xs text-[#087f70] font-medium mb-1">Approval</p>
+                <p className="text-[15px] font-semibold text-[#087f70]">
+                  Auto-approved
+                </p>
+                <p className="text-xs text-[#84908a] mt-0.5">
+                  {approvedAt || (activePolicy as any)?.updatedAt || (activePolicy as any)?.createdAt
+                    ? new Date(approvedAt || (activePolicy as any)?.updatedAt || (activePolicy as any)?.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+                    : "—"}
+                </p>
+              </div>
+            ) : approvedBy ? (
+              <div className="text-right">
+                <p className="text-xs text-[#84908a] mb-1">Approved By</p>
+                <p className="text-[15px] font-semibold text-[#0b100e]">
+                  {formatUser(approvedBy)}
+                  {formatUserRole(approvedBy) && (
+                    <span className="text-xs text-[#84908a] font-normal"> ({formatUserRole(approvedBy)})</span>
+                  )}
+                </p>
+                <p className="text-xs text-[#84908a] mt-0.5">
+                  {approvedAt ? new Date(approvedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "—"}
+                </p>
+              </div>
+            ) : null}
           </div>
 
-          {isRejected && rejectionReason && (
+          {isRejected && (
             <div className="rounded-xl border border-red-200 bg-red-50/60 p-4">
               <div className="flex items-center gap-1.5 mb-1 text-[#d33d44] font-semibold text-xs">
                 <XCircle className="w-4 h-4" />
                 <span>Rejection Reason</span>
               </div>
-              <p className="text-xs text-[#521c20] leading-relaxed">{rejectionReason}</p>
+              <p className="text-xs text-[#521c20] leading-relaxed">
+                {rejectionReason || "No specific reason provided."}
+              </p>
             </div>
           )}
         </div>

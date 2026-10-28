@@ -63,8 +63,15 @@ export interface Policy {
   createdAt?: string;
   updatedAt?: string;
   deletedAt?: string | null;
-  createdBy?: string;
+  createdBy?: string | Record<string, unknown>;
   version?: number;
+  approvedBy?: unknown;
+  approvedAt?: string | null;
+  rejectedBy?: unknown;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+  reason?: string | null;
+  autoApproved?: boolean;
   approvalSetting?: {
     target: string;
     approvalRequired: boolean;

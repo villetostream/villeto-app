@@ -32,9 +32,10 @@ export function useRejectProcurementPolicy() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id }: { id: string }) => {
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
       const response = await axios.patch(
         PROCUREMENT_KEYS.PROCUREMENT_POLICY_ACTION(id, "reject"),
+        reason ? { reason: reason.trim() } : {},
       );
       return response.data;
     },

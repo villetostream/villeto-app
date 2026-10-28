@@ -5,7 +5,7 @@ import { useGetSpendProgramById, mapSpendProgramFromBackend } from "@/queries/pr
 import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuthStore } from "@/stores/auth-stores";
-import { getApiErrorMessage } from "@/lib/types/api-error";
+import { asRecord, pickString, getApiErrorMessage } from "@/lib/types/api-error";
 import { useState } from "react";
 import { useExceptionFormatter } from "./hooks/useExceptionFormatter";
 import { buildConditionSummary, getActionLabel, getActionStyle, CURRENCY_OPTIONS } from "./constants";
@@ -18,8 +18,30 @@ import { isUserCreatorOfSpendProgram } from "@/lib/policies/spend-program-creato
 function formatDate(iso?: string | null) {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
   } catch { return "—"; }
+}
+
+function formatUser(userObj: unknown, fallbackStr = "—") {
+  if (!userObj) return fallbackStr;
+  if (typeof userObj === "string") return userObj || fallbackStr;
+  const user = asRecord(userObj);
+  const fullName = `${pickString(user, "firstName")} ${pickString(user, "lastName")}`.trim();
+  return fullName || pickString(user, "email") || fallbackStr;
+}
+
+function formatUserRole(userObj: unknown) {
+  if (!userObj || typeof userObj === "string") return "";
+  const user = asRecord(userObj);
+  const villetoRole = asRecord(user.villetoRole);
+  const role = asRecord(user.role);
+  const roleName =
+    pickString(villetoRole, "name") ||
+    pickString(role, "name") ||
+    pickString(user, "jobTitle", "position", "roleName");
+  return roleName
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c: string) => c.toUpperCase());
 }
 
 const GROUP_ORDER = [
@@ -136,12 +158,36 @@ export function ProcurementPolicyDetailsModal({
   const userFullName = `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim().toLowerCase();
   const userEmail = (currentUser?.email || '').trim().toLowerCase();
 
+  const rawStatus = (programData?.data as any)?.status || policy?.status;
   const programId = policy?.procurementSpendProgramId || policy?.procurementPolicyId || policy?.id || policyId;
   const storedRejection = getSpendProgramRejection(programId);
-  const isRejected = policy?.status === "rejected" || policy?.status === "declined" || !!storedRejection;
-  const rejectionReason = (policy as any)?.rejectionReason || (policy as any)?.reason || storedRejection?.reason;
-  const rejectedBy = (policy as any)?.rejectedBy || storedRejection?.rejectedBy;
-  const rejectedAt = (policy as any)?.rejectedAt || storedRejection?.rejectedAt;
+  const isRejected =
+    rawStatus?.toLowerCase() === "rejected" ||
+    rawStatus?.toLowerCase() === "declined" ||
+    !!storedRejection;
+  const rejectionReason =
+    (programData?.data as any)?.rejectionReason ||
+    (programData?.data as any)?.reason ||
+    (policy as any)?.rejectionReason ||
+    (policy as any)?.reason ||
+    storedRejection?.reason;
+  const rejectedBy =
+    (programData?.data as any)?.rejectedBy ||
+    (policy as any)?.rejectedBy ||
+    storedRejection?.rejectedBy;
+  const rejectedAt =
+    (programData?.data as any)?.rejectedAt ||
+    (policy as any)?.rejectedAt ||
+    storedRejection?.rejectedAt;
+  const isAutoApproved = Boolean(
+    (programData?.data as any)?.autoApproved ??
+    (policy as any)?.autoApproved ??
+    (programData?.data as any)?.isAutoApproved ??
+    (policy as any)?.isAutoApproved ??
+    (programData?.data as any)?.autoApprove ??
+    (policy as any)?.autoApprove ??
+    (((programData?.data as any)?.approvalSetting || (policy as any)?.approvalSetting)?.approvalRequired === false && rawStatus === "active")
+  );
 
   // Check if current user is the creator
   let isCreator = isUserCreatorOfSpendProgram({
@@ -309,13 +355,33 @@ export function ProcurementPolicyDetailsModal({
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em]">SPEND PROGRAM DETAILS</p>
 
               {/* REJECTION REASON CARD */}
-              {isRejected && rejectionReason && (
-                <div className="rounded-[12px] border border-red-200 bg-[#fff8f8] p-4">
-                  <div className="flex items-center gap-2 mb-1.5 text-[#d33d44]">
-                    <XCircle className="w-4 h-4 shrink-0" />
-                    <p className="text-[10px] font-bold uppercase tracking-wider">Rejection Reason</p>
+              {isRejected && (
+                <div className="rounded-[16px] border border-red-200 bg-[#fff8f8] p-4">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2 text-[#d33d44]">
+                      <XCircle className="w-4 h-4 shrink-0" />
+                      <p className="text-[10px] font-bold uppercase tracking-wider">Rejection Reason</p>
+                    </div>
+                    {(rejectedAt || storedRejection?.rejectedAt) && (
+                      <span className="text-[11px] text-[#84908a]">
+                        {formatDate(rejectedAt || storedRejection?.rejectedAt)}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-[12px] text-[#521c20] leading-relaxed pl-6">{rejectionReason}</p>
+                  <p className="text-[13px] text-[#521c20] leading-relaxed pl-6">
+                    {rejectionReason || "No specific reason provided."}
+                  </p>
+                  {(rejectedBy || storedRejection?.rejectedBy) && (
+                    <p className="text-[11px] text-[#84908a] pl-6 mt-1.5">
+                      Rejected by{" "}
+                      <span className="font-semibold text-[#0b100e]">
+                        {formatUser(rejectedBy || storedRejection?.rejectedBy)}
+                      </span>
+                      {formatUserRole(rejectedBy || storedRejection?.rejectedBy) && (
+                        <span> ({formatUserRole(rejectedBy || storedRejection?.rejectedBy)})</span>
+                      )}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -447,22 +513,33 @@ export function ProcurementPolicyDetailsModal({
                   </p>
                   <p className="text-gray-400">{formatDate(policy.createdAt)}</p>
                 </div>
-                {isRejected && (rejectedBy || storedRejection) ? (
+                {isRejected ? (
                   <div className="text-right">
                     <p className="text-[#d33d44] mb-0.5 font-medium">Rejected by</p>
                     <p className="text-gray-900 font-semibold">
-                      {rejectedBy?.firstName ?? storedRejection?.rejectedBy?.firstName} {rejectedBy?.lastName ?? storedRejection?.rejectedBy?.lastName}
-                      {rejectedBy?.jobTitle || rejectedBy?.roleName ? (
-                        <span className="text-gray-400 font-normal"> ({rejectedBy?.jobTitle || rejectedBy?.roleName})</span>
-                      ) : null}
+                      {formatUser(rejectedBy || storedRejection?.rejectedBy, "Reviewer")}
+                      {formatUserRole(rejectedBy || storedRejection?.rejectedBy) && (
+                        <span className="text-gray-400 font-normal"> ({formatUserRole(rejectedBy || storedRejection?.rejectedBy)})</span>
+                      )}
                     </p>
                     <p className="text-gray-400">{formatDate(rejectedAt || storedRejection?.rejectedAt)}</p>
                   </div>
-                ) : policy.approvedBy ? (
+                ) : isAutoApproved ? (
+                  <div className="text-right">
+                    <p className="text-[#087f70] mb-0.5 font-medium">Approval</p>
+                    <p className="text-[#087f70] font-semibold">
+                      Auto-approved
+                    </p>
+                    <p className="text-gray-400">{formatDate(policy?.approvedAt || policy?.updatedAt || policy?.createdAt)}</p>
+                  </div>
+                ) : policy?.approvedBy ? (
                   <div className="text-right">
                     <p className="text-gray-400 mb-0.5 font-medium">Approved by</p>
                     <p className="text-gray-900 font-semibold">
-                      {policy.approvedBy.firstName} {policy.approvedBy.lastName}
+                      {formatUser(policy.approvedBy)}
+                      {formatUserRole(policy.approvedBy) && (
+                        <span className="text-gray-400 font-normal"> ({formatUserRole(policy.approvedBy)})</span>
+                      )}
                     </p>
                     <p className="text-gray-400">{formatDate(policy.approvedAt || policy.updatedAt)}</p>
                   </div>
