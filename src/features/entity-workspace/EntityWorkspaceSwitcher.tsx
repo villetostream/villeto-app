@@ -25,6 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 interface Props {
   /** Expanded-state logo (32px). */
@@ -94,6 +95,10 @@ export function EntityWorkspaceSwitcher({
 
   const select = async (selection: string) => {
     if (!selection || selection === state.selection) return;
+    if (state.pendingMutations > 0) {
+      toast.info("A save operation is currently in progress. Please wait a moment before switching.");
+      return;
+    }
     if (state.dirty) {
       setPendingSelection(selection);
       return;
@@ -289,7 +294,14 @@ export function EntityWorkspaceSwitcher({
             <AlertDialogAction
               disabled={busy}
               onClick={() => {
-                if (pendingSelection) void switchTo(pendingSelection);
+                if (pendingSelection) {
+                  if (useEntityWorkspaceStore.getState().pendingMutations > 0) {
+                    toast.info("A save operation is currently in progress. Please wait a moment before switching.");
+                    return;
+                  }
+                  useEntityWorkspaceStore.getState().setDirty(false);
+                  void switchTo(pendingSelection);
+                }
               }}
             >
               Discard and switch

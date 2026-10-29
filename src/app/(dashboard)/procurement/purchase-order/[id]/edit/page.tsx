@@ -25,6 +25,8 @@ import {
   useGetVendors,
   type PRPriority,
 } from "@/queries/procurement/purchase-requests";
+import { useWorkspaceUnsavedChanges } from "@/features/entity-workspace/hooks";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
@@ -509,6 +511,20 @@ function EditPurchaseOrderPage() {
     }
   }, [po, lineItemsSeeded]);
 
+  const [initialSnapshot, setInitialSnapshot] = useState<string>("");
+  useEffect(() => {
+    if (seeded && lineItemsSeeded && !initialSnapshot) {
+      setInitialSnapshot(JSON.stringify({ vendorId, priority, deliveryDate, notes, lineItems }));
+    }
+  }, [seeded, lineItemsSeeded, vendorId, priority, deliveryDate, notes, lineItems, initialSnapshot]);
+
+  const isDirty = useMemo(() => {
+    if (!initialSnapshot) return false;
+    return JSON.stringify({ vendorId, priority, deliveryDate, notes, lineItems }) !== initialSnapshot;
+  }, [initialSnapshot, vendorId, priority, deliveryDate, notes, lineItems]);
+
+  useWorkspaceUnsavedChanges(isDirty);
+
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<{ item: LocalItem; index: number } | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ item: LocalItem; index: number } | null>(null);
@@ -584,6 +600,8 @@ function EditPurchaseOrderPage() {
     setSavingDraft(true);
     try {
       await updatePO.mutateAsync({ vendorId, priority: priority as any, deliveryDate, notes: notes || undefined });
+      setInitialSnapshot(JSON.stringify({ vendorId, priority, deliveryDate, notes, lineItems }));
+      useEntityWorkspaceStore.getState().setDirty(false);
       toast.success("Draft saved.");
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Failed to save draft"));
@@ -618,6 +636,7 @@ function EditPurchaseOrderPage() {
       }
       // 3. Submit for approval
       await submitPO.mutateAsync({});
+      useEntityWorkspaceStore.getState().setDirty(false);
       toast.success("Purchase Order submitted for approval!");
       router.push(detailUrl);
     } catch (err: unknown) {

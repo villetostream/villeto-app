@@ -3,6 +3,7 @@ import {
   useTransactionLegalEntities,
   useWorkspaceUnsavedChanges,
 } from "@/features/entity-workspace/hooks";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -855,6 +856,7 @@ function NewPurchaseRequestPage() {
       setPurchaseRequestId(id);
       setSavedLineItems(res.data.lineItems || []);
       setStep(2);
+      useEntityWorkspaceStore.getState().setDirty(false);
       toast.success("Draft saved! Now add your line items.");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to save draft"));
@@ -1533,6 +1535,7 @@ function NewPurchaseRequestPage() {
                 }
                 try {
                   await submitPR.mutateAsync();
+                  useEntityWorkspaceStore.getState().setDirty(false);
                   toast.success("Purchase request submitted for review!");
                   router.push("/procurement/purchase-request");
                 } catch (err: unknown) {

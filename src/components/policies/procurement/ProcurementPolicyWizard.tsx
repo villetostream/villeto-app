@@ -24,6 +24,8 @@ import {
 } from "@/queries/procurement/policies";
 import { useAuthStore } from "@/stores/auth-stores";
 import { saveSpendProgramCreator } from "@/lib/policies/spend-program-creator-store";
+import { useWorkspaceUnsavedChanges } from "@/features/entity-workspace/hooks";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 
 const TOTAL_STEPS = 4;
 
@@ -42,6 +44,8 @@ export function ProcurementPolicyWizard({
 }) {
   const [step, setStep] = useState(initialStep);
   const [draft, setDraft] = useState<SpendProgramDraft>(emptySpendProgramDraft());
+  const isDirty = Boolean(draft.name.trim() || draft.categoryIds.length > 0);
+  useWorkspaceUnsavedChanges(isDirty);
   const { setBackHandler, clearBackHandler } = useHeaderBackStore();
   const stepRef = useRef(step);
   
@@ -169,6 +173,7 @@ export function ProcurementPolicyWizard({
           }
           toast.success("Spend program created successfully.");
         }
+        useEntityWorkspaceStore.getState().setDirty(false);
         onComplete();
       } catch (err: unknown) {
         const message =
@@ -216,6 +221,7 @@ export function ProcurementPolicyWizard({
           });
         }
       }
+      useEntityWorkspaceStore.getState().setDirty(false);
       toast.success("Draft saved successfully.");
       onComplete();
     } catch (err: unknown) {

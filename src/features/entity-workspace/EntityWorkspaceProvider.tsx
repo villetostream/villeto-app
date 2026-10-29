@@ -55,15 +55,45 @@ export function EntityWorkspaceProvider({ children }: { children: ReactNode }) {
   }, [workspace.refetch]);
   useEffect(() => {
     state.setDirty(false);
+    let dialogObserver: MutationObserver | null = null;
+    const monitorDialogClose = (dialogEl: Element) => {
+      dialogObserver?.disconnect();
+      const checkAndClear = () => {
+        if (!dialogEl.isConnected || dialogEl.getAttribute("data-state") === "closed") {
+          dialogObserver?.disconnect();
+          dialogObserver = null;
+          useEntityWorkspaceStore.getState().setDirty(false);
+        }
+      };
+      dialogObserver = new MutationObserver(checkAndClear);
+      dialogObserver.observe(dialogEl, { attributes: true, attributeFilter: ["data-state"] });
+      dialogObserver.observe(document.body, { childList: true, subtree: true });
+    };
+
     const edited = (event: Event) => {
       const target = event.target as Element | null;
-      const editingRoute = /\/(new|add|edit|settings)(\/|$)/.test(pathname);
+      if (!target) return;
+
+      // Ignore search inputs (e.g. employee search, vendor search, directory search)
+      const isSearchInput =
+        target instanceof HTMLInputElement &&
+        (target.type === "search" ||
+          target.name?.toLowerCase().includes("search") ||
+          target.placeholder?.toLowerCase().includes("search") ||
+          target.getAttribute("aria-label")?.toLowerCase().includes("search") ||
+          target.closest('[role="search"]') !== null ||
+          target.closest("[data-no-dirty]") !== null);
+      if (isSearchInput) return;
+
+      // Pages where changes persist automatically (e.g. settings) do not block entity switching
+      if (pathname.startsWith("/settings")) return;
+
+      const editingRoute = /\/(new|add|edit)(\/|$)/.test(pathname);
+      const dialogEl = target?.closest('[role="dialog"]');
       if (
-        (editingRoute ||
-          target?.closest("form") ||
-          target?.closest('[role="dialog"]')) &&
+        (editingRoute || target?.closest("form") || dialogEl) &&
         !target?.closest("[data-workspace-filter]")
-      )
+      ) {
         // Defer: this listener runs in the capture phase, before React's own
         // onChange. A synchronous store update here re-renders controlled
         // inputs with their stale value and the keystroke is lost.
@@ -71,10 +101,15 @@ export function EntityWorkspaceProvider({ children }: { children: ReactNode }) {
           () => useEntityWorkspaceStore.getState().setDirty(true),
           0,
         );
+        // A dialog edit is no longer unsaved once the dialog is saved/closed.
+        if (!editingRoute && dialogEl)
+          monitorDialogClose(dialogEl);
+      }
     };
     document.addEventListener("input", edited, true);
     document.addEventListener("change", edited, true);
     return () => {
+      dialogObserver?.disconnect();
       document.removeEventListener("input", edited, true);
       document.removeEventListener("change", edited, true);
     };

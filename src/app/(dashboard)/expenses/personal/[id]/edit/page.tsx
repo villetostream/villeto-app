@@ -1,5 +1,6 @@
 "use client";
-import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import { useEntityWorkspaceStore, workspaceQueryKey } from "@/features/entity-workspace/store";
+import { useWorkspaceUnsavedChanges } from "@/features/entity-workspace/hooks";
 
 import withPermissions from "@/components/permissions/permission-protected-routes";
 
@@ -173,6 +174,7 @@ function EditReportPage() {
   // Dirty state tracking
   const [initialData, setInitialData] = useState<string>("");
   const isDirty = !isLoading && JSON.stringify(expenses) !== initialData;
+  useWorkspaceUnsavedChanges(isDirty);
 
   // Confirmation state for Report Deletion
   const [isDeleteReportModalOpen, setIsDeleteReportModalOpen] = useState(false);
@@ -765,8 +767,10 @@ function EditReportPage() {
       if (status === "draft") {
         // Stay on the page — just reset dirty state so user knows it saved
         setInitialData(JSON.stringify(expenses));
+        useEntityWorkspaceStore.getState().setDirty(false);
         setIsSavingDraft(false);
       } else {
+        useEntityWorkspaceStore.getState().setDirty(false);
         // Submitting closes the edit page
         setTimeout(() => {
           router.push("/expenses?tab=personal-expenses");
