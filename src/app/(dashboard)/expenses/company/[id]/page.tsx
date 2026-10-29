@@ -216,8 +216,8 @@ function CompanyExpenseDetailPage() {
 
   const queryClient = useQueryClient();
   const { data: expenseDetail, isLoading, isFetching, error } = useCompanyExpenseDetail(reportId);
-  // Show skeleton during both first fetch AND background refetch to avoid showing stale status
-  const isPageLoading = isLoading || isFetching;
+  // Only show skeleton on initial load when data hasn't loaded yet
+  const isPageLoading = isLoading && !expenseDetail;
   const updateStatusMutation = useUpdateCompanyExpenseStatus();
 
   // Pre-fetch users so the cache is warm before the modal opens.
@@ -555,11 +555,6 @@ function CompanyExpenseDetailPage() {
           onClose={() => {
             setFeedbackModal(null);
             invalidateAllExpenseQueries(queryClient);
-            router.push(
-              scope === "team"
-                ? "/expenses?tab=team-expenses"
-                : "/expenses?tab=company-expenses",
-            );
           }}
           type={feedbackModal.type}
         />

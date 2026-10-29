@@ -320,10 +320,8 @@ function PODetailPage() {
   const [submissionWarnings, setSubmissionWarnings] = useState<any[]>([]);
   const [isSubmissionWarningModalOpen, setIsSubmissionWarningModalOpen] = useState(false);
 
-  const { data, isPending: isQueryPending, isFetching, isError } = usePurchaseOrder(id);
-  // Use isFetching (not just isLoading) so we block rendering while React Query
-  // silently refreshes stale cached data — this prevents the old-status flash.
-  const isPageLoading = isQueryPending || isFetching;
+  const { data, isPending: isQueryPending, isError, refetch } = usePurchaseOrder(id);
+  const isPageLoading = isQueryPending && !data;
   const po = data?.data;
 
   const lineItemsToDisplay = useMemo(() => {
@@ -384,16 +382,33 @@ function PODetailPage() {
           return;
         }
         toast.success("Purchase order submitted for approval."); 
+        setModal(null);
+        await refetch();
+        return;
       }
-      if (type === "issue")   { await issueMut.mutateAsync(id);   toast.success("Purchase order issued to vendor."); }
-      if (type === "close")   { await closeMut.mutateAsync(id);   toast.success("Purchase order closed."); }
+      if (type === "issue") { 
+        await issueMut.mutateAsync(id);   
+        toast.success("Purchase order issued to vendor."); 
+        setModal(null);
+        await refetch();
+        return;
+      }
+      if (type === "close") { 
+        await closeMut.mutateAsync(id);   
+        toast.success("Purchase order closed."); 
+        setModal(null);
+        await refetch();
+        return;
+      }
       if (type === "approve") {
         await approvalMut.mutateAsync({ id, payload: { decision: "approved" } });
         await issueMut.mutateAsync(id);
         toast.success("Purchase order approved and issued.");
+        setModal(null);
+        await refetch();
+        return;
       }
       setModal(null);
-      router.push(listUrl);
     } catch (err: any) {
       if (type === "submit" && isProcurementPolicyViolationError(err)) {
         const violations = getProcurementPolicyViolations(err);
@@ -411,7 +426,7 @@ function PODetailPage() {
       await approvalMut.mutateAsync({ id, payload: { decision: "rejected", reason } });
       toast.success("Purchase order rejected.");
       setModal(null);
-      router.push(listUrl);
+      await refetch();
     } catch (err: any) {
       displayExpertError(err, "Failed to reject purchase order.");
     }
@@ -422,7 +437,7 @@ function PODetailPage() {
       await cancelMut.mutateAsync({ id, reason });
       toast.success("Purchase order withdrawn.");
       setModal(null);
-      router.push(listUrl);
+      await refetch();
     } catch (err: any) {
       displayExpertError(err, "Failed to withdraw purchase order.");
     }
