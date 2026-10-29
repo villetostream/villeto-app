@@ -26,6 +26,8 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
 import { getCurrencyConfig } from "@/lib/utils/currency";
 import { getApiErrorMessage } from "@/lib/types/api-error";
+import { useWorkspaceUnsavedChanges } from "@/features/entity-workspace/hooks";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { ExpenseCategory } from "@/queries/companies/get-expense-categories";
 import { Role } from "@/queries/role/get-all-roles";
 import { AppUser, Department } from "@/queries/departments/get-all-departments";
@@ -884,6 +886,9 @@ export default function PolicyCreationModal({
   // so subsequent saves within the same session do a PATCH instead of POST.
   const [draftId, setDraftId] = useState<string | null>(initialDraftId ?? null);
 
+  const hasUnsavedChanges = open && Boolean(policyName.trim() || categories.length > 0);
+  useWorkspaceUnsavedChanges(hasUnsavedChanges);
+
   const can = useAuthStore(state => state.can);
 
   const rolesApi         = useGetCompanyRolesApi({}, { enabled: open });
@@ -1063,7 +1068,11 @@ export default function PolicyCreationModal({
     return `${rolePart} in ${deptPart}`;
   }, [scope, selectedDepts, selectedRoles, departmentOptions, managementGradeOptions]);
 
-  const handleClose   = () => { onOpenChange(false); reset(); };
+  const handleClose = () => {
+    useEntityWorkspaceStore.getState().setDirty(false);
+    onOpenChange(false);
+    reset();
+  };
   const handleBack    = () => setStep((s) => (s > 1 ? (s - 1) as 1|2|3|4 : s));
   const handleForward = () => {
     if (step < 4) setStep((s) => (s + 1) as 1|2|3|4);
@@ -1141,6 +1150,7 @@ export default function PolicyCreationModal({
         if (newDraftId) setDraftId(newDraftId);
         toast.success("Policy saved as draft!");
       }
+      useEntityWorkspaceStore.getState().setDirty(false);
       handleClose();
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Failed to save draft"));
@@ -1173,6 +1183,7 @@ export default function PolicyCreationModal({
         selectedRoles, selectedDepts,
         location, rules,
       });
+      useEntityWorkspaceStore.getState().setDirty(false);
       handleClose();
     } catch (error: unknown) {
       const errorMsg = getApiErrorMessage(error, `Failed to ${isEditing ? 'update' : 'create'} policy`);

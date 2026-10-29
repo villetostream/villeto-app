@@ -23,6 +23,8 @@ import { Loader2, Pencil, AlertCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { logger } from "@/lib/logger";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
+import { useWorkspaceUnsavedChanges } from "@/features/entity-workspace/hooks";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { isCategoryWithPolicy } from "@/queries/companies/get-expense-categories";
 import { useAuthStore } from "@/stores/auth-stores";
 import {
@@ -236,6 +238,19 @@ function NewReportPage() {
       })),
     });
   };
+
+  const currentSnapshot = useMemo(() => serializeReportSnapshot(reportTitle, expenses), [reportTitle, expenses]);
+  const isFormDirty = useMemo(() => {
+    if (expenses.length === 0 && (reportTitle.trim() === initialTitle.trim() || reportTitle.trim() === "New Report")) {
+      return false;
+    }
+    if (lastSavedSnapshot !== null) {
+      return currentSnapshot !== lastSavedSnapshot;
+    }
+    return true;
+  }, [expenses.length, reportTitle, initialTitle, lastSavedSnapshot, currentSnapshot]);
+
+  useWorkspaceUnsavedChanges(isFormDirty);
 
   // If draftId was provided via query param on initial load, fetch its details
   useEffect(() => {
@@ -751,6 +766,7 @@ function NewReportPage() {
             sessionStorage.setItem("expensesReturnPage", "1");
           }
           setLastSavedSnapshot(serializeReportSnapshot(reportTitle, activeExpenses));
+          useEntityWorkspaceStore.getState().setDirty(false);
           toast.success("Draft changes saved successfully");
           invalidatePersonalExpenseQueries(queryClient);
           return;
@@ -776,6 +792,7 @@ function NewReportPage() {
             sessionStorage.setItem("expensesReturnPage", "1");
           }
           setLastSavedSnapshot(serializeReportSnapshot(reportTitle, activeExpenses));
+          useEntityWorkspaceStore.getState().setDirty(false);
           toast.success("Report saved as draft");
           invalidatePersonalExpenseQueries(queryClient);
           return;
@@ -880,6 +897,7 @@ function NewReportPage() {
       }
 
       toast.success("Report submitted successfully!");
+      useEntityWorkspaceStore.getState().setDirty(false);
       if (status === "pending") notifySetupGuide("report");
       invalidatePersonalExpenseQueries(queryClient);
 

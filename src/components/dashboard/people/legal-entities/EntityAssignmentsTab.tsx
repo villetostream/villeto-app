@@ -33,6 +33,7 @@ import {
 } from "@/queries/legal-entities";
 import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 import { getApiErrorMessage } from "@/lib/types/api-error";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 
 interface AssignmentRow {
   user: AppUser;
@@ -120,9 +121,16 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
     setReason("");
   };
 
+  useEffect(() => {
+    return () => {
+      useEntityWorkspaceStore.getState().setDirty(false);
+    };
+  }, []);
+
   const closeDialog = () => {
     if (assignMutation.isPending) return;
     setSelected(null);
+    useEntityWorkspaceStore.getState().setDirty(false);
   };
 
   const saveAssignment = async () => {
@@ -140,6 +148,7 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
       });
       toast.success("Primary legal entity assigned.");
       setSelected(null);
+      useEntityWorkspaceStore.getState().setDirty(false);
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Could not assign the legal entity."));
     }

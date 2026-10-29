@@ -22,8 +22,13 @@ import {
   Loader2,
   XCircle,
 } from "lucide-react";
-import { ReviewPolicyModal } from "@/components/policies/ReviewPolicyModal";
-import { getPolicyRejection } from "@/lib/policies/rejection-store";
+import { RejectPolicyReasonModal } from "@/components/policies/RejectPolicyReasonModal";
+import { useApprovePolicy } from "@/queries/companies/approve-policy";
+import { useRejectPolicy } from "@/queries/companies/reject-policy";
+import {
+  getPolicyRejection,
+  savePolicyRejection,
+} from "@/lib/policies/rejection-store";
 import PolicyCreationModal, {
   type CreatedPolicyData,
 } from "@/components/policies/PolicyCreationModal";
@@ -498,6 +503,8 @@ function PolicyDetailsModal({
   onArchive,
   onDeleteDraft,
   onSubmitDraft,
+  reviewMode = false,
+  canReview = false,
 }: {
   policy: Policy | null;
   onClose: () => void;
@@ -505,9 +512,18 @@ function PolicyDetailsModal({
   onArchive: (p: Policy) => void;
   onDeleteDraft: (draftId: string) => void;
   onSubmitDraft?: (p: Policy) => void;
+  /** Same details UI, with Approve / Reject actions in the footer. */
+  reviewMode?: boolean;
+  canReview?: boolean;
 }) {
   const canDeactivate = useAuthStore((s) => s.can)("policy", "deactivate");
   const canUpdate = useAuthStore((s) => s.can)("policy", "update");
+  const currentUser = useAuthStore((s) => s.user);
+  const approveMutation = useApprovePolicy();
+  const rejectMutation = useRejectPolicy();
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const isReviewPending = approveMutation.isPending || rejectMutation.isPending;
   const isDraft = policy?.status === "draft";
   const targetPolicyId = policy?.id || (policy as any)?.policyId || null;
   const { data: activeDetailData, isLoading: isActiveLoading } =
@@ -991,9 +1007,71 @@ function PolicyDetailsModal({
           </div>
         )}
 
+        {reviewError && (
+          <div className="mx-6 mb-2 p-3 rounded-xl bg-red-50 border border-red-100 text-xs text-red-700">
+            {reviewError}
+          </div>
+        )}
+
         {/* ── Footer buttons ── */}
         <div className="px-6 pb-6 pt-1 shrink-0 flex gap-3">
-          {policyStatus === "draft" ? (
+          {isLoading ? (
+            <div className="w-full flex gap-3">
+              <div className="flex-1 h-11 rounded-full bg-black/[0.04] animate-pulse" />
+              <div className="flex-1 h-11 rounded-full bg-black/[0.04] animate-pulse" />
+            </div>
+          ) : reviewMode ? (
+            canReview &&
+            (policyStatus === "pending" || policyStatus === "pending_approval") ? (
+              <>
+                <button
+                  onClick={() => setIsRejectOpen(true)}
+                  disabled={isReviewPending}
+                  className="flex-1 h-11 rounded-full border border-red-400 text-red-500 text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center"
+                >
+                  {rejectMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Reject"
+                  )}
+                </button>
+                <button
+                  onClick={async () => {
+                    setReviewError(null);
+                    try {
+                      await approveMutation.mutateAsync({
+                        policyId: targetPolicyId as string,
+                      });
+                      toast.success("Policy approved successfully");
+                      onClose();
+                    } catch (err) {
+                      setReviewError(
+                        getApiErrorMessage(
+                          err,
+                          "Failed to approve policy. It may have already been reviewed.",
+                        ),
+                      );
+                    }
+                  }}
+                  disabled={isReviewPending}
+                  className="flex-1 h-11 rounded-full bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center"
+                >
+                  {approveMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Approve"
+                  )}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={onClose}
+                className="flex-1 h-11 rounded-full border border-black/[0.1] text-[#52605b] text-sm font-semibold hover:bg-black/[0.03] transition-colors"
+              >
+                Close
+              </button>
+            )
+          ) : policyStatus === "draft" ? (
             <>
               {canUpdate && (
                 <button
@@ -1048,6 +1126,50 @@ function PolicyDetailsModal({
           )}
         </div>
       </div>
+      {reviewMode && (
+        <RejectPolicyReasonModal
+          open={isRejectOpen}
+          onClose={() => setIsRejectOpen(false)}
+          onConfirm={async (reason: string) => {
+            setReviewError(null);
+            try {
+              await rejectMutation.mutateAsync({
+                policyId: targetPolicyId as string,
+                reason,
+              });
+              savePolicyRejection({
+                id: targetPolicyId as string,
+                reason,
+                rejectedBy: currentUser
+                  ? {
+                      userId: currentUser.userId,
+                      firstName: currentUser.firstName,
+                      lastName: currentUser.lastName,
+                      jobTitle:
+                        (currentUser as any).jobTitle ||
+                        (currentUser as any).roleName,
+                    }
+                  : undefined,
+                rejectedAt: new Date().toISOString(),
+              });
+              setIsRejectOpen(false);
+              toast.success("Policy rejected successfully");
+              onClose();
+            } catch (err) {
+              setReviewError(
+                getApiErrorMessage(
+                  err,
+                  "Failed to reject policy. It may have already been reviewed.",
+                ),
+              );
+              setIsRejectOpen(false);
+            }
+          }}
+          isLoading={rejectMutation.isPending}
+          title="Reject Expense Policy"
+          entityName={policyName}
+        />
+      )}
     </div>
   );
 }
@@ -2631,10 +2753,14 @@ function PoliciesPage() {
         onDeleteDraft={(draftId) => setDraftToDelete(draftId)}
       />
       {reviewPolicy && (
-        <ReviewPolicyModal
-          policy={reviewPolicy as any}
+        <PolicyDetailsModal
+          policy={reviewPolicy}
+          reviewMode
+          canReview={checkIfCanApprove(reviewPolicy)}
           onClose={() => setReviewPolicy(null)}
-          readOnly={!checkIfCanApprove(reviewPolicy)}
+          onEdit={() => {}}
+          onArchive={() => {}}
+          onDeleteDraft={() => {}}
         />
       )}
     </div>

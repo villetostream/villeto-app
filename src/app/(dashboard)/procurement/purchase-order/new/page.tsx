@@ -3,6 +3,7 @@ import {
   useTransactionLegalEntities,
   useWorkspaceUnsavedChanges,
 } from "@/features/entity-workspace/hooks";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -436,6 +437,7 @@ function NewPurchaseOrderPage() {
       setPurchaseOrderId(id);
       setSavedLineItems(res.data?.lineItems || []);
       setStep(2);
+      useEntityWorkspaceStore.getState().setDirty(false);
       toast.success("Draft PO saved! Now add your line items.");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to create PO"));
@@ -1045,6 +1047,7 @@ function NewPurchaseOrderPage() {
                 }
                 try {
                   await submitPO.mutateAsync({});
+                  useEntityWorkspaceStore.getState().setDirty(false);
                   toast.success("Purchase order submitted for approval!");
                   router.push("/procurement/purchase-order");
                 } catch (err: unknown) {

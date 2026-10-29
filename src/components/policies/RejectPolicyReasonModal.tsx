@@ -7,9 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { XCircle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface RejectPolicyReasonModalProps {
   open: boolean;
@@ -54,26 +53,21 @@ export function RejectPolicyReasonModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="sm:max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-black/[0.08]">
-        <DialogHeader className="space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#fdf2f2] border border-[#fbd5d5] flex items-center justify-center shrink-0">
-              <XCircle className="w-5 h-5 text-[#d33d44]" />
-            </div>
-            <div>
-              <DialogTitle className="text-lg font-bold text-[#0b100e]">{title}</DialogTitle>
-              {entityName && (
-                <p className="text-xs text-[#68726d] font-medium mt-0.5 line-clamp-1">{entityName}</p>
-              )}
-            </div>
-          </div>
+      <DialogContent className="sm:max-w-[460px] rounded-3xl bg-white p-6 shadow-2xl border border-black/[0.08]">
+        <DialogHeader className="space-y-1 pb-1">
+          <DialogTitle className="text-[17px] font-bold text-[#0b100e] tracking-tight">
+            {title}
+          </DialogTitle>
+          {entityName && (
+            <p className="text-xs font-medium text-[#84908a] line-clamp-1">{entityName}</p>
+          )}
         </DialogHeader>
 
         <p className="text-xs text-[#68726d] leading-relaxed -mt-1">
           {description}
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+        <form onSubmit={handleSubmit} className="space-y-4 mt-1">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-[#0b100e]">
@@ -83,17 +77,16 @@ export function RejectPolicyReasonModal({
                 {reason.trim().length} chars
               </span>
             </div>
-            <Textarea
+            <textarea
               rows={4}
               placeholder="e.g. Spend limit exceeds department budget allocation; please adjust the monthly limit..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               disabled={isLoading}
-              className="resize-none rounded-xl border-black/[0.12] text-xs leading-relaxed focus-visible:ring-[#d33d44] focus-visible:border-[#d33d44] placeholder:text-[#84908a]"
-              autoFocus
+              className="w-full resize-none rounded-2xl border border-black/[0.1] bg-[#fafbfa] p-3.5 text-xs leading-relaxed text-[#0b100e] placeholder:text-[#84908a] outline-none transition-all focus:border-[#087f70] focus:bg-white focus:ring-2 focus:ring-[#087f70]/10 disabled:opacity-50"
             />
             <div className="flex justify-between items-center text-[11px] pt-0.5">
-              <span className={isTooShort ? "text-[#d33d44] font-medium" : "text-[#84908a]"}>
+              <span className={isTooShort ? "text-[#c07a10] font-medium" : "text-[#84908a]"}>
                 {isTooShort
                   ? `Minimum ${MIN_LENGTH} characters required (${MIN_LENGTH - reason.trim().length} more needed)`
                   : `Minimum ${MIN_LENGTH} characters required`}
@@ -101,20 +94,20 @@ export function RejectPolicyReasonModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-2">
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-black/[0.06]">
             <Button
               type="button"
               variant="outline"
               onClick={handleClose}
               disabled={isLoading}
-              className="h-10 px-5 rounded-[9px] border-black/[0.12] text-xs font-semibold text-[#68726d] hover:bg-[#f9faf9]"
+              className="h-10 px-5 rounded-full border-black/[0.12] text-xs font-semibold text-[#68726d] hover:bg-[#f9faf9] transition-colors"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={!isValid || isLoading}
-              className="h-10 px-6 rounded-[9px] bg-[#d33d44] hover:bg-[#be3239] text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
+              className="h-10 px-6 rounded-full bg-[#d33d44] hover:bg-[#be3239] text-white text-xs font-semibold shadow-sm transition-all disabled:bg-black/[0.07] disabled:text-black/35 disabled:shadow-none disabled:border-transparent disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
