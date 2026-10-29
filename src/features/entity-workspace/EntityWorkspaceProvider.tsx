@@ -17,14 +17,30 @@ export function EntityWorkspaceProvider({ children }: { children: ReactNode }) {
   const client = useQueryClient();
   const pathname = usePathname();
   const state = useEntityWorkspaceStore();
+  const disabledSnapshot: WorkspaceSnapshot = {
+    enabled: false,
+    canSwitch: false,
+    canViewAll: false,
+    primaryAssignment: null,
+    defaultSelection: null,
+    blockers: [],
+    entities: [],
+  };
+
   const workspace = useQuery({
     queryKey: ["entity-workspace-bootstrap", identity, authorization?.revision],
     enabled: !!identity,
     staleTime: 30_000,
-    retry: false,
+    retry: 1,
     queryFn: async ({ signal }) => {
-      const response = await axios.get("/legal-entities/workspace", { signal });
-      return (response.data?.data || response.data) as WorkspaceSnapshot;
+      try {
+        const response = await axios.get("/legal-entities/workspace", { signal });
+        return (response.data?.data || response.data) as WorkspaceSnapshot;
+      } catch {
+        // If legal entities workspace is not available or fails, fallback to disabled workspace
+        // so the user can continue using the dashboard normally without a blank error screen.
+        return disabledSnapshot;
+      }
     },
   });
   useEffect(() => {
@@ -114,14 +130,5 @@ export function EntityWorkspaceProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("change", edited, true);
     };
   }, [pathname, state.setDirty]);
-  if (workspace.isError)
-    return (
-      <div role="alert" className="p-6">
-        Unable to load your legal entity workspace.{" "}
-        <button onClick={() => void workspace.refetch()} className="underline">
-          Try again
-        </button>
-      </div>
-    );
   return children;
 }
