@@ -401,7 +401,6 @@ function ReimbursementDetailPage() {
           onClose={() => {
             setFeedbackModal(null);
             invalidateAllExpenseQueries(queryClient);
-            router.push("/expenses/reimbursements");
           }}
           type={feedbackModal.type}
         />

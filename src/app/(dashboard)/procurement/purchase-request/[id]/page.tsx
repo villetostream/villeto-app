@@ -1402,8 +1402,8 @@ function PRDetailPage() {
   const [overrideUnlocked, setOverrideUnlocked] = useState(false);
 
   const { data, isPending, isFetching, isError, refetch } = useGetPurchaseRequestById(id);
-  // Block render on both first-load AND background refetch so stale cached status never flashes
-  const isPageLoading = isPending || isFetching;
+  // Only block render on initial load when data is missing so background refetches don't flash/unmount the page
+  const isPageLoading = isPending && !data;
   const updatePR = useUpdatePurchaseRequest(id);
   const addLineItem = useAddLineItem(id);
   const deleteLineItem = useDeleteLineItem(id);
@@ -1636,6 +1636,7 @@ function PRDetailPage() {
   const handleApprove = async () => {
     try {
       await approvePR.mutateAsync();
+      await refetch();
       setModal(null);
       toast.success("Purchase request approved!");
     } catch (err: unknown) {
@@ -1646,6 +1647,7 @@ function PRDetailPage() {
   const handleReject = async (reason: string) => {
     try {
       await rejectPR.mutateAsync({ reason });
+      await refetch();
       setModal(null);
       toast.success("Purchase request rejected");
     } catch (err: unknown) {
