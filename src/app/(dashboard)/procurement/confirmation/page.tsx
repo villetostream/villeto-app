@@ -30,7 +30,13 @@ const money = (value: number, code: string) =>
 const formatDate = (dateStr?: string | null) => {
   if (!dateStr) return "—";
   try {
-    const d = new Date(dateStr);
+    let d: Date;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [y, m, day] = dateStr.split("-").map(Number);
+      d = new Date(y, m - 1, day);
+    } else {
+      d = new Date(dateStr);
+    }
     if (isNaN(d.getTime())) return "—";
     return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(d);
   } catch {
@@ -39,7 +45,7 @@ const formatDate = (dateStr?: string | null) => {
 };
 
 const formatTime = (dateStr?: string | null) => {
-  if (!dateStr) return "";
+  if (!dateStr || !dateStr.includes("T")) return "";
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return "";
@@ -48,6 +54,9 @@ const formatTime = (dateStr?: string | null) => {
     return "";
   }
 };
+
+const getShipmentOrDeliveryDate = (item: PurchaseOrderRecord) =>
+  item.shipmentDate || item.digitalDeliveryDate || null;
 
 type SortKey = "poNumber" | "vendor" | "amount" | "shipmentDate" | "confirmationDate" | "status";
 type SortDir = "asc" | "desc";
@@ -192,8 +201,10 @@ function ConfirmationPage() {
         valA = Number(a.totalAmount ?? 0);
         valB = Number(b.totalAmount ?? 0);
       } else if (sortState.key === "shipmentDate") {
-        valA = a.shipmentDate ? new Date(a.shipmentDate).getTime() : 0;
-        valB = b.shipmentDate ? new Date(b.shipmentDate).getTime() : 0;
+        const dateA = getShipmentOrDeliveryDate(a);
+        const dateB = getShipmentOrDeliveryDate(b);
+        valA = dateA ? new Date(dateA).getTime() : 0;
+        valB = dateB ? new Date(dateB).getTime() : 0;
         if (!valA && !valB) return 0;
         if (!valA) return 1;
         if (!valB) return -1;
@@ -293,7 +304,7 @@ function ConfirmationPage() {
             <div className="hidden lg:grid lg:grid-cols-[2fr_1.1fr_1.3fr_1.3fr_140px] gap-3 px-5 py-3 border-b border-black/[0.055] bg-[#f9faf9] sticky top-0 z-10">
               <ColHeader label="Purchase Order" sortKey="poNumber" current={sortState} onSort={handleSort} />
               <ColHeader label="Total Amount"   sortKey="amount"   current={sortState} onSort={handleSort} />
-              <ColHeader label="Shipment Date"  sortKey="shipmentDate" current={sortState} onSort={handleSort} />
+              <ColHeader label="Fulfillment Date" sortKey="shipmentDate" current={sortState} onSort={handleSort} />
               <ColHeader label="Confirmation Date" sortKey="confirmationDate" current={sortState} onSort={handleSort} />
               <ColHeader label="Status" sortKey="status" current={sortState} onSort={handleSort} className="justify-end" />
             </div>
@@ -321,13 +332,18 @@ function ConfirmationPage() {
                           {item.quantityAwaitingReceipt} unit{item.quantityAwaitingReceipt === 1 ? "" : "s"} to confirm
                         </span>
                       )}
-                      {(item.shipmentDate || item.confirmationDate) && (
-                        <p className="mt-1 text-[10px] text-[#89918d] lg:hidden">
-                          {item.shipmentDate && <>Shipped: {formatDate(item.shipmentDate)}</>}
-                          {item.shipmentDate && item.confirmationDate && <> · </>}
-                          {item.confirmationDate && <>Confirmed: {formatDate(item.confirmationDate)}</>}
-                        </p>
-                      )}
+                      {(() => {
+                        const effectiveDate = getShipmentOrDeliveryDate(item);
+                        if (!effectiveDate && !item.confirmationDate) return null;
+                        const datePrefix = item.shipmentDate ? "Shipped" : "Delivered";
+                        return (
+                          <p className="mt-1 text-[10px] text-[#89918d] lg:hidden">
+                            {effectiveDate && <>{datePrefix}: {formatDate(effectiveDate)}</>}
+                            {effectiveDate && item.confirmationDate && <> · </>}
+                            {item.confirmationDate && <>Confirmed: {formatDate(item.confirmationDate)}</>}
+                          </p>
+                        );
+                      })()}
                     </div>
                     <div className="hidden lg:flex lg:items-center">
                       <p className="text-[11px] font-medium text-[#34413b]">
@@ -335,14 +351,22 @@ function ConfirmationPage() {
                       </p>
                     </div>
                     <div className="hidden lg:flex lg:flex-col lg:justify-center">
-                      <p className="text-[11px] font-medium text-[#34413b]">
-                        {formatDate(item.shipmentDate)}
-                      </p>
-                      {item.shipmentDate && (
-                        <p className="mt-0.5 text-[10px] text-[#89918d]">
-                          {formatTime(item.shipmentDate)}
-                        </p>
-                      )}
+                      {(() => {
+                        const effectiveDate = getShipmentOrDeliveryDate(item);
+                        const time = formatTime(effectiveDate);
+                        return (
+                          <>
+                            <p className="text-[11px] font-medium text-[#34413b]">
+                              {formatDate(effectiveDate)}
+                            </p>
+                            {effectiveDate && time && (
+                              <p className="mt-0.5 text-[10px] text-[#89918d]">
+                                {time}
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     <div className="hidden lg:flex lg:flex-col lg:justify-center">
                       <p className="text-[11px] font-medium text-[#34413b]">

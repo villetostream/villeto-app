@@ -94,7 +94,7 @@ export interface PurchaseOrderRecord {
   poNumber?: string;
   vendorId?: string;
   vendor?: { vendorId?: string; displayName?: string; legalName?: string; email?: string; [key: string]: unknown };
-  deliveryDate?: string;
+  deliveryDate?: string | null;
   notes?: string;
   status?: string;
   createdAt?: string;
@@ -132,6 +132,7 @@ export interface PurchaseOrderRecord {
   quantityAwaitingReceipt?: number;
   updatedAt?: string;
   shipmentDate?: string | null;
+  digitalDeliveryDate?: string | null;
   confirmationDate?: string | null;
   approvalDate?: string | null;
   [key: string]: unknown;

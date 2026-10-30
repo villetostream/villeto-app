@@ -607,6 +607,81 @@ function ConfirmationDetailPage() {
 
   const isApproved = stage === "approved" || stage === "ready_to_issue" || stage === "issued" || stage === "acknowledged" || stage === "ready_for_delivery" || isDelivered || stage === "closed";
 
+  const isConfirmationEvent = (event: any) => {
+    if (!event || !event.action) return false;
+    return (
+      event.action === "partially_delivered" ||
+      event.action === "delivered" ||
+      event.action === "delivery_confirmed" ||
+      event.action === "receipt_confirmed" ||
+      event.action === "confirmed"
+    );
+  };
+
+  const confirmationEvents = (po.timeline || []).filter(isConfirmationEvent);
+
+  const confirmationSteps = confirmationEvents.length > 0
+    ? confirmationEvents.map((evt: any, idx: number) => {
+        const isLast = idx === confirmationEvents.length - 1;
+        const isFull = evt.action === "delivered" || (isLast && stage === "delivered");
+        const label = confirmationEvents.length > 1
+          ? (isFull ? `Delivery Confirmed #${idx + 1}` : `Partially Confirmed #${idx + 1}`)
+          : (isFull ? "Delivery Confirmed" : "Partially Confirmed");
+        return {
+          label,
+          person: getPerson(evt, "Authorized User"),
+          badge: isFull ? "Fully Confirmed" : "Partially Confirmed",
+          badgeColor: isFull ? "text-[#087f70] bg-[#f0faf8]" : "text-amber-600 bg-amber-50",
+          timestamp: evt.timestamp,
+          done: true,
+          pending: false,
+        };
+      })
+    : ((po as any)?.receiptConfirmations && Array.isArray((po as any).receiptConfirmations) && (po as any).receiptConfirmations.length > 0)
+    ? [...((po as any).receiptConfirmations)]
+        .sort((a: any, b: any) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime())
+        .map((rc: any, idx: number, arr: any[]) => {
+          const isLast = idx === arr.length - 1;
+          const isFull = stage === "delivered" && isLast;
+          const label = arr.length > 1
+            ? (isFull ? `Delivery Confirmed #${idx + 1}` : `Partially Confirmed #${idx + 1}`)
+            : (isFull ? "Delivery Confirmed" : "Partially Confirmed");
+          return {
+            label,
+            person: rc.confirmedByName || "Authorized User",
+            badge: isFull ? "Fully Confirmed" : "Partially Confirmed",
+            badgeColor: isFull ? "text-[#087f70] bg-[#f0faf8]" : "text-amber-600 bg-amber-50",
+            timestamp: rc.receivedAt,
+            done: true,
+            pending: false,
+          };
+        })
+    : [
+        {
+          label: "Awaiting Confirmation",
+          person: undefined,
+          badge: undefined,
+          badgeColor: undefined,
+          timestamp: undefined,
+          done: false,
+          pending: stage === "acknowledged" || stage === "ready_for_delivery" || stage === "partially_delivered",
+        }
+      ];
+
+  const pendingNextStep = stage === "partially_delivered"
+    ? [
+        {
+          label: ((po as any)?.quantityAwaitingReceipt ?? 0) > 0 ? "Awaiting Confirmation" : "Awaiting Next Delivery",
+          person: undefined,
+          badge: ((po as any)?.quantityAwaitingReceipt ?? 0) > 0 ? "Pending Receipt" : "Backordered",
+          badgeColor: "text-amber-600 bg-amber-50",
+          timestamp: undefined,
+          done: false,
+          pending: true,
+        }
+      ]
+    : [];
+
   const workflowSteps = [
     {
       label: "Created",
@@ -665,15 +740,8 @@ function ConfirmationDetailPage() {
             };
           })
         : []),
-      {
-        label: stage === "delivered" ? "Delivery Confirmed" : stage === "partially_delivered" ? "Partially Confirmed" : "Awaiting Confirmation",
-        person: getPerson(timelineByAction["delivered"] || timelineByAction["partially_delivered"]),
-        badge: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "Partially Confirmed" : stage === "delivered" || timelineByAction["delivered"] ? "Fully Confirmed" : undefined,
-        badgeColor: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "text-amber-600 bg-amber-50" : "text-[#087f70] bg-[#f0faf8]",
-        timestamp: timelineByAction["delivered"]?.timestamp || timelineByAction["partially_delivered"]?.timestamp || po.deliveredAt,
-        done: !!timelineByAction["delivered"] || !!timelineByAction["partially_delivered"] || isDelivered,
-        pending: stage === "acknowledged" || stage === "ready_for_delivery" || stage === "partially_delivered",
-      },
+      ...confirmationSteps,
+      ...pendingNextStep,
       {
         label: "Closed",
         person: getPerson(timelineByAction["closed"], po.closedAt ? "System" : undefined),
@@ -916,7 +984,7 @@ function ConfirmationDetailPage() {
                 <div className="bg-[#1C2B36] rounded-t-[14px] px-5 py-4">
                   <h3 className="text-base font-bold text-white">Workflow Progress</h3>
                 </div>
-                <div className="px-5 py-4 space-y-0 pt-3 pl-1 max-h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-black/[0.08] hover:scrollbar-thumb-black/[0.15] scrollbar-track-transparent">
+                <div className="px-5 py-4 space-y-0 pt-3 pl-1 max-h-[480px] overflow-y-auto scrollbar-thin scrollbar-thumb-black/[0.08] hover:scrollbar-thumb-black/[0.15] scrollbar-track-transparent">
                   {workflowSteps.map((step, i) => {
                     const isLast = i === workflowSteps.length - 1;
                     return (

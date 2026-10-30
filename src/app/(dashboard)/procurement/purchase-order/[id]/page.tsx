@@ -507,9 +507,93 @@ function PODetailPage() {
   // Workflow steps — updated to reflect draft→submitted→approved chain and backend timeline
   const isCompanyScope = outerTab === "all" || outerTab === "company" || outerTab === "team";
   const isSubmitted = stage === "pending_approval" || stage === "submitted";
-  const showOverrideBanner = (canApprovePO || canCancelPO) && (isSubmitted || isApproved);
+  const showOverrideBanner = canApprovePO && isSubmitted && !isOwnPO;
+  const isConfirmationEvent = (event: any) => {
+    if (!event || !event.action) return false;
+    return (
+      event.action === "partially_delivered" ||
+      event.action === "delivered" ||
+      event.action === "delivery_confirmed" ||
+      event.action === "receipt_confirmed" ||
+      event.action === "confirmed"
+    );
+  };
 
-  const workflowSteps = [
+  const confirmationEvents = (po.timeline || []).filter(isConfirmationEvent);
+
+  interface POWorkflowStep {
+    label: string;
+    person?: string | null;
+    badge?: string;
+    badgeColor?: string;
+    timestamp?: string | null;
+    done: boolean;
+    pending?: boolean;
+  }
+
+  const confirmationSteps: POWorkflowStep[] = confirmationEvents.length > 0
+    ? confirmationEvents.map((evt: any, idx: number) => {
+        const isLast = idx === confirmationEvents.length - 1;
+        const isFull = evt.action === "delivered" || (isLast && stage === "delivered");
+        const label = confirmationEvents.length > 1
+          ? (isFull ? `Delivery Confirmed #${idx + 1}` : `Partially Confirmed #${idx + 1}`)
+          : (isFull ? "Delivery Confirmed" : "Partially Confirmed");
+        return {
+          label,
+          person: getPerson(evt, "Authorized User"),
+          badge: isFull ? "Fully Confirmed" : "Partially Confirmed",
+          badgeColor: isFull ? "text-[#087f70] bg-[#f0faf8]" : "text-amber-600 bg-amber-50",
+          timestamp: evt.timestamp,
+          done: true,
+          pending: false,
+        };
+      })
+    : ((po as any)?.receiptConfirmations && Array.isArray((po as any).receiptConfirmations) && (po as any).receiptConfirmations.length > 0)
+    ? [...((po as any).receiptConfirmations)]
+        .sort((a: any, b: any) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime())
+        .map((rc: any, idx: number, arr: any[]) => {
+          const isLast = idx === arr.length - 1;
+          const isFull = stage === "delivered" && isLast;
+          const label = arr.length > 1
+            ? (isFull ? `Delivery Confirmed #${idx + 1}` : `Partially Confirmed #${idx + 1}`)
+            : (isFull ? "Delivery Confirmed" : "Partially Confirmed");
+          return {
+            label,
+            person: rc.confirmedByName || "Authorized User",
+            badge: isFull ? "Fully Confirmed" : "Partially Confirmed",
+            badgeColor: isFull ? "text-[#087f70] bg-[#f0faf8]" : "text-amber-600 bg-amber-50",
+            timestamp: rc.receivedAt,
+            done: true,
+            pending: false,
+          };
+        })
+    : [
+        {
+          label: "Delivery Status",
+          person: getPerson(timelineByAction["ready_for_delivery"], isDelivered ? "Vendor" : undefined),
+          badge: timelineByAction["ready_for_delivery"] ? "Ready for Delivery" : undefined,
+          badgeColor: "text-amber-600 bg-amber-50",
+          timestamp: timelineByAction["ready_for_delivery"]?.timestamp || po.deliveredAt,
+          done: isDelivered,
+          pending: stage === "acknowledged" || stage === "ready_for_delivery",
+        }
+      ];
+
+  const pendingNextStep: POWorkflowStep[] = stage === "partially_delivered"
+    ? [
+        {
+          label: ((po as any)?.quantityAwaitingReceipt ?? 0) > 0 ? "Awaiting Confirmation" : "Awaiting Next Delivery",
+          person: undefined,
+          badge: ((po as any)?.quantityAwaitingReceipt ?? 0) > 0 ? "Pending Receipt" : "Backordered",
+          badgeColor: "text-amber-600 bg-amber-50",
+          timestamp: undefined,
+          done: false,
+          pending: true,
+        }
+      ]
+    : [];
+
+  const workflowSteps: POWorkflowStep[] = [
     {
       label: "Created",
       person: getPerson(timelineByAction["created"], po.createdBy ? `${(po.createdBy as any).firstName || ""} ${(po.createdBy as any).lastName || ""}`.trim() || "System" : "System"),
@@ -555,15 +639,8 @@ function PODetailPage() {
         done: !!timelineByAction["acknowledged"] || !!po.acknowledgedAt,
         pending: stage === "issued",
       },
-      {
-        label: "Delivery Status",
-        person: getPerson(timelineByAction["partially_delivered"] || timelineByAction["delivered"] || timelineByAction["ready_for_delivery"], isDelivered ? "Vendor" : undefined),
-        badge: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "Partial" : stage === "delivered" || timelineByAction["delivered"] ? "Full Delivery" : timelineByAction["ready_for_delivery"] ? "Ready for Delivery" : undefined,
-        badgeColor: stage === "partially_delivered" || timelineByAction["partially_delivered"] ? "text-amber-600 bg-amber-50" : "text-[#087f70] bg-[#f0faf8]",
-        timestamp: timelineByAction["delivered"]?.timestamp || timelineByAction["partially_delivered"]?.timestamp || timelineByAction["ready_for_delivery"]?.timestamp || po.deliveredAt,
-        done: !!timelineByAction["delivered"] || !!timelineByAction["partially_delivered"] || isDelivered,
-        pending: stage === "acknowledged" || stage === "ready_for_delivery",
-      },
+      ...confirmationSteps,
+      ...pendingNextStep,
       {
         label: "Closed",
         person: getPerson(timelineByAction["closed"], po.closedAt ? "System" : undefined),
