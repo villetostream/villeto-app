@@ -1517,11 +1517,8 @@ function PRDetailPage() {
 
   // Whether to show the lock/unlock override banner.
   // Never show it on the requester's own request — there is nothing to override.
-  // Never show it on partially converted PRs — they've already been approved and are in progress.
-  const showOverrideBanner = isCompanyScope && !isOwnRequest && !isPartiallyConverted && (
-    (isSubmitted && hasApprovePermission) ||
-    ((isSubmitted || isApproved) && (hasWithdrawPermission || hasApprovePermission))
-  );
+  // Only show when the request is submitted and awaiting approval.
+  const showOverrideBanner = isCompanyScope && !isOwnRequest && isSubmitted && hasApprovePermission;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -2145,7 +2142,7 @@ function PRDetailPage() {
                   poId?: string;
                   vendorName: string;
                   poNumber?: string;
-                  deliveryDate?: string;
+                  deliveryDate?: string | null;
                   status?: string;
                   currency?: string;
                   totalAmount?: number | string;
