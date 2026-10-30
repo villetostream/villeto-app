@@ -121,8 +121,8 @@ export function ProcurementPolicyWizard({
   const canContinue = (): boolean => {
     switch (step) {
       case 1: return draft.name.trim().length >= 3;
-      case 2: return true; // Can continue with 0 categories (will prompt warning maybe later)
-      case 3: return true; // Rules are optional
+      case 2: return draft.categoryIds.length > 0;
+      case 3: return draft.groups.some((g) => g.rules && g.rules.length > 0);
       case 4: return true;
       default: return true;
     }
@@ -131,6 +131,8 @@ export function ProcurementPolicyWizard({
   const validationMessage = (): string => {
     switch (step) {
       case 1: return draft.name.trim().length === 0 ? "Please enter a program name." : "Name must be at least 3 characters.";
+      case 2: return "Please select at least one category to continue.";
+      case 3: return "Please add at least one rule to continue.";
       default: return "";
     }
   };

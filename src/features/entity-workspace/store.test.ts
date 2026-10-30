@@ -166,8 +166,35 @@ describe("workspace state and request boundaries", () => {
     expect(workspaceRoute("/policy/procurement/spend-programs/settings")).toBe(
       false,
     );
+    expect(workspaceRoute("/policy/procurement/spend-programs")).toBe(true);
+    expect(workspaceRoute("/policy/procurement/spend-programs/prog-1")).toBe(
+      true,
+    );
+    expect(workspaceRoute("/policy/procurement/spend-programs", "POST")).toBe(
+      true,
+    );
     expect(workspaceRoute("/policy/procurement", "POST")).toBe(false);
     expect(workspaceRoute("/policy/procurement/drafts/policy-id")).toBe(true);
+    expect(workspaceRoute("/policy")).toBe(true);
+    expect(workspaceRoute("/policy?excludeDrafts=false")).toBe(true);
+    expect(workspaceRoute("/policy", "POST")).toBe(true);
+    expect(workspaceRoute("/policy/pol-1")).toBe(true);
+    expect(workspaceRoute("/policy/pol-1", "PATCH")).toBe(true);
+    expect(workspaceRoute("/policy/pol-1", "DELETE")).toBe(true);
+    expect(workspaceRoute("/policy/pol-1/approve", "PATCH")).toBe(true);
+    expect(workspaceRoute("/policy/pol-1/reject", "PATCH")).toBe(true);
+    expect(workspaceRoute("/policy/drafts")).toBe(true);
+    expect(workspaceRoute("/policy/drafts", "POST")).toBe(true);
+    expect(workspaceRoute("/policy/drafts/draft-1")).toBe(true);
+    expect(workspaceRoute("/policy/approval-settings")).toBe(false);
+    expect(
+      workspaceRoute(
+        "https://api.villeto.com/policy/procurement/spend-programs?page=1&limit=100",
+      ),
+    ).toBe(true);
+    expect(
+      workspaceRoute("https://api.villeto.com/policy?excludeDrafts=false"),
+    ).toBe(true);
   });
   it("uses All as header context while preserving ordinary search filters", () => {
     expect(

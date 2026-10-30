@@ -302,15 +302,20 @@ export function ProcurementPolicyDetailsModal({
   const rulesToDisplay: any[] = activeGroupData?.rules || [];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={onClose}
-    >
+    <>
       <div
-        className="bg-white rounded-[20px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.25)] w-full max-w-[580px] flex flex-col border border-black/[0.06]"
-        style={{ maxHeight: "88vh" }}
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+        onClick={(e) => {
+          if (!isReviewMode && e.target === e.currentTarget && !isRejectModalOpen) {
+            onClose();
+          }
+        }}
       >
+        <div
+          className="relative bg-white rounded-[20px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.25)] w-full max-w-[580px] flex flex-col border border-black/[0.06]"
+          style={{ maxHeight: "88vh" }}
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Close button */}
         <button
           onClick={onClose}
@@ -608,6 +613,7 @@ export function ProcurementPolicyDetailsModal({
           </>
         )}
       </div>
+      </div>
 
       <RejectPolicyReasonModal
         open={isRejectModalOpen}
@@ -617,6 +623,6 @@ export function ProcurementPolicyDetailsModal({
         title="Reject Spend Program"
         entityName={policy?.name}
       />
-    </div>
+    </>
   );
 }

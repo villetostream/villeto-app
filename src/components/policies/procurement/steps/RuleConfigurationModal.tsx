@@ -22,6 +22,7 @@ import type { SpendProgramRule, SpendProgramDraft, SpendProgramGroup, RuleDefini
 import { emptySpendProgramRule, emptyRuleExceptionConfig } from "../types";
 import { getActionLabel, CONDITION_FIELD_LABELS, CURRENCY_OPTIONS } from "../constants";
 import { cn } from "@/lib/utils";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 
 const formatAmount = (value: number | string | undefined) => {
   if (value === undefined || value === null || value === "") return "";
@@ -182,6 +183,20 @@ export function RuleConfigurationModal({
   const managementLevels = mgmtLevelsResponse?.data?.managementLevels || [];
   const jobGrades = jobGradesResponse?.data?.jobGrades || [];
 
+  const workspaceSelection = useEntityWorkspaceStore((s) => s.selection);
+  const workspaceSnapshot = useEntityWorkspaceStore((s) => s.snapshot);
+
+  const currentEntityId = useMemo(() => {
+    if (workspaceSelection && workspaceSelection !== "all") {
+      return workspaceSelection;
+    }
+    return (
+      workspaceSnapshot?.primaryAssignment?.legalEntityId ||
+      legalEntities[0]?.legalEntityId ||
+      ""
+    );
+  }, [workspaceSelection, workspaceSnapshot, legalEntities]);
+
   const managementGradeOptions = useMemo(() => {
     const ml = managementLevels.map(m => ({
       value: String(m.managementLevelId),
@@ -202,11 +217,14 @@ export function RuleConfigurationModal({
 
   useEffect(() => {
     if (isOpen) {
+      const defaultEntityIds = currentEntityId ? [currentEntityId] : [];
       if (existingRule) {
         const safeExceptionConfig = existingRule.exceptionConfig || emptyRuleExceptionConfig();
         setRule({
           ...existingRule,
-          legalEntityIds: existingRule.legalEntityIds || [],
+          legalEntityIds: existingRule.legalEntityIds?.length > 0
+            ? existingRule.legalEntityIds
+            : defaultEntityIds,
           exceptionConfig: safeExceptionConfig,
         });
         const hasCustomConditions = Object.keys(safeExceptionConfig.conditionConfig || {}).length > 0;
@@ -220,12 +238,15 @@ export function RuleConfigurationModal({
         );
         setHasCustomExceptionRule(hasCustomConditions || hasCustomAction);
       } else {
-        setRule(emptySpendProgramRule(draft.groups.find(g => g.group === group)?.rules.length || 0));
+        setRule({
+          ...emptySpendProgramRule(draft.groups.find(g => g.group === group)?.rules.length || 0),
+          legalEntityIds: defaultEntityIds,
+        });
         setShowExceptions(false);
         setHasCustomExceptionRule(false);
       }
     }
-  }, [isOpen, existingRule, group, draft]);
+  }, [isOpen, existingRule, group, draft, currentEntityId]);
 
   // Categories scoped to those selected in Step 2
   const availableCategories = useMemo(() => {
@@ -244,9 +265,15 @@ export function RuleConfigurationModal({
   const selectedDef = ruleDefinitions.find(d => d.ruleType === rule.ruleType);
 
   const availableCurrencies = useMemo(() => {
+    const currentEntity = legalEntities.find(e => e.legalEntityId === currentEntityId);
+    if (currentEntity?.baseCurrency) {
+      const match = CURRENCY_OPTIONS.find(c => c.value.toUpperCase() === currentEntity.baseCurrency.toUpperCase());
+      if (match) return [match];
+      return [{ value: currentEntity.baseCurrency, label: currentEntity.baseCurrency, symbol: currentEntity.baseCurrency }];
+    }
     const entityIds = rule.legalEntityIds?.length > 0 
       ? rule.legalEntityIds 
-      : legalEntities.map(e => e.legalEntityId);
+      : (currentEntityId ? [currentEntityId] : legalEntities.map(e => e.legalEntityId));
       
     const allowedCurrencyCodes = new Set(
       legalEntities
@@ -256,7 +283,7 @@ export function RuleConfigurationModal({
     
     if (allowedCurrencyCodes.size === 0) return CURRENCY_OPTIONS;
     return CURRENCY_OPTIONS.filter(c => allowedCurrencyCodes.has(c.value));
-  }, [rule.legalEntityIds, legalEntities]);
+  }, [currentEntityId, rule.legalEntityIds, legalEntities]);
 
   const getEntityNamesForCurrency = (currencyCode: string) => {
     const entityIds = rule.legalEntityIds?.length > 0 
@@ -402,7 +429,10 @@ export function RuleConfigurationModal({
   const handleSave = () => {
     if (!rule.ruleType || !rule.action) return;
     
-    const payload = { ...rule };
+    const entityIds = rule.legalEntityIds?.length > 0
+      ? rule.legalEntityIds
+      : (currentEntityId ? [currentEntityId] : []);
+    const payload = { ...rule, legalEntityIds: entityIds };
     if (!hasCustomExceptionRule) {
       payload.exceptionConfig = {
         ...payload.exceptionConfig,
@@ -458,23 +488,6 @@ export function RuleConfigurationModal({
 
               {selectedDef && (
                 <>
-                  {/* Legal Entity (Scope) */}
-                  <div className="space-y-3 pt-4 border-t border-black/[0.06]">
-                    <div>
-                      <Label className="text-[13px] font-semibold text-[#10231d]">Legal Entity</Label>
-                      <p className="text-[12px] text-[#68726d] mt-1 mb-3">Which entities does this rule apply to? Leave empty to apply to all.</p>
-                    </div>
-                    <MultiSelectField
-                      label=""
-                      placeholder="All entities"
-                      options={legalEntities}
-                      selected={rule.legalEntityIds || []}
-                      onToggle={toggleLegalEntity}
-                      getLabel={(e) => e.baseCurrency ? `${e.legalName} (${e.baseCurrency})` : e.legalName}
-                      getId={(e) => e.legalEntityId}
-                    />
-                  </div>
-
                   {/* Condition (Root) */}
                   {Object.keys(selectedDef.conditionSchema).length > 0 && (
                     <div className="space-y-3 pt-4 border-t border-black/[0.06]">

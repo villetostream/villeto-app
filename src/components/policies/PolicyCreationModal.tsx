@@ -21,6 +21,7 @@ import {
   useDeleteExpensePolicyDraft,
 } from "@/queries/companies/expense-policy-drafts";
 import { useGetJobGradesApi, useGetManagementLevelsApi, type JobGrade, type ManagementLevel } from "@/queries/companies/get-company-references";
+import { useLegalEntities } from "@/queries/legal-entities";
 import SimpleAddExpenseCategoryDialog from "@/components/policies/SimpleAddExpenseCategoryDialog";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -899,6 +900,18 @@ export default function PolicyCreationModal({
   const managementLevelsApi = useGetManagementLevelsApi({ enabled: open });
   // Expense categories with full policy coverage — admin scoped (all categories + their attached policies)
   const expCatApi        = useGetExpenseCategoryCoverageAllApi({ enabled: open });
+  const { data: legalEntitiesResponse } = useLegalEntities();
+  const legalEntities = legalEntitiesResponse?.data || [];
+  const workspaceSelection = useEntityWorkspaceStore((s) => s.selection);
+
+  const activeEntity = useMemo(() => {
+    if (workspaceSelection && workspaceSelection !== "all") {
+      return legalEntities.find((e) => e.legalEntityId === workspaceSelection);
+    }
+    return legalEntities.find((e) => e.isDefault) || legalEntities[0];
+  }, [workspaceSelection, legalEntities]);
+
+  const activeCurrencyCode = activeEntity?.baseCurrency || getCurrencyConfig(userCountry).code;
 
   const createPolicyMutation   = useCreatePolicyApi();
   const updatePolicyMutation   = useUpdatePolicyApi();
@@ -1080,7 +1093,7 @@ export default function PolicyCreationModal({
   };
 
   const buildPayload = (): CreatePolicyPayload => {
-    const currencyCode = getCurrencyConfig(userCountry).code;
+    const currencyCode = activeCurrencyCode;
     const capitalizeName = (n: string) => n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
     const formattedName = capitalizeName(policyName);
     
@@ -1199,13 +1212,15 @@ export default function PolicyCreationModal({
     categories.length > 0 &&
     (scope === "all" || (scope === "specific" && (selectedDepts.length > 0 || selectedRoles.length > 0)));
 
-  const rulesValid = rules.every(r => {
-    if (r.type === "receipt_requirement") {
-      const mode = r.receiptMode ?? "all";
-      return mode === "all" ? !!r.enforcement : !!(r.amount && r.enforcement);
-    }
-    return !!(r.amount && r.enforcement);
-  });
+  const rulesValid =
+    rules.length > 0 &&
+    rules.every((r) => {
+      if (r.type === "receipt_requirement") {
+        const mode = r.receiptMode ?? "all";
+        return mode === "all" ? !!r.enforcement : !!(r.amount && r.enforcement);
+      }
+      return !!(r.amount && r.enforcement);
+    });
 
   const continueDisabled =
     isLoading ||
@@ -1304,7 +1319,9 @@ export default function PolicyCreationModal({
                   <>
                     {/* Expense category */}
                     <div>
-                      <FieldLabel>Which type of expense category should this policy apply to?</FieldLabel>
+                      <FieldLabel>
+                        Which type of expense category should this policy apply to? <span className="text-[#d33d44]">*</span>
+                      </FieldLabel>
                       <MultiDropdown
                         placeholder="Select expense category"
                         values={categories}
@@ -1480,6 +1497,12 @@ export default function PolicyCreationModal({
                       Stack multiple rules to create complex enforcement logic.
                     </p>
                     <div className="space-y-4">
+                      {rules.length === 0 && (
+                        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-[14px] text-xs text-[#c07a10] font-medium flex items-center gap-2">
+                          <Info className="w-4 h-4 text-[#c07a10] shrink-0" />
+                          At least one rule is required to continue.
+                        </div>
+                      )}
                       {rules.map((rule) => (
                         <RuleCard
                           key={rule.id}
