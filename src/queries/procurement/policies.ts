@@ -1,4 +1,7 @@
-import { workspaceQueryKey } from "@/features/entity-workspace/store";
+import {
+  useEntityWorkspaceStore,
+  workspaceQueryKey,
+} from "@/features/entity-workspace/store";
 import {
   useMutation,
   useQuery,
@@ -383,6 +386,10 @@ export function buildSpendProgramPayload(
   draft: SpendProgramDraft,
   isUpdate: boolean = false,
 ) {
+  const activeEntityId = useEntityWorkspaceStore.getState().selection;
+  const fallbackEntityIds =
+    activeEntityId && activeEntityId !== "all" ? [activeEntityId] : [];
+
   return {
     draftId: draft.draftId,
     name: draft.name.trim(),
@@ -406,6 +413,11 @@ export function buildSpendProgramPayload(
               (r.exceptionConfig.userIds &&
                 r.exceptionConfig.userIds.length > 0));
 
+          const ruleEntityIds =
+            r.legalEntityIds && r.legalEntityIds.length > 0
+              ? r.legalEntityIds
+              : fallbackEntityIds;
+
           return {
             procurementSpendProgramRuleId:
               r.procurementSpendProgramRuleId ||
@@ -415,7 +427,7 @@ export function buildSpendProgramPayload(
             appliesToCategoryIds: r.appliesToAll
               ? draft.categoryIds
               : r.appliesToCategoryIds || [],
-            legalEntityIds: r.legalEntityIds || [],
+            legalEntityIds: ruleEntityIds,
             conditionConfig: transformConditionConfigToBackend(
               r.conditionConfig,
             ),

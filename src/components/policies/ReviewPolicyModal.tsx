@@ -242,11 +242,20 @@ export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyMod
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+    <>
       <div
-        className="w-full max-w-[500px] bg-[#f5f7f6] rounded-[24px] p-6 shadow-xl flex flex-col max-h-[90vh] overflow-y-auto"
-        style={{ scrollbarWidth: "none" }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+        onClick={(e) => {
+          if (readOnly && e.target === e.currentTarget && !isRejectModalOpen) {
+            onClose();
+          }
+        }}
       >
+        <div
+          className="w-full max-w-[500px] bg-[#f5f7f6] rounded-[24px] p-6 shadow-xl flex flex-col max-h-[90vh] overflow-y-auto"
+          style={{ scrollbarWidth: "none" }}
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Header */}
         <div className="flex items-center justify-between pb-4">
           <h2 className="text-xl font-bold text-[#0b100e]">Review Policy</h2>
@@ -401,16 +410,17 @@ export function ReviewPolicyModal({ policy, onClose, readOnly }: ReviewPolicyMod
             </button>
           </div>
         )}
-
-        <RejectPolicyReasonModal
-          open={isRejectModalOpen}
-          onClose={() => setIsRejectModalOpen(false)}
-          onConfirm={handleRejectConfirm}
-          isLoading={rejectMutation.isPending}
-          title="Reject Expense Policy"
-          entityName={policy.name}
-        />
       </div>
     </div>
+
+    <RejectPolicyReasonModal
+      open={isRejectModalOpen}
+      onClose={() => setIsRejectModalOpen(false)}
+      onConfirm={handleRejectConfirm}
+      isLoading={rejectMutation.isPending}
+      title="Reject Expense Policy"
+      entityName={policy.name}
+    />
+  </>
   );
 }

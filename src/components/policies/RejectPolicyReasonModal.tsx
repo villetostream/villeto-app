@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -39,7 +40,8 @@ export function RejectPolicyReasonModal({
   const isValid = reason.trim().length >= MIN_LENGTH;
   const isTooShort = reason.trim().length > 0 && reason.trim().length < MIN_LENGTH;
 
-  const handleClose = () => {
+  const handleClose = (e?: React.SyntheticEvent) => {
+    e?.stopPropagation();
     if (isLoading) return;
     setReason("");
     onClose();
@@ -53,7 +55,23 @@ export function RejectPolicyReasonModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="sm:max-w-[460px] rounded-3xl bg-white p-6 shadow-2xl border border-black/[0.08]">
+      <DialogContent
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerDownOutside={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleClose();
+        }}
+        onInteractOutside={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+        }}
+        className="sm:max-w-[460px] rounded-3xl bg-white p-6 shadow-2xl border border-black/[0.08]"
+      >
         <DialogHeader className="space-y-1 pb-1">
           <DialogTitle className="text-[17px] font-bold text-[#0b100e] tracking-tight">
             {title}
@@ -63,9 +81,9 @@ export function RejectPolicyReasonModal({
           )}
         </DialogHeader>
 
-        <p className="text-xs text-[#68726d] leading-relaxed -mt-1">
+        <DialogDescription className="text-xs text-[#68726d] leading-relaxed -mt-1">
           {description}
-        </p>
+        </DialogDescription>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-1">
           <div className="space-y-1.5">
@@ -98,7 +116,14 @@ export function RejectPolicyReasonModal({
             <Button
               type="button"
               variant="outline"
-              onClick={handleClose}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleClose(e);
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+              }}
               disabled={isLoading}
               className="h-10 px-5 rounded-full border-black/[0.12] text-xs font-semibold text-[#68726d] hover:bg-[#f9faf9] transition-colors"
             >

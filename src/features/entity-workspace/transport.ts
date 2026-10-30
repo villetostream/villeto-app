@@ -1,18 +1,41 @@
 const ENTITY_ROUTES =
   /^(?:procurement\/|bill-pay\/|accounting\/|reports\/accounting-ownership|reports\/[^/]+\/accounting-ownership|expenses\/[^/]+\/allocations|users\/directory|vendor-network\/(?:vendors(?:\/[^/]+)?\/?$|vendor\/company\/[^/]+\/documents)|events\/notifications|legal-entities\/[^/]+\/eligible-vendors)/;
 
+function normalizeRoute(url: string): string {
+  const withoutOrigin = url.replace(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\/[^/?#]+/, "");
+  return withoutOrigin.split("?")[0].replace(/^\/+/, "");
+}
+
 export function workspaceRoute(url: string, method = "GET"): boolean {
-  const route = url.split("?")[0].replace(/^\/+/, "");
+  const route = normalizeRoute(url);
   const reading = ["GET", "HEAD"].includes(method.toUpperCase());
   if (route === "bill-pay/mailbox-connections/google/callback") return false;
   // People list (directory, invited/uninvited users and their stat counts).
   if (/^users\/?$/.test(route)) return reading;
-  if (route.startsWith("policy/procurement"))
+  if (route === "policy" || route.startsWith("policy/")) {
+    if (route.startsWith("policy/approval-settings")) return false;
+    if (route.startsWith("policy/procurement/spend-programs")) {
+      if (
+        route.startsWith("policy/procurement/spend-programs/settings") ||
+        route.startsWith("policy/procurement/spend-programs/rule-definitions") ||
+        route.startsWith("policy/procurement/spend-programs/eligible-approval-roles")
+      ) {
+        return false;
+      }
+      return true;
+    }
+    if (route.startsWith("policy/procurement")) {
+      return (
+        reading &&
+        /^policy\/procurement(?:\/drafts)?(?:\/[^/]+)?\/?$/.test(route)
+      );
+    }
     return (
-      reading &&
-      !route.startsWith("policy/procurement/spend-programs") &&
-      /^policy\/procurement(?:\/drafts)?(?:\/[^/]+)?\/?$/.test(route)
+      route === "policy" ||
+      route.startsWith("policy/drafts") ||
+      /^policy\/[^/]+(?:\/(?:approve|reject))?\/?$/.test(route)
     );
+  }
   if (route.startsWith("vendors")) {
     if (/^vendors(?:\/directory)?\/?$/.test(route)) return reading;
     const match = /^vendors\/([^/]+)(\/.*)?$/.exec(route);
@@ -31,14 +54,15 @@ export function workspaceRoute(url: string, method = "GET"): boolean {
 }
 export function workspaceDetailRoute(url: string): boolean {
   return /^(?:procurement\/(?:purchase-requests|purchase-orders|invoices)|bill-pay\/(?:invoices|intakes|payments|payment-requests|bank-transactions)|accounting\/(?:journals|obligations)|reports)\/[^/?]+\/?$/.test(
-    url.split("?")[0].replace(/^\/+/, ""),
+    normalizeRoute(url),
   );
 }
 export function reportReviewRoute(
   url: string,
   params?: Record<string, unknown>,
 ): boolean {
-  const [route, search = ""] = url.replace(/^\/+/, "").split("?");
+  const withoutOrigin = url.replace(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\/[^/?#]+/, "");
+  const [route, search = ""] = withoutOrigin.replace(/^\/+/, "").split("?");
   const scope = params?.scope || new URLSearchParams(search).get("scope");
   return (
     route === "companies/expense/reports" ||
@@ -85,6 +109,6 @@ export function responseEntity(
 export function optionalWorkspaceDetail(url: string, method = "GET"): boolean {
   return (
     ["GET", "HEAD"].includes(method.toUpperCase()) &&
-    /^\/?reports\/[^/?]+\/?$/.test(url.split("?")[0])
+    /^\/?reports\/[^/?]+\/?$/.test(normalizeRoute(url))
   );
 }

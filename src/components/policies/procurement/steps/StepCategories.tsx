@@ -80,7 +80,7 @@ export function StepCategories({ categoryIds, onChange }: StepCategoriesProps) {
 
         <div className="space-y-2 relative">
           <label className="text-[14px] font-semibold text-[#10231d]">
-            Which category should this program apply to?
+            Which category should this program apply to? <span className="text-[#e05252]">*</span>
           </label>
           
           <Popover open={isOpen} onOpenChange={setIsOpen}>

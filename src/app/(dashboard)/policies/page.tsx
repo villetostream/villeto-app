@@ -686,7 +686,8 @@ function PolicyDetailsModal({
     storedRejection?.rejectedAt;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div
         className="bg-white rounded-3xl shadow-2xl w-full max-w-[500px] flex flex-col"
         style={{ maxHeight: "92vh" }}
@@ -1126,51 +1127,53 @@ function PolicyDetailsModal({
           )}
         </div>
       </div>
-      {reviewMode && (
-        <RejectPolicyReasonModal
-          open={isRejectOpen}
-          onClose={() => setIsRejectOpen(false)}
-          onConfirm={async (reason: string) => {
-            setReviewError(null);
-            try {
-              await rejectMutation.mutateAsync({
-                policyId: targetPolicyId as string,
-                reason,
-              });
-              savePolicyRejection({
-                id: targetPolicyId as string,
-                reason,
-                rejectedBy: currentUser
-                  ? {
-                      userId: currentUser.userId,
-                      firstName: currentUser.firstName,
-                      lastName: currentUser.lastName,
-                      jobTitle:
-                        (currentUser as any).jobTitle ||
-                        (currentUser as any).roleName,
-                    }
-                  : undefined,
-                rejectedAt: new Date().toISOString(),
-              });
-              setIsRejectOpen(false);
-              toast.success("Policy rejected successfully");
-              onClose();
-            } catch (err) {
-              setReviewError(
-                getApiErrorMessage(
-                  err,
-                  "Failed to reject policy. It may have already been reviewed.",
-                ),
-              );
-              setIsRejectOpen(false);
-            }
-          }}
-          isLoading={rejectMutation.isPending}
-          title="Reject Expense Policy"
-          entityName={policyName}
-        />
-      )}
     </div>
+
+    {reviewMode && (
+      <RejectPolicyReasonModal
+        open={isRejectOpen}
+        onClose={() => setIsRejectOpen(false)}
+        onConfirm={async (reason: string) => {
+          setReviewError(null);
+          try {
+            await rejectMutation.mutateAsync({
+              policyId: targetPolicyId as string,
+              reason,
+            });
+            savePolicyRejection({
+              id: targetPolicyId as string,
+              reason,
+              rejectedBy: currentUser
+                ? {
+                    userId: currentUser.userId,
+                    firstName: currentUser.firstName,
+                    lastName: currentUser.lastName,
+                    jobTitle:
+                      (currentUser as any).jobTitle ||
+                      (currentUser as any).roleName,
+                  }
+                : undefined,
+              rejectedAt: new Date().toISOString(),
+            });
+            setIsRejectOpen(false);
+            toast.success("Policy rejected successfully");
+            onClose();
+          } catch (err) {
+            setReviewError(
+              getApiErrorMessage(
+                err,
+                "Failed to reject policy. It may have already been reviewed.",
+              ),
+            );
+            setIsRejectOpen(false);
+          }
+        }}
+        isLoading={rejectMutation.isPending}
+        title="Reject Expense Policy"
+        entityName={policyName}
+      />
+    )}
+  </>
   );
 }
 
