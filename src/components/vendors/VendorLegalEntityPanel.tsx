@@ -42,6 +42,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { EndAssignmentForm } from "./EndAssignmentForm";
+import { shouldRefreshAfterEndConflict } from "./end-site-assignment";
+
 type SiteStatus = "active" | "inactive";
 type AssignmentPurpose = "purchasing" | "invoicing" | "remit_to";
 
@@ -734,23 +737,40 @@ function VendorLegalEntityPanelContent({
     relationship: EntityRelationship,
     assignment: SiteAssignment,
     reason: string,
+    putPurchasingOnHold: boolean,
   ) => {
     setSubmitting(true);
     try {
       await axiosInstance.patch(
         `/vendor-management/${vendorId}/entity-relationships/${relationship.vendorEntityRelationshipId}/site-assignments/${assignment.vendorEntitySiteAssignmentId}`,
-        { status: "inactive", inactivationReason: reason.trim() },
+        {
+          status: "inactive",
+          inactivationReason: reason.trim(),
+          ...(putPurchasingOnHold ? {
+            putPurchasingOnHold: true,
+            expectedVersion: relationship.configurationVersion,
+          } : {}),
+        },
       );
       toast.success(
-        "Site assignment ended. Historical transactions were preserved.",
+        putPurchasingOnHold
+          ? "Site assignment ended and purchasing placed on hold for this legal entity."
+          : "Site assignment ended. Historical transactions were preserved.",
       );
       setEndingAssignment(null);
       await invalidateVendorManagement(queryClient);
       await load();
     } catch (error) {
-      toast.error(
-        apiErrorMessage(error, "Could not end this site assignment."),
-      );
+      if (
+        isAxiosError(error) &&
+        shouldRefreshAfterEndConflict(error.response?.data, assignment.purpose)
+      ) {
+        setEndingAssignment(null);
+        toast.error("The purchasing configuration changed. Refreshing it now; select End again to review the current impact.");
+        await load();
+      } else {
+        toast.error(apiErrorMessage(error, "Could not end this site assignment."));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -1103,12 +1123,13 @@ function VendorLegalEntityPanelContent({
         state={endingAssignment}
         submitting={submitting}
         onOpenChange={(open) => !open && setEndingAssignment(null)}
-        onSubmit={(reason) => {
+        onSubmit={(reason, putPurchasingOnHold) => {
           if (endingAssignment)
             return endAssignment(
               endingAssignment.relationship,
               endingAssignment.assignment,
               reason,
+              putPurchasingOnHold,
             );
         }}
       />
@@ -1820,7 +1841,7 @@ function EndAssignmentDialog({
   } | null;
   submitting: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (reason: string) => Promise<void> | void;
+  onSubmit: (reason: string, putPurchasingOnHold: boolean) => Promise<void> | void;
 }) {
   const open = Boolean(state);
   return (
@@ -1837,59 +1858,6 @@ function EndAssignmentDialog({
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function EndAssignmentForm({
-  state,
-  submitting,
-  onClose,
-  onSubmit,
-}: {
-  state: { relationship: EntityRelationship; assignment: SiteAssignment };
-  submitting: boolean;
-  onClose: () => void;
-  onSubmit: (reason: string) => Promise<void> | void;
-}) {
-  const [reason, setReason] = useState("");
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>End site assignment</DialogTitle>
-        <DialogDescription>
-          This stops new use of {state.assignment.site?.name || "this site"} for{" "}
-          {purposeLabel[state.assignment.purpose]}. It does not rewrite
-          historical transactions.
-        </DialogDescription>
-      </DialogHeader>
-      <label className="block text-[12px] font-semibold text-[#93292e]">
-        Reason *
-      </label>
-      <textarea
-        value={reason}
-        onChange={(event) => setReason(event.target.value)}
-        rows={4}
-        placeholder="Why should this site no longer be used for this purpose?"
-        className="w-full rounded-[8px] border border-[#fbd5d5] p-3 text-[13px] outline-none placeholder:text-[#a0aaa5] focus:border-[#d33d44]"
-      />
-      <DialogFooter>
-        <button
-          type="button"
-          onClick={onClose}
-          className="h-10 rounded-[8px] border border-black/[0.08] px-4 text-[13px] font-semibold text-[#68726d] hover:bg-[#f9faf9]"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          disabled={submitting || !reason.trim()}
-          onClick={() => void onSubmit(reason)}
-          className="h-10 rounded-[8px] bg-[#d33d44] px-4 text-[13px] font-semibold text-white hover:bg-[#c33339] disabled:opacity-50"
-        >
-          {submitting ? "Saving..." : "End assignment"}
-        </button>
-      </DialogFooter>
-    </>
   );
 }
 
