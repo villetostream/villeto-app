@@ -40,7 +40,7 @@ const RoleTable = () => {
   return (
     <DataTable
       data={depts.data?.data ?? []}
-      isLoading={depts.isLoading}
+      isLoading={depts.isLoading || search !== tableprops.globalSearch}
       manualPagination={true}
       manualFiltering={true}
       manualSorting={true}

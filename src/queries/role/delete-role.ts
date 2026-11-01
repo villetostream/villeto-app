@@ -35,6 +35,9 @@ export const useDeleteRoleApi = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.statistics),
+      });
+      queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.people.roles),
       });
     },

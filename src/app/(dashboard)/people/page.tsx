@@ -9,8 +9,7 @@ import { DirectoryTab } from "@/components/dashboard/people/directory/DirectoryT
 import { useRouter, useSearchParams } from "next/navigation";
 import PermissionGuard from "@/components/permissions/permission-protected-components";
 import withPermissions from "@/components/permissions/permission-protected-routes";
-import { useGetDirectoryUsersApi, useGetInvitedUsersApi } from "@/queries/users/get-all-users";
-import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
+import { usePeopleStatistics } from "@/queries/users/get-people-statistics";
 import { StatsCard } from "@/components/dashboard/landing/StatCard";
 import { InviteEmployeesWarningModal } from "@/components/dashboard/people/modals/InviteEmployeesWarningModal";
 import { AddEmployeeModal } from "@/components/dashboard/people/invite/AddEmployeeModal";
@@ -24,21 +23,16 @@ function People() {
     const { canManageUsers, canViewRoles, canViewUsers: canReadDirectory, canManageRoles } = policies.people;
     const { canViewAssignments, canManageAssignments } = policies.legalEntities;
 
-    const totalInvitedUsersApi = useGetInvitedUsersApi({ enabled: canManageUsers, params: { limit: 1, view: "count" } });
-    const activeInvitedUsersApi = useGetInvitedUsersApi({ enabled: canManageUsers, params: { limit: 1, status: "Active", view: "count" } });
-    
-    const rolesApi     = useGetAllRolesApi({ limit: 1, view: "count" }, { enabled: canViewRoles });
-    const directoryApi = useGetDirectoryUsersApi({ enabled: canReadDirectory, params: { status: "all", view: "count" } });
-
-    const directoryTotalCount = directoryApi?.data?.meta?.totalCount ?? 0;
+    const statistics = usePeopleStatistics(canManageUsers || canViewRoles);
+    const directoryTotalCount = statistics.data?.directoryUsers ?? 0;
     const hasDirectoryData    = directoryTotalCount > 0;
 
     const statCards = [
         ...(canManageUsers ? [
-            { icon: Users, label: "Total Users", value: totalInvitedUsersApi?.data?.meta?.totalCount || "0", description: "Total registered users", bgColor: "#384A57" },
-            { icon: UserCheck, label: "Active Users", value: activeInvitedUsersApi?.data?.meta?.totalCount || "0", description: "Currently active members", bgColor: "#0FA68E" },
+            { icon: Users, label: "Total Users", value: statistics.data?.totalUsers || "0", description: "Total registered users", bgColor: "#384A57" },
+            { icon: UserCheck, label: "Active Users", value: statistics.data?.activeUsers || "0", description: "Currently active members", bgColor: "#0FA68E" },
         ] : []),
-        ...(canViewRoles ? [{ icon: UserCog, label: "Roles", value: rolesApi?.data?.meta?.totalCount || "0", description: "View Roles", bgColor: "#418341" }] : []),
+        ...(canViewRoles ? [{ icon: UserCog, label: "Roles", value: statistics.data?.roles || "0", description: "View Roles", bgColor: "#418341" }] : []),
     ];
 
     const searchParams = useSearchParams();
@@ -157,8 +151,7 @@ function People() {
                             title={stat.label}
                             value={stat.value}
                             isLoading={
-                                stat.label === "Total Users"  ? totalInvitedUsersApi.isLoading :
-                                stat.label === "Roles"        ? rolesApi.isLoading : false
+                                statistics.isLoading
                             }
                             accentColor={stat.bgColor}
                             icon={<stat.icon className="w-4 h-4" style={{ color: stat.bgColor }} />}

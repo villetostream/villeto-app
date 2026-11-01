@@ -30,6 +30,8 @@ export interface ITableHeader {
     title: string;
     filterData: FilterData[];
     onFilter: (data: Record<string, unknown>) => void;
+  onOpen?: () => void;
+  isLoading?: boolean;
   };
   bulkActions?: { label: string; onClick: () => void }[];
   enableColumnVisibility?: boolean;
