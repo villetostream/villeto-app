@@ -76,36 +76,36 @@ const unwrap = <T>(value: { data?: T } | T): T =>
 export function useBillPayData(legalEntityId?: string) {
   const axios = useAxios();
   const enabled = Boolean(legalEntityId);
-  const get = async <T>(path: string) =>
-    unwrap<T>((await axios.get(path, { params: { legalEntityId } })).data);
+  const get = async <T>(path: string, signal: AbortSignal) =>
+    unwrap<T>((await axios.get(path, { params: { legalEntityId }, signal })).data);
   return {
     requests: useQuery({
       queryKey: workspaceQueryKey(["bill-pay", "requests", legalEntityId]),
-      queryFn: () => get<PaymentRequest[]>("bill-pay/payment-requests"),
+      queryFn: ({ signal }) => get<PaymentRequest[]>("bill-pay/payment-requests", signal),
       staleTime: STALE_TIMES.LIVE,
       enabled,
     }),
     payments: useQuery({
       queryKey: workspaceQueryKey(["bill-pay", "payments", legalEntityId]),
-      queryFn: () => get<Payment[]>("bill-pay/payments"),
+      queryFn: ({ signal }) => get<Payment[]>("bill-pay/payments", signal),
       staleTime: STALE_TIMES.LIVE,
       enabled,
     }),
     funding: useQuery({
       queryKey: workspaceQueryKey(["bill-pay", "funding", legalEntityId]),
-      queryFn: () => get<FundingAccount[]>("bill-pay/funding-accounts"),
+      queryFn: ({ signal }) => get<FundingAccount[]>("bill-pay/funding-accounts", signal),
       staleTime: STALE_TIMES.SLOW,
       enabled,
     }),
     beneficiaries: useQuery({
       queryKey: workspaceQueryKey(["bill-pay", "beneficiaries", legalEntityId]),
-      queryFn: () => get<Beneficiary[]>("bill-pay/beneficiaries"),
+      queryFn: ({ signal }) => get<Beneficiary[]>("bill-pay/beneficiaries", signal),
       staleTime: STALE_TIMES.SLOW,
       enabled,
     }),
     bankTransactions: useQuery({
       queryKey: workspaceQueryKey(["bill-pay", "bank", legalEntityId]),
-      queryFn: () => get<BankTransaction[]>("bill-pay/bank-transactions"),
+      queryFn: ({ signal }) => get<BankTransaction[]>("bill-pay/bank-transactions", signal),
       staleTime: STALE_TIMES.LIVE,
       enabled,
     }),
@@ -204,7 +204,7 @@ export function useGetBillPayIntakes(
   const axios = useAxios();
   return useQuery({
     queryKey: workspaceQueryKey(["bill-pay", "intakes", params]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const searchParams = new URLSearchParams();
       if (params.page) searchParams.append("page", params.page.toString());
       if (params.limit) searchParams.append("limit", params.limit.toString());
@@ -215,6 +215,7 @@ export function useGetBillPayIntakes(
 
       const res = await axios.get(
         `/bill-pay/intakes?${searchParams.toString()}`,
+        { signal },
       );
       return res.data.data as {
         data: BillPayIntake[];
@@ -264,8 +265,8 @@ export function useGetBillPayIntakeById(
   const axios = useAxios();
   return useQuery({
     queryKey: workspaceQueryKey(["bill-pay", "intakes", id]),
-    queryFn: async () => {
-      const res = await axios.get(`/bill-pay/intakes/${id}`);
+    queryFn: async ({ signal }) => {
+      const res = await axios.get(`/bill-pay/intakes/${id}`, { signal });
       return res.data as { data: BillPayIntakeDetail };
     },
     enabled: !!id && (options?.enabled ?? true),
@@ -413,9 +414,10 @@ export function useGetFundingAccounts(
       page,
       limit,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const res = await axios.get(
         `/bill-pay/funding-accounts?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`,
+        { signal },
       );
       return res.data.data as { data: FundingAccount[]; meta: any };
     },
@@ -463,9 +465,10 @@ export function useGetBeneficiaries(
       page,
       limit,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const res = await axios.get(
         `/bill-pay/beneficiaries?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`,
+        { signal },
       );
       return res.data.data as { data: Beneficiary[]; meta: any };
     },
@@ -523,9 +526,10 @@ export function useGetApprovalRules(
       page,
       limit,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const res = await axios.get(
         `/bill-pay/approval-rules?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`,
+        { signal },
       );
       return res.data.data as { data: ApprovalRule[]; meta: any };
     },
@@ -585,9 +589,10 @@ export function useGetPaymentRequests(
       page,
       limit,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const res = await axios.get(
         `/bill-pay/payment-requests?legalEntityId=${legalEntityId}&page=${page}&limit=${limit}`,
+        { signal },
       );
       return res.data.data as { data: PaymentRequest[]; meta: any };
     },
@@ -600,9 +605,10 @@ export function useGetPaymentRequestById(paymentRequestId: string) {
   const axios = useAxios();
   return useQuery({
     queryKey: workspaceQueryKey(["bill-pay", "requests", paymentRequestId]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const res = await axios.get(
         `/bill-pay/payment-requests/${paymentRequestId}`,
+        { signal },
       );
       return res.data as { data: PaymentRequest };
     },
@@ -784,10 +790,10 @@ export function useGetPayments(legalEntityId: string, page = 1, limit = 20) {
       page,
       limit,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       if (legalEntityId !== "all") params.set("legalEntityId", legalEntityId);
-      const res = await axios.get(`/bill-pay/payments?${params.toString()}`);
+      const res = await axios.get(`/bill-pay/payments?${params.toString()}`, { signal });
       return res.data.data as { data: Payment[]; meta: any };
     },
     staleTime: STALE_TIMES.LIVE,
@@ -799,8 +805,8 @@ export function useGetPaymentById(paymentId: string) {
   const axios = useAxios();
   return useQuery({
     queryKey: workspaceQueryKey(["bill-pay", "payments", paymentId]),
-    queryFn: async () => {
-      const res = await axios.get(`/bill-pay/payments/${paymentId}`);
+    queryFn: async ({ signal }) => {
+      const res = await axios.get(`/bill-pay/payments/${paymentId}`, { signal });
       return res.data as { data: Payment };
     },
     enabled: !!paymentId,
@@ -886,10 +892,10 @@ export function useGetBankTransactions(
       page,
       limit,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       if (legalEntityId !== "all") params.set("legalEntityId", legalEntityId);
-      const res = await axios.get(`/bill-pay/bank-transactions?${params.toString()}`);
+      const res = await axios.get(`/bill-pay/bank-transactions?${params.toString()}`, { signal });
       return res.data.data as { data: BankTransaction[]; meta: any };
     },
     enabled: !!legalEntityId,
@@ -900,9 +906,10 @@ export function useGetBankTransactionById(bankTransactionId: string) {
   const axios = useAxios();
   return useQuery({
     queryKey: workspaceQueryKey(["bill-pay", "bank", bankTransactionId]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const res = await axios.get(
         `/bill-pay/bank-transactions/${bankTransactionId}`,
+        { signal },
       );
       return res.data as { data: BankTransaction };
     },
@@ -1044,7 +1051,7 @@ export function useGetBillPayDashboardSummary(
       periodStart,
       periodEnd,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const searchParams = new URLSearchParams();
       if (legalEntityId) searchParams.append("legalEntityId", legalEntityId);
       if (periodStart) searchParams.append("periodStart", periodStart);
@@ -1052,6 +1059,7 @@ export function useGetBillPayDashboardSummary(
 
       const res = await axios.get(
         `/bill-pay/dashboard/summary?${searchParams.toString()}`,
+        { signal },
       );
       return res.data.data as BillPayDashboardSummary;
     },
@@ -1102,7 +1110,7 @@ export function useGetBillPayInvoices(
   const axios = useAxios();
   return useQuery({
     queryKey: workspaceQueryKey(["bill-pay", "invoices", params]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const searchParams = new URLSearchParams();
       if (params.page) searchParams.append("page", params.page.toString());
       if (params.limit) searchParams.append("limit", params.limit.toString());
@@ -1128,6 +1136,7 @@ export function useGetBillPayInvoices(
 
       const res = await axios.get(
         `/bill-pay/invoices?${searchParams.toString()}`,
+        { signal },
       );
       return res.data as {
         data: {
@@ -1167,8 +1176,8 @@ export function useGetBillPayInvoiceById(vendorInvoiceId: string) {
   const axios = useAxios();
   return useQuery({
     queryKey: workspaceQueryKey(["bill-pay", "invoices", vendorInvoiceId]),
-    queryFn: async () => {
-      const res = await axios.get(`/bill-pay/invoices/${vendorInvoiceId}`);
+    queryFn: async ({ signal }) => {
+      const res = await axios.get(`/bill-pay/invoices/${vendorInvoiceId}`, { signal });
       return res.data as { data: BillPayInvoiceDetail };
     },
     enabled: !!vendorInvoiceId,

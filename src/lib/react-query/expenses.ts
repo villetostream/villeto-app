@@ -250,7 +250,7 @@ export const usePersonalExpenses = (
       sortOrder,
     ]),
     enabled: enabled && authReady && !!accessToken,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       params.append("scope", "own");
       if (status) params.append("status", status);
@@ -261,6 +261,7 @@ export const usePersonalExpenses = (
 
       const response = await axios.get<PersonalExpensesApiResponse>(
         `reports?${params.toString()}`,
+        { signal },
       );
       return {
         reports: response.data.data,
@@ -296,7 +297,7 @@ export const useDraftExpenses = (
       sortOrder,
     ]),
     enabled: authReady && !!accessToken,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       // Ensure we don't send scope/status to the drafts endpoint if it expects them as path/intrinsic
       const params = new URLSearchParams();
       params.append("page", page.toString());
@@ -306,6 +307,7 @@ export const useDraftExpenses = (
 
       const response = await axios.get<any>(
         `reports/drafts?${params.toString()}`,
+        { signal },
       );
 
       const topLevelData = response.data?.data || {};
@@ -376,7 +378,7 @@ export const useCompanyExpenses = (
       sortOrder,
     ]),
     enabled: !!scope && enabled && authReady && !!accessToken,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       params.append("scope", scope);
       params.append("page", page.toString());
@@ -386,6 +388,7 @@ export const useCompanyExpenses = (
 
       const response = await axios.get<CompanyExpensesApiResponse>(
         `reports?${params.toString()}`,
+        { signal },
       );
       return {
         reports: response.data.data,
@@ -403,9 +406,10 @@ export const usePersonalExpenseDetail = (reportId: string) => {
 
   return useQuery({
     queryKey: workspaceQueryKey(QUERY_KEYS.expenses.report(reportId)),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const response = await axios.get<PersonalExpenseDetailApiResponse>(
         `${API_KEYS.EXPENSE.PERSONAL_EXPENSES}/${reportId}`,
+        { signal },
       );
       // Extract the data property from the API response
       return response.data.data;
@@ -483,9 +487,10 @@ export const useCompanyExpenseDetail = (reportId: string) => {
 
   return useQuery({
     queryKey: workspaceQueryKey(QUERY_KEYS.expenses.companyReport(reportId)),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const response = await axios.get<PersonalExpenseDetailApiResponse>(
         `reports/${reportId}`,
+        { signal },
       );
       // Extract the data property from the API response
       return response.data.data;
@@ -527,19 +532,8 @@ export const useUpdateCompanyExpenseStatus = () => {
       const statusLabel =
         variables.status === "approved" ? "Approved" : "Rejected";
       toast.success(`Report ${statusLabel.toLowerCase()} successfully.`);
-      // Invalidate all expense queries across scopes (company, team, personal, drafts)
-      invalidateAllExpenseQueries(queryClient);
-      queryClient.invalidateQueries({
-        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.companyReports),
-      });
-      queryClient.invalidateQueries({
-        queryKey: workspaceQueryKey(
-          QUERY_KEYS.expenses.companyReport(variables.reportId),
-        ),
-      });
-      queryClient.invalidateQueries({
-        queryKey: workspaceQueryKey(QUERY_KEYS.expenses.report(variables.reportId))
-      });
+      // This family includes list and detail keys across this actor's workspaces.
+      return invalidateAllExpenseQueries(queryClient);
     },
     onError: (error: unknown) => {
       logger.error("Error updating expense status:", error);

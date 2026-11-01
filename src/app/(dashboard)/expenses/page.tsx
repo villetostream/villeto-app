@@ -144,7 +144,6 @@ function Reimbursements() {
     data: draftExpensesData,
     isLoading: isLoadingDrafts,
     isFetching: isFetchingDrafts,
-    refetch: refetchDraftExpenses,
   } = useDraftExpenses(page, limit, undefined, undefined, queryOptions);
 
   const {
@@ -175,13 +174,11 @@ function Reimbursements() {
   const handleRefresh = async () => {
     setIsManualRefreshing(true);
     try {
-      invalidateAllExpenseQueries(queryClient);
-      await Promise.allSettled([
-        refetchCompanyExpenses(),
-        refetchTeamExpenses(),
-        refetchPersonalExpenses(),
-        refetchDraftExpenses(),
-      ]);
+      // Refresh enabled observers once; leave inactive views stale for next use.
+      await invalidateAllExpenseQueries(queryClient, {
+        cancelRefetch: false,
+        throwOnError: true,
+      });
       toast.success("Expenses refreshed successfully");
     } catch (err) {
       logger.error("Failed to refresh expenses:", err);

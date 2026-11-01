@@ -76,12 +76,77 @@ const MAX_CONCURRENT_REQUESTS = 6;
 let inFlight = 0;
 const waiters: Array<() => void> = [];
 
-function acquireSlot(): Promise<void> {
+function requestCancellation(config: InternalAxiosRequestConfig, message: string) {
+  const error = new axios.CanceledError(message);
+  error.config = config;
+  return error;
+}
+
+function throwIfRequestCanceled(config: InternalAxiosRequestConfig) {
+  if (config.signal?.aborted)
+    throw requestCancellation(config, "Request cancelled");
+  if (
+    config._workspaceGeneration !== undefined &&
+    config._workspaceGeneration !== useEntityWorkspaceStore.getState().generation
+  )
+    throw requestCancellation(config, "Workspace changed before dispatch");
+}
+
+/** Stop waiting as soon as the caller cancels or its workspace becomes obsolete. */
+function waitForRequest(
+  config: InternalAxiosRequestConfig,
+  start: (done: () => void) => () => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let stopWaiting = () => {};
+    const cleanup = () => {
+      stopWaiting();
+      config.signal?.removeEventListener?.("abort", onAbort);
+      unsubscribe();
+    };
+    const onAbort = () => {
+      cleanup();
+      reject(requestCancellation(config, "Request cancelled while waiting"));
+    };
+    const unsubscribe = useEntityWorkspaceStore.subscribe((state) => {
+      if (
+        config._workspaceGeneration !== undefined &&
+        config._workspaceGeneration !== state.generation
+      ) onAbort();
+    });
+    config.signal?.addEventListener?.("abort", onAbort);
+    try {
+      throwIfRequestCanceled(config);
+      stopWaiting = start(() => {
+        cleanup();
+        resolve();
+      });
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
+}
+
+function acquireSlot(config: InternalAxiosRequestConfig): Promise<void> {
+  throwIfRequestCanceled(config);
   if (inFlight < MAX_CONCURRENT_REQUESTS) {
     inFlight++;
+    config._slotHeld = true;
     return Promise.resolve();
   }
-  return new Promise((resolve) => waiters.push(() => { inFlight++; resolve(); }));
+  return waitForRequest(config, (done) => {
+    const waiter = () => {
+      inFlight++;
+      config._slotHeld = true;
+      done();
+    };
+    waiters.push(waiter);
+    return () => {
+      const index = waiters.indexOf(waiter);
+      if (index !== -1) waiters.splice(index, 1);
+    };
+  });
 }
 
 function releaseSlot(config?: InternalAxiosRequestConfig) {
@@ -95,7 +160,11 @@ function releaseSlot(config?: InternalAxiosRequestConfig) {
 // When the server says "slow down", every request should respect it — not
 // just the one that got the 429. Requests started during the cool-down wait.
 let coolDownUntil = 0;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number, config: InternalAxiosRequestConfig) =>
+  waitForRequest(config, (done) => {
+    const timer = setTimeout(done, ms);
+    return () => clearTimeout(timer);
+  });
 
 const MAX_THROTTLE_RETRIES = 3;
 const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
@@ -207,10 +276,12 @@ function formatErrorMessage(error: AxiosError<ApiErrorPayload>) {
 }
 
 apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  throwIfRequestCanceled(config);
   const waitMs = coolDownUntil - Date.now();
-  if (waitMs > 0) await sleep(waitMs);
-  await acquireSlot();
-  config._slotHeld = true;
+  if (waitMs > 0) await sleep(waitMs, config);
+  await acquireSlot(config);
+  // Selection can change between acquiring a slot and this continuation.
+  throwIfRequestCanceled(config);
   return config;
 });
 
@@ -308,6 +379,7 @@ apiClient.interceptors.response.use(
     if (!originalRequest) return Promise.reject(error);
     releaseSlot(originalRequest);
     finishWorkspaceMutation(originalRequest);
+    throwIfRequestCanceled(originalRequest);
 
     // ── Throttling / transient upstream errors ──
     const status = error.response?.status;
@@ -322,7 +394,7 @@ apiClient.interceptors.response.use(
       // Only replay idempotent requests; a POST may already have been applied.
       if (IDEMPOTENT_METHODS.has(method) && attempt < MAX_THROTTLE_RETRIES) {
         originalRequest._throttleRetryCount = attempt + 1;
-        await sleep(retryAfter ?? backoffMs(attempt));
+        await sleep(retryAfter ?? backoffMs(attempt), originalRequest);
         return apiClient(originalRequest);
       }
       if (status === 429) return Promise.reject(error); // already toasted once

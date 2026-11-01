@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useDebounce } from "use-debounce";
 import {
   Search,
   SlidersHorizontal,
@@ -180,6 +181,8 @@ export function StandardBillsTable() {
   // Filters & pagination state
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
+  const [debouncedSearch] = useDebounce(search.trim(), 300);
+  const isSearchPending = search.trim() !== debouncedSearch;
   const [sourceFilter, setSourceFilter] = useState<SourceValue | "">("");
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -205,19 +208,21 @@ export function StandardBillsTable() {
 
   // ─── API call ──────────────────────────────────────────────────────────────
   // GET /bill-pay/invoices?legalEntityId={id}&source={source}&workflowStage=…&search=…&page=…&limit=…
-  const { data: invoicesResponse, isLoading, isError, refetch } = useGetBillPayInvoices(
+  const { data: invoicesResponse, isLoading: isQueryLoading, isError, refetch } = useGetBillPayInvoices(
     {
       legalEntityId,
       page: currentPage,
       limit: pageSize,
-      search: search.trim() || undefined,
+      search: debouncedSearch || undefined,
       source: sourceFilter || undefined,
       workflowStage: workflowStageParam,
     },
     {
-      enabled: !!legalEntityId,   // wait until we have the entity id
+      // Do not fetch the old search on page 1 while the new text is settling.
+      enabled: !!legalEntityId && !isSearchPending,
     }
   );
+  const isLoading = isQueryLoading || isSearchPending;
 
   const invoices: BillPayInvoice[] = invoicesResponse?.data?.data ?? [];
   const meta = invoicesResponse?.data?.meta;

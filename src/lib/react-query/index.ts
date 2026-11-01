@@ -8,13 +8,14 @@ const MAX_QUERY_RETRIES = 2;
  * Only retry failures that are plausibly transient. 4xx responses (validation,
  * auth, not-found, forbidden) will fail identically on retry, so retrying them
  * just multiplies backend load. 429/5xx are already retried with Retry-After
- * awareness in the axios layer; we allow React Query one extra attempt on top
- * only for network errors / 5xx.
+ * awareness in the axios layer. Do not multiply that retry budget here;
+ * React Query handles network errors and statuses the transport did not retry.
  */
 function shouldRetry(failureCount: number, error: unknown): boolean {
   if (failureCount >= MAX_QUERY_RETRIES) return false;
   if (axios.isCancel(error)) return false;
   if (axios.isAxiosError(error)) {
+    if ((error.config?._throttleRetryCount ?? 0) > 0) return false;
     const status = error.response?.status;
     if (status === undefined) return true; // network error / timeout
     if (status === 408) return true;
