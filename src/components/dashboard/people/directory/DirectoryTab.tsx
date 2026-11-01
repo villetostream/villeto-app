@@ -16,7 +16,6 @@ import { useAuthStore } from "@/stores/auth-stores";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Users } from "lucide-react";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
-import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import {
     getUserDepartmentId,
     getUserManagerName,
@@ -72,7 +71,7 @@ export function DirectoryTab() {
     });
 
     const depts = useGetAllDepartmentsApi();
-    const roles = useGetAllRolesApi();
+
     const router = useRouter();
     const axiosInstance = useAxios();
     const currentUser = useAuthStore((s) => s.user);
@@ -179,7 +178,7 @@ export function DirectoryTab() {
         <div className="space-y-4 flex-1 flex flex-col min-h-0 overflow-hidden">
             <DataTable
                 data={users}
-                isLoading={usersApi.isLoading || depts.isLoading || roles.isLoading}
+                isLoading={usersApi.isLoading || depts.isLoading}
                 manualPagination={false}
                 emptyState={
                     <EmptyState 

@@ -1,5 +1,6 @@
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useListStatistics, useListCount } from "@/queries/list-summary";
 import { useAxios } from "@/hooks/useAxios";
 
 export interface AccountingEntity {
@@ -58,7 +59,8 @@ export interface Journal {
   description: string;
   status: string;
   currency: string;
-  lines: JournalLine[];
+  lines?: JournalLine[];
+  lineCount?: number;
 }
 export interface Obligation {
   legalEntity?: AccountingEntity;
@@ -87,11 +89,34 @@ const unwrap = <T>(value: unknown): T => {
   return result as T;
 };
 
-export function useAccountingData(legalEntityId?: string) {
+export function useAccountingData(
+  legalEntityId?: string,
+  options: {
+    journalPage?: number;
+    obligationPage?: number;
+    activeTab?: string;
+  } = {},
+) {
   const axios = useAxios();
   const enabled = Boolean(legalEntityId);
   const get = async <T>(path: string) =>
     unwrap<T>((await axios.get(path, { params: { legalEntityId } })).data);
+  const getPage = async <T>(path: string, params: Record<string, unknown>) => {
+    let result = (
+      await axios.get(path, { params: { legalEntityId, ...params } })
+    ).data;
+    for (let depth = 0; depth < 3 && result?.data && !result?.meta; depth++)
+      result = result.data;
+    return result as {
+      data: T[];
+      meta: {
+        totalCount: number;
+        totalPages: number;
+        currentPage: number;
+        limit: number;
+      };
+    };
+  };
   return {
     accounts: useQuery({
       queryKey: workspaceQueryKey(["accounting", "accounts", legalEntityId]),
@@ -104,14 +129,46 @@ export function useAccountingData(legalEntityId?: string) {
       enabled,
     }),
     journals: useQuery({
-      queryKey: workspaceQueryKey(["accounting", "journals", legalEntityId]),
-      queryFn: () => get<Journal[]>("accounting/journals"),
-      enabled,
+      queryKey: workspaceQueryKey([
+        "accounting",
+        "journals",
+        legalEntityId,
+        "summary",
+        options.journalPage ?? 1,
+      ]),
+      queryFn: () =>
+        getPage<Journal>("accounting/journals", {
+          view: "summary",
+          page: options.journalPage ?? 1,
+          limit: 20,
+        }),
+      enabled: enabled && options.activeTab === "journals",
     }),
-    obligations: useQuery({
-      queryKey: workspaceQueryKey(["accounting", "obligations", legalEntityId]),
-      queryFn: () => get<Obligation[]>("accounting/obligations"),
+    journalCount: useListCount(
+      "accounting/journals",
+      ["accounting", "journals"],
+      { legalEntityId, status: "posted" },
       enabled,
+    ),
+    obligationStatistics: useListStatistics(
+      "accounting/obligations",
+      ["accounting", "obligations"],
+      { legalEntityId },
+      enabled,
+    ),
+    obligations: useQuery({
+      queryKey: workspaceQueryKey([
+        "accounting",
+        "obligations",
+        legalEntityId,
+        options.obligationPage ?? 1,
+      ]),
+      queryFn: () =>
+        getPage<Obligation>("accounting/obligations", {
+          page: options.obligationPage ?? 1,
+          limit: 20,
+        }),
+      enabled: enabled && options.activeTab === "obligations",
     }),
     trialBalance: useQuery({
       queryKey: workspaceQueryKey([

@@ -42,19 +42,22 @@ interface InvoiceListResponse {
 
 export function useProcurementInvoices(
   status?: string,
-  options?: { refetchInterval?: number },
+  options?: { enabled?: boolean; refetchInterval?: number; page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: "asc" | "desc" },
 ) {
   const axios = useAxios();
+  const { enabled = true, refetchInterval, ...params } = options ?? {};
   return useQuery<InvoiceListResponse>({
-    queryKey: workspaceQueryKey(["procurement-invoices", status]),
-    queryFn: async () =>
+    enabled,
+    queryKey: workspaceQueryKey(["procurement-invoices", "summary", status, params]),
+    queryFn: async ({ signal }) =>
       (
         await axios.get("procurement/invoices", {
-          params: { page: 1, limit: 100, ...(status ? { status } : {}) },
+          signal,
+          params: { view: "summary", page: options?.page ?? 1, limit: options?.limit ?? 20, search: options?.search, sortBy: options?.sortBy, sortOrder: options?.sortOrder, ...(status ? { status } : {}) },
         })
       ).data,
     staleTime: STALE_TIMES.LIVE,
-    refetchInterval: options?.refetchInterval ?? POLL_INTERVALS.ACTIVE_LIST,
+    refetchInterval: refetchInterval ?? POLL_INTERVALS.ACTIVE_LIST,
   });
 }
 

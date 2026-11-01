@@ -54,9 +54,10 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
   options?: Omit<
     UseQueryOptions<PaginatedPurchaseOrdersResponse, Error, TData>,
     "queryKey" | "queryFn"
-  >,
+  > & { view?: "summary" | "count" },
 ) => {
   const axios = useAxios();
+  const { view = "summary", ...queryOptions } = options ?? {};
 
   return useQuery<PaginatedPurchaseOrdersResponse, Error, TData>({
     queryKey: workspaceQueryKey([
@@ -67,9 +68,11 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
       vendorId,
       search,
       scope,
+      view,
     ]),
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.set("view", view);
       params.append("page", page.toString());
       params.append("limit", limit.toString());
       if (status) params.append("status", status);
@@ -87,13 +90,14 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
       return response.data;
     },
     staleTime: STALE_TIMES.NORMAL,
-    ...options,
+    ...queryOptions,
   });
 };
 
 // ── Confirmation / Receiving Queue Orders ────────────────────────────────────
 
 export interface GetConfirmationOrdersParams {
+  view?: "count";
   page?: number;
   limit?: number;
   /** Filter by status: all | ready_for_delivery | partially_delivered | delivered */
@@ -110,14 +114,15 @@ export const useConfirmationOrders = <TData = PaginatedPurchaseOrdersResponse>(
   >,
 ) => {
   const axios = useAxios();
-  const { page = 1, limit = 100, status, vendorId, search } = params;
+  const { page = 1, limit = 20, status, vendorId, search, view } = params;
 
   return useQuery<PaginatedPurchaseOrdersResponse, Error, TData>({
     queryKey: workspaceQueryKey(
-      QUERY_KEYS.procurement.confirmations({ page, limit, status, vendorId, search }),
+      [...QUERY_KEYS.procurement.confirmations({ page, limit, status, vendorId, search }), view],
     ),
     queryFn: async () => {
       const qp = new URLSearchParams();
+      if (view) qp.set("view", view);
       qp.append("page", page.toString());
       qp.append("limit", limit.toString());
       if (status && status !== "all") qp.append("status", status);

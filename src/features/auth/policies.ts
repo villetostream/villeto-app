@@ -182,6 +182,13 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
   const prScope = toApiListScope(strongestScope(prGrants));
   const poScope = toApiListScope(strongestScope(grantsFor(snapshot, Object.values(CAPABILITIES.purchaseOrder))));
   const expenseScope = toApiListScope(strongestScope(grantsFor(snapshot, Object.values(CAPABILITIES.expense))));
+  const reportGrants = grantsFor(snapshot, ["expense_viewer", "expense_approver"]);
+  const teamReportScope = reportGrants.some(grant => grant.scopeType === "department")
+    ? "department" as const
+    : reportGrants.some(grant => grant.scopeType === "reporting_chain") ? "team" as const : null;
+  const reportScope = has(permissionSet, PERMISSIONS.expense.readCompany)
+    ? "company" as const : teamReportScope ?? "own" as const;
+
 
   return {
     ready: Boolean(snapshot),
@@ -259,6 +266,8 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
     },
     expenses: {
       listScope: expenseScope,
+      reportScope,
+      teamReportScope,
       canView: expenseScope !== null,
       canReadDepartment: has(permissionSet, PERMISSIONS.expense.readDepartment),
       canReadCompany: has(permissionSet, PERMISSIONS.expense.readCompany),

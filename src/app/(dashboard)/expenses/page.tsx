@@ -22,6 +22,8 @@ import withPermissions from "@/components/permissions/permission-protected-route
 import { useGetExpenseCategoriesWithPoliciesApi, hasCategoryWithPolicy } from "@/queries/companies/get-expense-categories";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useQueryClient } from "@tanstack/react-query";
+import { useListStatistics, countStatistics } from "@/queries/list-summary";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
@@ -47,7 +49,7 @@ function Reimbursements() {
   const canCreatePolicy = useAuthStore((s) => s.can)("policy", "create");
 
   // ── Scope derivation (safe: false until auth is ready) ───────────────────
-  const hasTeamScope    = authReady && policies.expenses.canReadDepartment;
+  const hasTeamScope    = authReady && policies.expenses.canReadDepartment && policies.expenses.teamReportScope !== null;
   const hasCompanyScope = authReady && policies.expenses.canReadCompany;
   // ── Outer tab list (recalculated once auth is ready) ─────────────────────
   const outerTabs = useMemo(() => [
@@ -138,13 +140,13 @@ function Reimbursements() {
     isFetching: isFetchingPersonalExpenses,
     error: personalExpensesError,
     refetch: refetchPersonalExpenses,
-  } = usePersonalExpenses(page, limit, undefined, undefined, undefined, true, queryOptions);
+  } = usePersonalExpenses(page, limit, undefined, undefined, undefined, outerTab === "personal-expenses", queryOptions);
 
   const {
     data: draftExpensesData,
     isLoading: isLoadingDrafts,
     isFetching: isFetchingDrafts,
-  } = useDraftExpenses(page, limit, undefined, undefined, queryOptions);
+  } = useDraftExpenses(page, limit, undefined, undefined, { ...queryOptions, enabled: authReady && outerTab === "personal-expenses" });
 
   const {
     data: companyExpensesData,
@@ -152,7 +154,7 @@ function Reimbursements() {
     isFetching: isFetchingCompanyExpenses,
     error: companyExpensesError,
     refetch: refetchCompanyExpenses,
-  } = useCompanyExpenses(page, limit, "company", undefined, undefined, hasCompanyScope, queryOptions);
+  } = useCompanyExpenses(page, limit, "company", undefined, undefined, hasCompanyScope && outerTab === "company-expenses", queryOptions);
 
   const {
     data: teamExpensesData,
@@ -160,7 +162,7 @@ function Reimbursements() {
     isFetching: isFetchingTeamExpenses,
     error: teamExpensesError,
     refetch: refetchTeamExpenses,
-  } = useCompanyExpenses(page, limit, "team", undefined, undefined, hasTeamScope, queryOptions);
+  } = useCompanyExpenses(page, limit, policies.expenses.teamReportScope ?? "team", undefined, undefined, hasTeamScope && outerTab === "team-expenses", queryOptions);
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
@@ -245,24 +247,20 @@ function Reimbursements() {
     );
   }, [teamExpensesData]);
 
-  // ── Stats helpers ─────────────────────────────────────────────────────────
-  const calculateStats = (data: CompanyExpenseReport[]) => ({
-    totalExpenses:    data.length,
-    pendingApprovals: data.filter(i => i.status === "submitted").length,
-    approvedExpenses: data.filter(i => i.status === "approved" || i.status === "paid").length,
-    paidExpenses:     data.filter(i => i.status === "paid").length,
-  });
-
-  const personalStats = useMemo(() => {
-    const counts = { draft: draftExpensesData?.meta?.totalCount ?? (draftExpensesData?.reports?.length || 0), approved: 0, paid: 0, rejected: 0 };
-    for (const e of personalExpenses ?? []) {
-      if (e.status === "approved")                          counts.approved += 1;
-      if (e.status === "paid")                              counts.paid     += 1;
-      // cover both spellings the API may return
-      if (e.status === "declined" || e.status === "rejected") counts.rejected += 1;
-    }
-    return counts;
-  }, [personalExpenses]);
+  const companyStats = useListStatistics("reports", QUERY_KEYS.expenses.reports("company"), { scope: "company" }, hasCompanyScope);
+  const teamScope = policies.expenses.teamReportScope ?? "team";
+  const teamStats = useListStatistics("reports", QUERY_KEYS.expenses.reports(teamScope), { scope: teamScope }, hasTeamScope);
+  const ownStats = useListStatistics("reports", QUERY_KEYS.expenses.reports("own"), { scope: "own" }, authReady && outerTab === "personal-expenses");
+  const calculateStats = (scope: "team" | "company") => {
+    const buckets = scope === "company" ? companyStats.data : teamStats.data;
+    return { totalExpenses: countStatistics(buckets), pendingApprovals: countStatistics(buckets, ["submitted"]), approvedExpenses: countStatistics(buckets, ["approved", "paid"]), paidExpenses: countStatistics(buckets, ["paid"]) };
+  };
+  const personalStats = {
+    draft: draftExpensesData?.meta?.totalCount ?? 0,
+    approved: countStatistics(ownStats.data, ["approved"]),
+    paid: countStatistics(ownStats.data, ["paid"]),
+    rejected: countStatistics(ownStats.data, ["rejected", "declined"]),
+  };
 
   // ── Status filter tabs (shared definition) ────────────────────────────────
   const expenseStatusTabs = [
@@ -277,10 +275,9 @@ function Reimbursements() {
   // Status tabs for company/team views — excludes Draft (drafts are personal-only)
   const companyExpenseStatusTabs = expenseStatusTabs.filter(t => t.key !== "draft");
 
-  /** Pending badge counts — computed client-side from already-fetched data.
-   *  When the backend adds requiresMyApproval, swap these for a dedicated query. */
-  const companyPendingCount = companyExpenses.filter(e => e.status === "submitted").length;
-  const teamPendingCount = teamExpenses.filter(e => e.status === "submitted").length;
+  /** Counts cover all authorized reports, independent of the loaded page. */
+  const companyPendingCount = countStatistics(companyStats.data, ["submitted"]);
+  const teamPendingCount = countStatistics(teamStats.data, ["submitted"]);
 
 
   // ── Render helpers ────────────────────────────────────────────────────────
@@ -308,7 +305,7 @@ function Reimbursements() {
     pendingCount: number;
   }) => {
 
-    const localStats = calculateStats(data);
+    const localStats = calculateStats(scope);
     return (
       <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">

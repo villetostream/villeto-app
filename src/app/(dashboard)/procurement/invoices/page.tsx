@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDebounce } from "use-debounce";
+import { useListStatistics, countStatistics, amountStatistics } from "@/queries/list-summary";
+import { ListPagination } from "@/components/ui/list-pagination";
+import { useState } from "react";
 import { AlertCircle, CheckCircle2, FileCheck2, Loader2, ReceiptText, Search, XCircle, CreditCard, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
@@ -51,49 +54,20 @@ function ColHeader({
 function ProcurementInvoicesPage() {
   const router = useRouter();
   const policies = useAuthorizationPolicies();
-  const { data, isPending, isError, refetch } = useProcurementInvoices(undefined);
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
   const [sortState, setSortState] = useState<{ key: SortKey; dir: SortDir } | null>({ key: "date", dir: "desc" });
-  const invoices = useMemo(() => data?.data || [], [data?.data]);
-  
-  const filtered = useMemo(() => {
-    let result = invoices.filter((invoice) => 
-      (tab === "all" || invoice.status === tab) && 
-      `${invoice.invoiceNumber} ${invoice.vendor?.displayName || ""} ${invoice.vendor?.legalName || ""} ${invoice.poNumber || ""}`.toLowerCase().includes(search.toLowerCase())
-    );
-
-    if (sortState) {
-      result = [...result].sort((a, b) => {
-        let valA: any = "";
-        let valB: any = "";
-
-        if (sortState.key === "invoiceNumber") {
-          valA = a.invoiceNumber || "";
-          valB = b.invoiceNumber || "";
-        } else if (sortState.key === "amount") {
-          valA = Number(a.totalAmount || 0);
-          valB = Number(b.totalAmount || 0);
-        } else if (sortState.key === "date") {
-          valA = new Date(a.invoiceDate || 0).getTime();
-          valB = new Date(b.invoiceDate || 0).getTime();
-        } else if (sortState.key === "status") {
-          valA = a.status || "";
-          valB = b.status || "";
-        } else if (sortState.key === "accounting") {
-          valA = a.accountingSyncStatus || "";
-          valB = b.accountingSyncStatus || "";
-        }
-
-        if (valA < valB) return sortState.dir === "asc" ? -1 : 1;
-        if (valA > valB) return sortState.dir === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-    return result;
-  }, [invoices, search, tab, sortState]);
+  const [page, setPage] = useState(1);
+  const [debouncedSearch] = useDebounce(search, 250);
+  const { data, isPending, isError, isFetching, refetch } = useProcurementInvoices(tab === "all" ? undefined : tab, {
+    enabled: debouncedSearch === search, page, limit: 20, search: debouncedSearch, sortBy: sortState?.key, sortOrder: sortState?.dir,
+  });
+  const statistics = useListStatistics("procurement/invoices", ["procurement-invoices"], {});
+  const invoices = data?.data ?? [];
+  const filtered = invoices;
 
   const handleSort = (key: SortKey) => {
+    setPage(1);
     setSortState((prev) => {
       if (prev?.key === key) {
         return { key, dir: prev.dir === "asc" ? "desc" : "asc" };
@@ -101,16 +75,16 @@ function ProcurementInvoicesPage() {
       return { key, dir: "asc" };
     });
   };
-  const underReview = invoices.filter((item) => item.status === "under_review").length;
-  const awaiting = invoices.filter((item) => item.status === "submitted").length;
-  const approvedValue = invoices.filter((item) => ["approved", "paid"].includes(item.status)).reduce((sum, item) => sum + Number(item.totalAmount), 0);
-  const currency = invoices[0]?.currency || "USD";
+  const underReview = countStatistics(statistics.data, ["under_review"]);
+  const awaiting = countStatistics(statistics.data, ["submitted"]);
+  const currencies = [...new Set((statistics.data ?? []).filter(b => ["approved", "paid"].includes(b.status)).map(b => b.currency).filter((c): c is string => !!c))];
+  const approvedValueLabel = currencies.map(currency => money(amountStatistics(statistics.data, currency, ["approved", "paid"]), currency)).join(" · ") || money(0, "USD");
 
   return <div className="space-y-5 pb-8 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
     <ProcurementPageHeader title="Vendor invoices" description="Review supplier invoices against the legal entity, PO, receiving evidence, and accounting controls before they become payable." />
-    <div className="grid gap-3 sm:grid-cols-3 shrink-0"><ProcurementMetric label="New submissions" value={awaiting} detail="Waiting to enter review" icon={<ReceiptText className="size-4" />} tone="blue" /><ProcurementMetric label="Under review" value={underReview} detail="Matching and accounting checks" icon={<AlertCircle className="size-4" />} tone="amber" /><ProcurementMetric label="Approved value" value={money(approvedValue, currency)} detail="Posted to the AP subledger" icon={<FileCheck2 className="size-4" />} /></div>
+    <div className="grid gap-3 sm:grid-cols-3 shrink-0"><ProcurementMetric label="New submissions" value={awaiting} detail="Waiting to enter review" icon={<ReceiptText className="size-4" />} tone="blue" /><ProcurementMetric label="Under review" value={underReview} detail="Matching and accounting checks" icon={<AlertCircle className="size-4" />} tone="amber" /><ProcurementMetric label="Approved value" value={approvedValueLabel} detail="Posted to the AP subledger" icon={<FileCheck2 className="size-4" />} /></div>
     <ProcurementSection title="Invoice review queue" description="Invoices received through the vendor portal" className="flex-1 flex flex-col min-h-0">
-      <div className="flex flex-col gap-3 border-b border-black/[0.06] p-4 lg:flex-row lg:items-center lg:justify-between shrink-0"><div className="flex gap-1 overflow-x-auto rounded-[9px] bg-[#f3f6f5] p-1">{["all", "submitted", "under_review", "approved", "paid", "rejected"].map((item) => <button key={item} onClick={() => setTab(item)} className={`h-8 whitespace-nowrap rounded-[7px] px-4 text-[13px] font-semibold capitalize transition ${tab === item ? "bg-white text-[#111815] shadow-sm" : "text-[#75807b]"}`}>{item.replaceAll("_", " ")}</button>)}</div><div className="relative w-full lg:w-64"><Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#89918d]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Invoice, PO, or vendor" className="h-9 w-full rounded-[9px] border border-black/[0.08] pl-9 pr-3 text-[13px] outline-none focus:border-[#0ea894]" /></div></div>
+      <div className="flex flex-col gap-3 border-b border-black/[0.06] p-4 lg:flex-row lg:items-center lg:justify-between shrink-0"><div className="flex gap-1 overflow-x-auto rounded-[9px] bg-[#f3f6f5] p-1">{["all", "submitted", "under_review", "approved", "paid", "rejected"].map((item) => <button key={item} onClick={() => { setTab(item); setPage(1); }} className={`h-8 whitespace-nowrap rounded-[7px] px-4 text-[13px] font-semibold capitalize transition ${tab === item ? "bg-white text-[#111815] shadow-sm" : "text-[#75807b]"}`}>{item.replaceAll("_", " ")}</button>)}</div><div className="relative w-full lg:w-64"><Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#89918d]" /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Invoice, PO, or vendor" className="h-9 w-full rounded-[9px] border border-black/[0.08] pl-9 pr-3 text-[13px] outline-none focus:border-[#0ea894]" /></div></div>
       {isPending ? (
         <div className="flex items-center justify-center gap-2 py-20 text-[13px] text-[#75807b]">
           <Loader2 className="size-4 animate-spin" /> Loading invoices
@@ -165,6 +139,7 @@ function ProcurementInvoicesPage() {
       ) : (
         <div className="py-16 text-center text-[13px] text-[#89918d]">No invoices match this view.</div>
       )}
+    <ListPagination page={page} totalPages={data?.meta?.totalPages ?? 0} totalCount={data?.meta?.totalCount ?? 0} onPageChange={setPage} isFetching={isFetching} />
     </ProcurementSection>
   </div>;
 }
