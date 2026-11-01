@@ -71,7 +71,7 @@ export default function DashboardLayoutContent({
     (state) => state.generation,
   );
   const axios = useAxios();
-  const { login, logout, user, isLoading } = useAuthStore();
+  const { setProfile, user, isLoading } = useAuthStore();
   const accessToken = useAuthStore((s) => s.accessToken);
   const isTourActive = useTourStore((s) => s.isTourActive);
   const setupGuideReady = useTourStore((s) => s.setupGuideReady);
@@ -116,7 +116,7 @@ export default function DashboardLayoutContent({
         const authorization = parseAuthorizationSnapshot(
           userData.authorization,
         );
-        login({
+        setProfile({
           ...currentUser,
           ...userData,
           companyId: companyId || userData.companyId || currentUser?.companyId,
@@ -128,7 +128,7 @@ export default function DashboardLayoutContent({
     } finally {
       setProfileFetched(true);
     }
-  }, [axios, login]);
+  }, [axios, setProfile]);
 
   // Always hold the latest version of the function so setInterval/addEventListener
   // call the current closure without needing to be listed as effect deps.
@@ -153,9 +153,6 @@ export default function DashboardLayoutContent({
     const hasAuthorization = !!currentUser.authorization;
     if (!hasAuthorization) {
       refreshRef.current();
-    } else {
-      // Still mark profile as fetched so the sidebar skeleton hides.
-      setProfileFetched(true);
     }
 
     // Re-check permissions every 2 min so admin role changes propagate without re-login.
@@ -195,7 +192,6 @@ export default function DashboardLayoutContent({
       );
     };
     // Runs once after hydration AND after silent refresh completes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, silentRefreshDone]);
 
   // Ensure the premium splash screen is visible long enough to play its animation
@@ -245,7 +241,7 @@ export default function DashboardLayoutContent({
       <SilentRefreshGate onDone={() => setSilentRefreshDone(true)} />
       <EntityWorkspaceProvider>
         <SidebarProvider defaultOpen={defaultOpen}>
-          <DashboardSidebar isProfileLoading={!profileFetched} />
+          <DashboardSidebar isProfileLoading={!profileFetched && !user.authorization} />
           <div className="flex flex-col flex-1 h-full overflow-hidden">
             <header className="relative z-10 flex h-[72px] w-full shrink-0 items-center gap-3 border-b border-black/[0.06] bg-white/95 px-3 shadow-[0_1px_0_rgba(16,35,29,0.02)] backdrop-blur sm:px-5 lg:px-6">
               {/* Hide mobile collapse trigger during tour so sidebar stays open */}

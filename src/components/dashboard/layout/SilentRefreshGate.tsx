@@ -44,7 +44,7 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
     if (hasRun.current) return;
     hasRun.current = true;
 
-    const { accessToken, accessTokenExpiresAt, setAccessToken, login, user } =
+    const { accessToken, accessTokenExpiresAt, setAccessToken, setProfile, user } =
       useAuthStore.getState();
 
     // Token is still alive — nothing to do.
@@ -104,7 +104,7 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
               const authorization = parseAuthorizationSnapshot(
                 userData.authorization
               );
-              login({
+              setProfile({
                 ...userData,
                 companyId: companyId ?? userData.companyId,
                 authorization,
