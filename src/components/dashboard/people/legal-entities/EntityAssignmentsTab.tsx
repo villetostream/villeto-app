@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Building2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -24,97 +24,55 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DatePicker } from "@/components/ui/date-picker";
-import { AppUser } from "@/queries/departments/get-all-departments";
 import {
-  EmployeeLegalEntityAssignment,
+  EmployeeAssignmentRow,
   useAssignEmployeeLegalEntity,
-  useEmployeeLegalEntityAssignments,
+  useEmployeeAssignmentsPage,
   useLegalEntities,
 } from "@/queries/legal-entities";
-import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 
-interface AssignmentRow {
-  user: AppUser;
-  assignment: EmployeeLegalEntityAssignment | null;
-  loading: boolean;
-  failed: boolean;
-}
-
-function currentPrimary(assignments: EmployeeLegalEntityAssignment[] = []) {
-  const now = Date.now();
-  return (
-    assignments.find((assignment) => {
-      if (assignment.assignmentType !== "primary") return false;
-      if (assignment.status === "cancelled" || assignment.status === "ended") return false;
-      const starts = new Date(assignment.effectiveFrom).getTime();
-      const ends = assignment.effectiveTo
-        ? new Date(assignment.effectiveTo).getTime()
-        : Number.POSITIVE_INFINITY;
-      return starts <= now && now < ends;
-    }) ?? null
-  );
-}
-
 export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
-  const usersQuery = useGetAllUsersApi({ params: { page: 1, limit: 1000, status: "all" } });
-  const entitiesQuery = useLegalEntities();
-  const users = useMemo(() => usersQuery.data?.data ?? [], [usersQuery.data?.data]);
-  const assignmentQueries = useEmployeeLegalEntityAssignments(
-    users.map((user) => user.userId),
-    { enabled: users.length > 0 },
-  );
   const assignMutation = useAssignEmployeeLegalEntity();
-  
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "unassigned" | "assigned">("all");
+  const [filter, setFilter] = useState<"all" | "unassigned" | "assigned">(
+    "all",
+  );
   const [page, setPage] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    if (search.trim() === debouncedSearch) return;
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [search, debouncedSearch]);
+  const assignmentsQuery = useEmployeeAssignmentsPage({
+    page,
+    limit: 10,
+    search: debouncedSearch,
+    filter,
+  });
   const limit = 10;
 
-  const [selected, setSelected] = useState<AssignmentRow | null>(null);
+  const [selected, setSelected] = useState<EmployeeAssignmentRow | null>(null);
   const [legalEntityId, setLegalEntityId] = useState("");
-  const [effectiveFrom, setEffectiveFrom] = useState<Date | undefined>(new Date());
+  const [effectiveFrom, setEffectiveFrom] = useState<Date | undefined>(
+    new Date(),
+  );
   const [reason, setReason] = useState("");
 
-  const rows = useMemo<AssignmentRow[]>(
-    () =>
-      users.map((user, index) => {
-        const query = assignmentQueries[index];
-        return {
-          user,
-          assignment: currentPrimary(query?.data?.data),
-          loading: Boolean(query?.isLoading),
-          failed: Boolean(query?.isError),
-        };
-      }),
-    [assignmentQueries, users],
-  );
+  const entitiesQuery = useLegalEntities({
+    enabled: canManage && Boolean(selected),
+  });
+  const rows = assignmentsQuery.data?.data ?? [];
+  const totalCount = assignmentsQuery.data?.meta.totalCount ?? 0;
+  const currentPage = assignmentsQuery.data?.meta.currentPage ?? page;
+  const totalPages = Math.max(1, assignmentsQuery.data?.meta.totalPages ?? 1);
 
-  // Reset page when filter or search changes
-  useEffect(() => {
-    setPage(1);
-  }, [search, filter]);
-
-  const filteredRows = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return rows.filter((row) => {
-      if (filter === "unassigned" && (row.assignment || row.loading || row.failed)) return false;
-      if (filter === "assigned" && !row.assignment) return false;
-      if (!needle) return true;
-      const name = `${row.user.firstName ?? ""} ${row.user.lastName ?? ""}`.toLowerCase();
-      return name.includes(needle) || row.user.email?.toLowerCase().includes(needle);
-    });
-  }, [filter, rows, search]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / limit));
-  
-  const paginatedRows = useMemo(() => {
-    const start = (page - 1) * limit;
-    return filteredRows.slice(start, start + limit);
-  }, [filteredRows, page]);
-
-  const openAssignment = (row: AssignmentRow) => {
+  const openAssignment = (row: EmployeeAssignmentRow) => {
     setSelected(row);
     setLegalEntityId(row.assignment?.legalEntity?.legalEntityId ?? "");
     setEffectiveFrom(new Date());
@@ -150,14 +108,18 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
       setSelected(null);
       useEntityWorkspaceStore.getState().setDirty(false);
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Could not assign the legal entity."));
+      toast.error(
+        getApiErrorMessage(error, "Could not assign the legal entity."),
+      );
     }
   };
 
   const entities = entitiesQuery.data?.data ?? [];
-  const activeEntities = entities.filter((entity) => entity.status === "active");
-  const isLoading = usersQuery.isLoading || entitiesQuery.isLoading;
-  const unresolvedCount = rows.filter((row) => !row.loading && !row.failed && !row.assignment).length;
+  const activeEntities = entities.filter(
+    (entity) => entity.status === "active",
+  );
+  const isLoading = assignmentsQuery.isPending;
+  const unresolvedCount = assignmentsQuery.data?.summary.unassignedCount;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 pb-6">
@@ -166,10 +128,16 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
           <Building2 className="mt-0.5 h-5 w-5 text-[#b35f00]" />
           <div>
             <p className="text-[14px] font-semibold text-[#0b100e]">
-              {unresolvedCount} employee{unresolvedCount === 1 ? "" : "s"} need a primary legal entity
+              {assignmentsQuery.isError
+                ? "Assignment counts unavailable"
+                : unresolvedCount === undefined
+                  ? "Loading assignment counts…"
+                  : `${unresolvedCount} employee${unresolvedCount === 1 ? " needs" : "s need"} a primary legal entity`}
             </p>
             <p className="mt-0.5 text-[12px] text-[#66706b]">
-              The primary entity is used automatically for employee expenses and other employee-owned transactions.
+              Counts reflect employees visible in this workspace. The primary
+              entity is used for employee expenses and other employee-owned
+              transactions.
             </p>
           </div>
         </div>
@@ -180,12 +148,19 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#84908a]" />
           <Input
             value={search}
+            maxLength={100}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search employees"
             className="pl-9 h-10 border-black/[0.1] rounded-[9px]"
           />
         </div>
-        <Select value={filter} onValueChange={(value) => setFilter(value as typeof filter)}>
+        <Select
+          value={filter}
+          onValueChange={(value) => {
+            setFilter(value as typeof filter);
+            setPage(1);
+          }}
+        >
           <SelectTrigger className="w-full sm:w-[190px] h-10 border-black/[0.1] rounded-[9px]">
             <SelectValue />
           </SelectTrigger>
@@ -202,45 +177,95 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="sticky top-0 z-10 bg-[#f4f7f5] text-[11px] uppercase tracking-[0.1em] text-[#84908a]">
               <tr>
-                <th className="px-5 py-3 font-bold border-b border-black/[0.06]">Employee</th>
-                <th className="px-5 py-3 font-bold border-b border-black/[0.06]">Role</th>
-                <th className="px-5 py-3 font-bold border-b border-black/[0.06]">Primary legal entity</th>
-                <th className="px-5 py-3 font-bold border-b border-black/[0.06]">Status</th>
-                <th className="px-5 py-3 text-right font-bold border-b border-black/[0.06]">Action</th>
+                <th className="px-5 py-3 font-bold border-b border-black/[0.06]">
+                  Employee
+                </th>
+                <th className="px-5 py-3 font-bold border-b border-black/[0.06]">
+                  Role
+                </th>
+                <th className="px-5 py-3 font-bold border-b border-black/[0.06]">
+                  Primary legal entity
+                </th>
+                <th className="px-5 py-3 font-bold border-b border-black/[0.06]">
+                  Status
+                </th>
+                <th className="px-5 py-3 text-right font-bold border-b border-black/[0.06]">
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black/[0.06]">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, index) => (
-                  <tr key={index}><td colSpan={5} className="px-5 py-4"><Skeleton className="h-6 w-full" /></td></tr>
+                  <tr key={index}>
+                    <td colSpan={5} className="px-5 py-4">
+                      <Skeleton className="h-6 w-full" />
+                    </td>
+                  </tr>
                 ))
-              ) : paginatedRows.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-16 text-center text-[#84908a]">No employees match this view.</td></tr>
+              ) : assignmentsQuery.isError ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center">
+                    <p role="alert">
+                      {getApiErrorMessage(
+                        assignmentsQuery.error,
+                        "Could not load employee assignments.",
+                      )}
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="mt-3"
+                      onClick={() => assignmentsQuery.refetch()}
+                    >
+                      Try again
+                    </Button>
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-6 py-16 text-center text-[#84908a]"
+                  >
+                    No employees match this view.
+                  </td>
+                </tr>
               ) : (
-                paginatedRows.map((row) => (
-                  <tr key={row.user.userId} className="hover:bg-[#f9fdfc] transition-colors">
+                rows.map((row) => (
+                  <tr
+                    key={row.user.userId}
+                    className="hover:bg-[#f9fdfc] transition-colors"
+                  >
                     <td className="px-5 py-3">
-                      <p className="text-[13px] font-semibold text-[#0b100e]">{row.user.firstName} {row.user.lastName}</p>
-                      <p className="text-[12px] text-[#66706b]">{row.user.email}</p>
+                      <p className="text-[13px] font-semibold text-[#0b100e]">
+                        {row.user.firstName} {row.user.lastName}
+                      </p>
+                      <p className="text-[12px] text-[#66706b]">
+                        {row.user.email}
+                      </p>
                     </td>
-                    <td className="px-5 py-3 text-[13px] text-[#66706b]">{row.user.jobTitle || row.user.position || "—"}</td>
+                    <td className="px-5 py-3 text-[13px] text-[#66706b]">
+                      {row.user.jobTitle || row.user.position || "—"}
+                    </td>
                     <td className="px-5 py-3 text-[13px] font-semibold text-[#0b100e]">
-                      {row.loading ? "Checking…" : row.failed ? "Could not load" : row.assignment?.legalEntity?.legalName || "Not assigned"}
+                      {row.assignment?.legalEntity.legalName || "Not assigned"}
                     </td>
                     <td className="px-5 py-3">
-                      {row.loading ? null : row.failed ? (
-                        <Badge variant="destructive">Error</Badge>
-                      ) : row.assignment ? (
-                        <Badge variant="active" className="capitalize">Assigned</Badge>
+                      {row.assignment ? (
+                        <Badge variant="active" className="capitalize">
+                          Assigned
+                        </Badge>
                       ) : (
-                        <Badge variant="pending" className="capitalize">Needs assignment</Badge>
+                        <Badge variant="pending" className="capitalize">
+                          Needs assignment
+                        </Badge>
                       )}
                     </td>
                     <td className="px-5 py-3 text-right">
-                      {canManage && !row.loading && !row.failed && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                      {canManage && (
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => openAssignment(row)}
                           className="h-8 rounded-[8px] border-black/[0.1] text-[#0b100e] hover:bg-[#f4f7f5]"
                         >
@@ -254,31 +279,43 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
             </tbody>
           </table>
         </div>
-        
-        {!isLoading && filteredRows.length > 0 && (
+
+        {!isLoading && !assignmentsQuery.isError && totalCount > 0 && (
           <div className="flex items-center justify-between border-t border-black/[0.06] px-5 py-3 bg-white mt-auto">
             <p className="text-[12px] text-[#66706b]">
-              Showing <span className="font-semibold text-[#0b100e]">{(page - 1) * limit + 1}</span> to <span className="font-semibold text-[#0b100e]">{Math.min(page * limit, filteredRows.length)}</span> of <span className="font-semibold text-[#0b100e]">{filteredRows.length}</span> employees
+              Showing{" "}
+              <span className="font-semibold text-[#0b100e]">
+                {(currentPage - 1) * limit + 1}
+              </span>{" "}
+              to{" "}
+              <span className="font-semibold text-[#0b100e]">
+                {Math.min(currentPage * limit, totalCount)}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-[#0b100e]">{totalCount}</span>{" "}
+              employees
             </p>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
+                onClick={() => setPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1 || assignmentsQuery.isFetching}
                 className="h-8 rounded-[8px] px-2.5"
               >
                 <ChevronLeft className="h-4 w-4" />
                 <span className="sr-only">Previous</span>
               </Button>
               <div className="text-[13px] font-medium text-[#0b100e] px-2">
-                Page {page} of {totalPages}
+                Page {currentPage} of {totalPages}
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
+                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                disabled={
+                  currentPage === totalPages || assignmentsQuery.isFetching
+                }
                 className="h-8 rounded-[8px] px-2.5"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -289,65 +326,119 @@ export function EntityAssignmentsTab({ canManage }: { canManage: boolean }) {
         )}
       </div>
 
-      <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && closeDialog()}>
+      <Dialog
+        open={Boolean(selected)}
+        onOpenChange={(open) => !open && closeDialog()}
+      >
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle className="text-[18px] text-[#0b100e]">
-              {selected?.assignment ? "Change primary legal entity" : "Assign primary legal entity"}
+              {selected?.assignment
+                ? "Change primary legal entity"
+                : "Assign primary legal entity"}
             </DialogTitle>
             <DialogDescription>
-              {selected ? `${selected.user.firstName} ${selected.user.lastName}` : "Select an employee"}
+              {selected
+                ? `${selected.user.firstName} ${selected.user.lastName}`
+                : "Select an employee"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="legal-entity" className="text-[#0b100e]">Legal entity</Label>
-              <Select value={legalEntityId} onValueChange={setLegalEntityId}>
-                <SelectTrigger id="legal-entity" className="h-10 border-black/[0.1] rounded-[9px]">
-                  <SelectValue placeholder="Select a legal entity" />
+              <Label htmlFor="legal-entity" className="text-[#0b100e]">
+                Legal entity
+              </Label>
+              <Select
+                value={legalEntityId}
+                onValueChange={setLegalEntityId}
+                disabled={entitiesQuery.isPending || entitiesQuery.isError}
+              >
+                <SelectTrigger
+                  id="legal-entity"
+                  className="h-10 border-black/[0.1] rounded-[9px]"
+                >
+                  <SelectValue
+                    placeholder={
+                      entitiesQuery.isPending
+                        ? "Loading legal entities…"
+                        : "Select a legal entity"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {activeEntities.map((entity) => (
-                    <SelectItem key={entity.legalEntityId} value={entity.legalEntityId}>
+                    <SelectItem
+                      key={entity.legalEntityId}
+                      value={entity.legalEntityId}
+                    >
                       {entity.legalName} ({entity.code})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {entitiesQuery.isError && (
+                <p role="alert" className="text-sm text-red-600">
+                  Could not load legal entities.{" "}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => entitiesQuery.refetch()}
+                  >
+                    Try again
+                  </button>
+                </p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="effective-from" className="text-[#0b100e]">Effective from</Label>
-              <DatePicker 
-                date={effectiveFrom} 
-                setDate={setEffectiveFrom} 
+              <Label htmlFor="effective-from" className="text-[#0b100e]">
+                Effective from
+              </Label>
+              <DatePicker
+                date={effectiveFrom}
+                setDate={setEffectiveFrom}
                 className="w-full h-10 border-black/[0.1] rounded-[9px]"
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="assignment-reason" className="text-[#0b100e]">
-                Reason {selected?.assignment ? <span className="text-[#d33d44]">*</span> : <span className="text-[#84908a] font-normal">(optional)</span>}
+                Reason{" "}
+                {selected?.assignment ? (
+                  <span className="text-[#d33d44]">*</span>
+                ) : (
+                  <span className="text-[#84908a] font-normal">(optional)</span>
+                )}
               </Label>
               <Input
                 id="assignment-reason"
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                placeholder={selected?.assignment ? "Why is this employee moving entities?" : "Assignment context"}
+                placeholder={
+                  selected?.assignment
+                    ? "Why is this employee moving entities?"
+                    : "Assignment context"
+                }
                 className="h-10 border-black/[0.1] rounded-[9px]"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={closeDialog} 
+            <Button
+              variant="outline"
+              onClick={closeDialog}
               disabled={assignMutation.isPending}
               className="rounded-[8px] h-10 border-black/[0.1]"
             >
               Cancel
             </Button>
-            <Button 
-              onClick={saveAssignment} 
-              disabled={!legalEntityId || !effectiveFrom || assignMutation.isPending}
+            <Button
+              onClick={saveAssignment}
+              disabled={
+                !legalEntityId ||
+                !effectiveFrom ||
+                assignMutation.isPending ||
+                entitiesQuery.isPending ||
+                entitiesQuery.isError
+              }
               className="rounded-[8px] h-10 bg-[#0ea894] hover:bg-[#087f70] text-white"
             >
               {assignMutation.isPending ? "Saving…" : "Save assignment"}
