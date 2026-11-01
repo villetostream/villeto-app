@@ -1,12 +1,13 @@
 "use client";
 
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+
 import { useMemo, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FolderX, Download, FileSpreadsheet, FileText } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Upload04Icon } from "@hugeicons/core-free-icons";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
 import { AppUser } from "@/queries/departments/get-all-departments";
 import { DataTable } from "@/components/datatable";
@@ -16,13 +17,8 @@ import { useAuthStore } from "@/stores/auth-stores";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Users } from "lucide-react";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
-import { useGetAllRolesApi } from "@/queries/role/get-all-roles";
 import {
-    getUserDepartmentId,
-    getUserManagerName,
-    getUserRoleId,
     formatDepartmentOptionLabel,
-    formatRoleOptionLabel,
     getDepartmentOptionValue,
     toStringFilterRecord,
     unwrapFilterKeys,
@@ -44,14 +40,18 @@ const getRowId = (row: AppUser) => row.userId;
 export function DirectoryTab() {
     const tableProps = useDataTable({
         initialPage: 1,
+        initialPageSize: 20,
         totalItems: 0, 
-        manualSorting: false,
+        manualSorting: true,
         manualFiltering: true,
-        manualPagination: false,
+        manualPagination: true,
     });
 
-    const page = 1;
-    const limit = 1000;
+    const page = tableProps.page;
+    const limit = tableProps.pageSize;
+    const debouncedSearch = useDebouncedValue(tableProps.globalSearch, 300);
+    const searchReady = debouncedSearch === tableProps.globalSearch;
+    const sort = tableProps.sortBy[0];
 
     const filters = tableProps.filterBy || {};
     const status = filters.status && filters.status !== "all" ? (filters.status as string) : "all";
@@ -61,7 +61,13 @@ export function DirectoryTab() {
     const invited = filters.invited && filters.invited !== "all" ? (filters.invited === "true") : undefined;
 
     const usersApi = useGetDirectoryUsersApi({
+        enabled: searchReady,
         params: {
+            view: "directory-summary",
+            search: debouncedSearch.trim() || undefined,
+            departmentId,
+            sortBy: sort?.id === "position" ? "jobTitle" : sort?.id,
+            sortOrder: sort ? (sort.desc ? "DESC" : "ASC") : undefined,
             page,
             limit,
             status,
@@ -71,8 +77,9 @@ export function DirectoryTab() {
         }
     });
 
-    const depts = useGetAllDepartmentsApi();
-    const roles = useGetAllRolesApi();
+    const [filtersOpened, setFiltersOpened] = useState(false);
+    const depts = useGetAllDepartmentsApi({ enabled: filtersOpened });
+
     const router = useRouter();
     const axiosInstance = useAxios();
     const currentUser = useAuthStore((s) => s.user);
@@ -100,51 +107,15 @@ export function DirectoryTab() {
         }
     }, [axiosInstance]);
 
-    const [debouncedSearch, setDebouncedSearch] = useState("");
-    useEffect(() => {
-        const id = setTimeout(() => setDebouncedSearch(tableProps.globalSearch ?? ""), 200);
-        return () => clearTimeout(id);
-    }, [tableProps.globalSearch]);
-
-    const users = useMemo(() => {
-        let data = usersApi?.data?.data ?? [];
-        
-        if (departmentId) {
-            const selectedDept = depts?.data?.data?.find(d => getDepartmentOptionValue(d) === departmentId);
-            data = data.filter((u) => {
-                const uDeptId = getUserDepartmentId(u);
-                if (uDeptId === departmentId) return true;
-                
-                if (selectedDept && typeof uDeptId === "string") {
-                    const deptName = formatDepartmentOptionLabel(selectedDept);
-                    if (uDeptId.toLowerCase() === deptName.toLowerCase()) return true;
-                }
-                return false;
-            });
-        }
-        
-        if (debouncedSearch) {
-            const query = debouncedSearch.toLowerCase();
-            data = data.filter((u) => {
-                const deptName = typeof u.department === "string" 
-                    ? u.department 
-                    : (u.department?.name || u.department?.departmentName || "");
-                
-                return (u.firstName?.toLowerCase() || "").includes(query) ||
-                    (u.lastName?.toLowerCase() || "").includes(query) ||
-                    (u.email?.toLowerCase() || "").includes(query) ||
-                    String(deptName).toLowerCase().includes(query);
-            });
-        }
-        return data;
-    }, [usersApi.data?.data, debouncedSearch, departmentId]);
+    const users = usersApi.data?.data ?? [];
 
     const totalCount = usersApi?.data?.meta?.totalCount ?? 0;
 
     const isLoading = usersApi.isLoading;
+    const { setTotalItems } = tableProps;
     useEffect(() => {
-        tableProps.setTotalItems(users.length);
-    }, [users.length, tableProps.setTotalItems]);
+        setTotalItems(usersApi.data?.meta?.totalCount ?? 0);
+    }, [usersApi.data?.meta?.totalCount, setTotalItems]);
 
     // Empty state
     if (!isLoading && totalCount === 0 && !tableProps.globalSearch && Object.keys(tableProps.filterBy || {}).length === 0) {
@@ -179,8 +150,13 @@ export function DirectoryTab() {
         <div className="space-y-4 flex-1 flex flex-col min-h-0 overflow-hidden">
             <DataTable
                 data={users}
-                isLoading={usersApi.isLoading || depts.isLoading || roles.isLoading}
-                manualPagination={false}
+                isLoading={usersApi.isLoading || !searchReady}
+                manualPagination={true}
+                manualSorting={true}
+                onSortingChange={(sorting) => {
+                    tableProps.setSortBy(sorting);
+                    tableProps.setPage(1);
+                }}
                 emptyState={
                     <EmptyState 
                         icon={<Users className="w-6 h-6" />}
@@ -236,8 +212,13 @@ export function DirectoryTab() {
                     isFilter: true,
                     enableColumnVisibility: true,
                     search: tableProps.globalSearch,
-                    searchQuery: tableProps.setGlobalSearch,
+                    searchQuery: (value) => {
+                        tableProps.setGlobalSearch(value);
+                        tableProps.setPage(1);
+                    },
                     filterProps: {
+                        onOpen: () => setFiltersOpened(true),
+                        isLoading: depts.isLoading,
                         title: "Directory",
                         filterData: [
                             {

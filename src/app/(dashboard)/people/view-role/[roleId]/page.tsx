@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import { ChevronDown, ChevronUp, ChevronRight, Edit2, ShieldCheck, Lock, Search, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListPagination } from "@/components/ui/list-pagination";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -155,42 +157,23 @@ function ViewRolePage() {
 
     const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
     const [isAssignedUsersOpen, setAssignedUsersOpen] = useState(false);
+    const [assignedUserPage, setAssignedUserPage] = useState(1);
     const [assignedUserSearch, setAssignedUserSearch] = useState("");
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
+    const debouncedSearch = useDebouncedValue(assignedUserSearch);
     const assignedUsersQuery = useGetAllUsersApi({
-        enabled: isAssignedUsersOpen && !!roleId,
+        enabled: isAssignedUsersOpen && !!roleId && assignedUserSearch === debouncedSearch,
         params: {
-            page: 1,
-            limit: 1000,
+            page: assignedUserPage,
+            limit: 20,
+            roleId,
+            search: debouncedSearch,
             status: "all",
         },
     });
 
-    const assignedUsers = useMemo(() => {
-        const users = (assignedUsersQuery.data?.data ?? []).filter((user) => {
-            const assignedRoles = user.companyRoles ?? [];
-            return assignedRoles.some((assignedRole) => assignedRole.roleId === roleId)
-                || user.companyRole?.roleId === roleId
-                || user.villetoRole?.roleId === roleId;
-        });
-
-        const search = assignedUserSearch.trim().toLowerCase();
-        if (!search) return users;
-
-        return users.filter((user) => {
-            const fullName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim().toLowerCase();
-            const department = typeof user.department === "string"
-                ? user.department
-                : user.department?.name || user.department?.departmentName || "";
-
-            return fullName.includes(search)
-                || user.email?.toLowerCase().includes(search)
-                || user.jobTitle?.toLowerCase().includes(search)
-                || user.position?.toLowerCase().includes(search)
-                || String(department).toLowerCase().includes(search);
-        });
-    }, [assignedUserSearch, assignedUsersQuery.data?.data, roleId]);
+    const assignedUsers = assignedUsersQuery.data?.data ?? [];
 
     // Build description lookup from catalog
     const descriptionMap = useMemo(() => {
@@ -499,7 +482,7 @@ function ViewRolePage() {
                                 </p>
                                 <p className="mt-1 text-[12px] text-[#84908a]">
                                     {assignedUserSearch
-                                        ? "Try a different name, email, title, or department."
+                                        ? "Try a different name or email."
                                         : "Users assigned to this role will appear here."}
                                 </p>
                             </div>
@@ -545,10 +528,11 @@ function ViewRolePage() {
                     </div>
                     {!assignedUsersQuery.isLoading && !assignedUsersQuery.isError && (
                         <div className="border-t border-black/[0.06] px-6 py-3 text-[12px] text-[#66706b]">
-                            {assignedUsers.length} {assignedUsers.length === 1 ? "user" : "users"}
+                            {assignedUsersQuery.data?.meta.totalCount ?? 0} users
                             {assignedUserSearch ? " found" : " assigned"}
                         </div>
                     )}
+                    <ListPagination page={assignedUserPage} totalPages={assignedUsersQuery.data?.meta.totalPages ?? 1} totalCount={assignedUsersQuery.data?.meta.totalCount ?? 0} onPageChange={setAssignedUserPage} isFetching={assignedUsersQuery.isFetching} />
                 </DialogContent>
             </Dialog>
 

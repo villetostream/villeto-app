@@ -1,3 +1,4 @@
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { UserProfileModal } from "../modals/UserProfileModal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -14,32 +15,13 @@ import { useAuthStore } from "@/stores/auth-stores";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Users } from "lucide-react";
-import { useTableData } from "./UserTable";
 import {
-    getUserDepartmentId,
-    getUserManagerName,
-    getUserRoleId,
     formatDepartmentOptionLabel,
     formatRoleOptionLabel,
     getDepartmentOptionValue,
     toStringFilterRecord,
     unwrapFilterKeys,
 } from "../user-table-utils";
-
-// Mock data
-const _mockUsers = [
-    {
-        id: "01",
-        name: "Sarah Chen",
-        department: "Marketing",
-        cardType: "Virtual",
-        role: "Finance Manager",
-        location: "New York City",
-        manager: "Andy James",
-        status: "active",
-    },
-    // Add more mock data as needed
-];
 
 export function AllUsersTab() {
     const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -48,8 +30,9 @@ export function AllUsersTab() {
 
     const updateUser = useUpdateUserApi();
     const resendInvitation = useResendInvitationApi();
-    const depts = useGetAllDepartmentsApi();
-    const roles = useGetAllRolesApi();
+    const [filtersOpened, setFiltersOpened] = useState(false);
+    const depts = useGetAllDepartmentsApi({ enabled: filtersOpened });
+    const roles = useGetAllRolesApi(undefined, { enabled: filtersOpened });
 
     const handleViewProfile = useCallback((userId: string) => {
         setSelectedUser(userId);
@@ -81,14 +64,18 @@ export function AllUsersTab() {
 
     const tableprops = useDataTable({
         initialPage: 1,
+        initialPageSize: 20,
         totalItems: 0,
-        manualSorting: false,
+        manualSorting: true,
         manualFiltering: true,
-        manualPagination: false,
+        manualPagination: true,
     });
 
-    const page = 1;
-    const limit = 1000;
+    const page = tableprops.page;
+    const limit = tableprops.pageSize;
+    const debouncedSearch = useDebouncedValue(tableprops.globalSearch, 300);
+    const searchReady = debouncedSearch === tableprops.globalSearch;
+    const sort = tableprops.sortBy[0];
 
     const filters = tableprops.filterBy || {};
     const status = filters.status ? (filters.status as string) : "all";
@@ -97,7 +84,13 @@ export function AllUsersTab() {
     const departmentId = filters.departmentId && filters.departmentId !== "all" ? (filters.departmentId as string) : undefined;
 
     const usersApi = useGetInvitedUsersApi({
+        enabled: searchReady,
         params: {
+            view: "summary",
+            search: debouncedSearch.trim() || undefined,
+            departmentId,
+            sortBy: (sort?.id === "position" ? "roleName" : sort?.id),
+            sortOrder: sort ? (sort.desc ? "DESC" : "ASC") : undefined,
             page,
             limit,
             status,
@@ -106,14 +99,6 @@ export function AllUsersTab() {
         }
     });
 
-    // Debounce the search string by 200ms so the filteredUsers memo only
-    // runs after the user stops typing, not on every keystroke.
-    const [debouncedSearch, setDebouncedSearch] = useState("");
-    useEffect(() => {
-        const id = setTimeout(() => setDebouncedSearch(tableprops.globalSearch ?? ""), 200);
-        return () => clearTimeout(id);
-    }, [tableprops.globalSearch]);
-
     const confirmToggleStatus = async () => {
         if (!userToToggle) return;
         const newStatus = (userToToggle.status ?? "").toLowerCase() === "active" ? "inactive" : "active";
@@ -121,7 +106,7 @@ export function AllUsersTab() {
             await updateUser.mutateAsync({ 
                 id: userToToggle.userId, 
                 status: newStatus 
-            } as any);
+            });
             toast.success(`User successfully ${newStatus === "active" ? "activated" : "deactivated"}`);
         } catch {
             toast.error("Failed to change user status. Please try again.");
@@ -130,49 +115,24 @@ export function AllUsersTab() {
         }
     };
 
-    const users = useMemo(() => {
-        let data = usersApi?.data?.data ?? [];
-        
-        if (departmentId) {
-            const selectedDept = depts?.data?.data?.find(d => getDepartmentOptionValue(d) === departmentId);
-            data = data.filter((u) => {
-                const uDeptId = getUserDepartmentId(u);
-                if (uDeptId === departmentId) return true;
-                
-                if (selectedDept && typeof uDeptId === "string") {
-                    const deptName = formatDepartmentOptionLabel(selectedDept);
-                    if (uDeptId.toLowerCase() === deptName.toLowerCase()) return true;
-                }
-                return false;
-            });
-        }
-        
-        if (debouncedSearch) {
-            const query = debouncedSearch.toLowerCase();
-            data = data.filter((u) => {
-                const deptName = typeof u.department === "string" 
-                    ? u.department 
-                    : (u.department?.name || u.department?.departmentName || "");
-                
-                return (u.firstName?.toLowerCase() || "").includes(query) ||
-                    (u.lastName?.toLowerCase() || "").includes(query) ||
-                    (u.email?.toLowerCase() || "").includes(query) ||
-                    String(deptName).toLowerCase().includes(query);
-            });
-        }
-        return data;
-    }, [usersApi.data?.data, debouncedSearch, departmentId]);
+    const users = usersApi.data?.data ?? [];
 
+    const { setTotalItems } = tableprops;
     useEffect(() => {
-        tableprops.setTotalItems(users.length);
-    }, [users.length, tableprops.setTotalItems]);
+        setTotalItems(usersApi.data?.meta?.totalCount ?? 0);
+    }, [usersApi.data?.meta?.totalCount, setTotalItems]);
 
     return (
         <div className="space-y-4 flex-1 flex flex-col min-h-0 overflow-hidden">
             <DataTable
                 data={users}
-                isLoading={usersApi.isLoading || depts.isLoading || roles.isLoading}
-                manualPagination={false}
+                isLoading={usersApi.isLoading || !searchReady}
+                manualPagination={true}
+                manualSorting={true}
+                onSortingChange={(sorting) => {
+                    tableprops.setSortBy(sorting);
+                    tableprops.setPage(1);
+                }}
                 emptyState={
                     <EmptyState 
                         icon={<Users className="w-6 h-6" />}
@@ -186,7 +146,7 @@ export function AllUsersTab() {
                 enableColumnVisibility={true}
                 selectedDataIds={tableprops.selectedDataIds}
                 setSelectedDataIds={tableprops.setSelectedDataIds}
-                onRowClick={(row: any) => handleViewProfile(row.userId)}
+                onRowClick={(row: AppUser) => handleViewProfile(row.userId)}
                 tableHeader={{
                     actionButton: <></>,
                     isSearchable: true,
@@ -194,8 +154,13 @@ export function AllUsersTab() {
                     isFilter: true,
                     enableColumnVisibility: true,
                     search: tableprops.globalSearch,
-                    searchQuery: tableprops.setGlobalSearch,
+                    searchQuery: (value) => {
+                        tableprops.setGlobalSearch(value);
+                        tableprops.setPage(1);
+                    },
                     filterProps: {
+                        onOpen: () => setFiltersOpened(true),
+                        isLoading: depts.isLoading || roles.isLoading,
                         title: "Invited Users",
                         filterData: [
                             {

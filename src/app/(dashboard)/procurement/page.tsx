@@ -17,6 +17,9 @@ import {
   ProcurementSection,
   ProcurementWorkspaceHeader,
 } from "@/components/procurement/ProcurementWorkspace";
+import { useListStatistics, countStatistics } from "@/queries/list-summary";
+import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
 import withPermissions from "@/components/permissions/permission-protected-routes";
@@ -52,12 +55,12 @@ function ProcurementOverviewPage() {
   const code = entity?.baseCurrency || fallbackCurrency;
 
   const { data: prResponse, isLoading: loadingPr } = useGetPurchaseRequests(
-    { scope: prScope, page: 1, limit: 100 },
+    { scope: prScope, page: 1, limit: 5 },
     { enabled: policies.purchaseRequests.canView },
   );
   const { data: poResponse, isLoading: loadingPo } = usePurchaseOrders(
     1,
-    100,
+    5,
     undefined,
     undefined,
     undefined,
@@ -66,38 +69,19 @@ function ProcurementOverviewPage() {
   );
   const requests = prResponse?.data || [];
   const orders = poResponse?.data || [];
-  const approvals = requests.filter(
-    (item) => item.currentUserActionRequired || item.status === "submitted",
-  );
-  const conversion = requests.filter((item) => item.status === "approved");
-  const receiving = orders.filter((item) =>
-    [
-      "issued",
-      "acknowledged",
-      "ready_for_delivery",
-      "partially_delivered",
-    ].includes(item.status || ""),
-  );
-
-  const activeStatuses = [
-    "approved",
-    "issued",
-    "acknowledged",
-    "ready_for_delivery",
-    "partially_delivered",
-  ];
-  const openOrders = orders.filter((item) =>
-    activeStatuses.includes(item.status || ""),
-  );
-
-  const commitmentsByCurrency = openOrders.reduce(
-    (acc, item) => {
-      const c = item.currency || code;
-      acc[c] = (acc[c] || 0) + Number(item.totalAmount || 0);
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
+  const prStats = useListStatistics(PROCUREMENT_KEYS.PURCHASE_REQUESTS, QUERY_KEYS.procurement.purchaseRequests, { scope: prScope }, policies.purchaseRequests.canView);
+  const poStats = useListStatistics(PROCUREMENT_KEYS.PURCHASE_ORDERS, QUERY_KEYS.procurement.purchaseOrders, { scope: poScope }, policies.purchaseOrders.canView);
+  const approvals = countStatistics(prStats.data, ["submitted"]);
+  const conversion = countStatistics(prStats.data, ["approved"]);
+  const receivingStatuses = ["issued", "acknowledged", "ready_for_delivery", "partially_delivered"];
+  const receiving = countStatistics(poStats.data, receivingStatuses);
+  const activeStatuses = ["approved", ...receivingStatuses];
+  const openOrders = countStatistics(poStats.data, activeStatuses);
+  const commitmentsByCurrency = (poStats.data ?? []).filter(bucket => activeStatuses.includes(bucket.status)).reduce((acc, bucket) => {
+    const currencyCode = bucket.currency || code;
+    acc[currencyCode] = (acc[currencyCode] || 0) + bucket.totalAmount;
+    return acc;
+  }, {} as Record<string, number>);
 
   const primaryCommitment = commitmentsByCurrency[code] || 0;
 
@@ -112,7 +96,7 @@ function ProcurementOverviewPage() {
       </span>
     ) : null;
 
-  const isAnyLoading = loadingPr || loadingPo || entityLoading;
+  const isAnyLoading = loadingPr || loadingPo || entityLoading || prStats.isLoading || poStats.isLoading;
 
   return (
     <div className="space-y-5 pb-8">
@@ -131,7 +115,7 @@ function ProcurementOverviewPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <ProcurementMetric
           label="Requests awaiting action"
-          value={approvals.length}
+          value={approvals}
           detail="Submitted into approval"
           icon={<CalendarClock className="size-4" />}
           tone="amber"
@@ -139,7 +123,7 @@ function ProcurementOverviewPage() {
         />
         <ProcurementMetric
           label="Ready for conversion"
-          value={conversion.length}
+          value={conversion}
           detail="Approved requests without a PO"
           icon={<CircleCheck className="size-4" />}
           isLoading={isAnyLoading}
@@ -149,7 +133,7 @@ function ProcurementOverviewPage() {
           value={money(primaryCommitment, code)}
           detail={
             <>
-              {openOrders.length} active purchase orders{otherCurrenciesLabel}
+              {openOrders} active purchase orders{otherCurrenciesLabel}
             </>
           }
           icon={<ShoppingCart className="size-4" />}
@@ -158,7 +142,7 @@ function ProcurementOverviewPage() {
         />
         <ProcurementMetric
           label="In receiving"
-          value={receiving.length}
+          value={receiving}
           detail="Awaiting complete delivery"
           icon={<Truck className="size-4" />}
           tone="rose"
@@ -176,28 +160,28 @@ function ProcurementOverviewPage() {
               index="01"
               icon={<FileText />}
               title="Request"
-              detail={`${requests.length} requests`}
+              detail={`${countStatistics(prStats.data)} requests`}
               href="/procurement/purchase-request"
             />
             <FlowStep
               index="02"
               icon={<CircleCheck />}
               title="Approve"
-              detail={`${approvals.length} need action`}
+              detail={`${approvals} need action`}
               href="/procurement/purchase-request?innerTab=approve"
             />
             <FlowStep
               index="03"
               icon={<ShoppingCart />}
               title="Order"
-              detail={`${openOrders.length} open POs`}
+              detail={`${openOrders} open POs`}
               href="/procurement/purchase-order"
             />
             <FlowStep
               index="04"
               icon={<PackageCheck />}
               title="Receive"
-              detail={`${receiving.length} in progress`}
+              detail={`${receiving} in progress`}
               href="/procurement/confirmation"
             />
           </div>

@@ -1,3 +1,4 @@
+import type { AxiosInstance } from "axios";
 import {
   useEntityWorkspaceStore,
   workspaceQueryKey,
@@ -38,12 +39,15 @@ export interface Meta {
 export interface UserListParams {
   page?: number;
   limit?: number;
+  view?: "lookup" | "count" | "summary" | "directory-summary";
   invited?: boolean;
   status?: string;
   employeeStatus?: string;
   search?: string;
   roleId?: string;
   departmentId?: string;
+  sortBy?: string;
+  sortOrder?: "ASC" | "DESC";
 }
 
 export interface UseUserListOptions
@@ -52,18 +56,19 @@ export interface UseUserListOptions
 }
 
 async function fetchAllUsersLoop(
-  axiosInstance: any,
+  axiosInstance: AxiosInstance,
   apiUrl: string,
-  params: any,
+  params: UserListParams | undefined,
+  signal?: AbortSignal,
 ) {
   if (params?.limit !== 1000) {
-    const response = await axiosInstance.get(apiUrl, { params });
+    const response = await axiosInstance.get<Response>(apiUrl, { params, signal });
     return response.data;
   }
 
   // Intercept limit=1000 and fetch all pages
   const fetchParams = { ...params, page: 1, limit: 100 };
-  const response = await axiosInstance.get(apiUrl, { params: fetchParams });
+  const response = await axiosInstance.get<Response>(apiUrl, { params: fetchParams, signal });
   const firstPageData = response.data;
 
   const totalPages = firstPageData?.meta?.totalPages || 1;
@@ -73,7 +78,7 @@ async function fetchAllUsersLoop(
     const promises = [];
     for (let i = 2; i <= totalPages; i++) {
       promises.push(
-        axiosInstance.get(apiUrl, { params: { ...fetchParams, page: i } }),
+        axiosInstance.get<Response>(apiUrl, { params: { ...fetchParams, page: i }, signal }),
       );
     }
     const results = await Promise.all(promises);
@@ -108,9 +113,9 @@ export const useGetAllUsersApi = (
       ...QUERY_KEYS.people.users(),
       options?.params,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const apiUrl = `${API_KEYS.USER.USERS}`;
-      return fetchAllUsersLoop(axiosInstance, apiUrl, options?.params);
+      return fetchAllUsersLoop(axiosInstance, apiUrl, options?.params, signal);
     },
     staleTime: STALE_TIMES.NORMAL,
     ...options,
@@ -128,11 +133,12 @@ export const useGetInvitedUsersApi = (
       ...QUERY_KEYS.people.invitedUsers,
       options?.params,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       return fetchAllUsersLoop(
         axiosInstance,
         API_KEYS.USER.INVITED_USERS,
         options?.params,
+        signal,
       );
     },
     staleTime: STALE_TIMES.NORMAL,
@@ -154,11 +160,12 @@ export const useGetDirectoryUsersApi = (
       options?.params,
       selectedWorkspace,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       return fetchAllUsersLoop(
         axiosInstance,
         API_KEYS.USER.DIRECTORY_USERS,
         options?.params,
+        signal,
       );
     },
     staleTime: STALE_TIMES.NORMAL,
@@ -177,11 +184,12 @@ export const useGetUninvitedUsersApi = (
       ...QUERY_KEYS.people.uninvitedUsers,
       options?.params,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       return fetchAllUsersLoop(
         axiosInstance,
         API_KEYS.USER.UNINVITED_USERS,
         options?.params,
+        signal,
       );
     },
     staleTime: STALE_TIMES.NORMAL,
@@ -201,11 +209,12 @@ export const useGetSplitExpenseUsersApi = (
       "split-expense",
       options?.params,
     ]),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       return fetchAllUsersLoop(
         axiosInstance,
         API_KEYS.USER.SPLIT_EXPENSE_USERS,
         options?.params,
+        signal,
       );
     },
     staleTime: STALE_TIMES.NORMAL,

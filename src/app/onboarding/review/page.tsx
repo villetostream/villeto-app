@@ -18,7 +18,7 @@ import {
   ShoppingCart01Icon, 
   Invoice03Icon
 } from "@hugeicons/core-free-icons";
-import { OwnerCard } from "../leadership/page";
+import { OwnerCard } from "@/components/onboarding/OwnerCard";
 import { useRouter } from "next/navigation";
 import { useHydrateOnboardingData } from "@/hooks/useHydrateOnboardingData";
 import { useState } from "react";

@@ -30,9 +30,10 @@ const columnHelper = createColumnHelper<AppUser>();
 export const getDirectoryColumns = (currentUser?: any): ColumnDef<AppUser>[] => [
     columnHelper.display({
         id: "idNo",
+        enableSorting: false,
         header: "S/N",
         cell: (info) => {
-            const rowNum = String(info.row.index + 1).padStart(2, '0');
+            const rowNum = String(info.table.getState().pagination.pageIndex * info.table.getState().pagination.pageSize + info.row.index + 1).padStart(2, '0');
             return <p className="text-sm">{rowNum}</p>;
         },
     }),

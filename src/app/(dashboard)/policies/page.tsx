@@ -79,7 +79,6 @@ import {
   useGetExpensePolicyDraft,
 } from "@/queries/companies/expense-policy-drafts";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
-import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useGetEligibleRoles } from "@/queries/policies/governance";
 import { useGetSpendProgramSettings } from "@/queries/procurement/policies";
 import { useQueryClient } from "@tanstack/react-query";
@@ -535,7 +534,6 @@ function PolicyDetailsModal({
   const isLoading = isDraft ? isDraftLoading : isActiveLoading;
   const fullPolicy = detailData?.data;
 
-  const rolesApi = useGetCompanyRolesApi({}, { enabled: !!policy });
   const departmentsApi = useGetAllDepartmentsApi({ enabled: !!policy });
 
   if (!policy) return null;

@@ -1,4 +1,7 @@
 "use client";
+
+import { useListStatistics, countStatistics } from "@/queries/list-summary";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 
 import { cn } from "@/lib/utils";
@@ -43,8 +46,6 @@ import { logger } from "@/lib/logger";
 import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders, useConfirmationOrders } from "@/queries/procurement/purchase-orders";
-import { needsReceiptConfirmation } from "@/lib/types/purchase-request-helpers";
-import { useCompanyExpenses } from "@/lib/react-query/expenses";
 import {
   Tooltip,
   TooltipContent,
@@ -207,8 +208,8 @@ export function DashboardSidebar({
   };
 
   const canViewCompanyExpenses =
-    policies.expenses.listScope === "company" ||
-    policies.expenses.listScope === "team";
+    policies.expenses.reportScope === "company" ||
+    policies.expenses.reportScope === "team";
 
   // ── Badge Counts ──
   // Badges are secondary UI — defer them by 3 s after mount so the
@@ -227,7 +228,7 @@ export function DashboardSidebar({
 
   const showPRApprovalCount = canApprovePR && isExplicitPRManager;
   const { data: prApprovalData } = useGetPurchaseRequests(
-    { scope: "team", status: "submitted", requiresMyApproval: true },
+    { scope: "team", view: "count", status: "submitted", requiresMyApproval: true },
     { enabled: showPRApprovalCount && badgesReady, select: (d) => d.meta?.totalCount ?? 0 },
   );
   const prAwaitingCount = showPRApprovalCount
@@ -235,7 +236,7 @@ export function DashboardSidebar({
     : 0;
 
   const { data: prConversionData } = useGetPurchaseRequests(
-    { scope: prListScope, status: "approved", requiresMyConversion: true },
+    { scope: prListScope, view: "count", status: "approved", requiresMyConversion: true },
     { enabled: canConvertPR && badgesReady, select: (d) => d.meta?.totalCount ?? 0 },
   );
   const prReadyForPOCount = canConvertPR
@@ -245,6 +246,7 @@ export function DashboardSidebar({
   const { data: prPartialConversionData } = useGetPurchaseRequests(
     {
       scope: prListScope,
+      view: "count",
       status: "partially_converted",
       requiresMyConversion: true,
     },
@@ -267,7 +269,7 @@ export function DashboardSidebar({
     undefined,
     undefined,
     "team",
-    { enabled: showPOApprovalCount && badgesReady, select: (d) => d.meta?.totalCount ?? 0 },
+    { view: "count", enabled: showPOApprovalCount && badgesReady, select: (d) => d.meta?.totalCount ?? 0 },
   );
   const totalPOActionCount = showPOApprovalCount
     ? ((poApprovalData as unknown as number) ?? 0)
@@ -280,28 +282,18 @@ export function DashboardSidebar({
   // (quantityAwaitingReceipt > 0). fulfillmentActionRequired is a VENDOR
   // backorder flag and must not drive this badge.
   const { data: confirmationData } = useConfirmationOrders(
-    { limit: 100 },
+    { limit: 1, view: "count" },
     { enabled: canReceivePO && badgesReady, refetchInterval: POLL_INTERVALS.BADGE, staleTime: STALE_TIMES.LIVE },
   );
   const totalConfirmationCount = canReceivePO
-    ? (confirmationData?.data ?? []).filter(needsReceiptConfirmation).length
+    ? confirmationData?.meta.totalCount ?? 0
     : 0;
 
-  const isExpenseManager =
-    policies.expenses.listScope === "company" ||
-    policies.expenses.listScope === "team";
-  const { data: expensesData } = useCompanyExpenses(
-    1,
-    100,
-    "team",
-    undefined,
-    undefined,
-    isExpenseManager && badgesReady,
-  );
-  const totalExpenseActionCount =
-    isExpenseManager && expensesData?.reports
-      ? expensesData.reports.filter((e) => e.status === "submitted").length
-      : 0;
+  const expenseScope = policies.expenses.reportScope;
+  const isExpenseManager = expenseScope !== "own";
+  const expenseCounts = useListStatistics("reports", QUERY_KEYS.expenses.reports(expenseScope || "own"),
+    { scope: expenseScope }, isExpenseManager && badgesReady, POLL_INTERVALS.BADGE);
+  const totalExpenseActionCount = countStatistics(expenseCounts.data, ["submitted"]);
 
 
   const filterItems = (items: NavItem[]): NavItem[] => {

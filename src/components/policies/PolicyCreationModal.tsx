@@ -5,7 +5,6 @@ import {
   X, Plus, ChevronDown, ChevronUp, Loader2, UserCircle, Check, Trash2,
   MapPin, Users, Tag, ShieldCheck, Info, AlertTriangle
 } from "lucide-react";
-import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useGetExpenseCategoryCoverageAllApi } from "@/queries/companies/get-expense-categories";
 import { useGetInvitedUsersApi, useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
@@ -892,7 +891,6 @@ export default function PolicyCreationModal({
 
   const can = useAuthStore(state => state.can);
 
-  const rolesApi         = useGetCompanyRolesApi({}, { enabled: open });
   const invitedUsersApi  = useGetInvitedUsersApi({ enabled: open });
   const directoryUsersApi = useGetDirectoryUsersApi({ enabled: open && scope === "specific", params: { status: "all" } });
   const departmentsApi   = useGetAllDepartmentsApi({ enabled: open });

@@ -11,7 +11,7 @@ export function workspaceRoute(url: string, method = "GET"): boolean {
   const reading = ["GET", "HEAD"].includes(method.toUpperCase());
   if (route === "bill-pay/mailbox-connections/google/callback") return false;
   // People list (directory, invited/uninvited users and their stat counts).
-  if (/^users\/?$/.test(route)) return reading;
+  if (/^users(?:\/statistics)?\/?$/.test(route)) return reading;
   if (route === "policy" || route.startsWith("policy/")) {
     if (route.startsWith("policy/approval-settings")) return false;
     if (route.startsWith("policy/procurement/spend-programs")) {

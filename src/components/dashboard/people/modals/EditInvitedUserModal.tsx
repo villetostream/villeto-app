@@ -60,7 +60,7 @@ export function EditInvitedUserModal({
     onSave,
 }: EditInvitedUserModalProps) {
     const router = useRouter();
-    const rolesApi = useGetAllRolesApi();
+    const rolesApi = useGetAllRolesApi({}, { enabled: isOpen });
 
     const { handleSubmit, reset, control } = useForm<EditFormValues>({
         defaultValues: { role: "", issueCard: false, ownershipPercentage: 0 },

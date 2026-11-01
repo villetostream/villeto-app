@@ -4,7 +4,6 @@ import { Input } from "../ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../ui/select";
 import { DatePicker } from "../ui/date-picker";
 
-import FormFieldSelect from "../form fields/formFieldSelect";
 import { Button } from "../ui/button";
 import { format } from "date-fns";
 import ModalComponent from "../modals/ModalComponent";
@@ -25,6 +24,8 @@ interface FilterProps {
   title: string;
   filterData: FilterData[];
   onFilter: (data: Record<string, unknown>) => void;
+  onOpen?: () => void;
+  isLoading?: boolean;
 }
 
 export function Filter({ filterProps }: { filterProps: FilterProps }) {
@@ -73,6 +74,7 @@ export function Filter({ filterProps }: { filterProps: FilterProps }) {
   return (
     <ModalComponent
       onOpen={() => {
+        if (!isOpen) filterProps.onOpen?.();
         toggle();
       }}
       isOpen={isOpen}
@@ -85,6 +87,7 @@ export function Filter({ filterProps }: { filterProps: FilterProps }) {
           onSubmit={handleSubmit(onSubmit)}
           className="grid grid-cols-1 gap-6 px-1 py-2"
         >
+          {filterProps.isLoading && <p role="status">Loading filter options…</p>}
           {filterData?.map((filter, _index) => (
             <div key={filter.label}>
               {filter.type === "input" && (

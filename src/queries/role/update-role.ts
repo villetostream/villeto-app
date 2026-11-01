@@ -26,6 +26,9 @@ export const useUpdateRoleApi = () => {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.people.statistics),
+      });
+      queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.people.role(variables.id)),
       });
       queryClient.invalidateQueries({

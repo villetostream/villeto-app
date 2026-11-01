@@ -291,6 +291,7 @@ export const useDraftExpenses = (
   return useQuery({
     queryKey: workspaceQueryKey([
       ...QUERY_KEYS.expenses.drafts,
+      "summary",
       page,
       limit,
       sortBy,
@@ -300,6 +301,7 @@ export const useDraftExpenses = (
     queryFn: async ({ signal }) => {
       // Ensure we don't send scope/status to the drafts endpoint if it expects them as path/intrinsic
       const params = new URLSearchParams();
+      params.set("view", "summary");
       params.append("page", page.toString());
       params.append("limit", limit.toString());
       if (sortBy) params.append("sortBy", sortBy);
@@ -356,7 +358,7 @@ export const useDraftExpenses = (
 export const useCompanyExpenses = (
   page: number = 1,
   limit: number = 10,
-  scope: "team" | "company" = "company",
+  scope: "team" | "company" | "department" = "company",
   sortBy?: string,
   sortOrder?: "asc" | "desc",
   enabled: boolean = true,
