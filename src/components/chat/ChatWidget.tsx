@@ -33,6 +33,8 @@ import { X } from "lucide-react";
 import { useGetInvitedUsersApi } from "@/queries/users/get-all-users";
 import { useGetAllVendors } from "@/queries/vendors/get-all-vendors";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import { PERMISSIONS } from "@/features/auth/policies";
+import { useAuthStore } from "@/stores/auth-stores";
 import { Skeleton } from "@/components/ui/skeleton";
 
 
@@ -60,16 +62,28 @@ export function ChatWidget() {
   } = useChatStore();
 
   const [panelView, setPanelView] = useState<PanelView>({ type: "list" });
-
   const policies = useAuthorizationPolicies();
-  const canViewVendors = policies.vendors.canUseDirectory;
+  const canReadTeam = policies.people.canManageUsers;
+  // The organization vendor list requires company-read permission.
+  const canReadVendors = useAuthStore((state) =>
+    state.canPermission(PERMISSIONS.vendor.companyRead),
+  );
 
-  const { data: usersData, isLoading: usersLoading } = useGetInvitedUsersApi({ params: { limit: 1000, status: "Active" } });
-  const vendorsApi = useGetAllVendors({}, { enabled: canViewVendors });
+  const { data: usersData, isLoading: usersLoading } = useGetInvitedUsersApi({
+    params: { limit: 1000, status: "Active" },
+    enabled: isOpen && activeTab === "team" && canReadTeam,
+  });
+  const vendorsApi = useGetAllVendors({}, {
+    enabled: isOpen && activeTab === "vendors" && canReadVendors,
+  });
 
   useEffect(() => {
-    if (usersData?.data) {
-      const mappedTeam = usersData.data.map((u: any) => ({
+    if (!canReadTeam || !usersData?.data) {
+      setTeamMembers([]);
+      return;
+    }
+    if (usersData.data) {
+      const mappedTeam = usersData.data.map((u) => ({
         id: u.userId,
         name: `${u.firstName || ""} ${u.lastName || ""}`.trim(),
         role: u.role?.name || "Member",
@@ -77,20 +91,30 @@ export function ChatWidget() {
       }));
       setTeamMembers(mappedTeam);
     }
-  }, [usersData, setTeamMembers]);
+  }, [usersData, canReadTeam, setTeamMembers]);
 
   useEffect(() => {
-    if (vendorsApi.data?.data) {
-      const mappedVendors = vendorsApi.data.data.map((v: any) => ({
-        id: v.vendorId || v.id,
+    if (!canReadVendors || !vendorsApi.data?.data) {
+      setVendors([]);
+      return;
+    }
+    if (vendorsApi.data.data) {
+      const mappedVendors = vendorsApi.data.data.map((v: {
+        vendorId: string;
+        id?: string;
+        legalName?: string | null;
+        displayName?: string;
+        taxId?: string;
+      }) => ({
+        id: v.vendorId || v.id || "",
         name: v.legalName || v.displayName || "Unknown Vendor",
         code: v.taxId || "N/A",
         unreadCount: 0,
         threads: []
-      }));
+      })).filter((vendor) => vendor.id);
       setVendors(mappedVendors);
     }
-  }, [vendorsApi.data, setVendors]);
+  }, [vendorsApi.data, canReadVendors, setVendors]);
 
   const handleCloseChat = () => {
     setPanelView({ type: "list" });
@@ -98,13 +122,13 @@ export function ChatWidget() {
   };
 
   // ─── Filtered lists ──────────────────────────────────────────
-  const filteredTeam = teamMembers.filter(
+  const filteredTeam = (canReadTeam ? teamMembers : []).filter(
     (m) =>
       m.name.toLowerCase().includes(teamSearch.toLowerCase()) ||
       m.role.toLowerCase().includes(teamSearch.toLowerCase())
   );
 
-  const filteredVendors = vendors.filter((v) =>
+  const filteredVendors = (canReadVendors ? vendors : []).filter((v) =>
     v.name.toLowerCase().includes(vendorSearch.toLowerCase())
   );
 
@@ -210,7 +234,7 @@ export function ChatWidget() {
                 icon={<Profile size={14} />}
                 label="Team"
               />
-              {canViewVendors && (
+              {canReadVendors && (
                 <TabButton
                   active={activeTab === "vendors"}
                   onClick={() => {

@@ -41,6 +41,8 @@ interface AuthState {
 
     setAccessToken: (token: string, expiresInMs?: number) => void;
     login: (data: User) => void;
+    /** Refresh server profile/permissions without recording human activity. */
+    setProfile: (data: User) => void;
     logout: () => void;
     hydrate: () => void;
     setAuthorization: (snapshot: AuthorizationSnapshot) => void;
@@ -107,6 +109,10 @@ export const useAuthStore = create<AuthState>()(
                     localStorage.setItem('villeto_lastActivityTime', Date.now().toString());
                 }
 
+                get().setProfile(user);
+            },
+
+            setProfile: (user) => {
                 const authorization = user.authorization ?? get().authorization;
                 set({
                     user,

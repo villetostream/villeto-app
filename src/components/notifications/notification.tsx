@@ -2,7 +2,7 @@
 import { workspaceFetch } from "@/features/entity-workspace/fetch";
 import { useEntityWorkspaceStore, workspaceReadOnly } from "@/features/entity-workspace/store";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import {
   Bell,
@@ -45,7 +45,6 @@ function apiUrl(path: string) {
   return `${BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
-import { isRecord } from "@/lib/types/api-error";
 
 function getString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
@@ -215,7 +214,6 @@ function NotificationView({
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
 
-  const sseAbortRef = useRef<AbortController | null>(null);
 
   // ── Only show the 3 most recent ─────────────────────────────────────────────
   const preview = notifications.slice(0, 3);
@@ -238,7 +236,8 @@ function NotificationView({
 
   // ── Fetch + resolve messages ──────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
-    if (!cachedNotifications) setLoading(true);
+    // Cache writes must not change this callback and retrigger the mount fetch.
+    if (!notificationCache.has(cacheKey)) setLoading(true);
     try {
       const res = await workspaceFetch(apiUrl("events/notifications/all"), {
         headers: authHeaders(),
@@ -286,7 +285,7 @@ function NotificationView({
       if (useEntityWorkspaceStore.getState().generation === generation)
         setLoading(false);
     }
-  }, [authHeaders, accessToken, cacheKey, cachedNotifications, generation]);
+  }, [authHeaders, accessToken, cacheKey, generation]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
