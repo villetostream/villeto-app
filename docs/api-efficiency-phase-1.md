@@ -14,7 +14,7 @@ Current main already removed the layout's settings prefetch and the notification
 
 The focused lifecycle baseline against this main revision had 15 failures and four passes. The failures reproduced repeated notification list reads, closed or unauthorized chat fetching, automatic profile refresh extending idle activity, and silent recovery changing the activity timestamp.
 
-Twenty-two new regression cases cover:
+Twenty-two temporary local regression cases verified:
 
 - Empty and populated notification responses during an event-free minute; single-read, mark-all-read, denied-action recovery, and reopening.
 - Rejection of old-workspace responses, and no second stream from the panel.
@@ -22,7 +22,11 @@ Twenty-two new regression cases cover:
 - Bootstrap profile reuse, sidebar readiness, and no settings query from the dashboard layout.
 - Closed chat, visible-tab fetching, cached reopening, missing permissions, and removal of contact rows after access is revoked.
 
-All 93 Vitest tests plus one attachment-download test pass. The production build (including TypeScript), changed-file ESLint with zero warnings, and diff whitespace checks also pass. The local login screen loads successfully. The automated tests use controlled responses and timers; they do not measure live database load or billing.
+The validation run passed all 93 Vitest cases (71 existing and 22 temporary cases) plus one attachment-download test. The four temporary test files and their added `jsdom` dependency are excluded from the final PR; existing tests and test configuration remain unchanged. The temporary checks are retained locally outside the repository and will not become regression coverage on `main`.
+
+After excluding those files and restoring the original dependency manifests, all 71 existing Vitest cases and the attachment-download test pass; TypeScript and diff whitespace checks also pass.
+
+The production build (including TypeScript), changed-file ESLint with zero warnings, and diff whitespace checks passed for the application changes. The local login screen loads successfully. The automated checks used controlled responses and timers; they do not measure live database load or billing.
 
 ## Local preview
 
