@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -20,11 +19,14 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { useGetUninvitedUsersApi, useGetInvitedUsersApi } from "@/queries/users/get-all-users";
+import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAxios } from "@/hooks/useAxios";
 import { useAuthStore } from "@/stores/auth-stores";
-import { useDataTable } from "@/components/datatable/useDataTable";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { usePeopleStatistics } from "@/queries/users/get-people-statistics";
+import { fetchInvitationOptions, useInvitationDepartments } from "@/queries/users/invitation-directory";
+import { useEntityWorkspaceStore, workspaceQueryKey } from "@/features/entity-workspace/store";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
 import { getApiErrorMessage, isRecord } from "@/lib/types/api-error";
@@ -87,132 +89,64 @@ const PAGE_SIZE_OPTIONS = [
 ];
 
 export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageProps) {
-  // Default list: only people who can still be invited (invited=false).
-  // limit=1000 makes the query helper fetch every page, since we paginate client-side.
-  const usersApi = useGetUninvitedUsersApi({ params: { limit: 1000 } });
-  // Already-invited users — never shown by default, only surfaced through search
-  // so admins can look someone up for follow-up.
-  const invitedApi = useGetInvitedUsersApi({ params: { limit: 1000, status: "all" } });
   const queryClient = useQueryClient();
   const router = useRouter();
   const axios = useAxios();
   const user = useAuthStore((state) => state.user);
-  const [businessName, setBusinessName] = useState<string>("your company");
+  const workspace = useEntityWorkspaceStore((state) => state.selection);
+  const businessName = user?.company?.companyName || user?.company?.businessName || "your company";
   const [isInviting, setIsInviting] = useState(false);
-
-  const users = useMemo(
-    () => (usersApi?.data?.data ?? []) as DirectoryUser[],
-    [usersApi.data?.data],
-  );
-  const invitedUsers = useMemo(() => {
-    const uninvitedIds = new Set(users.map((u) => u.userId || (u as any).id));
-    return ((invitedApi?.data?.data ?? []) as DirectoryUser[])
-      .filter((u) => !uninvitedIds.has(u.userId || (u as any).id))
-      .map((u) => ({ ...u, isInvited: true }));
-  }, [invitedApi.data?.data, users]);
-  const hasAnyEmployees = users.length > 0 || invitedUsers.length > 0;
-  const isLoading = usersApi.isLoading;
-
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim());
   const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [departmentOpen, setDepartmentOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  // Corporate card toggle state (keyed by userId)
+  const [isSelectingAll, setIsSelectingAll] = useState(false);
+  const [isAllSelected, setIsAllSelected] = useState(false);
+  const selectionRequest = useRef<AbortController | null>(null);
+  const [pageSize, setPageSize] = useState(20);
+  const [pageState, setPageState] = useState({ key: "", page: 1 });
+  const filterKey = JSON.stringify([user?.userId, user?.company?.companyId, workspace, debouncedSearch, departmentFilter]);
+  const currentPage = pageState.key === filterKey ? pageState.page : 1;
+  const setPage = (page: number) => setPageState({ key: filterKey, page });
+  const paginationProps = { setPage, setPageSize };
+  const params = {
+    status: "all",
+    search: debouncedSearch || undefined,
+    departmentId: departmentFilter === "all" ? undefined : departmentFilter,
+  };
+  const usersApi = useGetAllUsersApi({ params: {
+    ...params, view: "invitation-summary", page: currentPage, limit: pageSize,
+    invited: debouncedSearch ? undefined : false,
+  } });
+  const statistics = usePeopleStatistics(true);
+  const departmentsApi = useInvitationDepartments(departmentOpen);
+  const uniqueDepartments = departmentsApi.data ?? [];
+  const users = useMemo(() => (usersApi.data?.data ?? []).map((employee) => ({
+    ...employee, isInvited: !!employee.invited,
+  })) as DirectoryUser[], [usersApi.data?.data]);
+  const totalItems = usersApi.data?.meta.totalCount ?? 0;
+  const hasAnyEmployees = statistics.data?.directoryUsers !== 0;
+  const isLoading = usersApi.isLoading;
+  const totalPages = Math.max(1, usersApi.data?.meta.totalPages ?? 1);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedData = users;
+  const endIndex = Math.min(startIndex + users.length, totalItems);
+  const invitedMatchCount = users.filter((employee) => employee.isInvited).length;
   const [corporateCardState, setCorporateCardState] = useState<Record<string, boolean>>({});
 
-  const usersKey = users.map((u) => u.userId).join(",");
-  const [syncedUsersKey, setSyncedUsersKey] = useState("");
-  if (users.length > 0 && usersKey !== syncedUsersKey) {
-    setSyncedUsersKey(usersKey);
-    const cardState: Record<string, boolean> = {};
-    users.forEach((u) => {
-      cardState[u.userId] = u.corporateCard ?? false;
-    });
-    setCorporateCardState(cardState);
-  }
-
-  const uniqueDepartments = useMemo(() => {
-    const depts = new Set<string>();
-    [...users, ...invitedUsers].forEach((u) => {
-      const dept = getDepartmentName(u.department);
-      if (dept !== "—") depts.add(dept);
-    });
-    return Array.from(depts).sort();
-  }, [users, invitedUsers]);
-
+  // Selection belongs to one search and workspace. Cancel in-flight ID reads on change.
   useEffect(() => {
-    const fetchBusinessName = async () => {
-      try {
-        if (user?.companyId) {
-          const response = await axios.get(`/companies/${user.companyId}`);
-          const companyData = response?.data?.data || response?.data;
-          if (companyData) {
-            setBusinessName(companyData.companyName || companyData.businessName || "your company");
-          }
-        }
-      } catch {
-        // fallback silently
-      }
-    };
-    fetchBusinessName();
-  }, [user?.companyId, axios]);
-
-  const filteredUsers = useMemo(() => {
-    const searchLower = search.trim().toLowerCase();
-    // Invited users only join the pool while a search is active.
-    const pool = searchLower ? [...users, ...invitedUsers] : users;
-    return pool.filter((u) => {
-      if (departmentFilter && departmentFilter !== "all" && getDepartmentName(u.department).toLowerCase() !== departmentFilter.toLowerCase()) return false;
-      if (!search) return true;
-      const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
-      const email = (u.email || "").toLowerCase();
-      const dept = getDepartmentName(u.department).toLowerCase();
-      const job = (u.position || u.jobTitle || "").toLowerCase();
-      const managerName = u.manager
-        ? typeof u.manager === "object"
-          ? ("name" in u.manager && typeof (u.manager as any).name === "string" && (u.manager as any).name)
-            ? (u.manager as any).name.toLowerCase()
-            : `${(u.manager as any).firstName || ""} ${(u.manager as any).lastName || ""}`.trim().toLowerCase()
-          : String(u.manager).toLowerCase()
-        : "";
-      return (
-        fullName.includes(searchLower) ||
-        email.includes(searchLower) ||
-        dept.includes(searchLower) ||
-        job.includes(searchLower) ||
-        managerName.includes(searchLower)
-      );
-    });
-  }, [users, invitedUsers, search, departmentFilter]);
-
-  // Only uninvited rows can be selected / invited
-  const selectableUsers = useMemo(() => filteredUsers.filter((u) => !u.isInvited), [filteredUsers]);
-  const invitedMatchCount = filteredUsers.length - selectableUsers.length;
-
-  const totalItems = filteredUsers.length;
-
-  // useDataTable for pagination state (same as AllUsersTab pattern)
-  const tableProps = useDataTable({
-    initialPage: 1,
-    initialPageSize: 10,
-    totalItems,
-    manualPagination: false,
-  });
-
-  const { paginationProps } = tableProps;
-
-  // When filters change, reset to page 1
+    setPageState({ key: filterKey, page: 1 });
+    setSelected(new Set());
+    setIsAllSelected(false);
+    setIsSelectingAll(false);
+    setCorporateCardState({});
+    return () => selectionRequest.current?.abort();
+  }, [filterKey]);
   useEffect(() => {
-    paginationProps.setPage(1);
-  }, [search, departmentFilter, paginationProps]);
-
-  const pageSize = paginationProps.pageSize;
-  const currentPage = paginationProps.page;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-
-  const startIndex = (currentPage - 1) * pageSize;
-  const paginatedData = filteredUsers.slice(startIndex, startIndex + pageSize);
-  const endIndex = Math.min(startIndex + pageSize, totalItems);
+    if (usersApi.data && currentPage > totalPages) setPageState({ key: filterKey, page: totalPages });
+  }, [usersApi.data, currentPage, totalPages, filterKey]);
 
   // Pagination page number helper (same logic as DataTable)
   const getPageNumbers = (current: number, total: number) => {
@@ -230,33 +164,41 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
 
   const pageNumbers = getPageNumbers(currentPage, totalPages);
 
-  // Select / deselect ALL filtered users (across all pages)
-  const handleSelectAllChange = (checked: boolean | "indeterminate") => {
-    if (checked === "indeterminate") {
-      // indeterminate click → select all filtered users
-      setSelected(new Set(selectableUsers.map((u) => u.userId)));
+  const handleSelectAllChange = async (checked: boolean | "indeterminate") => {
+    selectionRequest.current?.abort();
+    if (!checked) {
+      setSelected(new Set());
+      setIsAllSelected(false);
+      setIsSelectingAll(false);
       return;
     }
-    if (checked) {
-      setSelected(new Set(selectableUsers.map((u) => u.userId)));
-    } else {
-      setSelected(new Set());
+    const controller = new AbortController();
+    selectionRequest.current = controller;
+    setIsSelectingAll(true);
+    try {
+      const matches = await fetchInvitationOptions<{ userId: string }>(axios, {
+        ...params, view: "ids", invited: false,
+      }, controller.signal);
+      if (controller.signal.aborted) return;
+      setSelected(new Set(matches.map((employee) => employee.userId)));
+      setIsAllSelected(matches.length > 0);
+    } catch (error) {
+      if (!controller.signal.aborted) toast.error(getApiErrorMessage(error, "Could not select all employees. Please try again."));
+    } finally {
+      if (!controller.signal.aborted) setIsSelectingAll(false);
     }
   };
 
   const handleSelectChange = (id: string, checked: boolean) => {
-    const newSelected = new Set(selected);
-    if (checked) {
-      newSelected.add(id);
-    } else {
-      newSelected.delete(id);
-    }
-    setSelected(newSelected);
+    setIsAllSelected(false);
+    setSelected((previous) => {
+      const next = new Set(previous);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
   };
-
-  // Header checkbox reflects state for ALL filtered users (not just current page)
-  const isAllSelected = selectableUsers.length > 0 && selectableUsers.every((u) => selected.has(u.userId));
-  const isSomeSelected = selectableUsers.some((u) => selected.has(u.userId)) && !isAllSelected;
+  const isSomeSelected = selected.size > 0 && !isAllSelected;
 
   const handleCorporateCardToggle = (userId: string) => {
     setCorporateCardState((prev) => ({
@@ -267,7 +209,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
   };
 
   const handleInvite = async () => {
-    if (selected.size === 0) return;
+    if (selected.size === 0 || isSelectingAll || search.trim() !== debouncedSearch) return;
     setIsInviting(true);
     try {
       await axios.post(API_KEYS.COMPANY.EMPLOYEE_INVITES, {
@@ -275,9 +217,8 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
       });
       toast.success("Invitations sent successfully!");
       // Refresh cached lists so freshly invited people drop out of the picker
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.uninvitedUsers });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.invitedUsers });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.people.directoryUsers });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKey(QUERY_KEYS.people.users()) });
+      setIsAllSelected(false);
       setSelected(new Set());
       // Notify setup guide — ticks "invitations" step
       window.dispatchEvent(new CustomEvent("villeto:invitation-sent"));
@@ -289,7 +230,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
     }
   };
 
-  if (isLoading) {
+  if (isLoading && statistics.isLoading) {
     return (
       <div className="space-y-4 p-4">
         <Skeleton className="h-8 w-60" />
@@ -328,7 +269,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
             Select people to invite to {businessName} as users.{" "}
             {users.length > 0 && (
               <span className="text-[#00BFA5] font-medium">
-                Use the checkbox in the table header to select or deselect all.
+                Use the table header checkbox to select all matching uninvited employees.
               </span>
             )}
           </p>
@@ -363,15 +304,17 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-sm"
             />
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter} onOpenChange={setDepartmentOpen}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by department" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
+                {departmentsApi.isLoading && <SelectItem value="loading" disabled>Loading departments…</SelectItem>}
+                {departmentsApi.isError && <SelectItem value="error" disabled>Could not load departments. Reopen to retry.</SelectItem>}
                 {uniqueDepartments.map((dept) => (
-                  <SelectItem key={dept} value={dept}>
-                    {dept}
+                  <SelectItem key={dept.departmentId} value={dept.departmentId}>
+                    {dept.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -392,6 +335,8 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                       data-tour="select-all-checkbox"
                       checked={isSomeSelected ? "indeterminate" : isAllSelected}
                       onCheckedChange={handleSelectAllChange}
+                      disabled={isSelectingAll || search.trim() !== debouncedSearch}
+                      aria-label="Select all matching uninvited employees"
                     />
                   </TableHead>
                   <TableHead className="w-[50px] font-semibold px-4 py-3 text-xs text-gray-700 tracking-wider">S/N</TableHead>
@@ -403,6 +348,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                 </TableRow>
               </TableHeader>
               <TableBody className="bg-white divide-y divide-gray-200">
+                {isLoading && <TableRow><TableCell colSpan={7}><Skeleton className="h-24 w-full" /></TableCell></TableRow>}
                 {paginatedData.map((employee, index) => {
                   const firstName = employee.firstName || "";
                   const lastName = employee.lastName || "";
@@ -439,7 +385,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                       <TableCell className="text-center px-4 py-2.5">
                         <Checkbox
                           checked={!employee.isInvited && selected.has(employee.userId)}
-                          disabled={employee.isInvited}
+                          disabled={employee.isInvited || isSelectingAll || search.trim() !== debouncedSearch}
                           title={employee.isInvited ? "Already invited" : undefined}
                           onCheckedChange={(checked) => handleSelectChange(employee.userId, !!checked)}
                         />
@@ -469,7 +415,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                       <TableCell className="px-4 py-2.5">
                         <div className="flex justify-center">
                           <Switch
-                            disabled={employee.isInvited}
+                            disabled={employee.isInvited || isSelectingAll || search.trim() !== debouncedSearch}
                             checked={corporateCardState[employee.userId] ?? false}
                             onCheckedChange={() => handleCorporateCardToggle(employee.userId)}
                           />
@@ -478,11 +424,11 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
                     </TableRow>
                   );
                 })}
-                {paginatedData.length === 0 && (
+                {!isLoading && paginatedData.length === 0 && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell colSpan={7} className="p-0 border-0">
                       <div className="w-full flex justify-center py-10 px-4">
-                        {users.length === 0 && !search.trim() ? (
+                        {users.length === 0 && !search.trim() && departmentFilter === "all" ? (
                           <div className="flex flex-col items-center justify-center text-center max-w-sm">
                             <div className="w-12 h-12 bg-[#e7f6f2] rounded-full flex items-center justify-center mb-3">
                               <Users className="w-6 h-6 text-[#087f70]" strokeWidth={1.7} />
@@ -653,10 +599,10 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
             <button
               data-tour="send-invitations-button"
               onClick={handleInvite}
-              disabled={selectedCount === 0 || isInviting}
+              disabled={selectedCount === 0 || isInviting || isSelectingAll || search.trim() !== debouncedSearch}
               className="inline-flex items-center justify-center gap-2 h-[46px] bg-[#0ea894] hover:bg-[#0c9785] text-white px-6 rounded-[10px] font-semibold text-[13px] shadow-[0_8px_20px_-10px_rgba(14,168,148,0.7)] hover:translate-y-[-1px] transition-all min-w-[180px] disabled:opacity-50 disabled:hover:translate-y-0 disabled:shadow-none"
             >
-              {isInviting ? "Sending invites..." : `Invite ${selectedCount} User${selectedCount !== 1 ? "s" : ""}`}
+              {isSelectingAll ? "Selecting employees..." : isInviting ? "Sending invites..." : `Invite ${selectedCount} User${selectedCount !== 1 ? "s" : ""}`}
             </button>
           </div>
         </>

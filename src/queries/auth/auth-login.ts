@@ -32,7 +32,7 @@ export const useLogin = (): UseMutationResult<Response, Error, payload> => {
     return useMutation<Response, Error, payload>({
         retry: false,
         mutationFn: async (payload: payload) => {
-            const res = await axiosInstance.post(API_KEYS.AUTH.LOGIN, payload,);
+            const res = await axiosInstance.post(API_KEYS.AUTH.LOGIN, payload, { params: { view: "session" } });
             return res.data;
         },
         onSuccess: () => {

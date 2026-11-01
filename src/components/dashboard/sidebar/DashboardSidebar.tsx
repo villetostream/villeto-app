@@ -142,23 +142,23 @@ export function DashboardSidebar({
         }
       }
       try {
-        const fall = await axios.get("/users/me");
+        const fall = await axios.get("/users/me", { params: { view: "session" } });
         return fall?.data?.data?.company || fall?.data?.company || null;
       } catch (err) {
         logger.error("Fallback /users/me fetch failed:", err);
         return null;
       }
     },
-    enabled: !!user?.userId,
+    enabled: !!user?.userId && !user?.company,
     staleTime: STALE_TIMES.SESSION,
   });
 
-  const businessLogo = companyData?.logoUrl ?? user?.company?.logoUrl ?? null;
+  const businessLogo = user?.company?.logoUrl ?? companyData?.logoUrl ?? null;
   const businessName =
-    companyData?.companyName ??
-    companyData?.businessName ??
     user?.company?.companyName ??
     user?.company?.businessName ??
+    companyData?.companyName ??
+    companyData?.businessName ??
     null;
   const loading = isQueryLoading && !businessLogo && !businessName;
 

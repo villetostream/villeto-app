@@ -92,7 +92,8 @@ export interface CompanyRoleSummary {
     templateKey?: string | null;
     source?: string | null;
     isDefault: boolean;
-    permissions: CompanyPermission[];
+    /** Only present in legacy full responses. Use authorization for access checks. */
+    permissions?: CompanyPermission[];
 }
 
 export interface User {

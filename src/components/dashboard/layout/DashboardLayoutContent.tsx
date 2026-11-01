@@ -97,7 +97,7 @@ export default function DashboardLayoutContent({
   // without requiring re-login. Recreated only when the axios instance changes.
   const refreshUserAndPermissions = useCallback(async () => {
     try {
-      const me = await axios.get("/users/me");
+      const me = await axios.get("/users/me", { params: { view: "session" } });
       const responseData = me?.data?.data || me?.data;
       const { _company, companyId, ...userData } = responseData || {};
 
@@ -117,9 +117,8 @@ export default function DashboardLayoutContent({
           userData.authorization,
         );
         setProfile({
-          ...currentUser,
           ...userData,
-          companyId: companyId || userData.companyId || currentUser?.companyId,
+          companyId: companyId || userData.company?.companyId || currentUser?.companyId,
           authorization,
         } as User);
       }
