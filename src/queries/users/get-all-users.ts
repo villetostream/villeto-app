@@ -39,7 +39,7 @@ export interface Meta {
 export interface UserListParams {
   page?: number;
   limit?: number;
-  view?: "lookup" | "count" | "summary" | "directory-summary";
+  view?: "lookup" | "count" | "summary" | "directory-summary" | "invitation-summary" | "ids" | "departments";
   invited?: boolean;
   status?: string;
   employeeStatus?: string;

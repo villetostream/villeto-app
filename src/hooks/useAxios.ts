@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/api-url";
+
 import axios, {
   AxiosError,
   type AxiosInstance,
@@ -207,7 +209,7 @@ function refreshAccessToken() {
 
   refreshPromise = axios
     .post<RefreshResponse["data"]>(
-      `${BASEURL}auth/refresh`,
+      apiUrl("auth/refresh"),
       {},
       { withCredentials: true },
     )

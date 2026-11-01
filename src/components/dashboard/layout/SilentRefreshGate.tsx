@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/api-url";
+
 /**
  * SilentRefreshGate
  * ─────────────────────────────────────────────────────────────────────
@@ -25,7 +27,6 @@ import { useAuthStore } from "@/stores/auth-stores";
 import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
 import { parseAuthorizationSnapshot } from "@/features/auth/authorization";
 
-const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 /** Milliseconds of buffer — consider a token expired 30 s early */
 const EXPIRY_BUFFER_MS = 30_000;
@@ -64,7 +65,7 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
     void (async () => {
       try {
         const response = await axios.post(
-          `${BASEURL}auth/refresh`,
+          apiUrl("auth/refresh"),
           {},
           { withCredentials: true }
         );
@@ -94,7 +95,8 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
         // fetch it now so the rest of the app has full user context.
         if (!user) {
           try {
-            const me = await axios.get(`${BASEURL}users/me`, {
+            const me = await axios.get(apiUrl("users/me"), {
+              params: { view: "session" },
               headers: { Authorization: `Bearer ${newToken}` },
               withCredentials: true,
             });

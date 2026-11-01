@@ -71,7 +71,7 @@ export const useGetApprovalSettingByTarget = (target: PolicyTarget) => {
 };
 
 /** Fetch eligible roles that can be configured for approving policies */
-export const useGetEligibleRoles = (target: PolicyTarget) => {
+export const useGetEligibleRoles = (target: PolicyTarget, enabled = true) => {
   const axios = useAxios();
   return useQuery<
     { message: string; status: number; data: ApproverRole[] },
@@ -80,6 +80,7 @@ export const useGetEligibleRoles = (target: PolicyTarget) => {
     queryKey: workspaceQueryKey(
       QUERY_KEYS.policyGovernance.eligibleRoles(target),
     ),
+    enabled,
     queryFn: async () => {
       const res = await axios.get(
         POLICY_GOVERNANCE_KEYS.ELIGIBLE_ROLES(target),

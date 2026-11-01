@@ -15,7 +15,7 @@ import {
   ValidationResult,
 } from "@/queries/users/bulk-validate";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
-import { useGetAllUsersApi } from "@/queries/users/get-all-users";
+import { usePeopleStatistics } from "@/queries/users/get-people-statistics";
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -66,12 +66,12 @@ function InviteEmployeesPage() {
 
   const bulkImportMutation = useBulkImportApi();
   const bulkValidateMutation = useBulkValidateApi();
-  const usersApi = useGetAllUsersApi({
-    params: { status: "all", invited: false },
-  });
+  const usersApi = usePeopleStatistics(step === "directory");
   const axiosInstance = useAxios();
 
-  const directoryTotalCount = usersApi?.data?.meta?.totalCount ?? 0;
+  const directoryTotalCount = Math.max(0,
+    (usersApi.data?.directoryUsers ?? 0) - (usersApi.data?.totalUsers ?? 0),
+  );
   // Empty if <= 1 (threshold updated from > 2)
   const hasDirectoryData = directoryTotalCount > 1;
 

@@ -1302,12 +1302,11 @@ function PoliciesPage() {
     can("policy.domain", "expense") ||
     can("policy.domain", "procurement");
 
-  const { data: eligibleRolesData } = useGetEligibleRoles("expense_policy");
+  const { data: eligibleRolesData } = useGetEligibleRoles("expense_policy", policyType === "expense" && canReadPolicies);
   const eligibleRoles = eligibleRolesData?.data || [];
 
   const expCatApi = useGetExpenseCategoryCoverageAllApi({
-    enabled: canReadExpenseCategories,
-    refetchInterval: 60_000,
+    enabled: policyType === "expense" && canReadExpenseCategories,
   });
   const canManageCategories = can("expense.category", "manage");
   const canCreatePolicy = can("policy", "create");
@@ -1363,7 +1362,7 @@ function PoliciesPage() {
       limit: 1000,
       excludeDrafts: false,
     },
-    { enabled: canReadPolicies, refetchInterval: 60_000 },
+    { enabled: policyType === "expense" && canReadPolicies },
   );
 
   const expenseTableProps = useDataTable({
@@ -1479,7 +1478,7 @@ function PoliciesPage() {
   }, [policiesApi.data?.data, liveExpenseCategories]);
 
   const { data: spendProgramSettingsResponse, isLoading: isSettingsLoading } =
-    useGetSpendProgramSettings();
+    useGetSpendProgramSettings({ enabled: policyType === "procurement" });
   const isSpendProgramEnabled =
     spendProgramSettingsResponse?.data?.enabled ?? true;
 
