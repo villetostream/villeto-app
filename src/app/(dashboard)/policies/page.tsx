@@ -1259,6 +1259,7 @@ function PoliciesPage() {
   // (procurement state is now derived from URL)
 
   const can = useAuthStore((s) => s.can);
+  const canReadProcurementPolicies = can("procurement_spend_program", "read");
 
   const canAccessExpense =
     can("policy.domain", "all") ||
@@ -1478,7 +1479,7 @@ function PoliciesPage() {
   }, [policiesApi.data?.data, liveExpenseCategories]);
 
   const { data: spendProgramSettingsResponse, isLoading: isSettingsLoading } =
-    useGetSpendProgramSettings({ enabled: policyType === "procurement" });
+    useGetSpendProgramSettings({ enabled: policyType === "procurement" && canReadProcurementPolicies });
   const isSpendProgramEnabled =
     spendProgramSettingsResponse?.data?.enabled ?? true;
 
@@ -1505,7 +1506,7 @@ function PoliciesPage() {
   const { setAction, clearAction } = useHeaderActionStore();
 
   useEffect(() => {
-    if (procurementView === "create") {
+    if (procurementView === "create" || (policyType === "procurement" && !canReadProcurementPolicies)) {
       clearAction();
       return;
     }
@@ -1560,6 +1561,7 @@ function PoliciesPage() {
     setAction,
     clearAction,
     canCreatePolicy,
+    canReadProcurementPolicies,
     canManageCategories,
     isSettingsLoading,
     isSpendProgramEnabled,
@@ -2324,6 +2326,15 @@ function PoliciesPage() {
     ],
     [handleViewCategory],
   );
+
+  if (policyType === "procurement" && !canReadProcurementPolicies) {
+    return (
+      <EmptyState
+        title="Procurement policy access required"
+        description="Your current roles do not allow you to view procurement policies. Ask an administrator to review your access."
+      />
+    );
+  }
 
   if (policyType === "procurement" && procurementView === "create") {
     return (

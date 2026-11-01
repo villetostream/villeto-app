@@ -137,6 +137,7 @@ export function OrganizationDirectoryPage({ onBack }: OrganizationDirectoryPageP
 
   // Selection belongs to one search and workspace. Cancel in-flight ID reads on change.
   useEffect(() => {
+    setPageState({ key: filterKey, page: 1 });
     setSelected(new Set());
     setIsAllSelected(false);
     setIsSelectingAll(false);
