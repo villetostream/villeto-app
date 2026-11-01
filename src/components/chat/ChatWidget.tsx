@@ -35,6 +35,8 @@ import { useGetAllVendors } from "@/queries/vendors/get-all-vendors";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { PERMISSIONS } from "@/features/auth/policies";
 import { useAuthStore } from "@/stores/auth-stores";
+import { ListPagination } from "@/components/ui/list-pagination";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { Skeleton } from "@/components/ui/skeleton";
 
 
@@ -69,8 +71,12 @@ export function ChatWidget() {
     state.canPermission(PERMISSIONS.vendor.companyRead),
   );
 
-  const { data: usersData, isLoading: usersLoading } = useGetInvitedUsersApi({
-    params: { limit: 1000, status: "Active" },
+  const debouncedTeamSearch = useDebouncedValue(teamSearch);
+  const [teamPagination, setTeamPagination] = useState({ search: debouncedTeamSearch, page: 1 });
+  const teamPage = teamPagination.search === debouncedTeamSearch ? teamPagination.page : 1;
+  const setTeamPage = (page: number) => setTeamPagination({ search: debouncedTeamSearch, page });
+  const { data: usersData, isLoading: usersLoading, isFetching: usersFetching } = useGetInvitedUsersApi({
+    params: { page: teamPage, limit: 20, status: "Active", view: "lookup", search: debouncedTeamSearch },
     enabled: isOpen && activeTab === "team" && canReadTeam,
   });
   const vendorsApi = useGetAllVendors({}, {
@@ -122,11 +128,7 @@ export function ChatWidget() {
   };
 
   // ─── Filtered lists ──────────────────────────────────────────
-  const filteredTeam = (canReadTeam ? teamMembers : []).filter(
-    (m) =>
-      m.name.toLowerCase().includes(teamSearch.toLowerCase()) ||
-      m.role.toLowerCase().includes(teamSearch.toLowerCase())
-  );
+  const filteredTeam = canReadTeam ? teamMembers : [];
 
   const filteredVendors = (canReadVendors ? vendors : []).filter((v) =>
     v.name.toLowerCase().includes(vendorSearch.toLowerCase())
@@ -329,6 +331,7 @@ export function ChatWidget() {
                       )
                     )}
                   </div>
+                  {activeTab === "team" && canReadTeam && <ListPagination page={teamPage} totalPages={usersData?.meta.totalPages ?? 1} totalCount={usersData?.meta.totalCount ?? 0} onPageChange={setTeamPage} isFetching={usersFetching} />}
                 </motion.div>
               )}
 

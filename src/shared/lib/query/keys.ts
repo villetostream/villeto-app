@@ -23,6 +23,7 @@ export const QUERY_KEYS = {
     },
 
     people: {
+        statistics: ['people', 'users', 'statistics'] as const,
         users:          (filters?: Record<string, unknown>) =>
                             filters ? (['people', 'users', filters] as const) : (['people', 'users'] as const),
         invitedUsers:   ['people', 'users', 'invited'] as const,

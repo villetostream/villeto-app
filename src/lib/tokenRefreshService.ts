@@ -1,3 +1,4 @@
+import { apiUrl } from "@/lib/api-url";
 /**
  * Proactive Token Refresh Service
  *
@@ -11,7 +12,6 @@
 
 import axios from "axios";
 
-const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
 /** Refresh 5 minutes before expiry */
 const EARLY_REFRESH_MS = 5 * 60 * 1000;
 
@@ -29,7 +29,7 @@ export function scheduleTokenRefresh(expiresInMs: number) {
   refreshTimer = setTimeout(async () => {
     try {
       const response = await axios.post(
-        `${BASEURL}auth/refresh`,
+        apiUrl("auth/refresh"),
         {},
         { withCredentials: true }
       );

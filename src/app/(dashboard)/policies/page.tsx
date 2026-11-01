@@ -79,7 +79,6 @@ import {
   useGetExpensePolicyDraft,
 } from "@/queries/companies/expense-policy-drafts";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
-import { useGetCompanyRolesApi } from "@/queries/role/get-all-roles";
 import { useGetEligibleRoles } from "@/queries/policies/governance";
 import { useGetSpendProgramSettings } from "@/queries/procurement/policies";
 import { useQueryClient } from "@tanstack/react-query";
@@ -535,7 +534,6 @@ function PolicyDetailsModal({
   const isLoading = isDraft ? isDraftLoading : isActiveLoading;
   const fullPolicy = detailData?.data;
 
-  const rolesApi = useGetCompanyRolesApi({}, { enabled: !!policy });
   const departmentsApi = useGetAllDepartmentsApi({ enabled: !!policy });
 
   if (!policy) return null;
@@ -1261,6 +1259,7 @@ function PoliciesPage() {
   // (procurement state is now derived from URL)
 
   const can = useAuthStore((s) => s.can);
+  const canReadProcurementPolicies = can("procurement_spend_program", "read");
 
   const canAccessExpense =
     can("policy.domain", "all") ||
@@ -1304,12 +1303,11 @@ function PoliciesPage() {
     can("policy.domain", "expense") ||
     can("policy.domain", "procurement");
 
-  const { data: eligibleRolesData } = useGetEligibleRoles("expense_policy");
+  const { data: eligibleRolesData } = useGetEligibleRoles("expense_policy", policyType === "expense" && canReadPolicies);
   const eligibleRoles = eligibleRolesData?.data || [];
 
   const expCatApi = useGetExpenseCategoryCoverageAllApi({
-    enabled: canReadExpenseCategories,
-    refetchInterval: 60_000,
+    enabled: policyType === "expense" && canReadExpenseCategories,
   });
   const canManageCategories = can("expense.category", "manage");
   const canCreatePolicy = can("policy", "create");
@@ -1365,7 +1363,7 @@ function PoliciesPage() {
       limit: 1000,
       excludeDrafts: false,
     },
-    { enabled: canReadPolicies, refetchInterval: 60_000 },
+    { enabled: policyType === "expense" && canReadPolicies },
   );
 
   const expenseTableProps = useDataTable({
@@ -1481,7 +1479,7 @@ function PoliciesPage() {
   }, [policiesApi.data?.data, liveExpenseCategories]);
 
   const { data: spendProgramSettingsResponse, isLoading: isSettingsLoading } =
-    useGetSpendProgramSettings();
+    useGetSpendProgramSettings({ enabled: policyType === "procurement" && canReadProcurementPolicies });
   const isSpendProgramEnabled =
     spendProgramSettingsResponse?.data?.enabled ?? true;
 
@@ -1508,7 +1506,7 @@ function PoliciesPage() {
   const { setAction, clearAction } = useHeaderActionStore();
 
   useEffect(() => {
-    if (procurementView === "create") {
+    if (procurementView === "create" || (policyType === "procurement" && !canReadProcurementPolicies)) {
       clearAction();
       return;
     }
@@ -1563,6 +1561,7 @@ function PoliciesPage() {
     setAction,
     clearAction,
     canCreatePolicy,
+    canReadProcurementPolicies,
     canManageCategories,
     isSettingsLoading,
     isSpendProgramEnabled,
@@ -2327,6 +2326,15 @@ function PoliciesPage() {
     ],
     [handleViewCategory],
   );
+
+  if (policyType === "procurement" && !canReadProcurementPolicies) {
+    return (
+      <EmptyState
+        title="Procurement policy access required"
+        description="Your current roles do not allow you to view procurement policies. Ask an administrator to review your access."
+      />
+    );
+  }
 
   if (policyType === "procurement" && procurementView === "create") {
     return (

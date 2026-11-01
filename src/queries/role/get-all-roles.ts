@@ -4,7 +4,6 @@ import {
   UseQueryResult,
   useQuery,
 } from "@tanstack/react-query";
-import type { AxiosInstance } from "axios";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
@@ -124,6 +123,17 @@ interface PaginatedRolesResponse {
 export interface GetRolesParams {
   page?: number;
   limit?: number;
+  view?: "summary" | "lookup" | "count";
+  sortBy?:
+    | "name"
+    | "description"
+    | "createdAt"
+    | "isActive"
+    | "createdBy"
+    | "totalAssignedUsers";
+  sortOrder?: "asc" | "desc";
+  search?: string;
+  status?: "Active" | "Inactive";
 }
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
@@ -132,53 +142,16 @@ export interface GetRolesParams {
  * Fetches a paginated list of all roles.
  * GET /roles?page=1&limit=20
  */
-async function fetchAllRolesLoop(
-  axiosInstance: AxiosInstance,
-  apiUrl: string,
-  page: number,
-  limit: number,
-) {
-  if (limit !== 1000) {
-    const response = await axiosInstance.get(apiUrl);
-    return response.data;
-  }
-
-  // Intercept limit=1000 and fetch all pages
-  const firstUrl = API_KEYS.ROLE.ROLES_LIST(1, 100);
-  const response = await axiosInstance.get(firstUrl);
-  const firstPageData = response.data;
-
-  const totalPages = firstPageData?.meta?.totalPages || 1;
-  let allData = firstPageData?.data || [];
-
-  if (totalPages > 1) {
-    const promises = [];
-    for (let i = 2; i <= totalPages; i++) {
-      promises.push(axiosInstance.get(API_KEYS.ROLE.ROLES_LIST(i, 100)));
-    }
-    const results = await Promise.all(promises);
-    results.forEach((res) => {
-      if (res.data?.data) {
-        allData = [...allData, ...res.data.data];
-      }
-    });
-  }
-
-  return {
-    ...firstPageData,
-    data: allData,
-    meta: {
-      ...firstPageData.meta,
-      totalCount: allData.length,
-      limit: allData.length,
-      totalPages: 1,
-      currentPage: 1,
-    },
-  };
-}
-
 export const useGetAllRolesApi = (
-  { page = 1, limit = 20 }: GetRolesParams = {},
+  {
+    page = 1,
+    limit = 20,
+    view = "lookup",
+    search,
+    status,
+    sortBy,
+    sortOrder,
+  }: GetRolesParams = {},
   options?: Omit<
     UseQueryOptions<PaginatedRolesResponse, Error>,
     "queryKey" | "queryFn"
@@ -187,14 +160,19 @@ export const useGetAllRolesApi = (
   const axiosInstance = useAxios();
 
   return useQuery<PaginatedRolesResponse, Error>({
-    queryKey: workspaceQueryKey([...QUERY_KEYS.people.roles, { page, limit }]),
-    queryFn: async () => {
-      return fetchAllRolesLoop(
-        axiosInstance,
-        API_KEYS.ROLE.ROLES_LIST(page, limit),
-        page,
-        limit,
+    queryKey: workspaceQueryKey([
+      ...QUERY_KEYS.people.roles,
+      { page, limit, view, search, status, sortBy, sortOrder },
+    ]),
+    queryFn: async ({ signal }) => {
+      const response = await axiosInstance.get(
+        API_KEYS.ROLE.ROLES_LIST(page, Math.min(limit, 100)),
+        {
+          signal,
+          params: { view, search, status, sortBy, sortOrder },
+        },
       );
+      return response.data;
     },
     staleTime: STALE_TIMES.STATIC,
     ...options,
@@ -209,7 +187,15 @@ export const useGetAllRolesApi = (
  * callers that need real pagination can pass explicit page/limit.
  */
 export const useGetCompanyRolesApi = (
-  { page = 1, limit = 100 }: GetRolesParams = {},
+  {
+    page = 1,
+    limit = 100,
+    view = "lookup",
+    search,
+    status,
+    sortBy,
+    sortOrder,
+  }: GetRolesParams = {},
   options?: Omit<
     UseQueryOptions<PaginatedRolesResponse, Error>,
     "queryKey" | "queryFn"
@@ -218,10 +204,14 @@ export const useGetCompanyRolesApi = (
   const axiosInstance = useAxios();
 
   return useQuery<PaginatedRolesResponse, Error>({
-    queryKey: workspaceQueryKey([...QUERY_KEYS.people.roles, { page, limit }]),
-    queryFn: async () => {
+    queryKey: workspaceQueryKey([
+      ...QUERY_KEYS.people.roles,
+      { page, limit, view, search, status, sortBy, sortOrder },
+    ]),
+    queryFn: async ({ signal }) => {
       const response = await axiosInstance.get(
-        API_KEYS.ROLE.ROLES_COMPANY(page, limit),
+        API_KEYS.ROLE.ROLES_COMPANY(page, Math.min(limit, 100)),
+        { signal, params: { view, search, status, sortBy, sortOrder } },
       );
       return response.data;
     },

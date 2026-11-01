@@ -443,19 +443,19 @@ function PRTable({
   const showPRApprovalCount = canApprove && isExplicitPRManager;
 
   const { data: approvalCountData } = useGetPurchaseRequests(
-    { scope, status: "submitted", requiresMyApproval: true },
+    { scope, view: "count", status: "submitted", requiresMyApproval: true },
     { enabled: showPRApprovalCount, select: (d) => d.meta?.totalCount ?? 0 }
   );
   const awaitingCount = showPRApprovalCount ? ((approvalCountData as unknown as number) ?? 0) : 0;
 
   const { data: conversionCountData } = useGetPurchaseRequests(
-    { scope, status: "approved", requiresMyConversion: true },
+    { scope, view: "count", status: "approved", requiresMyConversion: true },
     { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
   );
   const readyForPOCount = (conversionCountData as unknown as number) ?? 0;
 
   const { data: partialConversionCountData } = useGetPurchaseRequests(
-    { scope, status: "partially_converted", requiresMyConversion: true },
+    { scope, view: "count", status: "partially_converted", requiresMyConversion: true },
     { enabled: canConvert, select: (d) => d.meta?.totalCount ?? 0 }
   );
   const partialPOCount = (partialConversionCountData as unknown as number) ?? 0;

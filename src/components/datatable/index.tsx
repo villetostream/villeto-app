@@ -137,6 +137,7 @@ function DataTable<Data extends object, Value = unknown>(
     enableColumnVisibility = false,
     getRowId = defaultGetRowId as unknown as (row: Data) => string,
     onRowSelectionChange,
+    onSortingChange,
     onColumnVisibilityChange,
     onRowClick,
     emptyState,
@@ -225,7 +226,11 @@ function DataTable<Data extends object, Value = unknown>(
     manualPagination,
     manualSorting,
     manualFiltering,
-    onSortingChange: setSorting,
+    onSortingChange: (updater) => {
+      const next = typeof updater === "function" ? updater(sorting) : updater;
+      setSorting(next);
+      onSortingChange?.(next);
+    },
     onColumnVisibilityChange: (updater) => {
       const newVisibility =
         typeof updater === "function" ? updater(columnVisibility) : updater;

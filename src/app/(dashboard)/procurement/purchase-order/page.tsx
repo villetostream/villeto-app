@@ -315,7 +315,7 @@ function POTable({
 
   const { data: approvalCountData } = usePurchaseOrders(
     1, 1, "pending_approval", undefined, undefined, scope,
-    { enabled: showPOApprovalCount, select: (d) => d.meta?.totalCount ?? 0 }
+    { view: "count", enabled: showPOApprovalCount, select: (d) => d.meta?.totalCount ?? 0 }
   );
   const awaitingCount = showPOApprovalCount ? ((approvalCountData as unknown as number) ?? 0) : 0;
 

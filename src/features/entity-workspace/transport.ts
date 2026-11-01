@@ -12,7 +12,7 @@ export function workspaceRoute(url: string, method = "GET"): boolean {
   if (route === "bill-pay/mailbox-connections/google/callback") return false;
   // People list (directory, invited/uninvited users and their stat counts).
   if (
-    /^users\/?$/.test(route) ||
+    /^users(?:\/statistics)?\/?$/.test(route) ||
     route === "legal-entity-assignments/employees"
   )
     return reading;

@@ -24,12 +24,9 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
-import { usePurchaseOrders } from "@/queries/procurement/purchase-orders";
+import { useListStatistics, useListCount, countStatistics, amountStatistics } from "@/queries/list-summary";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
-import {
-  useCompanyExpenses,
-  usePersonalExpenses,
-} from "@/lib/react-query/expenses";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS, PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import { cn } from "@/lib/utils";
@@ -96,92 +93,33 @@ export default function DashboardPage() {
   // Purchase Requests
   const prScope = policies.purchaseRequests.listScope ?? "own";
   const { data: prResponse, isLoading: prLoading } = useGetPurchaseRequests(
-    { scope: prScope, page: 1, limit: 50 },
+    { scope: prScope, page: 1, limit: 5 },
     { enabled: policies.purchaseRequests.canView },
   );
   const requests = prResponse?.data || [];
 
-  // PR Action Counts
-  const pendingPRApprovals = requests.filter(
-    (item) =>
-      item.currentUserActionRequired ||
-      (item.status === "submitted" && policies.purchaseRequests.canApprove),
-  );
-  const prsReadyForConversion = requests.filter(
-    (item) =>
-      item.status === "approved" || item.status === "partially_converted",
-  );
-  const recentPRs = requests.slice(0, 5);
-
-  // Purchase Orders
+  const prStats = useListStatistics(PROCUREMENT_KEYS.PURCHASE_REQUESTS, QUERY_KEYS.procurement.purchaseRequests, { scope: prScope }, policies.purchaseRequests.canView);
+  const approvalCount = useListCount(PROCUREMENT_KEYS.PURCHASE_REQUESTS, QUERY_KEYS.procurement.purchaseRequests, { scope: prScope, requiresMyApproval: true }, policies.purchaseRequests.canApprove);
+  const pendingPRApprovals = approvalCount.data ?? 0;
+  const prsReadyForConversion = countStatistics(prStats.data, ["approved", "partially_converted"]);
+  const recentPRs = requests;
   const poScope = policies.purchaseOrders.listScope ?? "own";
-  const { data: poResponse, isLoading: poLoading } = usePurchaseOrders(
-    1,
-    50,
-    undefined,
-    undefined,
-    undefined,
-    poScope,
-    { enabled: policies.purchaseOrders.canView },
-  );
-  const orders = poResponse?.data || [];
-  const openOrders = orders.filter((item) =>
-    [
-      "approved",
-      "issued",
-      "acknowledged",
-      "ready_for_delivery",
-      "partially_delivered",
-    ].includes(item.status || ""),
-  );
-  const receivingOrders = orders.filter((item) =>
-    [
-      "issued",
-      "acknowledged",
-      "ready_for_delivery",
-      "partially_delivered",
-    ].includes(item.status || ""),
-  );
-
-  // Expenses
-  const expScope = policies.expenses.listScope;
-  const companyExpenseScope =
-    expScope === "company" || expScope === "team" ? expScope : null;
-  const { data: companyExpensesData, isLoading: companyExpensesLoading } =
-    useCompanyExpenses(
-      1,
-      50,
-      companyExpenseScope || "company",
-      undefined,
-      undefined,
-      companyExpenseScope !== null,
-    );
-  const { data: personalExpensesData, isLoading: personalExpensesLoading } =
-    usePersonalExpenses(
-      1,
-      50,
-      undefined,
-      undefined,
-      undefined,
-      expScope === "own",
-    );
-  const expenses = companyExpenseScope
-    ? companyExpensesData?.reports || []
-    : personalExpensesData?.reports || [];
-  const pendingExpenses = expenses.filter((e) => e.status === "pending");
-  const approvedExpenses = expenses.filter((e) => e.status === "approved");
-  const approvedExpensesSpend = approvedExpenses.reduce(
-    (sum, e) => sum + Number(e.totalAmount || 0),
-    0,
-  );
+  const poStats = useListStatistics(PROCUREMENT_KEYS.PURCHASE_ORDERS, QUERY_KEYS.procurement.purchaseOrders, { scope: poScope }, policies.purchaseOrders.canView);
+  const poLoading = poStats.isLoading;
+  const openStatuses = ["approved", "issued", "acknowledged", "ready_for_delivery", "partially_delivered"];
+  const receivingOrders = countStatistics(poStats.data, openStatuses.filter(status => status !== "approved"));
+  const expScope = policies.expenses.reportScope ?? "own";
+  const expenseStats = useListStatistics("reports", QUERY_KEYS.expenses.reports(expScope), { scope: expScope }, policies.expenses.canView);
+  const pendingExpenses = countStatistics(expenseStats.data, ["submitted"]);
+  const approvedExpensesSpend = amountStatistics(expenseStats.data, code, ["approved"]);
 
   // Users (Team)
   const canViewUsers = policies.people.canManageUsers;
   const { data: usersData, isLoading: usersLoading } = useQuery({
-    queryKey: workspaceQueryKey(["dashboard_users"]),
+    queryKey: workspaceQueryKey(["dashboard_users", "count"]),
     queryFn: async () => {
       const res = await axios.get(API_KEYS.USER.USERS, {
-        params: { status: "all" },
+        params: { status: "all", view: "count" },
       });
       return res.data;
     },
@@ -208,14 +146,11 @@ export default function DashboardPage() {
   const activeVendors = vendorsData?.meta?.totalCount || vendorsList.length;
 
   // Total Metric Calculations
-  const spendByCurrency = [...openOrders, ...approvedExpenses].reduce(
-    (acc, item: any) => {
-      const c = item.currency || code;
-      acc[c] = (acc[c] || 0) + Number(item.totalAmount || 0);
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
+  const spendByCurrency = [...(poStats.data ?? []).filter(bucket => openStatuses.includes(bucket.status)), ...(expenseStats.data ?? []).filter(bucket => bucket.status === "approved")].reduce((acc, bucket) => {
+    const currencyCode = bucket.currency || code;
+    acc[currencyCode] = (acc[currencyCode] || 0) + bucket.totalAmount;
+    return acc;
+  }, {} as Record<string, number>);
 
   const primarySpend = spendByCurrency[code] || 0;
 
@@ -231,15 +166,13 @@ export default function DashboardPage() {
     ) : undefined;
 
   const totalPendingActions =
-    pendingPRApprovals.length +
-    prsReadyForConversion.length +
-    pendingExpenses.length;
+    pendingPRApprovals +
+    prsReadyForConversion +
+    pendingExpenses;
 
-  const expLoading = companyExpenseScope
-    ? companyExpensesLoading
-    : personalExpensesLoading;
+  const expLoading = expenseStats.isLoading;
   const isAnyLoading =
-    prLoading ||
+    prLoading || prStats.isLoading || approvalCount.isLoading ||
     poLoading ||
     entityLoading ||
     expLoading ||
@@ -343,7 +276,7 @@ export default function DashboardPage() {
             stats={[
               {
                 label: "Pending approval",
-                value: pendingExpenses.length.toString(),
+                value: pendingExpenses.toString(),
               },
               {
                 label: "Approved spend",
@@ -365,13 +298,11 @@ export default function DashboardPage() {
             stats={[
               {
                 label: "Open Requests",
-                value: requests
-                  .filter((r) => !["closed", "cancelled"].includes(r.status))
-                  .length.toString(),
+                value: String(countStatistics(prStats.data) - countStatistics(prStats.data, ["closed", "cancelled"])),
               },
               {
                 label: "Orders Receiving",
-                value: receivingOrders.length.toString(),
+                value: receivingOrders.toString(),
               },
             ]}
           />
@@ -542,7 +473,7 @@ export default function DashboardPage() {
               {policies.purchaseRequests.canApprove && (
                 <AttentionRow
                   icon={<ClipboardCheck />}
-                  title={`${pendingPRApprovals.length} approvals waiting`}
+                  title={`${pendingPRApprovals} approvals waiting`}
                   detail="Review submitted requests"
                   href="/procurement/purchase-request?innerTab=approve"
                   tone="amber"
@@ -552,7 +483,7 @@ export default function DashboardPage() {
               {policies.purchaseRequests.canConvertToPurchaseOrder && (
                 <AttentionRow
                   icon={<ShoppingCart />}
-                  title={`${prsReadyForConversion.length} PRs ready for PO`}
+                  title={`${prsReadyForConversion} PRs ready for PO`}
                   detail="Convert approved requests"
                   href="/procurement/purchase-request?innerTab=convert"
                   tone="indigo"
@@ -562,7 +493,7 @@ export default function DashboardPage() {
               {policies.purchaseOrders.canView && (
                 <AttentionRow
                   icon={<Truck />}
-                  title={`${receivingOrders.length} orders in receiving`}
+                  title={`${receivingOrders} orders in receiving`}
                   detail="Track active deliveries"
                   href="/procurement/confirmation"
                   tone="blue"

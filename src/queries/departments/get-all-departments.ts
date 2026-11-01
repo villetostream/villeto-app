@@ -25,6 +25,7 @@ interface Response {
 }
 
 export interface AppUser {
+  invited?: boolean;
   userId: string;
   firstName: string;
   lastName: string;

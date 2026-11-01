@@ -170,6 +170,7 @@ export const useCreatePurchaseRequest = (): UseMutationResult<
 // ── List Purchase Requests ────────────────────────────────────────────────
 
 export interface GetPurchaseRequestsParams {
+  view?: "summary" | "count";
   status?: string;
   priority?: string;
   search?: string;
@@ -193,10 +194,11 @@ export const useGetPurchaseRequests = <TData = ApiResponse<PurchaseRequest[]>>(
   return useQuery<ApiResponse<PurchaseRequest[]>, Error, TData>({
     queryKey: workspaceQueryKey([
       ...QUERY_KEYS.procurement.purchaseRequests,
-      params,
+      { ...params, view: params.view ?? "summary" },
     ]),
     queryFn: async () => {
       const query = new URLSearchParams();
+      query.set("view", params.view ?? "summary");
       if (params.scope) query.set("scope", params.scope);
       if (params.status) query.set("status", params.status);
       if (params.priority) query.set("priority", params.priority);

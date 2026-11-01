@@ -1,5 +1,6 @@
 "use client";
 
+import { ListPagination } from "@/components/ui/list-pagination";
 import { useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -68,14 +69,20 @@ function AccountingPage() {
       entities.find((item) => item.isDefault)?.legalEntityId ||
       (entities.length === 1 ? entities[0].legalEntityId : undefined);
   const entity = entities.find((item) => item.legalEntityId === legalEntityId);
-  const data = useAccountingData(legalEntityId);
+  const [accountingTab, setAccountingTab] = useState("accounts");
+  const [pages, setPages] = useState({ entity: legalEntityId, journal: 1, obligation: 1 });
+  const journalPage = pages.entity === legalEntityId ? pages.journal : 1;
+  const obligationPage = pages.entity === legalEntityId ? pages.obligation : 1;
+  const setJournalPage = (journal: number) => setPages({ entity: legalEntityId, journal, obligation: obligationPage });
+  const setObligationPage = (obligation: number) => setPages({ entity: legalEntityId, journal: journalPage, obligation });
+  const data = useAccountingData(legalEntityId, { journalPage, obligationPage, activeTab: accountingTab });
   const provision = useProvisionAccounting();
 
   const accounts = data.accounts.data || [];
   const periods = data.periods.data || [];
-  const journals = data.journals.data || [];
+  const journals = data.journals.data?.data || [];
   const obligations = useMemo(
-    () => data.obligations.data || [],
+    () => data.obligations.data?.data || [],
     [data.obligations.data],
   );
   const trialBalance = useMemo(() => {
@@ -91,24 +98,15 @@ function AccountingPage() {
   }, [data.trialBalance.data]);
   const outstandingByCurrency = useMemo(() => {
     const totals = new Map<string, number>();
-    for (const obligation of obligations)
-      totals.set(
-        obligation.currency,
-        (totals.get(obligation.currency) || 0) +
-          Number(obligation.outstandingAmount || 0),
-      );
+    for (const bucket of data.obligationStatistics.data ?? []) {
+      const currency = bucket.currency || "Unspecified";
+      totals.set(currency, (totals.get(currency) ?? 0) + bucket.totalAmount);
+    }
     return [...totals.entries()];
-  }, [obligations]);
+  }, [data.obligationStatistics.data]);
   const currency = entity?.baseCurrency || "USD";
-  const outstanding = useMemo(
-    () =>
-      obligations.reduce(
-        (total, item) => total + Number(item.outstandingAmount || 0),
-        0,
-      ),
-    [obligations],
-  );
-  const postedJournals = journals.filter((item) => item.status === "posted");
+  const outstanding = outstandingByCurrency.find(([code]) => code === currency)?.[1] ?? 0;
+  const postedJournalCount = data.journalCount.data ?? 0;
   const openPeriods = periods.filter((item) => item.status === "open");
   const trialTotals = useMemo(
     () =>
@@ -142,8 +140,10 @@ function AccountingPage() {
     void Promise.all([
       data.accounts.refetch(),
       data.periods.refetch(),
-      data.journals.refetch(),
-      data.obligations.refetch(),
+      accountingTab === "journals" ? data.journals.refetch() : Promise.resolve(),
+      data.journalCount.refetch(),
+      data.obligationStatistics.refetch(),
+      accountingTab === "obligations" ? data.obligations.refetch() : Promise.resolve(),
       data.trialBalance.refetch(),
     ]);
   };
@@ -290,7 +290,7 @@ function AccountingPage() {
               ))}
             </section>
           )}
-          <Tabs defaultValue="accounts" className="gap-4">
+          <Tabs value={accountingTab} onValueChange={setAccountingTab} className="gap-4">
             <div className="overflow-x-auto">
               <TabsList className="h-10 min-w-max rounded-[10px] border border-black/[0.06] bg-[#eaf0ed] p-1">
                 <AccountingTab value="accounts" icon={<BookOpen />}>
@@ -388,7 +388,7 @@ function AccountingPage() {
             <TabsContent value="journals">
               <AccountingPanel
                 title="Immutable journals"
-                description={`${postedJournals.length} posted entries · corrections are recorded by reversal`}
+                description={`${postedJournalCount} posted entries · corrections are recorded by reversal`}
                 isLoading={data.journals.isLoading}
                 empty="No invoice approvals have posted yet."
               >
@@ -416,7 +416,7 @@ function AccountingPage() {
                           .join(" · ")}
                       />
                       <TextCell value={formatDate(item.postingDate)} />
-                      <TextCell value={`${item.lines?.length || 0} lines`} />
+                      <TextCell value={`${item.lineCount ?? 0} lines`} />
                       <TextCell value={item.currency} />
                       <td className="px-5 py-3.5">
                         <StatusPill value={item.status} />
@@ -424,6 +424,7 @@ function AccountingPage() {
                     </tr>
                   ))}
                 </AccountingTable>
+              <ListPagination page={journalPage} totalPages={data.journals.data?.meta.totalPages ?? 0} totalCount={data.journals.data?.meta.totalCount ?? 0} onPageChange={setJournalPage} isFetching={data.journals.isFetching} />
               </AccountingPanel>
             </TabsContent>
 
@@ -476,6 +477,7 @@ function AccountingPage() {
                     </tr>
                   ))}
                 </AccountingTable>
+              <ListPagination page={obligationPage} totalPages={data.obligations.data?.meta.totalPages ?? 0} totalCount={data.obligations.data?.meta.totalCount ?? 0} onPageChange={setObligationPage} isFetching={data.obligations.isFetching} />
               </AccountingPanel>
             </TabsContent>
 

@@ -1,13 +1,13 @@
+import { apiUrl } from "@/lib/api-url";
 import axios from "axios";
 import { useAuthStore } from "@/stores/auth-stores";
 import { clearTokenRefresh } from "@/lib/tokenRefreshService";
 
-const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export async function logoutAndRedirect() {
   clearTokenRefresh();
   try {
-    await axios.post(`${BASEURL}auth/logout`, {}, { withCredentials: true });
+    await axios.post(apiUrl("auth/logout"), {}, { withCredentials: true });
   } catch { /* Best-effort — still clear local state */ }
   
   useAuthStore.getState().logout();
