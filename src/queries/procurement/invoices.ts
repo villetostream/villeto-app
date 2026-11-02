@@ -1,7 +1,7 @@
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
-import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
+import { STALE_TIMES } from "@/lib/constants/stale-times";
 
 export interface ProcurementInvoice {
   vendorInvoiceId: string;
@@ -42,7 +42,7 @@ interface InvoiceListResponse {
 
 export function useProcurementInvoices(
   status?: string,
-  options?: { enabled?: boolean; refetchInterval?: number; page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: "asc" | "desc" },
+  options?: { enabled?: boolean; refetchInterval?: number | false; page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: "asc" | "desc" },
 ) {
   const axios = useAxios();
   const { enabled = true, refetchInterval, ...params } = options ?? {};
@@ -57,7 +57,8 @@ export function useProcurementInvoices(
         })
       ).data,
     staleTime: STALE_TIMES.LIVE,
-    refetchInterval: refetchInterval ?? POLL_INTERVALS.ACTIVE_LIST,
+    refetchOnWindowFocus: true,
+    refetchInterval: refetchInterval ?? false,
   });
 }
 
@@ -83,6 +84,7 @@ export function useInvoiceAction() {
         )
       ).data,
     onSuccess: () => {
+      void client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "invoices"]) });
       client.removeQueries({
         queryKey: workspaceQueryKey(["procurement-invoices"]),
         type: "inactive",
@@ -114,6 +116,7 @@ export function useInvoicePaymentAction() {
         })
       ).data,
     onSuccess: () => {
+      void client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "invoices"]) });
       client.removeQueries({
         queryKey: workspaceQueryKey(["procurement-invoices"]),
         type: "inactive",
