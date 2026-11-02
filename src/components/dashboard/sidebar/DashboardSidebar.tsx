@@ -142,7 +142,7 @@ export function DashboardSidebar({
         }
       }
       try {
-        const fall = await axios.get("/users/me", { params: { view: "session" } });
+        const fall = await axios.get("/users/me", { params: { view: "bootstrap" } });
         return fall?.data?.data?.company || fall?.data?.company || null;
       } catch (err) {
         logger.error("Fallback /users/me fetch failed:", err);

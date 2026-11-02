@@ -81,6 +81,7 @@ export const API_KEYS = {
     DEFAULT: (id: string) => `legal-entities/${id}/default` as const,
     STATUS: (id: string) => `legal-entities/${id}/status` as const,
     CURRENCIES: "reference/currencies",
+    EMPLOYEE_ASSIGNMENTS: "legal-entity-assignments/employees",
     USER_ASSIGNMENTS: (userId: string) =>
       `users/${userId}/legal-entity-assignments` as const,
   },

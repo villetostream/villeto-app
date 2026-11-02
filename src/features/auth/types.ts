@@ -88,17 +88,17 @@ export interface CompanyRoleSummary {
     roleId: string;
     name: string;
     description?: string | null;
-    isActive: string;
+    isActive?: string;
     templateKey?: string | null;
     source?: string | null;
-    isDefault: boolean;
+    isDefault?: boolean;
     /** Only present in legacy full responses. Use authorization for access checks. */
     permissions?: CompanyPermission[];
 }
 
 export interface User {
     createdAt: string;
-    updatedAt: string;
+    updatedAt?: string;
     deletedAt?: string | null;
     userId: string;
     employeeExternalId?: string | null;
@@ -151,10 +151,10 @@ export interface User {
     } | null; // legacy
     company?: {
         companyId: string;
-        contactEmail: string;
-        contactPhone: string;
-        contactFirstName: string;
-        contactLastName: string;
+        contactEmail?: string;
+        contactPhone?: string;
+        contactFirstName?: string;
+        contactLastName?: string;
         companyName: string;
         countryOfRegistration: string;
         businessName: string;
@@ -177,7 +177,7 @@ export interface User {
         departmentHeadId?: string | null;
         departmentHeadName?: string | null;
         parentDepartmentId?: string | null;
-        isActive: string;
+        isActive?: string;
         [key: string]: unknown;
     };
     /**

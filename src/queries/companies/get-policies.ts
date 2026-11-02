@@ -81,18 +81,20 @@ export interface Policy {
   };
 }
 
-interface GetPoliciesResponse {
+export interface GetPoliciesResponse {
   data: Policy[];
   message: string;
   status: number;
   statusCode: number;
   statusText: string;
   meta?: {
-    totalCount: number;
+    total: number;
     totalPages: number;
-    currentPage: number;
+    page: number;
     limit: number;
   };
+  summary?: { active: number; pending: number; draft: number; archived: number };
+  approvalSetting?: Policy["approvalSetting"];
 }
 
 export interface GetPoliciesParams {
@@ -100,27 +102,14 @@ export interface GetPoliciesParams {
   limit?: number;
   excludeDrafts?: boolean;
   domain?: string;
+  view?: "summary" | "statistics";
+  collection?: "current" | "archived";
+  search?: string;
+  sortBy?: "name" | "createdAt" | "createdBy" | "scopeType" | "status" | "archivedAt";
+  sortOrder?: "asc" | "desc";
 }
 
 /* ─── Hook ───────────────────────────────────────────────────────────────── */
-
-async function fetchAllPoliciesLoop(
-  axiosInstance: any,
-  params?: GetPoliciesParams,
-) {
-  const searchParams = new URLSearchParams();
-  if (params?.excludeDrafts !== undefined) {
-    searchParams.append("excludeDrafts", params.excludeDrafts.toString());
-  }
-
-  const queryString = searchParams.toString();
-  const url = queryString
-    ? `${API_KEYS.EXPENSE.POLICIES}?${queryString}`
-    : API_KEYS.EXPENSE.POLICIES;
-
-  const response = await axiosInstance.get(url);
-  return response.data;
-}
 
 export const useGetPoliciesApi = (
   params?: GetPoliciesParams,
@@ -133,8 +122,9 @@ export const useGetPoliciesApi = (
 
   return useQuery<GetPoliciesResponse, Error>({
     queryKey: workspaceQueryKey([...QUERY_KEYS.expenses.policies, params]),
-    queryFn: async () => {
-      return fetchAllPoliciesLoop(axiosInstance, params);
+    queryFn: async ({ signal }) => {
+      const response = await axiosInstance.get(API_KEYS.EXPENSE.POLICIES, { params, signal });
+      return response.data;
     },
     staleTime: STALE_TIMES.SLOW,
     ...options,

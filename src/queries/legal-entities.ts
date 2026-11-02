@@ -1,10 +1,5 @@
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
-import {
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 
@@ -56,15 +51,36 @@ export interface Currency {
   minorUnits: number;
 }
 
-export interface EmployeeLegalEntityAssignment {
-  employeeLegalEntityAssignmentId: string;
-  legalEntity: LegalEntity | null;
-  assignmentType: "primary" | "secondary";
-  source: string;
-  status: "active" | "scheduled" | "ended" | "cancelled";
-  effectiveFrom: string;
-  effectiveTo: string | null;
-  reason: string | null;
+export interface EmployeeAssignmentRow {
+  user: {
+    userId: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    jobTitle: string | null;
+    position: string | null;
+  };
+  assignment: {
+    legalEntity: Pick<LegalEntity, "legalEntityId" | "legalName">;
+  } | null;
+}
+
+export interface EmployeeAssignmentsPage {
+  data: EmployeeAssignmentRow[];
+  meta: {
+    totalCount: number;
+    totalPages: number;
+    currentPage: number;
+    limit: number;
+  };
+  summary: { unassignedCount: number };
+}
+
+export interface EmployeeAssignmentsParams {
+  page: number;
+  limit: number;
+  search: string;
+  filter: "all" | "assigned" | "unassigned";
 }
 
 export interface EmployeeAssignmentInput {
@@ -80,7 +96,8 @@ export function useLegalEntities(options?: { enabled?: boolean }) {
   const axios = useAxios();
   return useQuery<{ data: LegalEntity[] }>({
     queryKey: workspaceQueryKey(key),
-    queryFn: async () => (await axios.get(API_KEYS.LEGAL_ENTITY.LIST)).data,
+    queryFn: async ({ signal }) =>
+      (await axios.get(API_KEYS.LEGAL_ENTITY.LIST, { signal })).data,
     enabled: options?.enabled,
   });
 }
@@ -172,24 +189,19 @@ export function useSetLegalEntityStatus() {
   });
 }
 
-export function useEmployeeLegalEntityAssignments(
-  userIds: string[],
-  options?: { enabled?: boolean },
-) {
+const employeeAssignmentsKey = ["employee-assignment-page"] as const;
+
+export function useEmployeeAssignmentsPage(params: EmployeeAssignmentsParams) {
   const axios = useAxios();
-  return useQueries({
-    queries: userIds.map((userId) => ({
-      queryKey: workspaceQueryKey([
-        "employee-legal-entity-assignments",
-        userId,
-      ]),
-      queryFn: async () =>
-        (await axios.get(API_KEYS.LEGAL_ENTITY.USER_ASSIGNMENTS(userId)))
-          .data as {
-          data: EmployeeLegalEntityAssignment[];
-        },
-      enabled: options?.enabled !== false,
-    })),
+  return useQuery<EmployeeAssignmentsPage>({
+    queryKey: workspaceQueryKey([...employeeAssignmentsKey, params]),
+    queryFn: async ({ signal }) =>
+      (
+        await axios.get(API_KEYS.LEGAL_ENTITY.EMPLOYEE_ASSIGNMENTS, {
+          params,
+          signal,
+        })
+      ).data,
   });
 }
 
@@ -204,12 +216,9 @@ export function useAssignEmployeeLegalEntity() {
           assignmentType: "primary",
         })
       ).data,
-    onSuccess: (_data, variables) =>
+    onSuccess: () =>
       client.invalidateQueries({
-        queryKey: workspaceQueryKey([
-          "employee-legal-entity-assignments",
-          variables.userId,
-        ]),
+        queryKey: workspaceQueryKey(employeeAssignmentsKey),
       }),
   });
 }
