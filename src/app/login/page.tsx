@@ -43,6 +43,10 @@ export default function LoginPage() {
     },
   });
 
+  const email = form.watch("email");
+  const password = form.watch("password");
+  const isFilled = Boolean(email?.trim() && password?.trim());
+
   const onSubmit = async (data: FormData) => {
     try {
       setError(null);
@@ -155,7 +159,7 @@ export default function LoginPage() {
                       tabIndex={-1}
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
-                      {showPassword ? <EyeOff className="size-[18px]" strokeWidth={1.7} /> : <Eye className="size-[18px]" strokeWidth={1.7} />}
+                      {showPassword ? <Eye className="size-[18px]" strokeWidth={1.7} /> : <EyeOff className="size-[18px]" strokeWidth={1.7} />}
                     </button>
                   </div>
                   <FormMessage />
@@ -164,8 +168,8 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                disabled={isLoading}
-                className="h-[54px] w-full rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] transition-all"
+                disabled={isLoading || !isFilled}
+                className="h-[54px] w-full rounded-[10px] bg-[#0ea894] text-[14px] font-semibold text-white shadow-[0_12px_26px_-14px_rgba(14,168,148,0.8)] hover:translate-y-[-1px] hover:bg-[#0c9785] disabled:bg-[#0ea894] disabled:opacity-40 disabled:text-white disabled:shadow-none disabled:hover:translate-y-0 disabled:cursor-not-allowed transition-all"
               >
                 {isLoading ? "Signing in..." : "Sign in"}
                 {isLoading && <Loader2 className="size-4 animate-spin" />}
