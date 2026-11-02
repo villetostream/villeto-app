@@ -96,7 +96,7 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
         if (!user) {
           try {
             const me = await axios.get(apiUrl("users/me"), {
-              params: { view: "session" },
+              params: { view: "bootstrap" },
               headers: { Authorization: `Bearer ${newToken}` },
               withCredentials: true,
             });

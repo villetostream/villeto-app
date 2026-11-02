@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Pencil, Camera, Trash2, Loader2, CheckCircle2, Users, ShieldCheck } from "lucide-react";
 import { HugeiconsIcon } from '@hugeicons/react';
 import { CreditCardIcon, Invoice04Icon, Store01Icon, ShoppingCart01Icon, Invoice03Icon } from '@hugeicons/core-free-icons';
+import { usePersonalProfile } from "@/queries/auth/use-personal-profile";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
@@ -218,7 +219,9 @@ function BankDetailsModal({
 
 // ─── My Profile tab ───────────────────────────────────────────────────────────
 function MyProfileTab() {
-  const user = useAuthStore((s) => s.user);
+  const sessionUser = useAuthStore((s) => s.user);
+  const profile = usePersonalProfile();
+  const user = sessionUser ? { ...sessionUser, ...profile.data } : null;
   const axios = useAxios();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -239,19 +242,19 @@ function MyProfileTab() {
   });
 
   useEffect(() => {
-    if (user) {
+    if (user && profile.isSuccess && !isEditing) {
       queueMicrotask(() => {
         setForm({
           firstName: user.firstName || "",
           lastName: String(user.lastName || ""),
           email: user.email || "",
-          phone: String(user.phone || ""),
+          phone: String(user.phoneNumber || user.phone || ""),
           country: user.company?.countryOfRegistration || "",
           city: "",
         });
       });
     }
-  }, [user?.userId]); // Use userId to prevent form reset on object reference changes
+  }, [user?.userId, profile.dataUpdatedAt]); // Hydrate when details arrive, not on permission refresh.
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -293,6 +296,8 @@ function MyProfileTab() {
 
   return (
     <div className="space-y-5" data-tour="account-details-section">
+      {profile.isPending && <p role="status">Loading profile details…</p>}
+      {profile.isError && <p role="alert">Could not load profile details. <button onClick={() => void profile.refetch()}>Retry</button></p>}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <ProcurementMetric 
           label="Active Profile" 
@@ -327,7 +332,7 @@ function MyProfileTab() {
       <ProcurementSection 
         title="Personal Details"
         description="Manage your profile information and contact details."
-        action={!isEditing ? { label: "Edit details", onClick: () => setIsEditing(true) } : undefined}
+        action={!isEditing && profile.isSuccess ? { label: "Edit details", onClick: () => setIsEditing(true) } : undefined}
       >
         <div className="p-5">
           {isEditing && (

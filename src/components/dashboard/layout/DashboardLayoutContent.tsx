@@ -17,12 +17,9 @@ import { UserSection } from "@/components/user/user-section";
 import {
   useSyncExternalStore,
   useEffect,
-  useCallback,
-  useRef,
   useState,
 } from "react";
-import { useAuthStore, User } from "@/stores/auth-stores";
-import { useAxios } from "@/hooks/useAxios";
+import { useAuthStore } from "@/stores/auth-stores";
 import DashboardModals from "@/components/dashboard/layout/DashboardModals";
 import IdleSessionManager from "./IdleSessionManager";
 import VilletoTourGuide from "@/components/tour/VilletoTourGuide";
@@ -31,15 +28,10 @@ import { useTourStore } from "@/stores/useTourStore";
 import { ChatPortal } from "@/components/chat";
 import { SplashScreen } from "@/components/ui/splash-screen";
 import SilentRefreshGate from "@/components/dashboard/layout/SilentRefreshGate";
-import {
-  AUTHORIZATION_FOCUS_MAX_AGE_MS,
-  AUTHORIZATION_INVALIDATED_EVENT,
-  parseAuthorizationSnapshot,
-} from "@/features/auth/authorization";
+import { useAuthorizationRefresh } from "@/features/auth/use-authorization-refresh";
 import { EntityWorkspaceContent } from "@/features/entity-workspace/EntityWorkspaceContent";
 import { EntityWorkspaceProvider } from "@/features/entity-workspace/EntityWorkspaceProvider";
 import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
-import { logoutAndRedirect } from "@/lib/logout";
 
 function subscribe() {
   return () => {};
@@ -70,8 +62,7 @@ export default function DashboardLayoutContent({
   const workspaceGeneration = useEntityWorkspaceStore(
     (state) => state.generation,
   );
-  const axios = useAxios();
-  const { setProfile, user, isLoading } = useAuthStore();
+  const { user, isLoading } = useAuthStore();
   const accessToken = useAuthStore((s) => s.accessToken);
   const isTourActive = useTourStore((s) => s.isTourActive);
   const setupGuideReady = useTourStore((s) => s.setupGuideReady);
@@ -79,8 +70,8 @@ export default function DashboardLayoutContent({
 
   // Spend-program settings are fetched lazily by the Policies page when
   // the user navigates there — no need to prefetch here on login.
-  const [profileFetched, setProfileFetched] = useState(false);
   const [silentRefreshDone, setSilentRefreshDone] = useState(false);
+  useAuthorizationRefresh(!isLoading && silentRefreshDone);
 
   useEffect(() => {
     // Lock body scroll to prevent double scrollbars in dashboard
@@ -92,106 +83,6 @@ export default function DashboardLayoutContent({
       document.body.style.overflow = "";
     };
   }, []);
-
-  // Refreshes the user profile and permissions so admin role changes propagate
-  // without requiring re-login. Recreated only when the axios instance changes.
-  const refreshUserAndPermissions = useCallback(async () => {
-    try {
-      const me = await axios.get("/users/me", { params: { view: "session" } });
-      const responseData = me?.data?.data || me?.data;
-      const { _company, companyId, ...userData } = responseData || {};
-
-      if (userData) {
-        if (
-          userData.isActive === false ||
-          userData.status === "DELETED" ||
-          userData.status === "deleted" ||
-          userData.deletedAt
-        ) {
-          logoutAndRedirect();
-          return;
-        }
-
-        const currentUser = useAuthStore.getState().user;
-        const authorization = parseAuthorizationSnapshot(
-          userData.authorization,
-        );
-        setProfile({
-          ...userData,
-          companyId: companyId || userData.company?.companyId || currentUser?.companyId,
-          authorization,
-        } as User);
-      }
-    } catch {
-      // Silently handle — user session may still be valid
-    } finally {
-      setProfileFetched(true);
-    }
-  }, [axios, setProfile]);
-
-  // Always hold the latest version of the function so setInterval/addEventListener
-  // call the current closure without needing to be listed as effect deps.
-  const refreshRef = useRef(refreshUserAndPermissions);
-  useEffect(() => {
-    refreshRef.current = refreshUserAndPermissions;
-  });
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!silentRefreshDone) return; // Wait for SilentRefreshGate to finish first
-
-    // Re-read user from the store — it may have been populated by SilentRefreshGate
-    const currentUser = useAuthStore.getState().user;
-    if (!currentUser) {
-      logoutAndRedirect();
-      return;
-    }
-
-    // Skip the initial /users/me fetch if SilentRefreshGate already hydrated
-    // the user with authorization data — avoids a duplicate request on login.
-    const hasAuthorization = !!currentUser.authorization;
-    if (!hasAuthorization) {
-      refreshRef.current();
-    }
-
-    // Re-check permissions every 2 min so admin role changes propagate without re-login.
-    const interval = setInterval(
-      () => {
-        void refreshRef.current();
-      },
-      2 * 60 * 1000,
-    );
-
-    const handleFocus = () => {
-      if (
-        useAuthStore
-          .getState()
-          .isAuthorizationStale(AUTHORIZATION_FOCUS_MAX_AGE_MS)
-      ) {
-        void refreshRef.current();
-      }
-    };
-
-    const handleAuthorizationInvalidated = () => {
-      void refreshRef.current();
-    };
-
-    window.addEventListener("focus", handleFocus);
-    window.addEventListener(
-      AUTHORIZATION_INVALIDATED_EVENT,
-      handleAuthorizationInvalidated,
-    );
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", handleFocus);
-      window.removeEventListener(
-        AUTHORIZATION_INVALIDATED_EVENT,
-        handleAuthorizationInvalidated,
-      );
-    };
-    // Runs once after hydration AND after silent refresh completes.
-  }, [isLoading, silentRefreshDone]);
 
   // Ensure the premium splash screen is visible long enough to play its animation
   // when the user first boots the app or logs in.
@@ -240,7 +131,7 @@ export default function DashboardLayoutContent({
       <SilentRefreshGate onDone={() => setSilentRefreshDone(true)} />
       <EntityWorkspaceProvider>
         <SidebarProvider defaultOpen={defaultOpen}>
-          <DashboardSidebar isProfileLoading={!profileFetched && !user.authorization} />
+          <DashboardSidebar isProfileLoading={!user.authorization} />
           <div className="flex flex-col flex-1 h-full overflow-hidden">
             <header className="relative z-10 flex h-[72px] w-full shrink-0 items-center gap-3 border-b border-black/[0.06] bg-white/95 px-3 shadow-[0_1px_0_rgba(16,35,29,0.02)] backdrop-blur sm:px-5 lg:px-6">
               {/* Hide mobile collapse trigger during tour so sidebar stays open */}
