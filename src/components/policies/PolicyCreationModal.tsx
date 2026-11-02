@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import {
-  X, Plus, ChevronDown, ChevronUp, Loader2, UserCircle, Check, Trash2,
+  X, Plus, ChevronDown, ChevronUp, Loader2, Check, Trash2,
   MapPin, Users, Tag, ShieldCheck, Info, AlertTriangle
 } from "lucide-react";
-import { useGetExpenseCategoryCoverageAllApi } from "@/queries/companies/get-expense-categories";
-import { useGetInvitedUsersApi, useGetDirectoryUsersApi } from "@/queries/users/get-all-users";
+import { useCategoryChoices, type CategoryChoice } from "@/queries/efficiency/use-category-choices";
 import { useGetAllDepartmentsApi } from "@/queries/departments/get-all-departments";
 import { useCreatePolicyApi, type CreatePolicyPayload } from "@/queries/companies/create-policy";
 import type { UpdatePolicyPayload } from "@/queries/companies/update-policy";
@@ -28,10 +27,7 @@ import { getCurrencyConfig } from "@/lib/utils/currency";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { useWorkspaceUnsavedChanges } from "@/features/entity-workspace/hooks";
 import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
-import { ExpenseCategory } from "@/queries/companies/get-expense-categories";
-import { Role } from "@/queries/role/get-all-roles";
-import { AppUser, Department } from "@/queries/departments/get-all-departments";
-import { Roles } from "@/core/permissions/roles";
+import { Department } from "@/queries/departments/get-all-departments";
 
 /* ─── Types ───────────────────────────────────────────────── */
 export interface CreatedPolicyData {
@@ -195,7 +191,7 @@ function PolicyPeekPanel({
    DropdownList — searchable optional filter input
 ───────────────────────────────────────────────────────────── */
 function DropdownList({
-  options, selectedValues, multiSelect, onSelect, footer, isLoading, searchable = false,
+  options, selectedValues, multiSelect, onSelect, footer, isLoading, searchable = false, onSearchChange,
 }: {
   options: DropdownOption[];
   selectedValues: string[];
@@ -204,6 +200,7 @@ function DropdownList({
   footer?: React.ReactNode;
   isLoading?: boolean;
   searchable?: boolean;
+  onSearchChange?: (value: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -230,7 +227,7 @@ function DropdownList({
       )
     : options;
 
-  if (isLoading) {
+  if (isLoading && !onSearchChange) {
     return (
       <div className="flex items-center justify-center gap-2 py-5 text-sm text-[#68726d]">
         <Loader2 className="w-4 h-4 animate-spin" /> Loading…
@@ -249,12 +246,12 @@ function DropdownList({
             <input
               ref={searchRef}
               value={query}
-              onChange={(e) => { setQuery(e.target.value); setTimeout(checkFade, 0); }}
+              onChange={(e) => { setQuery(e.target.value); onSearchChange?.(e.target.value); setTimeout(checkFade, 0); }}
               placeholder="Search…"
               className="flex-1 text-sm bg-transparent focus:outline-none placeholder:text-[#84908a] text-[#0b100e]"
             />
             {query && (
-              <button type="button" onClick={() => setQuery("")}
+              <button type="button" onClick={() => { setQuery(""); onSearchChange?.(""); }}
                 className="text-[#84908a] hover:text-[#68726d] transition-colors shrink-0">
                 <X className="w-3 h-3" />
               </button>
@@ -401,9 +398,9 @@ function SimpleDropdown({ placeholder, value, onChange, options, footer, isLoadi
 }
 
 /* ─── Multi select dropdown ───────────────────────────────── */
-function MultiDropdown({ placeholder, values, onToggle, options, footer, isLoading = false, searchable = false }: {
+function MultiDropdown({ placeholder, values, onToggle, options, footer, isLoading = false, searchable = false, onSearchChange }: {
   placeholder: string; values: string[]; onToggle: (v: string) => void;
-  options: DropdownOption[]; footer?: React.ReactNode; isLoading?: boolean; searchable?: boolean;
+  options: DropdownOption[]; footer?: React.ReactNode; isLoading?: boolean; searchable?: boolean; onSearchChange?: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
@@ -417,7 +414,7 @@ function MultiDropdown({ placeholder, values, onToggle, options, footer, isLoadi
 
   return (
     <div className="relative">
-      <button ref={ref} type="button" onClick={() => setOpen((p) => !p)} disabled={isLoading}
+      <button ref={ref} type="button" onClick={() => { if (!open) onSearchChange?.(""); setOpen((p) => !p); }} disabled={isLoading && !onSearchChange}
         className="w-full h-12 rounded-[14px] border border-black/[0.06] bg-white px-4 flex items-center justify-between gap-3 text-sm transition-colors hover:border-[#087f70]/50 focus:outline-none focus:border-[#087f70] disabled:opacity-50">
         <span className={`text-left truncate ${triggerLabel ? "text-[#0b100e] font-medium" : "text-[#68726d]"}`}>
           {triggerLabel ?? placeholder}
@@ -433,7 +430,7 @@ function MultiDropdown({ placeholder, values, onToggle, options, footer, isLoadi
       </button>
       <PortalDropdown triggerRef={ref} open={open} onClose={() => setOpen(false)}>
         <DropdownList options={options} selectedValues={values} multiSelect={true}
-          onSelect={onToggle} footer={footer} isLoading={isLoading} searchable={searchable} />
+          onSelect={onToggle} footer={footer} isLoading={isLoading} searchable={searchable} onSearchChange={onSearchChange} />
       </PortalDropdown>
     </div>
   );
@@ -889,15 +886,13 @@ export default function PolicyCreationModal({
   const hasUnsavedChanges = open && Boolean(policyName.trim() || categories.length > 0);
   useWorkspaceUnsavedChanges(hasUnsavedChanges);
 
-  const can = useAuthStore(state => state.can);
-
-  const invitedUsersApi  = useGetInvitedUsersApi({ enabled: open });
-  const directoryUsersApi = useGetDirectoryUsersApi({ enabled: open && scope === "specific", params: { status: "all" } });
-  const departmentsApi   = useGetAllDepartmentsApi({ enabled: open });
-  const jobGradesApi = useGetJobGradesApi({ enabled: open });
-  const managementLevelsApi = useGetManagementLevelsApi({ enabled: open });
-  // Expense categories with full policy coverage — admin scoped (all categories + their attached policies)
-  const expCatApi        = useGetExpenseCategoryCoverageAllApi({ enabled: open });
+  const departmentsApi   = useGetAllDepartmentsApi({ enabled: open && step === 2 && scope === "specific" });
+  const jobGradesApi = useGetJobGradesApi({ enabled: open && step === 2 && scope === "specific" });
+  const managementLevelsApi = useGetManagementLevelsApi({ enabled: open && step === 2 && scope === "specific" });
+  const [categorySearch, setCategorySearch] = useState("");
+  const expCatApi = useCategoryChoices(open && step === 2, categorySearch);
+  const categoryIdentity = useEntityWorkspaceStore(s => `${s.identity}:${s.generation}`);
+  const [categoryLabels, setCategoryLabels] = useState<{ identity: string; values: Record<string, CategoryChoice> }>({ identity: categoryIdentity, values: {} });
   const { data: legalEntitiesResponse } = useLegalEntities();
   const legalEntities = legalEntitiesResponse?.data || [];
   const workspaceSelection = useEntityWorkspaceStore((s) => s.selection);
@@ -999,7 +994,12 @@ export default function PolicyCreationModal({
   }
 
   const expenseCategoryOptions = useMemo<DropdownOption[]>(() =>
-    (expCatApi.data?.data ?? []).map((c: ExpenseCategory) => {
+    (() => {
+      const rows = expCatApi.data?.pages.flatMap(page => page.data) ?? [];
+      const detailsCategories = (detailsData?.expenseCategories ?? []) as unknown as CategoryChoice[];
+      return [...rows, ...categories.filter(id => !rows.some(row => row.categoryId === id)).flatMap(id =>
+        (categoryLabels.identity === categoryIdentity ? categoryLabels.values[id] : undefined) ?? detailsCategories.find(c => c.categoryId === id) ?? [])];
+    })().map((c: CategoryChoice) => {
       const policyNames: string[] = Array.isArray(c.policies)
         ? c.policies
             .map((p) => {
@@ -1021,7 +1021,7 @@ export default function PolicyCreationModal({
         policyCount,
         policyNames,
       };
-    }), [expCatApi.data?.data]);
+    }), [expCatApi.data, categories, categoryIdentity, categoryLabels, detailsData]);
 
   const jobGradeOptions = useMemo<DropdownOption[]>(() => {
     const grades = (jobGradesApi.data?.data?.jobGrades as JobGrade[]) ?? [];
@@ -1045,7 +1045,6 @@ export default function PolicyCreationModal({
     return [...jobGradeOptions, ...managementLevelOptions];
   }, [jobGradeOptions, managementLevelOptions]);
 
-  const currentUserId = useAuthStore(state => state.user?.userId);
 
   const departmentOptions = useMemo<DropdownOption[]>(() => {
     return (departmentsApi.data?.data ?? []).map((d: Department) => ({
@@ -1054,7 +1053,11 @@ export default function PolicyCreationModal({
     }));
   }, [departmentsApi.data?.data]);
 
-  const togCat  = (v: string) => setCategories((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
+  const togCat = (v: string) => {
+    const row = expCatApi.data?.pages.flatMap(page => page.data).find(row => row.categoryId === v);
+    if (row) setCategoryLabels(previous => ({ identity: categoryIdentity, values: { ...(previous.identity === categoryIdentity ? previous.values : {}), [v]: row } }));
+    setCategories(previous => previous.includes(v) ? previous.filter(id => id !== v) : [...previous, v]);
+  };
   const togDept = (v: string) => setSelectedDepts((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
   const togRole = (v: string) => setSelectedRoles((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
 
@@ -1325,13 +1328,19 @@ export default function PolicyCreationModal({
                         values={categories}
                         onToggle={togCat}
                         options={expenseCategoryOptions}
-                        isLoading={expCatApi.isLoading}
+                        isLoading={expCatApi.isFetching}
+                        onSearchChange={setCategorySearch}
                         searchable
                         footer={
+                          <>
+                          {expCatApi.isError && <button type="button" onClick={() => void expCatApi.refetch()} className="w-full px-4 py-2 text-sm text-red-600">Categories could not load. Retry</button>}
+                          {expCatApi.isFetching && <div className="px-4 py-2 text-sm text-[#68726d]">Loading categories…</div>}
+                          {expCatApi.hasNextPage && <button type="button" disabled={expCatApi.isFetching} onClick={() => void expCatApi.fetchNextPage()} className="w-full px-4 py-2 text-sm text-[#087f70]">Load more categories</button>}
                           <button type="button" onClick={() => setIsAddCatOpen(true)}
                             className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-[#087f70] hover:bg-[#f9faf9] transition-colors text-left">
                             <Plus className="w-4 h-4" strokeWidth={2.5} /> Add category
                           </button>
+                          </>
                         }
                       />
                       {categories.length > 0 && (

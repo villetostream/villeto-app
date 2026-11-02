@@ -24,7 +24,7 @@ export function OtherSourcesTable() {
     manualPagination: true,
   });
 
-  const { data, isLoading } = useGetBillPayIntakes({
+  const { data, isLoading, refetch, isFetching } = useGetBillPayIntakes({
     page: tableprops.page,
     limit: tableprops.pageSize,
   });
@@ -159,7 +159,7 @@ export function OtherSourcesTable() {
       setSelectedDataIds={tableprops.setSelectedDataIds}
       onRowClick={(row) => router.push(`/bill-pay/invoice/${(row as BillPayIntake).invoiceIntakeId}`)}
       tableHeader={{
-        actionButton: <></>,
+        actionButton: <Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Refresh</Button>,
         isSearchable: true,
         isExportable: false,
         isFilter: true,

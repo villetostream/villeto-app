@@ -106,28 +106,3 @@ export const useGetExpenseCategoriesWithPoliciesApi = (
     ...options,
   });
 };
-
-/**
- * Admin-scoped policy coverage endpoint — returns ALL expense categories
- * (including those with 0 policies), with full policy details per category.
- * Used in the Policies page Expense Categories tab and the Policy Creation Modal.
- */
-export const useGetExpenseCategoryCoverageAllApi = (
-  options?: Omit<UseQueryOptions<Response, Error>, "queryKey" | "queryFn">,
-): UseQueryResult<Response, Error> => {
-  const axiosInstance = useAxios();
-  return useQuery<Response, Error>({
-    queryKey: workspaceQueryKey([
-      ...QUERY_KEYS.expenses.categories,
-      "coverage-admin",
-    ]),
-    queryFn: async () => {
-      const response = await axiosInstance.get(
-        API_KEYS.EXPENSE.CATEGORIES_POLICY_COVERAGE_ADMIN,
-      );
-      return response.data;
-    },
-    staleTime: STALE_TIMES.STATIC,
-    ...options,
-  });
-};

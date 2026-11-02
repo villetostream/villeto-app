@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useDebounce } from "use-debounce";
@@ -208,7 +210,7 @@ export function StandardBillsTable() {
 
   // ─── API call ──────────────────────────────────────────────────────────────
   // GET /bill-pay/invoices?legalEntityId={id}&source={source}&workflowStage=…&search=…&page=…&limit=…
-  const { data: invoicesResponse, isLoading: isQueryLoading, isError, refetch } = useGetBillPayInvoices(
+  const { data: invoicesResponse, isLoading: isQueryLoading, isError, refetch, isFetching } = useGetBillPayInvoices(
     {
       legalEntityId,
       page: currentPage,
@@ -264,6 +266,7 @@ export function StandardBillsTable() {
           ))}
         </div>
 
+        <Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Refresh</Button>
         {/* Search, Source filter, and settings */}
         <div className="flex items-center gap-2 w-full lg:w-auto">
           <div className="relative flex-1 lg:w-56">

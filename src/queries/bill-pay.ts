@@ -73,6 +73,11 @@ const unwrap = <T>(value: { data?: T } | T): T =>
     ? (value as { data: T }).data
     : (value as T);
 
+function invalidateInvoiceLists(client: ReturnType<typeof useQueryClient>) {
+  void client.invalidateQueries({ queryKey: workspaceQueryKey(["bill-pay", "invoices"]) });
+  void client.invalidateQueries({ queryKey: workspaceQueryKey(["procurement-invoices"]) });
+}
+
 export function useBillPayData(legalEntityId?: string) {
   const axios = useAxios();
   const enabled = Boolean(legalEntityId);
@@ -228,7 +233,8 @@ export function useGetBillPayIntakes(
       };
     },
     staleTime: STALE_TIMES.LIVE,
-    refetchInterval: POLL_INTERVALS.ACTIVE_LIST,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => query.state.data?.data?.some((intake: BillPayIntake) => ["received", "validating", "queued", "processing"].includes(intake.status)) ? POLL_INTERVALS.ACTIVE_LIST : false,
     ...options,
   });
 }
@@ -345,6 +351,7 @@ export function useUpdateBillPayIntake() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
+      invalidateInvoiceLists(client);
       client.invalidateQueries({
         queryKey: workspaceQueryKey(["bill-pay", "intakes"]),
       });
@@ -627,6 +634,7 @@ export function useSubmitPaymentRequest() {
       return res.data;
     },
     onSuccess: (_, id) => {
+      invalidateInvoiceLists(client);
       client.invalidateQueries({
         queryKey: workspaceQueryKey(["bill-pay", "requests"]),
       });
@@ -655,6 +663,7 @@ export function useAuthorizePaymentRequest() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
+      invalidateInvoiceLists(client);
       client.invalidateQueries({
         queryKey: workspaceQueryKey(["bill-pay", "requests"]),
       });
@@ -683,6 +692,7 @@ export function useRejectPaymentRequest() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
+      invalidateInvoiceLists(client);
       client.invalidateQueries({
         queryKey: workspaceQueryKey(["bill-pay", "requests"]),
       });
@@ -711,6 +721,7 @@ export function useSchedulePaymentRequest() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
+      invalidateInvoiceLists(client);
       client.invalidateQueries({
         queryKey: workspaceQueryKey(["bill-pay", "requests"]),
       });
@@ -748,6 +759,7 @@ export function useRecordExternalPayment() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
+      invalidateInvoiceLists(client);
       client.invalidateQueries({
         queryKey: workspaceQueryKey(["bill-pay", "requests"]),
       });
@@ -767,6 +779,7 @@ export function useInitiatePaymentRequest() {
       return res.data;
     },
     onSuccess: (_, id) => {
+      invalidateInvoiceLists(client);
       client.invalidateQueries({
         queryKey: workspaceQueryKey(["bill-pay", "requests"]),
       });
@@ -831,6 +844,7 @@ export function useReconcilePayment() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
+      invalidateInvoiceLists(client);
       client.invalidateQueries({
         queryKey: workspaceQueryKey(["bill-pay", "payments"]),
       });
@@ -862,6 +876,7 @@ export function useReversePaymentReconciliation() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
+      invalidateInvoiceLists(client);
       client.invalidateQueries({
         queryKey: workspaceQueryKey(["bill-pay", "payments"]),
       });
@@ -959,6 +974,7 @@ export function useMatchBankTransaction() {
       return res.data;
     },
     onSuccess: (_, { id }) => {
+      invalidateInvoiceLists(client);
       client.invalidateQueries({
         queryKey: workspaceQueryKey(["bill-pay", "bank"]),
       });
@@ -1151,7 +1167,8 @@ export function useGetBillPayInvoices(
       };
     },
     staleTime: STALE_TIMES.LIVE,
-    refetchInterval: POLL_INTERVALS.ACTIVE_LIST,
+    refetchOnWindowFocus: true,
+    refetchInterval: false,
     ...options,
   });
 }

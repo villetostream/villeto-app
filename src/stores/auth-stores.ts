@@ -105,6 +105,7 @@ export const useAuthStore = create<AuthState>()(
             },
 
             login: (user) => {
+                clearTokenRefresh();
                 if (typeof window !== 'undefined') {
                     localStorage.setItem('villeto_lastActivityTime', Date.now().toString());
                 }
