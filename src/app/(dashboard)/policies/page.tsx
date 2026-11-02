@@ -72,7 +72,7 @@ import {
   useGetExpenseCategoryCoverageAllApi,
 } from "@/queries/companies/get-expense-categories";
 import { useDeleteCategoryApi } from "@/queries/companies/delete-category";
-import { useGetPoliciesApi } from "@/queries/companies/get-policies";
+import { usePolicyListPage } from "@/queries/companies/use-policy-list-page";
 import { useGetPolicyDetailsApi } from "@/queries/companies/get-policy-details";
 import {
   useDeleteExpensePolicyDraft,
@@ -645,7 +645,7 @@ function PolicyDetailsModal({
 
   const policyName = fullPolicy?.name || policy.name;
   const policyStatus = fullPolicy?.status || policy.status;
-  const policyVersion = (fullPolicy as any)?.version || policy.version;
+  const policyVersion = (fullPolicy as any)?.versionNumber ?? (fullPolicy as any)?.version ?? policy.version;
   const approvers = (fullPolicy as any)?.approvers || policy.approvers || [];
   const createdAt = (fullPolicy as any)?.createdAt;
   const approvedBy =
@@ -1303,9 +1303,6 @@ function PoliciesPage() {
     can("policy.domain", "expense") ||
     can("policy.domain", "procurement");
 
-  const { data: eligibleRolesData } = useGetEligibleRoles("expense_policy", policyType === "expense" && canReadPolicies);
-  const eligibleRoles = eligibleRolesData?.data || [];
-
   const expCatApi = useGetExpenseCategoryCoverageAllApi({
     enabled: policyType === "expense" && canReadExpenseCategories,
   });
@@ -1347,35 +1344,11 @@ function PoliciesPage() {
 
   const queryClient = useQueryClient();
 
-  const policyTableProps = useDataTable({
-    initialPage: 1,
-    initialPageSize: 10,
-    totalItems: 0,
-    manualSorting: false,
-    manualFiltering: false,
-    manualPagination: false,
-  });
-  const setPolicyTotalItems = policyTableProps.setTotalItems;
-
-  const policiesApi = useGetPoliciesApi(
-    {
-      page: 1,
-      limit: 1000,
-      excludeDrafts: false,
-    },
-    { enabled: policyType === "expense" && canReadPolicies },
+  const { query: policiesApi, ...policyTableProps } = usePolicyListPage(
+    search, activeTab, policyType === "expense" && canReadPolicies,
   );
 
   const expenseTableProps = useDataTable({
-    initialPage: 1,
-    initialPageSize: 10,
-    totalItems: 0,
-    manualSorting: false,
-    manualFiltering: false,
-    manualPagination: false,
-  });
-
-  const archivedTableProps = useDataTable({
     initialPage: 1,
     initialPageSize: 10,
     totalItems: 0,
@@ -1389,11 +1362,7 @@ function PoliciesPage() {
 
   const policies = useMemo<Policy[]>(() => {
     const rawPolicies = policiesApi.data?.data || [];
-    const sortedPolicies = [...asArray(rawPolicies).filter(isRecord)].sort(
-      (a, b) =>
-        new Date(getString(b.createdAt) || 0).getTime() -
-        new Date(getString(a.createdAt) || 0).getTime(),
-    );
+    const sortedPolicies = asArray(rawPolicies).filter(isRecord);
 
     return sortedPolicies.map((p) => {
       const getCatNames = (cats: unknown[]) => {
@@ -1428,7 +1397,7 @@ function PoliciesPage() {
           Math.random().toString(),
         policyId: pickString(p, "policyId", "procurementPolicyId", "id"),
         name: getString(p.name),
-        version: Number(p.version) || 1,
+        version: Number(p.versionNumber ?? p.version) || 1,
         category: getCatNames(asArray(p.expenseCategories)),
         appliedTo:
           getString(p.scopeType) === "all" ||
@@ -1469,14 +1438,21 @@ function PoliciesPage() {
         receiptRequired: !!rules.find(
           (r) => getString(r.type) === "receipt_requirement",
         )?.amount,
-        archivedOn: p.deletedAt
-          ? new Date(getString(p.deletedAt)).toLocaleDateString()
+        archivedOn: p.archivedAt
+          ? new Date(getString(p.archivedAt)).toLocaleDateString()
           : undefined,
-        approvalSetting: p.approvalSetting,
+        approvalSetting: policiesApi.data?.approvalSetting ?? p.approvalSetting,
         rules: rules,
       };
     });
-  }, [policiesApi.data?.data, liveExpenseCategories]);
+  }, [policiesApi.data, liveExpenseCategories]);
+
+  const { data: eligibleRolesData } = useGetEligibleRoles(
+    "expense_policy",
+    policyType === "expense" && activeTab === "policies" && canReadPolicies &&
+      policies.some((policy) => ["pending", "pending_approval"].includes(policy.status)),
+  );
+  const eligibleRoles = eligibleRolesData?.data || [];
 
   const { data: spendProgramSettingsResponse, isLoading: isSettingsLoading } =
     useGetSpendProgramSettings({ enabled: policyType === "procurement" && canReadProcurementPolicies });
@@ -1568,41 +1544,11 @@ function PoliciesPage() {
   ]);
 
   /* derived */
-  const activePolicies = useMemo(
-    () => policies.filter((p) => !p.archivedOn),
-    [policies],
-  );
-  const archivedPolicies = useMemo(
-    () => policies.filter((p) => p.archivedOn),
-    [policies],
-  );
-  const approvedCount = useMemo(
-    () => activePolicies.filter((p) => p.status === "active").length,
-    [activePolicies],
-  );
-  const draftedCount = useMemo(
-    () => activePolicies.filter((p) => p.status === "draft").length,
-    [activePolicies],
-  );
-  const pendingCount = useMemo(
-    () => activePolicies.filter((p) => p.status === "pending").length,
-    [activePolicies],
-  );
-
-  const filteredPolicies = useMemo(() => {
-    const q = search.toLowerCase();
-    return activePolicies.filter(
-      (p) =>
-        !q ||
-        p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        p.createdBy.toLowerCase().includes(q),
-    );
-  }, [activePolicies, search]);
-
-  useEffect(() => {
-    setPolicyTotalItems(filteredPolicies.length);
-  }, [filteredPolicies.length, setPolicyTotalItems]);
+  const activePolicies = activeTab === "policies" ? policies : [];
+  const archivedPolicies = activeTab === "archived" ? policies : [];
+  const approvedCount = policiesApi.data?.summary?.active ?? 0;
+  const draftedCount = policiesApi.data?.summary?.draft ?? 0;
+  const pendingCount = policiesApi.data?.summary?.pending ?? 0;
 
   const filteredCategories = useMemo(() => {
     const q = search.toLowerCase();
@@ -1834,21 +1780,21 @@ function PoliciesPage() {
   const policySummary: PolicySummaryItem[] = [
     {
       label: "Active",
-      value: approvedCount,
+      value: policiesApi.isError ? "—" : approvedCount,
       detail: "Policies currently enforced",
       icon: ShieldCheck,
       tone: "teal",
     },
     {
       label: "Pending",
-      value: pendingCount,
+      value: policiesApi.isError ? "—" : pendingCount,
       detail: "Waiting for an approver",
       icon: Clock,
       tone: "amber",
     },
     {
       label: "Drafts",
-      value: draftedCount,
+      value: policiesApi.isError ? "—" : draftedCount,
       detail: "Still being configured",
       icon: FileText,
       tone: "slate",
@@ -2136,6 +2082,7 @@ function PoliciesPage() {
       },
       {
         accessorKey: "category",
+        enableSorting: false,
         header: "Category",
         cell: ({ row }) => (
           <span className="capitalize">{row.original.category}</span>
@@ -2458,6 +2405,7 @@ function PoliciesPage() {
                           : "Search policies"
                       }
                       value={search}
+                      maxLength={100}
                       onChange={(e) => setSearch(e.target.value)}
                       className="h-10 w-full rounded-[9px] border border-black/[0.07] bg-white pl-9 pr-4 text-[13px] placeholder:text-[#929c97] focus:outline-none focus:border-[#0ea894] transition-colors sm:w-[220px]"
                     />
@@ -2496,7 +2444,9 @@ function PoliciesPage() {
                         </p>
                       </div>
                     </div>
-                  ) : activePolicies.length === 0 ? (
+                  ) : policiesApi.isError ? (
+                    <EmptyState title="Could not load policies" description="Refresh to try again." />
+                  ) : activePolicies.length === 0 && !search.trim() ? (
                     <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
                       <div className="flex flex-col items-center text-center max-w-sm">
                         <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
@@ -2527,11 +2477,14 @@ function PoliciesPage() {
                   ) : (
                     <div className="flex-1 border-t border-black/[0.06] overflow-hidden flex flex-col">
                       <DataTable
-                        data={filteredPolicies}
+                        data={activePolicies}
                         columns={policyColumns}
-                        initialSorting={[{ id: "date", desc: true }]}
+                        initialSorting={policyTableProps.sorting}
+                        onSortingChange={policyTableProps.setSorting}
                         height="auto"
-                        manualPagination={false}
+                        manualPagination
+                        manualSorting
+                        manualFiltering
                         emptyState={
                           <EmptyState
                             icon={<Search className="w-6 h-6" />}
@@ -2614,7 +2567,11 @@ function PoliciesPage() {
               {/* ════ ARCHIVED TAB ════ */}
               {activeTab === "archived" && (
                 <>
-                  {archivedPolicies.length === 0 ? (
+                  {policiesApi.isLoading ? (
+                    <div className="p-10 text-center">Fetching archived policies…</div>
+                  ) : policiesApi.isError ? (
+                    <EmptyState title="Could not load archived policies" description="Refresh to try again." />
+                  ) : archivedPolicies.length === 0 ? (
                     <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
                       <div className="flex flex-col items-center text-center max-w-sm">
                         <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
@@ -2637,6 +2594,11 @@ function PoliciesPage() {
                       <DataTable
                         data={archivedPolicies}
                         columns={archivedColumns}
+                        manualPagination
+                        manualSorting
+                        manualFiltering
+                        initialSorting={policyTableProps.sorting}
+                        onSortingChange={policyTableProps.setSorting}
                         height="auto"
                         emptyState={
                           <EmptyState
@@ -2646,10 +2608,7 @@ function PoliciesPage() {
                           />
                         }
                         onRowClick={handleRowClick}
-                        paginationProps={{
-                          ...archivedTableProps.paginationProps,
-                          total: archivedPolicies.length,
-                        }}
+                        paginationProps={policyTableProps.paginationProps}
                       />
                     </div>
                   )}
