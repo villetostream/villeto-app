@@ -195,7 +195,8 @@ export function StandardBillsTable() {
   }
 
   // Legal entity
-  const { data: legalEntitiesData } = useTransactionLegalEntities("finance");
+  const legalEntitiesQuery = useTransactionLegalEntities("finance");
+  const legalEntitiesData = legalEntitiesQuery.data;
   const legalEntityId = legalEntitiesData?.data?.[0]?.legalEntityId ?? "";
 
   // Map tab key → workflowStage query param
@@ -224,7 +225,7 @@ export function StandardBillsTable() {
       enabled: !!legalEntityId && !isSearchPending,
     }
   );
-  const isLoading = isQueryLoading || isSearchPending;
+  const isLoading = isQueryLoading || isSearchPending || legalEntitiesQuery.isLoading;
 
   const invoices: BillPayInvoice[] = invoicesResponse?.data?.data ?? [];
   const meta = invoicesResponse?.data?.meta;
@@ -266,7 +267,7 @@ export function StandardBillsTable() {
           ))}
         </div>
 
-        <Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Refresh</Button>
+        <Button variant="outline" disabled={isFetching || !legalEntityId || isSearchPending} onClick={() => void refetch()}>Refresh</Button>
         {/* Search, Source filter, and settings */}
         <div className="flex items-center gap-2 w-full lg:w-auto">
           <div className="relative flex-1 lg:w-56">
@@ -325,6 +326,16 @@ export function StandardBillsTable() {
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
             <Loader2 className="w-4 h-4 animate-spin text-[#0da594]" />
             Loading invoices…
+          </div>
+        ) : legalEntitiesQuery.isError ? (
+          <div className="py-14 text-center">
+            <p className="text-sm text-red-500">Could not load your eligible legal entities.</p>
+            <button onClick={() => void legalEntitiesQuery.refetch()} className="mt-3 text-xs font-semibold text-[#0da594] hover:underline">Try again</button>
+          </div>
+        ) : !legalEntityId ? (
+          <div className="py-14 text-center">
+            <p className="text-sm font-medium text-gray-700">No eligible legal entity selected</p>
+            <p className="mt-1 text-xs text-gray-400">Select an eligible workspace, or ask an administrator to check your Bill Pay entity access.</p>
           </div>
         ) : isError ? (
           <div className="py-14 text-center">
