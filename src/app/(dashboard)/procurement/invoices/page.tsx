@@ -12,7 +12,7 @@ import { useProcurementInvoices } from "@/queries/procurement/invoices";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 
-const money = (value: number, code: string) => new Intl.NumberFormat("en-NG", { style: "currency", currency: code }).format(value);
+const money = (value: number | string, code: string) => new Intl.NumberFormat("en-NG", { style: "currency", currency: code }).format(Number(value) || 0);
 
 import { useRouter } from "next/navigation";
 
@@ -124,7 +124,7 @@ function ProcurementInvoicesPage() {
                   {invoice.invoiceDate ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(invoice.invoiceDate)) : "—"}
                 </p>
                 <p className="mt-0.5 text-[10px] text-[#89918d]">
-                  Due: {invoice.deliveryDate ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(invoice.deliveryDate)) : "—"}
+                  Due: {(invoice.dueDate || invoice.deliveryDate) ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(invoice.dueDate || invoice.deliveryDate!)) : "—"}
                 </p>
               </div>
               <div className="hidden lg:flex lg:items-center">

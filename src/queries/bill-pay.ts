@@ -1173,16 +1173,40 @@ export function useGetBillPayInvoices(
   });
 }
 
+export interface InvoicePaymentTerms {
+  paymentTermId?: string;
+  code?: string;
+  name?: string;
+  days?: number;
+}
+
 export interface BillPayInvoiceDetail extends BillPayInvoice {
   purchaseOrder?: { purchaseOrderId: string; poNumber: string } | null;
+  poNumber?: string | null;
+  purchaseOrderId?: string | null;
+  deliveryDate?: string | null;
+  paymentTerms?: InvoicePaymentTerms | null;
   paymentStatus?: string;
+  submittedAt?: string | null;
+  underReviewAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  paidAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  legalEntity?: {
+    legalEntityId?: string;
+    legalName?: string;
+    baseCurrency?: string;
+    readinessStatus?: string;
+  } | null;
   lineItems?: Array<{
     name: string;
     description?: string | null;
-    quantity: string;
-    unitPrice: string;
-    lineTotal: string;
-    subtotal: string;
+    quantity: string | number;
+    unitPrice: string | number;
+    lineTotal: string | number;
+    subtotal: string | number;
   }>;
   subtotal?: string;
   taxAmount?: string;

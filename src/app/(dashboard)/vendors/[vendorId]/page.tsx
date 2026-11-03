@@ -481,6 +481,28 @@ function VendorDetailsPage() {
         </div>
       )}
 
+      {/* ── Rejection Notice Banner ── */}
+      {isRejected && (
+        <div className="rounded-[14px] border border-[#fbd5d5] bg-[#fdf2f2] p-4 flex items-start gap-3 shadow-sm">
+          <XCircle className="h-5 w-5 text-[#d33d44] mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <h3 className="text-[13px] font-semibold text-[#9b1c1c]">
+              Vendor Application Rejected
+            </h3>
+            {decisionNote ? (
+              <p className="text-[12px] text-[#9b1c1c]/90 mt-1 leading-relaxed font-medium">
+                <span className="font-semibold text-[#771d1d]">Rejection Reason:</span>{" "}
+                {decisionNote}
+              </p>
+            ) : (
+              <p className="text-[12px] text-[#9b1c1c]/90 mt-0.5 leading-relaxed">
+                This vendor application was rejected during review.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       <nav
         aria-label="Vendor sections"
         className="flex w-fit items-center gap-1 rounded-[10px] border border-black/[0.08] bg-white p-1 shadow-sm"
@@ -923,11 +945,35 @@ function VendorDetailsPage() {
             isActive ||
             isDeactivated) &&
             decisionNote && (
-              <div className="bg-[#f0faf8] rounded-[14px] border border-[#e7f6f2] p-5 shadow-sm">
-                <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em] mb-3">
-                  {isResubmitted || isRejected ? "REJECTION REASON / FEEDBACK NOTE" : "VENDOR NOTE"}
+              <div
+                className={`rounded-[14px] p-5 shadow-sm border ${
+                  isRejected
+                    ? "bg-[#fdf2f2] border-[#fbd5d5]"
+                    : isResubmitted
+                      ? "bg-[#fffdf5] border-[#ffe099]"
+                      : "bg-[#f0faf8] border-[#e7f6f2]"
+                }`}
+              >
+                <h2
+                  className={`text-[10px] font-bold uppercase tracking-[0.1em] mb-3 ${
+                    isRejected
+                      ? "text-[#9b1c1c]"
+                      : isResubmitted
+                        ? "text-[#b27b00]"
+                        : "text-[#84908a]"
+                  }`}
+                >
+                  {isRejected
+                    ? "REJECTION REASON"
+                    : isResubmitted
+                      ? "PREVIOUS REJECTION REASON / FEEDBACK NOTE"
+                      : "VENDOR NOTE"}
                 </h2>
-                <p className="text-[13px] text-[#0b100e] leading-relaxed font-medium">
+                <p
+                  className={`text-[13px] leading-relaxed font-medium ${
+                    isRejected ? "text-[#771d1d]" : "text-[#0b100e]"
+                  }`}
+                >
                   {decisionNote}
                 </p>
               </div>
