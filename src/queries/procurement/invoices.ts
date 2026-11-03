@@ -3,21 +3,45 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 
+export interface InvoicePaymentTerms {
+  paymentTermId?: string;
+  code?: string;
+  name?: string;
+  days?: number;
+}
+
 export interface ProcurementInvoice {
   vendorInvoiceId: string;
   invoiceNumber: string;
   invoiceDate: string;
+  dueDate?: string | null;
+  deliveryDate?: string | null;
+  paymentTerms?: InvoicePaymentTerms | null;
   status: "submitted" | "under_review" | "approved" | "rejected" | "paid";
   paymentStatus: string;
   currency: string;
-  subtotal: number;
-  taxAmount: number;
-  totalAmount: number;
+  subtotal: number | string;
+  taxAmount: number | string;
+  totalAmount: number | string;
+  outstandingAmount?: number | string | null;
   accountingSyncStatus: string;
+  externalAccountingRef?: string | null;
+  accountingSyncedAt?: string | null;
+  accountingSyncError?: string | null;
+  submittedAt?: string | null;
+  underReviewAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  paidAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  workflowStage?: string;
+  notes?: string | null;
   vendor?: {
     vendorId: string;
     displayName?: string;
     legalName?: string;
+    email?: string;
   } | null;
   legalEntity: {
     legalEntityId: string;
@@ -27,7 +51,25 @@ export interface ProcurementInvoice {
   };
   purchaseOrderId?: string | null;
   poNumber?: string | null;
-  deliveryDate?: string | null;
+  purchaseOrder?: {
+    purchaseOrderId: string;
+    poNumber: string;
+  } | null;
+  lineItems?: Array<{
+    vendorInvoiceLineItemId?: string;
+    name?: string;
+    description?: string | null;
+    quantity?: number | string;
+    unitPrice?: number | string;
+    subtotal?: number | string;
+    taxAmount?: number | string;
+    lineTotal?: number | string;
+    sku?: string | null;
+    unitOfMeasure?: string | null;
+    categoryId?: string | null;
+    departmentId?: string | null;
+    accountingResolutionStatus?: string;
+  }>;
 }
 
 interface InvoiceListResponse {
