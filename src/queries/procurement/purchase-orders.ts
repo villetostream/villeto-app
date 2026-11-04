@@ -614,6 +614,9 @@ export interface ReceiptLineItem {
   fulfillmentLineItemId: string;
   name?: string;
   quantityReceived: number;
+  quantityAccepted?: number;
+  quantityRejected?: number;
+  rejectionReason?: string;
   notes?: string;
 }
 
@@ -621,6 +624,12 @@ export interface ConfirmReceiptPayload {
   receiptReference: string;
   receivedAt: string;
   notes?: string;
+  rejectionCategory?: string;
+  rejectionReason?: string;
+  hasExceptions?: boolean;
+  rejectedQuantity?: number;
+  acceptedQuantity?: number;
+  attachmentName?: string;
   lineItems: ReceiptLineItem[];
 }
 
