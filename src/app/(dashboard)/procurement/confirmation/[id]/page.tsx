@@ -1023,7 +1023,11 @@ function ConfirmationDetailPage() {
                 fulfillmentId: activeNotice.vendorDeliveryNoticeId,
                 payload,
               });
-              toast.success("Delivery receipt confirmed.");
+              toast.success(
+                payload.hasExceptions
+                  ? "Receipt response recorded with exceptions."
+                  : "Delivery receipt confirmed."
+              );
               setActiveNotice(null);
             } catch (err: any) {
               toast.error(err.response?.data?.message || "Failed to confirm receipt");
