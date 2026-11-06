@@ -587,7 +587,7 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
     return "Purchase Orders";
   if (pathname.match(/^\/procurement\/confirmation\/[^/]+$/))
     return "Confirmation Details";
-  if (pathname.startsWith("/procurement/confirmation")) return "Confirmation";
+  if (pathname.startsWith("/procurement/confirmation")) return "Receiving & Confirmation";
   if (pathname.startsWith("/procurement/categories")) return "Categories";
   if (pathname.startsWith("/procurement")) return "Procurement";
 
@@ -1092,14 +1092,16 @@ export function UserSection() {
             <Button
               variant="ghost"
               size="icon"
-              className="relative h-9 w-9 rounded-[9px] border border-transparent text-[#68726d] outline-none hover:border-black/[0.05] hover:bg-[#f4f8f6] hover:text-[#0b100e]"
+              className="relative h-10 w-10 rounded-[10px] border border-black/[0.06] bg-white text-[#52605b] shadow-[0_1px_2px_rgba(16,35,29,0.04)] outline-none transition-colors hover:bg-[#f4f8f6] hover:text-[#0b100e]"
             >
-              <Bell className="w-[18px] h-[18px]" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold leading-none shadow-sm border border-white">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
+              <span className="relative inline-flex items-center justify-center">
+                <Bell className="w-[18px] h-[18px]" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-[#d33d44] text-white text-[9px] font-bold leading-none ring-2 ring-white">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </span>
             </Button>
           </PopoverTrigger>
           <PopoverContent
