@@ -373,11 +373,6 @@ export default function CompanyFinalDecisionModal({
       );
     }
   };
-      toast.error(
-        err?.response?.data?.message || "Unable to submit final decision."
-      );
-    }
-  };
 
   const buyerEvidence = effectiveReceipt?.evidence || [];
   const vendorEvidence = effectiveReceipt?.vendorEvidence || [];
