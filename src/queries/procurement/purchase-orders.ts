@@ -892,6 +892,7 @@ export const useSubmitReceiptFinalDecision = (purchaseOrderId: string) => {
       const response = await axios.post(
         PROCUREMENT_KEYS.RECEIPT_FINAL_DECISION(purchaseOrderId, deliveryReceiptId),
         payload,
+        { _skipErrorToast: true } as any,
       );
       return response.data;
     },

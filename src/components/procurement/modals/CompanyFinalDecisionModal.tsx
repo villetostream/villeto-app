@@ -87,6 +87,60 @@ export default function CompanyFinalDecisionModal({
 
   const receiptLines = effectiveReceipt?.lineItems || [];
 
+  const resolveLineReceiptId = (li: any): string => {
+    if (!li) return "";
+    const direct =
+      li.deliveryReceiptLineItemId ||
+      li.receiptLineItemId ||
+      li.id ||
+      li.deliveryReceiptLineId;
+    if (direct) return String(direct);
+
+    // Fallback: match in exceptionDetail or receiptDetail
+    const fallbackList = [
+      ...(exceptionDetail?.lineItems || []),
+      ...(receiptDetail?.lineItems || []),
+    ] as any[];
+
+    const match = fallbackList.find(
+      (dl) =>
+        (li.purchaseOrderLineItemId && dl.purchaseOrderLineItemId === li.purchaseOrderLineItemId) ||
+        (li.fulfillmentLineItemId && dl.fulfillmentLineItemId === li.fulfillmentLineItemId) ||
+        (li.name && dl.name === li.name)
+    );
+
+    return String(
+      match?.deliveryReceiptLineItemId ||
+      match?.receiptLineItemId ||
+      match?.id ||
+      ""
+    );
+  };
+
+  const getLineAlloc = (li: any): LineAllocationState => {
+    const resolvedId = resolveLineReceiptId(li);
+    const keys = [
+      resolvedId,
+      li?.deliveryReceiptLineItemId,
+      li?.receiptLineItemId,
+      li?.id,
+      li?.purchaseOrderLineItemId,
+      li?.fulfillmentLineItemId,
+      li?.name,
+    ].filter(Boolean) as string[];
+
+    for (const k of keys) {
+      if (allocations[k]) return allocations[k];
+    }
+
+    return {
+      quantityAccepted: Number(li?.quantityAccepted ?? 0),
+      quantityRejected: Number(li?.quantityRejected ?? 0),
+      quantityMissing: Number(li?.quantityMissing ?? 0),
+      reason: "",
+    };
+  };
+
   // Helper to get total declared units for a receipt line item
   const getLineDeclaredTotal = (li: any) => {
     const sum =
@@ -105,59 +159,79 @@ export default function CompanyFinalDecisionModal({
 
     const initial: Record<string, LineAllocationState> = {};
     for (const li of receiptLines) {
-      const lineId = li.deliveryReceiptLineItemId || li.purchaseOrderLineItemId;
-      if (!lineId) continue;
-      initial[lineId] = {
+      const resolvedId = resolveLineReceiptId(li);
+      const keys = [
+        resolvedId,
+        li.deliveryReceiptLineItemId,
+        li.receiptLineItemId,
+        li.id,
+        li.purchaseOrderLineItemId,
+        li.fulfillmentLineItemId,
+      ].filter(Boolean);
+
+      const state: LineAllocationState = {
         quantityAccepted: Number(li.quantityAccepted ?? 0),
         quantityRejected: Number(li.quantityRejected ?? 0),
         quantityMissing: Number(li.quantityMissing ?? 0),
         reason: "",
       };
+
+      for (const k of keys) {
+        initial[k] = state;
+      }
     }
     setAllocations(initial);
-  }, [open, deliveryReceiptId, receiptLines.length]);
+  }, [open, deliveryReceiptId, exceptionDetail, receiptDetail]);
 
   const handleDecisionSwitch = (nextDecision: FinalDecisionChoice) => {
     setDecision(nextDecision);
     const updated: Record<string, LineAllocationState> = {};
 
     for (const li of receiptLines) {
-      const lineId = li.deliveryReceiptLineItemId || li.purchaseOrderLineItemId;
-      if (!lineId) continue;
+      const resolvedId = resolveLineReceiptId(li);
+      const keys = [
+        resolvedId,
+        li.deliveryReceiptLineItemId,
+        li.receiptLineItemId,
+        li.id,
+        li.purchaseOrderLineItemId,
+        li.fulfillmentLineItemId,
+      ].filter(Boolean);
+
       const totalDeclared = getLineDeclaredTotal(li);
       const origAccepted = Number(li.quantityAccepted ?? 0);
       const origRejected = Number(li.quantityRejected ?? 0);
       const origMissing = Number(li.quantityMissing ?? 0);
+      const currentReason = getLineAlloc(li).reason;
 
+      let state: LineAllocationState;
       if (nextDecision === "uphold_buyer_finding") {
-        updated[lineId] = {
+        state = {
           quantityAccepted: origAccepted,
           quantityRejected: origRejected,
           quantityMissing: origMissing,
-          reason: allocations[lineId]?.reason || "",
+          reason: currentReason || "",
         };
       } else if (nextDecision === "accept_vendor_dispute") {
-        // Default vendor-disputed lines to accepting the rejected units unless vendor specified otherwise
-        updated[lineId] = {
+        state = {
           quantityAccepted: origAccepted + origRejected,
           quantityRejected: 0,
           quantityMissing: Math.max(0, totalDeclared - (origAccepted + origRejected)),
-          reason: allocations[lineId]?.reason || "",
+          reason: currentReason || "",
         };
       } else {
-        updated[lineId] = allocations[lineId] || {
-          quantityAccepted: origAccepted,
-          quantityRejected: origRejected,
-          quantityMissing: origMissing,
-          reason: "",
-        };
+        state = getLineAlloc(li);
+      }
+
+      for (const k of keys) {
+        updated[k] = state;
       }
     }
     setAllocations(updated);
   };
 
   const updateLineField = (
-    lineId: string,
+    li: any,
     field: "quantityAccepted" | "quantityRejected" | "quantityMissing",
     rawVal: string,
     totalDeclared: number,
@@ -165,30 +239,39 @@ export default function CompanyFinalDecisionModal({
     const cleaned = rawVal.replace(/[^\d]/g, "");
     const num = Math.min(totalDeclared, Math.max(0, parseInt(cleaned, 10) || 0));
 
+    const current = getLineAlloc(li);
+    const next = { ...current, [field]: num };
+
+    // Auto-balance when editing so total matches declared quantity
+    if (field === "quantityAccepted") {
+      const remainder = Math.max(0, totalDeclared - num);
+      const keepMissing = Math.min(remainder, current.quantityMissing);
+      next.quantityMissing = keepMissing;
+      next.quantityRejected = Math.max(0, remainder - keepMissing);
+    } else if (field === "quantityRejected") {
+      const remainder = Math.max(0, totalDeclared - next.quantityAccepted - num);
+      next.quantityMissing = remainder;
+    } else if (field === "quantityMissing") {
+      const remainder = Math.max(0, totalDeclared - next.quantityAccepted - num);
+      next.quantityRejected = remainder;
+    }
+
+    const resolvedId = resolveLineReceiptId(li);
+    const keys = [
+      resolvedId,
+      li.deliveryReceiptLineItemId,
+      li.receiptLineItemId,
+      li.id,
+      li.purchaseOrderLineItemId,
+      li.fulfillmentLineItemId,
+    ].filter(Boolean);
+
     setAllocations((prev) => {
-      const current = prev[lineId] || {
-        quantityAccepted: 0,
-        quantityRejected: 0,
-        quantityMissing: 0,
-        reason: "",
-      };
-      const next = { ...current, [field]: num };
-
-      // Auto-balance when editing so total matches declared quantity
-      if (field === "quantityAccepted") {
-        const remainder = Math.max(0, totalDeclared - num);
-        const keepMissing = Math.min(remainder, current.quantityMissing);
-        next.quantityMissing = keepMissing;
-        next.quantityRejected = Math.max(0, remainder - keepMissing);
-      } else if (field === "quantityRejected") {
-        const remainder = Math.max(0, totalDeclared - next.quantityAccepted - num);
-        next.quantityMissing = remainder;
-      } else if (field === "quantityMissing") {
-        const remainder = Math.max(0, totalDeclared - next.quantityAccepted - num);
-        next.quantityRejected = remainder;
+      const copy = { ...prev };
+      for (const k of keys) {
+        copy[k] = next;
       }
-
-      return { ...prev, [lineId]: next };
+      return copy;
     });
   };
 
@@ -232,10 +315,7 @@ export default function CompanyFinalDecisionModal({
   };
 
   const isAllocationValid = receiptLines.every((li: any) => {
-    const lineId = li.deliveryReceiptLineItemId || li.purchaseOrderLineItemId;
-    if (!lineId) return true;
-    const alloc = allocations[lineId];
-    if (!alloc) return true;
+    const alloc = getLineAlloc(li);
     const totalDeclared = getLineDeclaredTotal(li);
     return (
       alloc.quantityAccepted + alloc.quantityRejected + alloc.quantityMissing ===
@@ -254,23 +334,18 @@ export default function CompanyFinalDecisionModal({
 
     try {
       const lineItemsPayload = receiptLines
-        .filter((li: any) => Boolean(li.deliveryReceiptLineItemId))
         .map((li: any) => {
-          const lineId = li.deliveryReceiptLineItemId;
-          const alloc = allocations[lineId] || {
-            quantityAccepted: Number(li.quantityAccepted ?? 0),
-            quantityRejected: Number(li.quantityRejected ?? 0),
-            quantityMissing: Number(li.quantityMissing ?? 0),
-            reason: "",
-          };
+          const lineId = resolveLineReceiptId(li);
+          const alloc = getLineAlloc(li);
           return {
             deliveryReceiptLineItemId: lineId,
-            quantityAccepted: alloc.quantityAccepted,
-            quantityRejected: alloc.quantityRejected,
-            quantityMissing: alloc.quantityMissing,
+            quantityAccepted: Number(alloc.quantityAccepted ?? 0),
+            quantityRejected: Number(alloc.quantityRejected ?? 0),
+            quantityMissing: Number(alloc.quantityMissing ?? 0),
             ...(alloc.reason?.trim() ? { reason: alloc.reason.trim() } : {}),
           };
-        });
+        })
+        .filter((item) => Boolean(item.deliveryReceiptLineItemId));
 
       await finalDecisionMut.mutateAsync({
         deliveryReceiptId,
@@ -286,13 +361,18 @@ export default function CompanyFinalDecisionModal({
                 })),
               }
             : {}),
-          ...(lineItemsPayload.length > 0 ? { lineItems: lineItemsPayload } : {}),
+          lineItems: lineItemsPayload,
         },
       });
 
       toast.success("Final decision recorded. Exception dispute is now resolved.");
       onClose();
     } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message || "Unable to submit final decision."
+      );
+    }
+  };
       toast.error(
         err?.response?.data?.message || "Unable to submit final decision."
       );
@@ -529,17 +609,9 @@ export default function CompanyFinalDecisionModal({
                     </thead>
                     <tbody className="divide-y divide-black/[0.04]">
                       {receiptLines.map((li: any, idx: number) => {
-                        const lineId =
-                          li.deliveryReceiptLineItemId ||
-                          li.purchaseOrderLineItemId ||
-                          String(idx);
+                        const lineId = resolveLineReceiptId(li) || li.purchaseOrderLineItemId || String(idx);
                         const totalDeclared = getLineDeclaredTotal(li);
-                        const alloc = allocations[lineId] || {
-                          quantityAccepted: Number(li.quantityAccepted ?? 0),
-                          quantityRejected: Number(li.quantityRejected ?? 0),
-                          quantityMissing: Number(li.quantityMissing ?? 0),
-                          reason: "",
-                        };
+                        const alloc = getLineAlloc(li);
                         const isReadOnlyLine = decision === "uphold_buyer_finding";
 
                         return (
@@ -572,7 +644,7 @@ export default function CompanyFinalDecisionModal({
                                 value={String(alloc.quantityAccepted)}
                                 onChange={(e) =>
                                   updateLineField(
-                                    lineId,
+                                    li,
                                     "quantityAccepted",
                                     e.target.value,
                                     totalDeclared,
@@ -589,7 +661,7 @@ export default function CompanyFinalDecisionModal({
                                 value={String(alloc.quantityRejected)}
                                 onChange={(e) =>
                                   updateLineField(
-                                    lineId,
+                                    li,
                                     "quantityRejected",
                                     e.target.value,
                                     totalDeclared,
@@ -606,7 +678,7 @@ export default function CompanyFinalDecisionModal({
                                 value={String(alloc.quantityMissing)}
                                 onChange={(e) =>
                                   updateLineField(
-                                    lineId,
+                                    li,
                                     "quantityMissing",
                                     e.target.value,
                                     totalDeclared,
