@@ -160,13 +160,14 @@ export default function CompanyFinalDecisionModal({
     const initial: Record<string, LineAllocationState> = {};
     for (const li of receiptLines) {
       const resolvedId = resolveLineReceiptId(li);
+      const anyLi = li as any;
       const keys = [
         resolvedId,
-        li.deliveryReceiptLineItemId,
-        li.receiptLineItemId,
-        li.id,
-        li.purchaseOrderLineItemId,
-        li.fulfillmentLineItemId,
+        anyLi.deliveryReceiptLineItemId,
+        anyLi.receiptLineItemId,
+        anyLi.id,
+        anyLi.purchaseOrderLineItemId,
+        anyLi.fulfillmentLineItemId,
       ].filter(Boolean);
 
       const state: LineAllocationState = {
@@ -189,13 +190,14 @@ export default function CompanyFinalDecisionModal({
 
     for (const li of receiptLines) {
       const resolvedId = resolveLineReceiptId(li);
+      const anyLi = li as any;
       const keys = [
         resolvedId,
-        li.deliveryReceiptLineItemId,
-        li.receiptLineItemId,
-        li.id,
-        li.purchaseOrderLineItemId,
-        li.fulfillmentLineItemId,
+        anyLi.deliveryReceiptLineItemId,
+        anyLi.receiptLineItemId,
+        anyLi.id,
+        anyLi.purchaseOrderLineItemId,
+        anyLi.fulfillmentLineItemId,
       ].filter(Boolean);
 
       const totalDeclared = getLineDeclaredTotal(li);
@@ -257,13 +259,14 @@ export default function CompanyFinalDecisionModal({
     }
 
     const resolvedId = resolveLineReceiptId(li);
+    const anyLi = li as any;
     const keys = [
       resolvedId,
-      li.deliveryReceiptLineItemId,
-      li.receiptLineItemId,
-      li.id,
-      li.purchaseOrderLineItemId,
-      li.fulfillmentLineItemId,
+      anyLi.deliveryReceiptLineItemId,
+      anyLi.receiptLineItemId,
+      anyLi.id,
+      anyLi.purchaseOrderLineItemId,
+      anyLi.fulfillmentLineItemId,
     ].filter(Boolean);
 
     setAllocations((prev) => {
