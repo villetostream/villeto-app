@@ -110,6 +110,9 @@ export interface ReceiptEvidenceItem {
 
 export interface DeliveryReceiptLineItemRecord {
   deliveryReceiptLineItemId: string;
+  id?: string;
+  receiptLineItemId?: string;
+  deliveryReceiptLineId?: string;
   purchaseOrderLineItemId?: string;
   fulfillmentLineItemId?: string;
   name?: string;
