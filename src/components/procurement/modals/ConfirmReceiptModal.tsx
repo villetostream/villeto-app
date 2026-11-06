@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { PackageCheck, Loader2, UploadCloud, FileText, X, ChevronLeft, AlertCircle, Layers, CheckCircle2 } from "lucide-react";
-import { type ConfirmReceiptPayload, type ReceiptLineItem } from "@/queries/procurement/purchase-orders";
+import {
+  type ConfirmReceiptPayload,
+  type ReceiptLineItem,
+  type ReceiptEvidenceItem,
+} from "@/queries/procurement/purchase-orders";
 import { toast } from "sonner";
 
 import {
@@ -26,6 +30,7 @@ import {
 const REJECTION_CATEGORIES = [
   { value: "damaged", label: "Damaged in transit" },
   { value: "missing", label: "Missing from shipment" },
+  { value: "damaged_and_missing", label: "Damaged and missing units" },
   { value: "quality_failure", label: "Defective / Quality failure" },
   { value: "wrong_item", label: "Wrong item delivered" },
   { value: "wrong_specification", label: "Wrong specification" },
@@ -33,6 +38,9 @@ const REJECTION_CATEGORIES = [
   { value: "incomplete_package", label: "Incomplete package" },
   { value: "other", label: "Other (specify below)" },
 ] as const;
+
+const ALLOWED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024; // 5 MB per backend spec
 
 type ModalStep = "input" | "discrepancy_warning" | "rejection_reason";
 type RejectionMode = "all_same" | "per_item";
@@ -46,12 +54,14 @@ export default function ConfirmReceiptModal({
   open,
   onClose,
   onConfirm,
+  onUploadEvidence,
   isPending,
   lineItems,
 }: {
   open: boolean;
   onClose: () => void;
   onConfirm: (payload: ConfirmReceiptPayload) => void;
+  onUploadEvidence?: (file: File) => Promise<ReceiptEvidenceItem>;
   isPending: boolean;
   lineItems: any[];
 }) {
@@ -74,6 +84,10 @@ export default function ConfirmReceiptModal({
     ]))
   );
 
+  // Missing quantities per line item (subset of maxQty - acceptedQty)
+  const [missingQuantities, setMissingQuantities] = useState<Record<string, number>>({});
+  const [missingStrings, setMissingStrings] = useState<Record<string, string>>({});
+
   // Exception fields (global / shared)
   const [rejectionMode, setRejectionMode] = useState<RejectionMode>("all_same");
   const [rejectionCategory, setRejectionCategory] = useState<string>("");
@@ -82,7 +96,11 @@ export default function ConfirmReceiptModal({
   // Exception fields (per line item)
   const [perItemRejections, setPerItemRejections] = useState<Record<string, PerItemRejection>>({});
 
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  // Evidence uploads
+  const [uploadedEvidence, setUploadedEvidence] = useState<
+    Array<ReceiptEvidenceItem & { localName: string; localSize: number }>
+  >([]);
+  const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -94,7 +112,8 @@ export default function ConfirmReceiptModal({
     setRejectionCategory("");
     setRejectionReason("");
     setPerItemRejections({});
-    setAttachedFile(null);
+    setUploadedEvidence([]);
+    setIsUploadingEvidence(false);
 
     const initialQuantities = Object.fromEntries(
       (lineItems || []).map((li: any) => [
@@ -111,13 +130,46 @@ export default function ConfirmReceiptModal({
         ])
       )
     );
+    setMissingQuantities(
+      Object.fromEntries((lineItems || []).map((li: any) => [li.vendorDeliveryNoticeLineItemId, 0]))
+    );
+    setMissingStrings(
+      Object.fromEntries((lineItems || []).map((li: any) => [li.vendorDeliveryNoticeLineItemId, "0"]))
+    );
 
     setReceiptReference(
       typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
+        ? `RCV-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
         : `RCV-${Date.now()}`
     );
   }, [open, lineItems]);
+
+  const getLineBreakdown = (li: any) => {
+    const id = li.vendorDeliveryNoticeLineItemId;
+    const maxQty = Number(li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1);
+    const accepted = quantities[id] !== undefined ? quantities[id] : maxQty;
+    const discrepancy = Math.max(0, maxQty - accepted);
+    const rawMissing = Math.min(discrepancy, Math.max(0, missingQuantities[id] ?? 0));
+    const itemCat =
+      rejectionMode === "per_item" && rejectedLineItemsCount > 1
+        ? perItemRejections[id]?.category
+        : rejectionCategory;
+
+    // If category is explicitly "missing" and user hasn't manually split rejected vs missing,
+    // treat all discrepancy units as missing.
+    const effectiveMissing =
+      itemCat === "missing" && rawMissing === 0 ? discrepancy : rawMissing;
+    const effectiveRejected = Math.max(0, discrepancy - effectiveMissing);
+
+    return {
+      maxQty,
+      accepted,
+      discrepancy,
+      rejected: effectiveRejected,
+      missing: effectiveMissing,
+      received: accepted + effectiveRejected,
+    };
+  };
 
   const totalSubmitted = (lineItems || []).reduce((acc: number, li: any) => {
     return acc + Number(li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1);
@@ -129,17 +181,23 @@ export default function ConfirmReceiptModal({
     return acc + (val !== undefined ? val : maxQty);
   }, 0);
 
-  const totalRejected = Math.max(0, totalSubmitted - totalAccepted);
-  const hasExceptions = totalRejected > 0;
+  const totalExceptionUnits = Math.max(0, totalSubmitted - totalAccepted);
+  const hasExceptions = totalExceptionUnits > 0;
   const isFullRejection = totalSubmitted > 0 && totalAccepted === 0;
 
-  // Track which line items have rejections
+  // Track which line items have exceptions (rejected or missing)
   const rejectedLineItems = (lineItems || []).filter((li: any) => {
     const maxQty = Number(li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1);
     const val = quantities[li.vendorDeliveryNoticeLineItemId];
     const accepted = val !== undefined ? val : maxQty;
     return maxQty - accepted > 0;
   });
+  const rejectedLineItemsCount = rejectedLineItems.length;
+
+  const totalMissing = (lineItems || []).reduce((acc: number, li: any) => {
+    return acc + getLineBreakdown(li).missing;
+  }, 0);
+  const totalRejectedOnly = Math.max(0, totalExceptionUnits - totalMissing);
 
   // Handle number input without leading zeros ("030" bug)
   const handleQuantityChange = (id: string, rawVal: string, maxQty: number) => {
@@ -155,9 +213,17 @@ export default function ConfirmReceiptModal({
     const num = Math.min(maxQty, Math.max(0, parseInt(cleaned, 10) || 0));
     setInputStrings((prev) => ({ ...prev, [id]: String(num) }));
     setQuantities((prev) => ({ ...prev, [id]: num }));
+
+    // Clamp missing quantity so Accepted + Rejected + Missing always equals maxQty
+    const maxException = Math.max(0, maxQty - num);
+    setMissingQuantities((prev) => {
+      const clamped = Math.min(maxException, prev[id] ?? 0);
+      setMissingStrings((s) => ({ ...s, [id]: String(clamped) }));
+      return { ...prev, [id]: clamped };
+    });
   };
 
-  const handleQuantityBlur = (id: string, maxQty: number) => {
+  const handleQuantityBlur = (id: string) => {
     const currentStr = inputStrings[id];
     if (currentStr === "" || currentStr === undefined) {
       setInputStrings((prev) => ({ ...prev, [id]: "0" }));
@@ -165,17 +231,71 @@ export default function ConfirmReceiptModal({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMissingChange = (id: string, rawVal: string, maxException: number) => {
+    const digitsOnly = rawVal.replace(/[^\d]/g, "");
+    const cleaned = digitsOnly.replace(/^0+(?=\d)/, "");
+
+    if (cleaned === "") {
+      setMissingStrings((prev) => ({ ...prev, [id]: "" }));
+      setMissingQuantities((prev) => ({ ...prev, [id]: 0 }));
+      return;
+    }
+
+    const num = Math.min(maxException, Math.max(0, parseInt(cleaned, 10) || 0));
+    setMissingStrings((prev) => ({ ...prev, [id]: String(num) }));
+    setMissingQuantities((prev) => ({ ...prev, [id]: num }));
+  };
+
+  const handleMissingBlur = (id: string) => {
+    const currentStr = missingStrings[id];
+    if (currentStr === "" || currentStr === undefined) {
+      setMissingStrings((prev) => ({ ...prev, [id]: "0" }));
+      setMissingQuantities((prev) => ({ ...prev, [id]: 0 }));
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File exceeds 10MB limit. Please upload a smaller file.");
+    if (!ALLOWED_IMAGE_MIME_TYPES.includes(file.type)) {
+      toast.error("Only JPEG, PNG, or WebP images are supported for receipt evidence.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
-    setAttachedFile(file);
+    if (file.size > MAX_EVIDENCE_BYTES) {
+      toast.error("Image exceeds the 5 MB limit. Please upload a smaller image.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (onUploadEvidence) {
+      try {
+        setIsUploadingEvidence(true);
+        const uploaded = await onUploadEvidence(file);
+        setUploadedEvidence((prev) => [
+          ...prev,
+          {
+            url: uploaded.url,
+            publicId: uploaded.publicId,
+            mimeType: uploaded.mimeType || file.type,
+            originalName: uploaded.originalName || file.name,
+            size: uploaded.size || file.size,
+            localName: file.name,
+            localSize: file.size,
+          },
+        ]);
+        toast.success("Evidence image uploaded");
+      } catch (err: any) {
+        toast.error(
+          err?.response?.data?.message || "Failed to upload evidence image. Please try again."
+        );
+      } finally {
+        setIsUploadingEvidence(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    }
   };
 
   const handleProceedFromInput = () => {
@@ -193,6 +313,7 @@ export default function ConfirmReceiptModal({
 
   const isReasonStepValid = () => {
     if (!hasExceptions) return true;
+    if (isUploadingEvidence) return false;
     if (rejectionMode === "all_same" || rejectedLineItems.length === 1) {
       return !!rejectionCategory && rejectionReason.trim().length > 0;
     }
@@ -206,64 +327,59 @@ export default function ConfirmReceiptModal({
     if (!receivedAt) return;
 
     const itemsToSubmit: ReceiptLineItem[] = (lineItems || []).map((li: any) => {
-      const maxQty = Number(li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1);
-      const acceptedQty = quantities[li.vendorDeliveryNoticeLineItemId] !== undefined
-        ? quantities[li.vendorDeliveryNoticeLineItemId]
-        : maxQty;
-      const rejectedQty = Math.max(0, maxQty - acceptedQty);
+      const { accepted, rejected, missing, received, discrepancy } = getLineBreakdown(li);
 
       let itemReason: string | undefined = undefined;
-      if (rejectedQty > 0) {
+      if (discrepancy > 0) {
         if (rejectionMode === "per_item" && rejectedLineItems.length > 1) {
           const custom = perItemRejections[li.vendorDeliveryNoticeLineItemId];
-          const catLabel = REJECTION_CATEGORIES.find((c) => c.value === custom?.category)?.label || custom?.category;
-          itemReason = `${catLabel || "Rejection"}: ${custom?.reason || ""}`.trim();
+          const isOther = custom?.category === "other";
+          const catLabel = isOther
+            ? ""
+            : REJECTION_CATEGORIES.find((c) => c.value === custom?.category)?.label ||
+              custom?.category;
+          itemReason = custom?.reason?.trim()
+            ? `${catLabel ? `${catLabel}: ` : ""}${custom.reason.trim()}`
+            : catLabel || "Exception reported during delivery inspection.";
         } else {
+          const isOther = rejectionCategory === "other";
           const categoryObj = REJECTION_CATEGORIES.find((c) => c.value === rejectionCategory);
-          itemReason = `${categoryObj?.label || rejectionCategory || "Rejection"}: ${rejectionReason}`.trim();
+          const catLabel = isOther ? "" : categoryObj?.label;
+          itemReason = rejectionReason.trim()
+            ? `${catLabel ? `${catLabel}: ` : ""}${rejectionReason.trim()}`
+            : categoryObj?.label || "Exception reported during delivery inspection.";
         }
       }
 
       return {
-        fulfillmentLineItemId: li.vendorDeliveryNoticeLineItemId,
+        fulfillmentLineItemId: li.vendorDeliveryNoticeLineItemId || li.fulfillmentLineItemId,
         name: li.name,
-        quantityReceived: acceptedQty,
-        quantityAccepted: acceptedQty,
-        quantityRejected: rejectedQty,
-        rejectionReason: itemReason,
-        notes: undefined,
+        quantityReceived: received,
+        quantityAccepted: accepted,
+        quantityRejected: rejected,
+        quantityMissing: missing,
+        ...(itemReason ? { exceptionReason: itemReason } : {}),
       };
-    }).filter((li: any) => isFullRejection ? true : li.quantityReceived > 0);
+    });
 
-    let auditSummary = "";
-    if (hasExceptions) {
-      if (rejectionMode === "per_item" && rejectedLineItems.length > 1) {
-        const itemSummaries = rejectedLineItems.map((li) => {
-          const custom = perItemRejections[li.vendorDeliveryNoticeLineItemId];
-          const catLabel = REJECTION_CATEGORIES.find((c) => c.value === custom?.category)?.label || custom?.category || "Rejected";
-          return `${li.name}: [${catLabel}] ${custom?.reason || ""}`;
-        }).join("; ");
-        auditSummary = `[Multi-Item Exceptions] ${itemSummaries}`;
-      } else {
-        const categoryObj = REJECTION_CATEGORIES.find((c) => c.value === rejectionCategory);
-        auditSummary = `[Inspection Finding: ${categoryObj?.label || rejectionCategory || "Rejected"}] ${rejectionReason.trim()}`;
-      }
-    }
-
-    const combinedNotes = [auditSummary, notes.trim(), attachedFile ? `Attachment: ${attachedFile.name}` : ""]
-      .filter(Boolean)
-      .join(" | ");
+    const evidencePayload: ReceiptEvidenceItem[] | undefined =
+      uploadedEvidence.length > 0
+        ? uploadedEvidence.map((ev) => ({
+            url: ev.url,
+            publicId: ev.publicId,
+            mimeType: ev.mimeType,
+            ...(ev.purchaseOrderLineItemIds?.length
+              ? { purchaseOrderLineItemIds: ev.purchaseOrderLineItemIds }
+              : {}),
+          }))
+        : undefined;
 
     onConfirm({
       receiptReference,
       receivedAt: receivedAt.toISOString(),
-      notes: combinedNotes || undefined,
+      notes: notes.trim() || undefined,
+      ...(evidencePayload ? { evidence: evidencePayload } : {}),
       hasExceptions,
-      rejectionCategory: rejectionCategory || undefined,
-      rejectionReason: auditSummary || undefined,
-      rejectedQuantity: totalRejected,
-      acceptedQuantity: totalAccepted,
-      attachmentName: attachedFile?.name,
       lineItems: itemsToSubmit,
     });
   };
@@ -318,7 +434,7 @@ export default function ConfirmReceiptModal({
                   {hasExceptions && (
                     <span className="text-xs font-semibold text-[#e14856] flex items-center gap-1">
                       <AlertCircle className="w-3.5 h-3.5" />
-                      {totalRejected} {totalRejected === 1 ? "unit" : "units"} marked for rejection
+                      {totalExceptionUnits} {totalExceptionUnits === 1 ? "unit" : "units"} with exceptions
                     </span>
                   )}
                 </div>
@@ -329,20 +445,32 @@ export default function ConfirmReceiptModal({
                         <th className="px-4 py-3 text-left text-xs font-semibold text-[#68726d]">Item</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-[#68726d]">Submitted</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-[#68726d] w-36">Accepted</th>
+                        {hasExceptions && (
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-[#68726d] w-36">
+                            Missing <span className="text-[10px] font-normal text-[#89918d]">(optional)</span>
+                          </th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
                       {(lineItems || []).map((li: any) => {
+                        const id = li.vendorDeliveryNoticeLineItemId;
                         const maxQty = Number(li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1);
-                        const currentVal = quantities[li.vendorDeliveryNoticeLineItemId] ?? maxQty;
+                        const currentVal = quantities[id] ?? maxQty;
                         const isShort = currentVal < maxQty;
-                        const displayString = inputStrings[li.vendorDeliveryNoticeLineItemId] !== undefined
-                          ? inputStrings[li.vendorDeliveryNoticeLineItemId]
+                        const maxException = Math.max(0, maxQty - currentVal);
+                        const currentMissing = Math.min(maxException, missingQuantities[id] ?? 0);
+                        const currentRejected = Math.max(0, maxException - currentMissing);
+                        const displayString = inputStrings[id] !== undefined
+                          ? inputStrings[id]
                           : String(currentVal);
+                        const missingDisplayString = missingStrings[id] !== undefined
+                          ? missingStrings[id]
+                          : String(currentMissing);
 
                         return (
                           <tr
-                            key={li.vendorDeliveryNoticeLineItemId}
+                            key={id}
                             className="border-b border-black/[0.04] last:border-0 hover:bg-[#fcfcfc] transition-colors"
                           >
                             <td className="px-4 py-3 font-medium text-[#0b100e] align-middle">
@@ -360,17 +488,12 @@ export default function ConfirmReceiptModal({
                                   value={displayString}
                                   onChange={(e) =>
                                     handleQuantityChange(
-                                      li.vendorDeliveryNoticeLineItemId,
+                                      id,
                                       e.target.value,
                                       maxQty
                                     )
                                   }
-                                  onBlur={() =>
-                                    handleQuantityBlur(
-                                      li.vendorDeliveryNoticeLineItemId,
-                                      maxQty
-                                    )
-                                  }
+                                  onBlur={() => handleQuantityBlur(id)}
                                   disabled={isPending}
                                   className={`w-24 text-center rounded-[10px] text-sm font-semibold transition-colors ${
                                     isShort
@@ -380,11 +503,38 @@ export default function ConfirmReceiptModal({
                                 />
                                 {isShort && (
                                   <span className="text-[10px] text-[#e14856] font-semibold mt-1">
-                                    {maxQty - currentVal} rejected
+                                    {currentRejected > 0 && `${currentRejected} rejected`}
+                                    {currentRejected > 0 && currentMissing > 0 && " · "}
+                                    {currentMissing > 0 && `${currentMissing} missing`}
                                   </span>
                                 )}
                               </div>
                             </td>
+                            {hasExceptions && (
+                              <td className="px-4 py-2 text-center align-middle">
+                                {isShort ? (
+                                  <div className="flex flex-col items-center">
+                                    <Input
+                                      type="text"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
+                                      value={missingDisplayString}
+                                      onChange={(e) =>
+                                        handleMissingChange(id, e.target.value, maxException)
+                                      }
+                                      onBlur={() => handleMissingBlur(id)}
+                                      disabled={isPending}
+                                      className="w-20 text-center rounded-[10px] text-sm font-semibold border-amber-300 text-amber-700 bg-amber-50/30"
+                                    />
+                                    <span className="text-[10px] text-[#68726d] mt-1">
+                                      of {maxException} short
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-[#89918d]">—</span>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -432,7 +582,7 @@ export default function ConfirmReceiptModal({
                 {hasExceptions
                   ? isFullRejection
                     ? "Review Rejection in Full"
-                    : `Review Rejection (${totalRejected} units)`
+                    : `Review Exceptions (${totalExceptionUnits} units)`
                   : "Confirm Full Receipt"}
               </Button>
             </div>
@@ -452,29 +602,35 @@ export default function ConfirmReceiptModal({
               {/* Title & Description */}
               <div className="space-y-1">
                 <h2 className="text-xl sm:text-2xl font-bold text-[#0b100e]">
-                  {isFullRejection ? "Rejecting the Entire Delivery?" : "Rejecting the Remaining Quantity?"}
+                  {isFullRejection ? "Rejecting the Entire Delivery?" : "Confirming with Delivery Exceptions?"}
                 </h2>
                 <p className="text-xs sm:text-sm text-[#68726d] max-w-md mx-auto leading-relaxed">
                   {isFullRejection
-                    ? "You have marked 0 accepted units. The entire fulfillment will be rejected and the vendor will be notified."
-                    : "You’ve entered a quantity less than the delivered amount. The remaining quantity will be rejected and the vendor will be notified."}
+                    ? "You have marked 0 accepted units. The entire fulfillment will be flagged with exceptions and the vendor will be notified to respond."
+                    : "You’ve entered an accepted quantity less than the delivered amount. The remaining units will be recorded as rejected or missing and sent to the vendor."}
                 </p>
               </div>
 
-              {/* 3-Column Mint Metric Card */}
-              <div className="grid grid-cols-3 bg-[#e8f7f5] rounded-[16px] py-3 px-2 border border-[#cbf0eb]">
+              {/* Metric Card */}
+              <div className={`grid ${totalMissing > 0 ? "grid-cols-4" : "grid-cols-3"} bg-[#e8f7f5] rounded-[16px] py-3 px-2 border border-[#cbf0eb]`}>
                 <div className="px-2">
-                  <p className="text-xs text-[#68726d] font-medium">Delivered</p>
+                  <p className="text-xs text-[#68726d] font-medium">Declared</p>
                   <p className="text-xl sm:text-2xl font-bold text-[#0b100e] mt-1">{totalSubmitted}</p>
                 </div>
-                <div className="px-2 border-x border-[#cbf0eb]">
+                <div className="px-2 border-l border-[#cbf0eb]">
                   <p className="text-xs text-[#68726d] font-medium">Accepted</p>
                   <p className="text-xl sm:text-2xl font-bold text-[#087f70] mt-1">{totalAccepted}</p>
                 </div>
-                <div className="px-2">
+                <div className="px-2 border-l border-[#cbf0eb]">
                   <p className="text-xs text-[#68726d] font-medium">Rejected</p>
-                  <p className="text-xl sm:text-2xl font-bold text-[#e14856] mt-1">{totalRejected}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-[#e14856] mt-1">{totalRejectedOnly}</p>
                 </div>
+                {totalMissing > 0 && (
+                  <div className="px-2 border-l border-[#cbf0eb]">
+                    <p className="text-xs text-[#68726d] font-medium">Missing</p>
+                    <p className="text-xl sm:text-2xl font-bold text-amber-600 mt-1">{totalMissing}</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -488,10 +644,8 @@ export default function ConfirmReceiptModal({
                 {/* Scrollable list with slim scrollbar only when items exceed 3 */}
                 <div className="space-y-1.5 max-h-[145px] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#d1d5db_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/15 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent pr-1">
                   {(lineItems || []).map((li: any) => {
-                    const maxQty = Number(li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1);
-                    const accepted = quantities[li.vendorDeliveryNoticeLineItemId] ?? maxQty;
-                    const rejected = maxQty - accepted;
-                    const isItemShort = rejected > 0;
+                    const { maxQty, accepted, rejected, missing, discrepancy } = getLineBreakdown(li);
+                    const isItemShort = discrepancy > 0;
                     return (
                       <div
                         key={li.vendorDeliveryNoticeLineItemId}
@@ -503,11 +657,20 @@ export default function ConfirmReceiptModal({
                             {accepted} of {maxQty} accepted
                           </p>
                         </div>
-                        <div className="shrink-0">
+                        <div className="shrink-0 flex items-center gap-1.5">
                           {isItemShort ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-red-50 text-[#e14856] border border-red-200/50">
-                              {rejected} rejected
-                            </span>
+                            <>
+                              {rejected > 0 && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-red-50 text-[#e14856] border border-red-200/50">
+                                  {rejected} rejected
+                                </span>
+                              )}
+                              {missing > 0 && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60">
+                                  {missing} missing
+                                </span>
+                              )}
+                            </>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#f0faf8] text-[#087f70] border border-[#087f70]/20">
                               <CheckCircle2 className="w-3 h-3 text-[#087f70]" /> Full receipt
@@ -536,7 +699,7 @@ export default function ConfirmReceiptModal({
                 disabled={isPending}
                 className="flex-1 h-11 sm:h-12 rounded-[14px] bg-[#00b29a] hover:bg-[#009b86] text-white font-semibold text-sm shadow-sm"
               >
-                Confirm Rejection
+                Continue to Exception Details
               </Button>
             </div>
           </div>
@@ -548,9 +711,9 @@ export default function ConfirmReceiptModal({
             {/* FIXED HEADER: Title, Subtitle, and Multi-item Mode Switcher Banner */}
             <div className="p-6 sm:p-7 pb-4 border-b border-black/[0.06] space-y-3 bg-white shrink-0">
               <div>
-                <h2 className="text-xl font-bold text-[#0b100e]">Reason for Rejection</h2>
+                <h2 className="text-xl font-bold text-[#0b100e]">Exception Reason & Evidence</h2>
                 <p className="text-xs sm:text-sm text-[#68726d] mt-1 leading-relaxed">
-                  Please provide a reason for rejecting the delivery. This will be shared with the vendor to acknowledge or dispute the rejection.
+                  Provide an exception reason for the rejected or missing units. This will be shared with the vendor so they can backorder, forfeit, or dispute.
                 </p>
               </div>
 
@@ -559,7 +722,7 @@ export default function ConfirmReceiptModal({
                 <div className="bg-[#f0faf8] rounded-[12px] p-2.5 sm:p-3 border border-[#087f70]/20 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-[#0b100e] flex items-center gap-1.5">
                     <Layers className="w-4 h-4 text-[#087f70]" />
-                    {rejectedLineItems.length} items have rejected quantities
+                    {rejectedLineItems.length} items have exceptions
                   </span>
                   <div className="flex items-center bg-white rounded-lg p-0.5 border border-black/[0.08] text-xs">
                     <button
@@ -592,9 +755,13 @@ export default function ConfirmReceiptModal({
               {rejectedLineItems.length === 1 && (
                 <div className="px-3.5 py-2 bg-[#f0faf8] rounded-[10px] border border-[#087f70]/20 text-xs text-[#087f70] flex items-center justify-between">
                   <span>
-                    Rejection applies to: <strong className="text-[#0b100e]">{rejectedLineItems[0].name}</strong>
+                    Exception applies to: <strong className="text-[#0b100e]">{rejectedLineItems[0].name}</strong>
                   </span>
-                  <span className="font-bold text-[#e14856]">{totalRejected} units rejected</span>
+                  <span className="font-bold text-[#e14856]">
+                    {totalRejectedOnly > 0 && `${totalRejectedOnly} rejected`}
+                    {totalRejectedOnly > 0 && totalMissing > 0 && " · "}
+                    {totalMissing > 0 && `${totalMissing} missing`}
+                  </span>
                 </div>
               )}
             </div>
@@ -607,7 +774,7 @@ export default function ConfirmReceiptModal({
                   {/* Structured Category Selector */}
                   <div className="space-y-1.5">
                     <Label className="text-sm font-semibold text-[#0b100e]">
-                      Rejection Category <span className="text-[#d33d44]">*</span>
+                      Exception Category <span className="text-[#d33d44]">*</span>
                     </Label>
                     <Select
                       value={rejectionCategory}
@@ -627,15 +794,15 @@ export default function ConfirmReceiptModal({
                     </Select>
                   </div>
 
-                  {/* Enter Rejection Reason Textarea */}
+                  {/* Enter Exception Reason Textarea */}
                   <div className="space-y-1.5">
                     <Label className="text-sm font-semibold text-[#0b100e]">
-                      Enter Rejection Reason <span className="text-[#68726d] font-normal">(Required)</span>
+                      Exception Reason <span className="text-[#d33d44]">*</span>
                     </Label>
                     <Textarea
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder="Write note here......."
+                      placeholder="e.g. Ten units were damaged and two were missing."
                       rows={3}
                       disabled={isPending}
                       className="resize-none rounded-[14px] border-black/[0.12] py-2.5 px-3.5 text-sm placeholder:text-[#89918d] focus-visible:ring-[#00b29a]/30 focus-visible:border-[#00b29a]"
@@ -648,9 +815,7 @@ export default function ConfirmReceiptModal({
               {rejectionMode === "per_item" && rejectedLineItems.length > 1 && (
                 <div className="space-y-3.5">
                   {rejectedLineItems.map((li: any) => {
-                    const maxQty = Number(li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1);
-                    const accepted = quantities[li.vendorDeliveryNoticeLineItemId] ?? maxQty;
-                    const itemRejected = maxQty - accepted;
+                    const { rejected, missing } = getLineBreakdown(li);
                     const currentItemData = perItemRejections[li.vendorDeliveryNoticeLineItemId] || {
                       category: "",
                       reason: "",
@@ -664,7 +829,9 @@ export default function ConfirmReceiptModal({
                         <div className="flex items-center justify-between pb-1 border-b border-black/[0.05]">
                           <span className="font-semibold text-xs text-[#0b100e]">{li.name}</span>
                           <span className="text-[11px] font-bold text-[#e14856] bg-red-50 px-2 py-0.5 rounded-full border border-red-200/50">
-                            {itemRejected} rejected
+                            {rejected > 0 && `${rejected} rejected`}
+                            {rejected > 0 && missing > 0 && " · "}
+                            {missing > 0 && `${missing} missing`}
                           </span>
                         </div>
 
@@ -701,7 +868,7 @@ export default function ConfirmReceiptModal({
 
                         <div className="space-y-1">
                           <Label className="text-[11px] font-semibold text-[#0b100e]">
-                            Rejection Reason for {li.name} <span className="text-[#d33d44]">*</span>
+                            Exception Reason for {li.name} <span className="text-[#d33d44]">*</span>
                           </Label>
                           <Textarea
                             value={currentItemData.reason}
@@ -714,7 +881,7 @@ export default function ConfirmReceiptModal({
                                 },
                               }))
                             }
-                            placeholder={`Specify why ${li.name} was rejected…`}
+                            placeholder={`Specify why ${li.name} had exceptions…`}
                             rows={2}
                             disabled={isPending}
                             className="resize-none rounded-[8px] border-black/[0.12] py-1.5 px-2.5 text-xs"
@@ -726,25 +893,29 @@ export default function ConfirmReceiptModal({
                 </div>
               )}
 
-              {/* Add Attachment Section */}
+              {/* Add Evidence Section (JPEG, PNG, WebP up to 5 MB) */}
               <div className="space-y-2 pt-1">
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={handleFileChange}
                   className="hidden"
-                  disabled={isPending}
+                  disabled={isPending || isUploadingEvidence}
                 />
 
                 <div className="border border-dashed border-[#00b29a] rounded-[14px] p-3.5 flex items-center justify-between bg-[#f0faf8]/30">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-[10px] bg-white border border-[#00b29a]/30 flex items-center justify-center shrink-0 shadow-xs">
-                      <UploadCloud className="w-4 h-4 text-[#00b29a]" />
+                      {isUploadingEvidence ? (
+                        <Loader2 className="w-4 h-4 text-[#00b29a] animate-spin" />
+                      ) : (
+                        <UploadCloud className="w-4 h-4 text-[#00b29a]" />
+                      )}
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-[#0b100e]">Add attachment</p>
-                      <p className="text-[11px] text-[#68726d]">PDF, JPG or PNG (max. 10MB)</p>
+                      <p className="text-xs font-semibold text-[#0b100e]">Add evidence image (optional)</p>
+                      <p className="text-[11px] text-[#68726d]">JPEG, PNG, or WebP (max. 5 MB)</p>
                     </div>
                   </div>
 
@@ -752,32 +923,38 @@ export default function ConfirmReceiptModal({
                     type="button"
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isPending}
+                    disabled={isPending || isUploadingEvidence}
                     className="h-8 px-3.5 rounded-[8px] border-[#00b29a] text-[#00b29a] hover:bg-[#00b29a]/10 font-semibold text-xs transition-colors"
                   >
-                    upload
+                    {isUploadingEvidence ? "Uploading…" : "Upload"}
                   </Button>
                 </div>
 
-                {attachedFile && (
-                  <div className="flex items-center justify-between px-3 py-2 rounded-[8px] bg-[#f9faf9] border border-black/[0.06] text-xs">
-                    <div className="flex items-center gap-2 truncate">
-                      <FileText className="w-4 h-4 text-[#00b29a] shrink-0" />
-                      <span className="font-medium text-[#0b100e] truncate">{attachedFile.name}</span>
-                      <span className="text-[#89918d] shrink-0">
-                        ({(attachedFile.size / (1024 * 1024)).toFixed(2)} MB)
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAttachedFile(null);
-                        if (fileInputRef.current) fileInputRef.current.value = "";
-                      }}
-                      className="text-[#68726d] hover:text-[#e14856] ml-2 p-1 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                {uploadedEvidence.length > 0 && (
+                  <div className="space-y-1.5">
+                    {uploadedEvidence.map((ev, idx) => (
+                      <div
+                        key={ev.publicId || idx}
+                        className="flex items-center justify-between px-3 py-2 rounded-[8px] bg-[#f9faf9] border border-black/[0.06] text-xs"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <FileText className="w-4 h-4 text-[#00b29a] shrink-0" />
+                          <span className="font-medium text-[#0b100e] truncate">{ev.localName}</span>
+                          <span className="text-[#89918d] shrink-0">
+                            ({(ev.localSize / (1024 * 1024)).toFixed(2)} MB)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setUploadedEvidence((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                          className="text-[#68726d] hover:text-[#e14856] ml-2 p-1 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

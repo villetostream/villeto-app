@@ -70,16 +70,134 @@ export function getRoleName(u: unknown): string {
   return "Employee";
 }
 
+export type DeliveryOutcome =
+  | "not_delivered"
+  | "fully_delivered"
+  | "full_delivery_with_exceptions"
+  | "partially_delivered"
+  | "partial_delivery_with_exceptions"
+  | "partially_delivered_with_exceptions"
+  | "delivered_with_exceptions"
+  | "delivered";
+
+export type ExceptionResolutionStatus =
+  | "not_required"
+  | "awaiting_vendor_response"
+  | "acknowledged"
+  | "disputed"
+  | "corrective_action_pending"
+  | "resolved"
+  | "backordered"
+  | "forfeited"
+  | "under_company_review"
+  | "resolved_after_dispute";
+
+export type FinalDecisionChoice =
+  | "uphold_buyer_finding"
+  | "accept_vendor_dispute"
+  | "revise_buyer_finding";
+
+export type VendorExceptionDisposition = "backorder" | "forfeit" | "dispute";
+
+export interface ReceiptEvidenceItem {
+  url: string;
+  publicId: string;
+  mimeType: string;
+  originalName?: string;
+  size?: number;
+  purchaseOrderLineItemIds?: string[];
+}
+
+export interface DeliveryReceiptLineItemRecord {
+  deliveryReceiptLineItemId: string;
+  purchaseOrderLineItemId?: string;
+  fulfillmentLineItemId?: string;
+  name?: string;
+  quantityOrdered?: number;
+  quantityReceived?: number;
+  quantityAccepted?: number;
+  quantityRejected?: number;
+  quantityMissing?: number;
+  exceptionReason?: string | null;
+  finalQuantityAccepted?: number | null;
+  finalQuantityRejected?: number | null;
+  finalQuantityMissing?: number | null;
+  resolutionStatus?: ExceptionResolutionStatus | string;
+  vendorDisposition?: VendorExceptionDisposition | string | null;
+  expectedRedeliveryDate?: string | null;
+  vendorResponseReason?: string | null;
+  notes?: string | null;
+}
+
+export interface DeliveryReceiptRecord {
+  deliveryReceiptId: string;
+  receiptNumber?: string;
+  receiptReference?: string;
+  status?: string;
+  confirmationOutcome?: "confirmed" | "confirmed_with_exceptions" | string;
+  inspectionOutcome?: string;
+  resolutionStatus?: ExceptionResolutionStatus | string;
+  vendorResponse?: string | null;
+  vendorResponseReason?: string | null;
+  vendorRespondedAt?: string | null;
+  vendorDisposition?: VendorExceptionDisposition | string | null;
+  expectedRedeliveryDate?: string | null;
+  finalDecision?: FinalDecisionChoice | string | null;
+  decisionVersion?: number;
+  decisionHistory?: Record<string, unknown>[];
+  vendorActionRequired?: boolean;
+  companyActionRequired?: boolean;
+  resolutionNote?: string | null;
+  resolvedAt?: string | null;
+  resolvedByName?: string | null;
+  receivedAt?: string | null;
+  notes?: string | null;
+  evidence?: ReceiptEvidenceItem[];
+  vendorEvidence?: ReceiptEvidenceItem[];
+  purchaseOrderId?: string;
+  poNumber?: string;
+  confirmedByName?: string | null;
+  confirmedById?: string | null;
+  fulfillmentId?: string | null;
+  fulfillmentReference?: string | null;
+  lineItems?: DeliveryReceiptLineItemRecord[];
+}
+
 export interface PurchaseOrderLineItemRecord {
   purchaseRequestLineItemId?: string;
   purchaseOrderLineItemId?: string;
   name?: string;
   description?: string | null;
   quantity?: number;
+  shortClosedQuantity?: number;
+  shortCloseReason?: string | null;
+  shortClosedAt?: string | null;
+  quantityInvoiceable?: number;
+  quantityShipped?: number;
+  quantityReady?: number;
+  quantityRemainingToReady?: number;
+  remainingDisposition?: string | null;
+  dispositionReason?: string | null;
+  expectedReadyDate?: string | null;
+  fulfillmentState?: string;
+  fulfillmentTransportScope?: string;
+  quantityReceived?: number;
+  quantityPhysicallyReceived?: number;
+  quantityAccepted?: number;
+  quantityForfeited?: number;
+  invoiceableSubtotal?: number;
+  quantityDispatched?: number;
+  quantityAwaitingDispatch?: number;
+  quantityAwaitingReceipt?: number;
+  deliveryState?: string;
+  quantityOutstanding?: number;
   unitPrice?: number;
   subtotal?: number;
   taxAmount?: number;
   lineTotal?: number;
+  sku?: string | null;
+  unitOfMeasure?: string | null;
+  deliveryDate?: string | null;
   categoryId?: string | null;
   categoryName?: string | null;
   category?: { id?: string; categoryId?: string; name?: string };
@@ -97,10 +215,15 @@ export interface PurchaseOrderRecord {
   deliveryDate?: string | null;
   notes?: string;
   status?: string;
+  deliveryOutcome?: DeliveryOutcome | string;
+  openExceptionCount?: number;
+  vendorResponseRequired?: boolean;
+  companyActionRequired?: boolean;
   createdAt?: string;
   issueDate?: string;
   issuedAt?: string | null;
   acknowledgedAt?: string | null;
+  readyForDeliveryAt?: string | null;
   deliveredAt?: string | null;
   closedAt?: string | null;
   lineItems?: PurchaseOrderLineItemRecord[];
@@ -128,8 +251,14 @@ export interface PurchaseOrderRecord {
   quantityRemainingToReady?: number;
   quantityDispatched?: number;
   quantityReceived?: number;
+  quantityPhysicallyReceived?: number;
+  quantityAccepted?: number;
+  quantityForfeited?: number;
+  quantityOutstanding?: number;
+  invoiceableSubtotal?: number;
   /** Dispatched by vendor but not yet confirmed as received by the tenant */
   quantityAwaitingReceipt?: number;
+  receiptConfirmations?: DeliveryReceiptRecord[];
   updatedAt?: string;
   shipmentDate?: string | null;
   digitalDeliveryDate?: string | null;
@@ -144,6 +273,14 @@ export interface PurchaseOrderRecord {
  */
 export function needsReceiptConfirmation(po: PurchaseOrderRecord): boolean {
   return Number(po.quantityAwaitingReceipt ?? 0) > 0;
+}
+
+/**
+ * A PO needs the company's exception review when the vendor has disputed a finding
+ * (companyActionRequired === true).
+ */
+export function needsCompanyExceptionDecision(po: PurchaseOrderRecord): boolean {
+  return Boolean(po.companyActionRequired);
 }
 
 export interface PurchaseRequestDetail extends PurchaseRequest {

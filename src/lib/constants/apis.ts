@@ -141,6 +141,26 @@ export const PROCUREMENT_KEYS = {
   /** POST — confirm physical receipt against one dispatched fulfillment */
   CONFIRM_FULFILLMENT_RECEIPT: (purchaseOrderId: string, fulfillmentId: string) =>
     `procurement/purchase-orders/${purchaseOrderId}/fulfillments/${fulfillmentId}/receipts` as const,
+  /** POST — upload optional receipt evidence before confirming delivery */
+  UPLOAD_FULFILLMENT_RECEIPT_EVIDENCE: (purchaseOrderId: string, fulfillmentId: string) =>
+    `procurement/purchase-orders/${purchaseOrderId}/fulfillments/${fulfillmentId}/receipt-evidence` as const,
+  /** GET — get one fulfillment receipt and its exceptions */
+  PO_RECEIPT_DETAIL: (purchaseOrderId: string, deliveryReceiptId: string) =>
+    `procurement/purchase-orders/${purchaseOrderId}/receipts/${deliveryReceiptId}` as const,
+  /** POST — upload optional buyer evidence for an existing receipt exception */
+  UPLOAD_RECEIPT_EXCEPTION_EVIDENCE: (purchaseOrderId: string, deliveryReceiptId: string) =>
+    `procurement/purchase-orders/${purchaseOrderId}/receipts/${deliveryReceiptId}/evidence` as const,
+  /** POST — make the company final decision on a vendor dispute */
+  RECEIPT_FINAL_DECISION: (purchaseOrderId: string, deliveryReceiptId: string) =>
+    `procurement/purchase-orders/${purchaseOrderId}/receipts/${deliveryReceiptId}/final-decision` as const,
+  /** PATCH — resolve or request correction for receipt exceptions */
+  RECEIPT_RESOLUTION: (purchaseOrderId: string, deliveryReceiptId: string) =>
+    `procurement/purchase-orders/${purchaseOrderId}/receipts/${deliveryReceiptId}/resolution` as const,
+  /** GET — list company fulfillment exceptions */
+  FULFILLMENT_EXCEPTIONS: "procurement/purchase-orders/fulfillment-exceptions",
+  /** GET — get one company fulfillment dispute/exception by receipt id */
+  FULFILLMENT_EXCEPTION_DETAIL: (deliveryReceiptId: string) =>
+    `procurement/purchase-orders/fulfillment-exceptions/${deliveryReceiptId}` as const,
   /** POST — add line items to a draft (non-PR) PO */
   PO_LINE_ITEMS: (id: string) => `procurement/purchase-orders/${id}/line-items` as const,
   /** PATCH, DELETE — individual line item on a purchase order */

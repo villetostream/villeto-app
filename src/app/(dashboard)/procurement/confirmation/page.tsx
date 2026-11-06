@@ -4,25 +4,64 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDown, ArrowUp, CheckCircle2, ChevronsUpDown,
-  Clock3, Loader2, PackageCheck, Search, Truck, RefreshCw,
+  Clock3, Loader2, PackageCheck, Search, Truck, RefreshCw, AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ProcurementMetric, ProcurementPageHeader, ProcurementSection } from "@/components/procurement/ProcurementWorkspace";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ProcurementMetric } from "@/components/procurement/ProcurementWorkspace";
 import {
   useConfirmationOrders,
   type PurchaseOrderRecord,
 } from "@/queries/procurement/purchase-orders";
-import { needsReceiptConfirmation } from "@/lib/types/purchase-request-helpers";
+import {
+  needsReceiptConfirmation,
+  needsCompanyExceptionDecision,
+} from "@/lib/types/purchase-request-helpers";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 
 const labels: Record<string, string> = {
   ready_for_delivery: "Awaiting delivery",
+  not_delivered: "Not delivered",
   partially_delivered: "Partially delivered",
+  partially_delivered_with_exceptions: "Partially delivered (Exceptions)",
+  partial_delivery_with_exceptions: "Partially delivered (Exceptions)",
   delivered: "Fully delivered",
+  fully_delivered: "Fully delivered",
+  delivered_with_exceptions: "Delivered (Exceptions)",
+  full_delivery_with_exceptions: "Delivered (Exceptions)",
 };
+
+const DELIVERY_OUTCOME_OPTIONS = [
+  { value: "all", label: "All delivery outcomes" },
+  { value: "not_delivered", label: "Not delivered" },
+  { value: "partially_delivered", label: "Partially delivered" },
+  { value: "partial_delivery_with_exceptions", label: "Partial w/ exceptions" },
+  { value: "fully_delivered", label: "Fully delivered" },
+  { value: "full_delivery_with_exceptions", label: "Full delivery w/ exceptions" },
+] as const;
+
+const RESOLUTION_STATUS_OPTIONS = [
+  { value: "all", label: "All exception statuses" },
+  { value: "awaiting_vendor_response", label: "Awaiting vendor response" },
+  { value: "under_company_review", label: "Under company review" },
+  { value: "backordered", label: "Backordered" },
+  { value: "forfeited", label: "Forfeited" },
+  { value: "resolved_after_dispute", label: "Resolved after dispute" },
+  { value: "acknowledged", label: "Acknowledged" },
+  { value: "disputed", label: "Disputed" },
+  { value: "corrective_action_pending", label: "Corrective action pending" },
+  { value: "resolved", label: "Resolved" },
+  { value: "not_required", label: "No exceptions" },
+] as const;
 
 const money = (value: number, code: string) =>
   new Intl.NumberFormat("en-NG", { style: "currency", currency: code }).format(value);
@@ -65,6 +104,7 @@ type SortDir = "asc" | "desc";
 //  - ready_for_delivery:  issued, nothing received yet
 //  - partially_delivered: some quantity received, more still expected
 //  - delivered:           all ordered quantity received
+//  - exceptions:          partially_delivered_with_exceptions or delivered_with_exceptions
 const TABS = [
   { key: "all",                  label: "All" },
   { key: "ready_for_delivery",   label: "Awaiting delivery" },
@@ -119,14 +159,43 @@ function ColHeader({
 }
 
 function statusWeight(status?: string | null) {
-  const w: Record<string, number> = { ready_for_delivery: 1, partially_delivered: 2, delivered: 3 };
+  const w: Record<string, number> = {
+    ready_for_delivery: 1,
+    not_delivered: 1,
+    partially_delivered: 2,
+    partially_delivered_with_exceptions: 2,
+    partial_delivery_with_exceptions: 2,
+    delivered: 3,
+    fully_delivered: 3,
+    delivered_with_exceptions: 3,
+    full_delivery_with_exceptions: 3,
+  };
   return w[status ?? ""] ?? 0;
+}
+
+function matchesTabStatus(itemStatus?: string | null, tab?: TabKey) {
+  if (!tab || tab === "all") return true;
+  if (tab === "partially_delivered") {
+    return (
+      itemStatus === "partially_delivered" ||
+      itemStatus === "partially_delivered_with_exceptions"
+    );
+  }
+  if (tab === "delivered") {
+    return (
+      itemStatus === "delivered" ||
+      itemStatus === "delivered_with_exceptions"
+    );
+  }
+  return itemStatus === tab;
 }
 
 function ConfirmationPage() {
   const policies = useAuthorizationPolicies();
 
   const [activeTab, setActiveTab] = useState<TabKey>("all");
+  const [deliveryOutcomeFilter, setDeliveryOutcomeFilter] = useState<string>("all");
+  const [resolutionStatusFilter, setResolutionStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortState, setSortState] = useState<{ key: SortKey; dir: SortDir } | null>({
@@ -141,7 +210,7 @@ function ConfirmationPage() {
     (handleSearchChange as any)._t = setTimeout(() => setDebouncedSearch(value), 350);
   };
 
-  // Main data query — uses the active tab as the status filter
+  // Main data query — uses the active tab, deliveryOutcome, and resolutionStatus filters
   const {
     data,
     isLoading,
@@ -151,6 +220,8 @@ function ConfirmationPage() {
   } = useConfirmationOrders(
     {
       status: activeTab === "all" ? undefined : activeTab,
+      deliveryOutcome: deliveryOutcomeFilter === "all" ? undefined : deliveryOutcomeFilter,
+      resolutionStatus: resolutionStatusFilter === "all" ? undefined : resolutionStatusFilter,
       search: debouncedSearch || undefined,
       limit: 100,
     },
@@ -168,20 +239,20 @@ function ConfirmationPage() {
   const allOrders = useMemo(() => allData?.data ?? [], [allData?.data]);
 
   // Counts derived from the full dataset (not the filtered view)
-  const activeCount    = allOrders.filter((i) => i.status === "ready_for_delivery").length;
-  const partialCount   = allOrders.filter((i) => i.status === "partially_delivered").length;
-  const deliveredCount = allOrders.filter((i) => i.status === "delivered").length;
+  const activeCount    = allOrders.filter((i) => matchesTabStatus(i.status, "ready_for_delivery")).length;
+  const partialCount   = allOrders.filter((i) => matchesTabStatus(i.status, "partially_delivered")).length;
+  const deliveredCount = allOrders.filter((i) => matchesTabStatus(i.status, "delivered")).length;
   const inTransit      = activeCount + partialCount;
 
-  // Red-badge counts: POs with dispatched goods the tenant hasn't confirmed
-  // receipt of yet (quantityAwaitingReceipt > 0). Note: fulfillmentActionRequired
-  // means the VENDOR still has a backorder, so it's not a tenant action.
-  const needsConfirmation = (status?: string) =>
+  // Red-badge counts: POs with dispatched goods awaiting receipt confirmation OR a vendor dispute awaiting company decision
+  const needsConfirmation = (tab?: TabKey) =>
     allOrders.filter(
-      (i) => needsReceiptConfirmation(i) && (status == null || i.status === status),
+      (i) =>
+        (needsReceiptConfirmation(i) || needsCompanyExceptionDecision(i)) &&
+        matchesTabStatus(i.status, tab),
     ).length;
 
-  const unconfirmedAll       = needsConfirmation();
+  const unconfirmedAll       = needsConfirmation("all");
   const unconfirmedActive    = needsConfirmation("ready_for_delivery");
   const unconfirmedPartial   = needsConfirmation("partially_delivered");
   const unconfirmedDelivered = needsConfirmation("delivered");
@@ -232,18 +303,14 @@ function ConfirmationPage() {
   };
 
   return (
-    <div className="space-y-5 pb-8 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
-      <ProcurementPageHeader
-        title="Receiving & confirmation"
-        description="Track what suppliers are preparing, what has arrived, and what still needs a tenant receipt confirmation."
-      />
+    <div className="space-y-4 pb-6 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
       <div className="grid gap-3 sm:grid-cols-3 shrink-0">
         <ProcurementMetric label="Open deliveries" value={inTransit} detail="Awaiting or partially delivered" icon={<Truck className="size-4" />} tone="blue" />
         <ProcurementMetric label="To confirm" value={unconfirmedAll} detail="Dispatched goods awaiting your receipt" icon={<PackageCheck className="size-4" />} tone="amber" />
         <ProcurementMetric label="Fully delivered" value={deliveredCount} detail="Orders ready for final review" icon={<CheckCircle2 className="size-4" />} />
       </div>
 
-      <ProcurementSection title="Receiving queue" description="Live purchase orders with delivery activity" className="flex-1 flex flex-col min-h-0">
+      <section className="overflow-hidden rounded-[15px] border border-black/[0.07] bg-white shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] flex-1 flex flex-col min-h-0">
         {/* Toolbar */}
         <div className="flex flex-col gap-3 border-b border-black/[0.06] p-4 lg:flex-row lg:items-center lg:justify-between shrink-0">
           <div className="flex max-w-full gap-1 overflow-x-auto rounded-[9px] bg-[#f3f6f5] p-1">
@@ -263,8 +330,32 @@ function ConfirmationPage() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 w-full lg:w-auto">
-            <div className="relative w-full lg:w-64">
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            <Select value={deliveryOutcomeFilter} onValueChange={setDeliveryOutcomeFilter}>
+              <SelectTrigger className="w-[180px] h-9 rounded-[9px] bg-white border-black/[0.08] text-[11px] font-medium text-[#111815] hover:bg-[#f9faf9] focus:border-[#0ea894] focus:ring-0 transition-colors">
+                <SelectValue placeholder="All delivery outcomes" />
+              </SelectTrigger>
+              <SelectContent>
+                {DELIVERY_OUTCOME_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} className="text-[12px]">
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={resolutionStatusFilter} onValueChange={setResolutionStatusFilter}>
+              <SelectTrigger className="w-[190px] h-9 rounded-[9px] bg-white border-black/[0.08] text-[11px] font-medium text-[#111815] hover:bg-[#f9faf9] focus:border-[#0ea894] focus:ring-0 transition-colors">
+                <SelectValue placeholder="All exception statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                {RESOLUTION_STATUS_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} className="text-[12px]">
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="relative flex-1 sm:w-56">
               <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#89918d]" />
               <input
                 value={search}
@@ -313,6 +404,14 @@ function ConfirmationPage() {
             <div className="divide-y divide-black/[0.055]">
               {sorted.map((item) => {
                 const id = item.purchaseOrderId || item.id || "";
+                const deliveryOutcomeKey =
+                  item.deliveryOutcome && item.deliveryOutcome !== "not_delivered"
+                    ? item.deliveryOutcome
+                    : item.status || "ready_for_delivery";
+                const hasOpenExceptions =
+                  (item.openExceptionCount ?? 0) > 0 ||
+                  deliveryOutcomeKey.includes("with_exceptions");
+
                 return (
                   <Link
                     key={id}
@@ -324,14 +423,36 @@ function ConfirmationPage() {
                       <p className="mt-0.5 text-[10px] text-[#89918d]">
                         {item.vendor?.displayName || item.vendor?.legalName || "Vendor pending"}
                         {item.quantityOrdered != null && (
-                          <> · {item.quantityReceived ?? 0}/{item.quantityOrdered} received</>
+                          <>
+                            {" · "}
+                            {item.quantityAccepted ?? item.quantityReceived ?? 0}/{item.quantityOrdered} accepted
+                            {(item.quantityForfeited ?? 0) > 0 && ` · ${item.quantityForfeited} forfeited`}
+                            {(item.quantityOutstanding ?? 0) > 0 && ` · ${item.quantityOutstanding} outstanding`}
+                          </>
                         )}
                       </p>
-                      {needsReceiptConfirmation(item) && (
-                        <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#fdecee] px-2 py-0.5 text-[10px] font-semibold text-[#d33d44]">
-                          {item.quantityAwaitingReceipt} unit{item.quantityAwaitingReceipt === 1 ? "" : "s"} to confirm
-                        </span>
-                      )}
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {needsReceiptConfirmation(item) && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#fdecee] px-2 py-0.5 text-[10px] font-semibold text-[#d33d44]">
+                            {item.quantityAwaitingReceipt} unit{item.quantityAwaitingReceipt === 1 ? "" : "s"} to confirm
+                          </span>
+                        )}
+                        {item.companyActionRequired && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#fdecee] px-2 py-0.5 text-[10px] font-semibold text-[#d33d44]">
+                            <AlertTriangle className="size-3" /> Dispute decision required
+                          </span>
+                        )}
+                        {!item.companyActionRequired && item.vendorResponseRequired && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                            Awaiting vendor response
+                          </span>
+                        )}
+                        {(item.openExceptionCount ?? 0) > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50/80 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                            {item.openExceptionCount} open exception{item.openExceptionCount === 1 ? "" : "s"}
+                          </span>
+                        )}
+                      </div>
                       {(() => {
                         const effectiveDate = getShipmentOrDeliveryDate(item);
                         if (!effectiveDate && !item.confirmationDate) return null;
@@ -345,10 +466,15 @@ function ConfirmationPage() {
                         );
                       })()}
                     </div>
-                    <div className="hidden lg:flex lg:items-center">
+                    <div className="hidden lg:flex lg:flex-col lg:justify-center">
                       <p className="text-[11px] font-medium text-[#34413b]">
                         {item.totalAmount ? money(Number(item.totalAmount), item.currency || "NGN") : "—"}
                       </p>
+                      {item.invoiceableSubtotal != null && Number(item.invoiceableSubtotal) > 0 && (
+                        <p className="mt-0.5 text-[10px] text-[#087f70]">
+                          Invoiceable: {money(Number(item.invoiceableSubtotal), item.currency || "NGN")}
+                        </p>
+                      )}
                     </div>
                     <div className="hidden lg:flex lg:flex-col lg:justify-center">
                       {(() => {
@@ -379,16 +505,20 @@ function ConfirmationPage() {
                       )}
                     </div>
                     <div className="hidden lg:flex lg:items-center lg:justify-end">
-                      {item.status === "ready_for_delivery" ? (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f0faf8] text-[#087f70]">
+                      {deliveryOutcomeKey === "ready_for_delivery" || deliveryOutcomeKey === "not_delivered" ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f0faf8] text-[#087f70] whitespace-nowrap">
                           Awaiting delivery
                         </span>
-                      ) : item.status === "partially_delivered" ? (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600">
+                      ) : hasOpenExceptions ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                          {labels[deliveryOutcomeKey] || "With exceptions"}
+                        </span>
+                      ) : deliveryOutcomeKey === "partially_delivered" ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600 whitespace-nowrap">
                           Partially delivered
                         </span>
                       ) : (
-                        <StatusBadge status={item.status} label={labels[item.status ?? ""] || item.status} />
+                        <StatusBadge status={item.status} label={labels[deliveryOutcomeKey] || labels[item.status ?? ""] || item.status} />
                       )}
                     </div>
                   </Link>
@@ -411,7 +541,7 @@ function ConfirmationPage() {
             </p>
           </div>
         )}
-      </ProcurementSection>
+      </section>
     </div>
   );
 }

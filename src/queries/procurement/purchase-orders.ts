@@ -9,8 +9,22 @@ import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { STALE_TIMES } from "@/lib/constants/stale-times";
-import { PurchaseOrderRecord } from "@/lib/types/purchase-request-helpers";
-export type { PurchaseOrderRecord };
+import {
+  PurchaseOrderRecord,
+  DeliveryReceiptRecord,
+  ReceiptEvidenceItem,
+  FinalDecisionChoice,
+  DeliveryOutcome,
+  ExceptionResolutionStatus,
+} from "@/lib/types/purchase-request-helpers";
+export type {
+  PurchaseOrderRecord,
+  DeliveryReceiptRecord,
+  ReceiptEvidenceItem,
+  FinalDecisionChoice,
+  DeliveryOutcome,
+  ExceptionResolutionStatus,
+};
 
 // ── Response Types ──────────────────────────────────────────────────────────
 
@@ -97,11 +111,15 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
 // ── Confirmation / Receiving Queue Orders ────────────────────────────────────
 
 export interface GetConfirmationOrdersParams {
-  view?: "count";
+  view?: "count" | "summary";
   page?: number;
   limit?: number;
-  /** Filter by status: all | ready_for_delivery | partially_delivered | delivered */
+  /** Filter by status: all | ready_for_delivery | partially_delivered | delivered | partially_delivered_with_exceptions | delivered_with_exceptions */
   status?: string;
+  /** Filter by deliveryOutcome: not_delivered | fully_delivered | full_delivery_with_exceptions | partially_delivered | partial_delivery_with_exceptions */
+  deliveryOutcome?: string;
+  /** Filter by resolutionStatus: not_required | awaiting_vendor_response | acknowledged | disputed | corrective_action_pending | resolved | backordered | forfeited | under_company_review | resolved_after_dispute */
+  resolutionStatus?: string;
   vendorId?: string;
   search?: string;
 }
@@ -114,11 +132,11 @@ export const useConfirmationOrders = <TData = PaginatedPurchaseOrdersResponse>(
   >,
 ) => {
   const axios = useAxios();
-  const { page = 1, limit = 20, status, vendorId, search, view } = params;
+  const { page = 1, limit = 20, status, deliveryOutcome, resolutionStatus, vendorId, search, view } = params;
 
   return useQuery<PaginatedPurchaseOrdersResponse, Error, TData>({
     queryKey: workspaceQueryKey(
-      [...QUERY_KEYS.procurement.confirmations({ page, limit, status, vendorId, search }), view],
+      [...QUERY_KEYS.procurement.confirmations({ page, limit, status, deliveryOutcome, resolutionStatus, vendorId, search }), view],
     ),
     queryFn: async () => {
       const qp = new URLSearchParams();
@@ -126,6 +144,8 @@ export const useConfirmationOrders = <TData = PaginatedPurchaseOrdersResponse>(
       qp.append("page", page.toString());
       qp.append("limit", limit.toString());
       if (status && status !== "all") qp.append("status", status);
+      if (deliveryOutcome && deliveryOutcome !== "all") qp.append("deliveryOutcome", deliveryOutcome);
+      if (resolutionStatus && resolutionStatus !== "all") qp.append("resolutionStatus", resolutionStatus);
       if (vendorId) qp.append("vendorId", vendorId);
       if (search) qp.append("search", search);
 
@@ -608,15 +628,16 @@ export const useConfirmPOFinalBilling = (purchaseOrderId: string) => {
   });
 };
 
-// ── Confirm Receipt ─────────────────────────────────────────────────────────
+// ── Confirm Receipt & Fulfillment Exceptions ────────────────────────────────
 
 export interface ReceiptLineItem {
   fulfillmentLineItemId: string;
   name?: string;
-  quantityReceived: number;
-  quantityAccepted?: number;
-  quantityRejected?: number;
-  rejectionReason?: string;
+  quantityReceived?: number;
+  quantityAccepted: number;
+  quantityRejected: number;
+  quantityMissing: number;
+  exceptionReason?: string;
   notes?: string;
 }
 
@@ -624,13 +645,10 @@ export interface ConfirmReceiptPayload {
   receiptReference: string;
   receivedAt: string;
   notes?: string;
-  rejectionCategory?: string;
-  rejectionReason?: string;
-  hasExceptions?: boolean;
-  rejectedQuantity?: number;
-  acceptedQuantity?: number;
-  attachmentName?: string;
+  evidence?: ReceiptEvidenceItem[];
   lineItems: ReceiptLineItem[];
+  /** UI-only helper metadata */
+  hasExceptions?: boolean;
 }
 
 export const useConfirmPOReceipt = (id: string) => {
@@ -645,9 +663,10 @@ export const useConfirmPOReceipt = (id: string) => {
       fulfillmentId: string;
       payload: ConfirmReceiptPayload;
     }) => {
+      const { hasExceptions: _hasExceptions, ...apiPayload } = payload;
       const response = await axios.post(
         PROCUREMENT_KEYS.CONFIRM_FULFILLMENT_RECEIPT(id, fulfillmentId),
-        payload,
+        apiPayload,
       );
       return response.data;
     },
@@ -655,12 +674,290 @@ export const useConfirmPOReceipt = (id: string) => {
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(id)),
       });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["procurement", "confirmations"]),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["procurement", "fulfillment-exceptions"]),
+      });
       queryClient.removeQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrders),
         type: "inactive",
       });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrders),
+      });
+    },
+  });
+};
+
+// ── Upload Receipt Evidence (Pre-Confirmation & Post-Confirmation) ──────────
+
+export const useUploadFulfillmentReceiptEvidence = (purchaseOrderId: string) => {
+  const axios = useAxios();
+
+  return useMutation({
+    mutationFn: async ({
+      fulfillmentId,
+      file,
+    }: {
+      fulfillmentId: string;
+      file: File;
+    }): Promise<ReceiptEvidenceItem> => {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await axios.post(
+        PROCUREMENT_KEYS.UPLOAD_FULFILLMENT_RECEIPT_EVIDENCE(purchaseOrderId, fulfillmentId),
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+      return (response.data?.data ?? response.data) as ReceiptEvidenceItem;
+    },
+  });
+};
+
+export const useUploadReceiptExceptionEvidence = (purchaseOrderId: string) => {
+  const axios = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      deliveryReceiptId,
+      file,
+    }: {
+      deliveryReceiptId: string;
+      file: File;
+    }): Promise<ReceiptEvidenceItem> => {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await axios.post(
+        PROCUREMENT_KEYS.UPLOAD_RECEIPT_EXCEPTION_EVIDENCE(purchaseOrderId, deliveryReceiptId),
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+      return (response.data?.data ?? response.data) as ReceiptEvidenceItem;
+    },
+    onSuccess: (_data, { deliveryReceiptId }) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.poReceipt(purchaseOrderId, deliveryReceiptId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.fulfillmentException(deliveryReceiptId)),
+      });
+    },
+  });
+};
+
+// ── Get Single Receipt & Fulfillment Exceptions ─────────────────────────────
+
+export const usePOReceiptDetail = (
+  purchaseOrderId?: string,
+  deliveryReceiptId?: string,
+) => {
+  const axios = useAxios();
+
+  return useQuery({
+    queryKey: workspaceQueryKey(
+      QUERY_KEYS.procurement.poReceipt(purchaseOrderId || "", deliveryReceiptId || ""),
+    ),
+    queryFn: async () => {
+      const response = await axios.get<{ data?: DeliveryReceiptRecord } & DeliveryReceiptRecord>(
+        PROCUREMENT_KEYS.PO_RECEIPT_DETAIL(purchaseOrderId!, deliveryReceiptId!),
+        { _skipErrorToast: true } as any,
+      );
+      return (response.data?.data ?? response.data) as DeliveryReceiptRecord;
+    },
+    enabled: Boolean(purchaseOrderId && deliveryReceiptId),
+    staleTime: STALE_TIMES.LIVE,
+  });
+};
+
+export interface FulfillmentExceptionSummaryItem {
+  deliveryReceiptId: string;
+  receiptNumber?: string;
+  purchaseOrderId: string;
+  poNumber?: string;
+  vendorId?: string;
+  vendorName?: string;
+  fulfillmentReference?: string;
+  inspectionOutcome?: string;
+  resolutionStatus?: ExceptionResolutionStatus | string;
+  finalDecision?: FinalDecisionChoice | string | null;
+  vendorActionRequired?: boolean;
+  companyActionRequired?: boolean;
+  receivedAt?: string;
+  resolvedAt?: string | null;
+  updatedAt?: string;
+}
+
+export interface PaginatedFulfillmentExceptionsResponse {
+  message?: string;
+  status?: number;
+  data: FulfillmentExceptionSummaryItem[];
+  meta?: {
+    totalCount: number;
+    totalPages: number;
+    currentPage: number;
+    limit: number;
+  };
+}
+
+export const useFulfillmentExceptions = (
+  params: { page?: number; limit?: number; resolutionStatus?: string } = {},
+) => {
+  const axios = useAxios();
+  const { page = 1, limit = 20, resolutionStatus } = params;
+
+  return useQuery({
+    queryKey: workspaceQueryKey(
+      QUERY_KEYS.procurement.fulfillmentExceptions({ page, limit, resolutionStatus }),
+    ),
+    queryFn: async () => {
+      const qp = new URLSearchParams();
+      qp.append("page", page.toString());
+      qp.append("limit", limit.toString());
+      if (resolutionStatus && resolutionStatus !== "all") {
+        qp.append("resolutionStatus", resolutionStatus);
+      }
+      const response = await axios.get<PaginatedFulfillmentExceptionsResponse | FulfillmentExceptionSummaryItem[]>(
+        `${PROCUREMENT_KEYS.FULFILLMENT_EXCEPTIONS}?${qp.toString()}`,
+      );
+      const raw = response.data;
+      if (Array.isArray(raw)) {
+        return { data: raw };
+      }
+      return raw;
+    },
+    staleTime: STALE_TIMES.LIVE,
+  });
+};
+
+export const useFulfillmentExceptionDetail = (deliveryReceiptId?: string) => {
+  const axios = useAxios();
+
+  return useQuery({
+    queryKey: workspaceQueryKey(
+      QUERY_KEYS.procurement.fulfillmentException(deliveryReceiptId || ""),
+    ),
+    queryFn: async () => {
+      const response = await axios.get<{ data?: DeliveryReceiptRecord } & DeliveryReceiptRecord>(
+        PROCUREMENT_KEYS.FULFILLMENT_EXCEPTION_DETAIL(deliveryReceiptId!),
+        { _skipErrorToast: true } as any,
+      );
+      return (response.data?.data ?? response.data) as DeliveryReceiptRecord;
+    },
+    enabled: Boolean(deliveryReceiptId),
+    staleTime: STALE_TIMES.LIVE,
+  });
+};
+
+// ── Event 3: Company Final Decision on Disputed Receipt ─────────────────────
+
+export interface FinalDecisionLineItemPayload {
+  deliveryReceiptLineItemId: string;
+  quantityAccepted: number;
+  quantityRejected: number;
+  quantityMissing: number;
+  reason?: string;
+}
+
+export interface SubmitFinalDecisionPayload {
+  decision: FinalDecisionChoice;
+  reason: string;
+  evidence?: ReceiptEvidenceItem[];
+  lineItems?: FinalDecisionLineItemPayload[];
+}
+
+export const useSubmitReceiptFinalDecision = (purchaseOrderId: string) => {
+  const axios = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      deliveryReceiptId,
+      payload,
+    }: {
+      deliveryReceiptId: string;
+      payload: SubmitFinalDecisionPayload;
+    }) => {
+      const response = await axios.post(
+        PROCUREMENT_KEYS.RECEIPT_FINAL_DECISION(purchaseOrderId, deliveryReceiptId),
+        payload,
+      );
+      return response.data;
+    },
+    onSuccess: (_data, { deliveryReceiptId }) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.poReceipt(purchaseOrderId, deliveryReceiptId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.fulfillmentException(deliveryReceiptId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["procurement", "confirmations"]),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["procurement", "fulfillment-exceptions"]),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrders),
+      });
+    },
+  });
+};
+
+// ── Resolve / Request Correction for Receipt Exceptions ─────────────────────
+
+export interface ResolveReceiptExceptionPayload {
+  resolutionNote: string;
+  correctiveActionPending: boolean;
+}
+
+export const useResolveReceiptException = (purchaseOrderId: string) => {
+  const axios = useAxios();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      deliveryReceiptId,
+      payload,
+    }: {
+      deliveryReceiptId: string;
+      payload: ResolveReceiptExceptionPayload;
+    }) => {
+      const response = await axios.patch(
+        PROCUREMENT_KEYS.RECEIPT_RESOLUTION(purchaseOrderId, deliveryReceiptId),
+        payload,
+      );
+      return response.data;
+    },
+    onSuccess: (_data, { deliveryReceiptId }) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.poReceipt(purchaseOrderId, deliveryReceiptId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.fulfillmentException(deliveryReceiptId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["procurement", "confirmations"]),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(["procurement", "fulfillment-exceptions"]),
       });
     },
   });
