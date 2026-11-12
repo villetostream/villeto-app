@@ -47,6 +47,10 @@ import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders, useConfirmationOrders } from "@/queries/procurement/purchase-orders";
 import {
+  needsReceiptConfirmation,
+  needsCompanyExceptionDecision,
+} from "@/lib/types/purchase-request-helpers";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -277,16 +281,17 @@ export function DashboardSidebar({
 
   const canReceivePO = policies.purchaseOrders.canReceive;
 
-  // Fetch the confirmation queue (dedicated endpoint) and count only POs
-  // with dispatched quantity not yet confirmed as received by the tenant
-  // (quantityAwaitingReceipt > 0). fulfillmentActionRequired is a VENDOR
-  // backorder flag and must not drive this badge.
+  // Fetch the confirmation queue (shared query key with confirmation/page.tsx)
+  // and count only POs that actually need receipt confirmation or a company
+  // exception decision (excluding phantom quantityAwaitingReceipt after resolved disputes).
   const { data: confirmationData } = useConfirmationOrders(
-    { limit: 1, view: "count" },
+    { limit: 100 },
     { enabled: canReceivePO && badgesReady, refetchInterval: POLL_INTERVALS.BADGE, staleTime: STALE_TIMES.LIVE },
   );
   const totalConfirmationCount = canReceivePO
-    ? confirmationData?.meta.totalCount ?? 0
+    ? (confirmationData?.data ?? []).filter(
+        (po) => needsReceiptConfirmation(po) || needsCompanyExceptionDecision(po),
+      ).length
     : 0;
 
   const expenseScope = policies.expenses.reportScope;

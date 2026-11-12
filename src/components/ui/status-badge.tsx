@@ -56,11 +56,19 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "under_review":
     case "awaiting_authorization":
     case "partially_delivered":
+    case "partially_delivered_with_exceptions":
+    case "delivered_with_exceptions":
       colorClasses = "text-[#b27b00] bg-[#fff9e6] border-[#ffe099]";
       if (normalizedStatus === "resubmitted") {
         defaultLabel = "Resubmitted";
       } else if (["pending_approval", "pending_policy_check", "under_review", "awaiting_authorization"].includes(normalizedStatus)) {
         defaultLabel = "Pending";
+      } else if (normalizedStatus === "partially_delivered") {
+        defaultLabel = "Partially Delivered";
+      } else if (normalizedStatus === "partially_delivered_with_exceptions") {
+        defaultLabel = "Partially Delivered";
+      } else if (normalizedStatus === "delivered_with_exceptions") {
+        defaultLabel = "Delivered (Issues)";
       }
       break;
       
@@ -72,11 +80,17 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
       if (normalizedStatus === "not_submitted") defaultLabel = "Draft";
       break;
       
-    // Blue (Informational / Onboarding / Processing)
+    // Blue (Informational / Onboarding / Processing / Issued)
     case "invited":
     case "onboarding":
     case "processing":
+    case "issued":
+    case "acknowledged":
+    case "ready_for_delivery":
+    case "ready_to_issue":
       colorClasses = "text-[#0066cc] bg-[#f0f6ff] border-[#d6e7ff]";
+      if (normalizedStatus === "ready_for_delivery") defaultLabel = "Ready for Delivery";
+      if (normalizedStatus === "ready_to_issue") defaultLabel = "Ready to Issue";
       break;
       
     // Red (Error / Rejection / Cancellation)

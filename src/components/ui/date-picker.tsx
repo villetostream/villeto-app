@@ -19,10 +19,34 @@ interface DatePickerProps {
   disabled?: boolean
   fromDate?: Date
   toDate?: Date
+  fromYear?: number
+  toYear?: number
 }
 
-export function DatePicker({ date, setDate, placeholder = "Pick a date", className, disabled, fromDate, toDate }: DatePickerProps) {
+export function DatePicker({
+  date,
+  setDate,
+  placeholder = "Pick a date",
+  className,
+  disabled,
+  fromDate,
+  toDate,
+  fromYear,
+  toYear,
+}: DatePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false)
+
+  const startMonth = React.useMemo(() => {
+    if (fromDate) return new Date(fromDate.getFullYear(), fromDate.getMonth(), 1)
+    if (fromYear) return new Date(fromYear, 0, 1)
+    return new Date(1950, 0, 1)
+  }, [fromDate, fromYear])
+
+  const endMonth = React.useMemo(() => {
+    if (toDate) return new Date(toDate.getFullYear(), toDate.getMonth(), 1)
+    if (toYear) return new Date(toYear, 11, 31)
+    return new Date(new Date().getFullYear() + 30, 11, 31)
+  }, [toDate, toYear])
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -43,7 +67,11 @@ export function DatePicker({ date, setDate, placeholder = "Pick a date", classNa
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
+          captionLayout="dropdown"
           selected={date}
+          defaultMonth={date}
+          startMonth={startMonth}
+          endMonth={endMonth}
           onSelect={(d) => {
             setDate(d)
             setIsOpen(false)

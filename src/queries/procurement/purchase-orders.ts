@@ -71,7 +71,7 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
   > & { view?: "summary" | "count" },
 ) => {
   const axios = useAxios();
-  const { view = "summary", ...queryOptions } = options ?? {};
+  const { view, ...queryOptions } = options ?? {};
 
   return useQuery<PaginatedPurchaseOrdersResponse, Error, TData>({
     queryKey: workspaceQueryKey([
@@ -86,7 +86,7 @@ export const usePurchaseOrders = <TData = PaginatedPurchaseOrdersResponse>(
     ]),
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set("view", view);
+      if (view) params.set("view", view);
       params.append("page", page.toString());
       params.append("limit", limit.toString());
       if (status) params.append("status", status);
@@ -867,6 +867,7 @@ export interface FinalDecisionLineItemPayload {
   quantityAccepted: number;
   quantityRejected: number;
   quantityMissing: number;
+  recommendedDisposition?: "backorder" | "forfeit" | string;
   reason?: string;
 }
 

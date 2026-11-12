@@ -200,13 +200,10 @@ export function LineItemDetailModal({ isOpen, onClose, item, currency = "USD", o
                     </div>
                   </EditField>
                   <EditField icon={<Package className="w-3.5 h-3.5" />} label="Unit of Measure">
-                    <div className="w-full h-8 flex items-center border-b border-black/[0.1] focus-within:border-[#087f70] bg-transparent transition-colors">
-                      <UnitOfMeasureCombobox
-                        value={form.unitOfMeasure || ""}
-                        onChange={val => setForm(p => ({ ...p, unitOfMeasure: val }))}
-                        className="!border-none"
-                      />
-                    </div>
+                    <UnitOfMeasureCombobox
+                      value={form.unitOfMeasure || ""}
+                      onChange={val => setForm(p => ({ ...p, unitOfMeasure: val }))}
+                    />
                   </EditField>
                 </>
               ) : (

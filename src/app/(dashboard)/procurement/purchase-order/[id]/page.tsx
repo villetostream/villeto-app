@@ -1054,6 +1054,32 @@ function PODetailPage() {
             </div>
           )}
 
+          {/* Delivery Exception Alert Banner */}
+          {((po.openExceptionCount ?? 0) > 0 || (po.status as string) === "partially_delivered_with_exceptions") && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50/70 px-4 py-3 text-sm">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" />
+                <div>
+                  <p className="font-semibold text-amber-950">
+                    {po.fulfillmentState === "backordered"
+                      ? "Delivery Exception: Items Backordered by Vendor"
+                      : "Delivery Exception Reported"}
+                  </p>
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    {po.openExceptionCount ?? 1} delivery issue pending resolution. The vendor has acknowledged and scheduled backorder/forfeiture.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push(`/procurement/confirmation/${id}`)}
+                className="h-8 px-3.5 rounded-lg bg-[#087f70] text-white text-xs font-semibold hover:bg-[#076a5e] transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
+              >
+                View Receiving Details
+              </button>
+            </div>
+          )}
+
           {/* Policy Justification */}
           {!!(po as any).policyJustification && (
             <div className="flex items-start gap-2.5 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">

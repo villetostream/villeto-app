@@ -4,10 +4,11 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDown, ArrowUp, CheckCircle2, ChevronsUpDown,
-  Clock3, Loader2, PackageCheck, Search, Truck, RefreshCw, AlertTriangle,
+  Clock3, PackageCheck, Search, Truck, RefreshCw, AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Pagination } from "@/components/ui/custom-pagination";
 import {
   Select,
   SelectContent,
@@ -21,6 +22,7 @@ import {
   type PurchaseOrderRecord,
 } from "@/queries/procurement/purchase-orders";
 import {
+  getEffectiveAwaitingReceiptQty,
   needsReceiptConfirmation,
   needsCompanyExceptionDecision,
 } from "@/lib/types/purchase-request-helpers";
@@ -198,6 +200,8 @@ function ConfirmationPage() {
   const [resolutionStatusFilter, setResolutionStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
   const [sortState, setSortState] = useState<{ key: SortKey; dir: SortDir } | null>({
     key: "shipmentDate",
     dir: "desc",
@@ -207,7 +211,10 @@ function ConfirmationPage() {
   const handleSearchChange = (value: string) => {
     setSearch(value);
     clearTimeout((handleSearchChange as any)._t);
-    (handleSearchChange as any)._t = setTimeout(() => setDebouncedSearch(value), 350);
+    (handleSearchChange as any)._t = setTimeout(() => {
+      setDebouncedSearch(value);
+      setPage(1);
+    }, 350);
   };
 
   // Main data query — uses the active tab, deliveryOutcome, and resolutionStatus filters
@@ -223,14 +230,15 @@ function ConfirmationPage() {
       deliveryOutcome: deliveryOutcomeFilter === "all" ? undefined : deliveryOutcomeFilter,
       resolutionStatus: resolutionStatusFilter === "all" ? undefined : resolutionStatusFilter,
       search: debouncedSearch || undefined,
-      limit: 100,
+      page,
+      limit: perPage,
     },
     { refetchInterval: POLL_INTERVALS.ACTIVE_LIST, staleTime: STALE_TIMES.LIVE },
   );
 
   // Separate "all" query (no status filter) solely for badge counts on metric cards + tab pills
   // Same query key as the sidebar badge query, so React Query dedupes it.
-  const { data: allData } = useConfirmationOrders(
+  const { data: allData, isLoading: isAllLoading } = useConfirmationOrders(
     { limit: 100 },
     { refetchInterval: POLL_INTERVALS.BADGE, staleTime: STALE_TIMES.LIVE },
   );
@@ -295,6 +303,13 @@ function ConfirmationPage() {
     });
   }, [orders, sortState]);
 
+  const meta = data?.meta;
+  const totalCount = meta?.totalCount ?? sorted.length;
+  const totalPages = meta?.totalPages ?? Math.max(1, Math.ceil(totalCount / perPage));
+  const paginated = useMemo(() => {
+    return meta ? sorted : sorted.slice((page - 1) * perPage, page * perPage);
+  }, [sorted, meta, page, perPage]);
+
   const handleSort = (key: SortKey) => {
     setSortState((prev) => {
       if (prev?.key === key) return prev.dir === "asc" ? { key, dir: "desc" } : null;
@@ -305,9 +320,29 @@ function ConfirmationPage() {
   return (
     <div className="space-y-4 pb-6 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
       <div className="grid gap-3 sm:grid-cols-3 shrink-0">
-        <ProcurementMetric label="Open deliveries" value={inTransit} detail="Awaiting or partially delivered" icon={<Truck className="size-4" />} tone="blue" />
-        <ProcurementMetric label="To confirm" value={unconfirmedAll} detail="Dispatched goods awaiting your receipt" icon={<PackageCheck className="size-4" />} tone="amber" />
-        <ProcurementMetric label="Fully delivered" value={deliveredCount} detail="Orders ready for final review" icon={<CheckCircle2 className="size-4" />} />
+        <ProcurementMetric
+          label="Open deliveries"
+          value={inTransit}
+          detail="Awaiting or partially delivered"
+          icon={<Truck className="size-4" />}
+          tone="blue"
+          isLoading={isAllLoading}
+        />
+        <ProcurementMetric
+          label="To confirm"
+          value={unconfirmedAll}
+          detail="Dispatched goods awaiting your receipt"
+          icon={<PackageCheck className="size-4" />}
+          tone="amber"
+          isLoading={isAllLoading}
+        />
+        <ProcurementMetric
+          label="Fully delivered"
+          value={deliveredCount}
+          detail="Orders ready for final review"
+          icon={<CheckCircle2 className="size-4" />}
+          isLoading={isAllLoading}
+        />
       </div>
 
       <section className="overflow-hidden rounded-[15px] border border-black/[0.07] bg-white shadow-[0_12px_35px_-30px_rgba(14,28,23,0.7)] flex-1 flex flex-col min-h-0">
@@ -317,7 +352,10 @@ function ConfirmationPage() {
             {TABS.map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => {
+                  setActiveTab(tab.key);
+                  setPage(1);
+                }}
                 className={`h-8 whitespace-nowrap rounded-[7px] px-4 text-[11px] font-semibold transition flex items-center ${
                   activeTab === tab.key ? "bg-white text-[#111815] shadow-sm" : "text-[#75807b] hover:text-[#111815]"
                 }`}
@@ -331,7 +369,7 @@ function ConfirmationPage() {
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-            <Select value={deliveryOutcomeFilter} onValueChange={setDeliveryOutcomeFilter}>
+            <Select value={deliveryOutcomeFilter} onValueChange={(v) => { setDeliveryOutcomeFilter(v); setPage(1); }}>
               <SelectTrigger className="w-[180px] h-9 rounded-[9px] bg-white border-black/[0.08] text-[11px] font-medium text-[#111815] hover:bg-[#f9faf9] focus:border-[#0ea894] focus:ring-0 transition-colors">
                 <SelectValue placeholder="All delivery outcomes" />
               </SelectTrigger>
@@ -343,7 +381,7 @@ function ConfirmationPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={resolutionStatusFilter} onValueChange={setResolutionStatusFilter}>
+            <Select value={resolutionStatusFilter} onValueChange={(v) => { setResolutionStatusFilter(v); setPage(1); }}>
               <SelectTrigger className="w-[190px] h-9 rounded-[9px] bg-white border-black/[0.08] text-[11px] font-medium text-[#111815] hover:bg-[#f9faf9] focus:border-[#0ea894] focus:ring-0 transition-colors">
                 <SelectValue placeholder="All exception statuses" />
               </SelectTrigger>
@@ -380,43 +418,77 @@ function ConfirmationPage() {
         </div>
 
         {/* Body */}
-        {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-20 text-[12px] text-[#75807b]">
-            <Loader2 className="size-4 animate-spin text-[#087f70]" /> Loading receiving activity
+        <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0 flex flex-col modal-scrollbar">
+          {/* Sticky column header */}
+          <div className="hidden lg:grid lg:grid-cols-[2fr_1.1fr_1.3fr_1.3fr_140px] gap-3 px-5 py-3 border-b border-black/[0.055] bg-[#f9faf9] sticky top-0 z-10 shrink-0">
+            <ColHeader label="Purchase Order" sortKey="poNumber" current={sortState} onSort={handleSort} />
+            <ColHeader label="Total Amount"   sortKey="amount"   current={sortState} onSort={handleSort} />
+            <ColHeader label="Fulfillment Date" sortKey="shipmentDate" current={sortState} onSort={handleSort} />
+            <ColHeader label="Confirmation Date" sortKey="confirmationDate" current={sortState} onSort={handleSort} />
+            <ColHeader label="Status" sortKey="status" current={sortState} onSort={handleSort} className="justify-end" />
           </div>
-        ) : isError ? (
-          <div className="py-16 text-center">
-            <p className="text-[12px] text-[#b93643]">Unable to load receiving activity.</p>
-            <button onClick={() => refetch()} className="mt-3 text-[11px] font-semibold text-[#087f70]">Try again</button>
-          </div>
-        ) : sorted.length ? (
-          <div className="overflow-y-auto flex-1 min-h-0">
-            {/* Sticky column header */}
-            <div className="hidden lg:grid lg:grid-cols-[2fr_1.1fr_1.3fr_1.3fr_140px] gap-3 px-5 py-3 border-b border-black/[0.055] bg-[#f9faf9] sticky top-0 z-10">
-              <ColHeader label="Purchase Order" sortKey="poNumber" current={sortState} onSort={handleSort} />
-              <ColHeader label="Total Amount"   sortKey="amount"   current={sortState} onSort={handleSort} />
-              <ColHeader label="Fulfillment Date" sortKey="shipmentDate" current={sortState} onSort={handleSort} />
-              <ColHeader label="Confirmation Date" sortKey="confirmationDate" current={sortState} onSort={handleSort} />
-              <ColHeader label="Status" sortKey="status" current={sortState} onSort={handleSort} className="justify-end" />
-            </div>
 
-            {/* Data rows */}
+          {isLoading ? (
             <div className="divide-y divide-black/[0.055]">
-              {sorted.map((item) => {
+              {Array.from({ length: 5 }).map((_, idx) => (
+                <div
+                  key={`skeleton-${idx}`}
+                  className="grid gap-3 px-5 py-3.5 lg:grid-cols-[2fr_1.1fr_1.3fr_1.3fr_140px] lg:items-center"
+                >
+                  <div className="space-y-1.5">
+                    <div className="h-3.5 w-40 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                    <div className="h-2.5 w-52 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                  </div>
+                  <div className="hidden lg:block">
+                    <div className="h-3.5 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                  </div>
+                  <div className="hidden lg:block">
+                    <div className="h-3.5 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                  </div>
+                  <div className="hidden lg:block">
+                    <div className="h-3.5 w-24 animate-pulse rounded-[4px] bg-[#f0f2f1]" />
+                  </div>
+                  <div className="hidden lg:flex lg:justify-end">
+                    <div className="h-5 w-24 animate-pulse rounded-full bg-[#f0f2f1]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center flex-1 py-16 text-center">
+              <p className="text-[12px] text-[#b93643]">Unable to load receiving activity.</p>
+              <button onClick={() => refetch()} className="mt-3 text-[11px] font-semibold text-[#087f70]">Try again</button>
+            </div>
+          ) : sorted.length ? (
+            <div className="divide-y divide-black/[0.055]">
+              {paginated.map((item) => {
                 const id = item.purchaseOrderId || item.id || "";
-                const deliveryOutcomeKey =
-                  item.deliveryOutcome && item.deliveryOutcome !== "not_delivered"
+                const isStillPartial =
+                  item.status === "partially_delivered" ||
+                  item.status === "partially_delivered_with_exceptions" ||
+                  (item.closeBlockers || []).includes("delivery_incomplete");
+                const deliveryOutcomeKey = isStillPartial
+                  ? (item.status || "partially_delivered")
+                  : item.deliveryOutcome && item.deliveryOutcome !== "not_delivered"
                     ? item.deliveryOutcome
                     : item.status || "ready_for_delivery";
                 const hasOpenExceptions =
                   (item.openExceptionCount ?? 0) > 0 ||
-                  deliveryOutcomeKey.includes("with_exceptions");
+                  (item.deliveryOutcome || "").includes("with_exceptions") && (item.openExceptionCount ?? 0) > 0;
+                const displayForfeited =
+                  isStillPartial && (item.quantityOutstanding ?? 0) === 0
+                    ? 0
+                    : (item.quantityForfeited ?? 0);
+                const displayOutstanding =
+                  isStillPartial && (item.quantityOutstanding ?? 0) === 0 && (item.quantityForfeited ?? 0) > 0
+                    ? (item.quantityForfeited ?? 0)
+                    : (item.quantityOutstanding ?? 0);
 
                 return (
                   <Link
                     key={id}
                     href={`/procurement/confirmation/${id}`}
-                    className="group grid gap-3 px-5 py-4 transition hover:bg-[#f8fbfa] lg:grid-cols-[2fr_1.1fr_1.3fr_1.3fr_140px] lg:items-center"
+                    className="group grid gap-3 px-5 py-3.5 transition hover:bg-[#f8fbfa] lg:grid-cols-[2fr_1.1fr_1.3fr_1.3fr_140px] lg:items-center"
                   >
                     <div>
                       <p className="text-[12px] font-semibold text-[#17211d]">{item.poNumber || "Purchase order"}</p>
@@ -426,15 +498,15 @@ function ConfirmationPage() {
                           <>
                             {" · "}
                             {item.quantityAccepted ?? item.quantityReceived ?? 0}/{item.quantityOrdered} accepted
-                            {(item.quantityForfeited ?? 0) > 0 && ` · ${item.quantityForfeited} forfeited`}
-                            {(item.quantityOutstanding ?? 0) > 0 && ` · ${item.quantityOutstanding} outstanding`}
+                            {displayForfeited > 0 && ` · ${displayForfeited} forfeited`}
+                            {displayOutstanding > 0 && ` · ${displayOutstanding} outstanding`}
                           </>
                         )}
                       </p>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         {needsReceiptConfirmation(item) && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-[#fdecee] px-2 py-0.5 text-[10px] font-semibold text-[#d33d44]">
-                            {item.quantityAwaitingReceipt} unit{item.quantityAwaitingReceipt === 1 ? "" : "s"} to confirm
+                            {getEffectiveAwaitingReceiptQty(item)} unit{getEffectiveAwaitingReceiptQty(item) === 1 ? "" : "s"} to confirm
                           </span>
                         )}
                         {item.companyActionRequired && (
@@ -450,6 +522,11 @@ function ConfirmationPage() {
                         {(item.openExceptionCount ?? 0) > 0 && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-amber-50/80 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
                             {item.openExceptionCount} open exception{item.openExceptionCount === 1 ? "" : "s"}
+                          </span>
+                        )}
+                        {item.fulfillmentState === "backordered" && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
+                            <Clock3 className="size-3" /> Backordered by vendor
                           </span>
                         )}
                       </div>
@@ -472,7 +549,7 @@ function ConfirmationPage() {
                       </p>
                       {item.invoiceableSubtotal != null && Number(item.invoiceableSubtotal) > 0 && (
                         <p className="mt-0.5 text-[10px] text-[#087f70]">
-                          Invoiceable: {money(Number(item.invoiceableSubtotal), item.currency || "NGN")}
+                          Confirmed value: {money(Number(item.invoiceableSubtotal), item.currency || "NGN")}
                         </p>
                       )}
                     </div>
@@ -525,22 +602,33 @@ function ConfirmationPage() {
                 );
               })}
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center py-16 text-center">
-            <span className="flex size-11 items-center justify-center rounded-xl bg-[#edf4ff] text-[#3b67b0]">
-              <Clock3 className="size-5" />
-            </span>
-            <p className="mt-3 text-[13px] font-semibold">
-              {activeTab === "all" ? "No receiving activity" : `No ${labels[activeTab] ?? activeTab} orders`}
-            </p>
-            <p className="mt-1 text-[11px] text-[#89918d]">
-              {activeTab === "all"
-                ? "Issued purchase orders will appear here as suppliers prepare delivery."
-                : "Try switching to a different tab or clearing the search."}
-            </p>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col items-center py-16 text-center flex-1 justify-center">
+              <span className="flex size-11 items-center justify-center rounded-xl bg-[#edf4ff] text-[#3b67b0]">
+                <Clock3 className="size-5" />
+              </span>
+              <p className="mt-3 text-[13px] font-semibold">
+                {activeTab === "all" ? "No receiving activity" : `No ${labels[activeTab] ?? activeTab} orders`}
+              </p>
+              <p className="mt-1 text-[11px] text-[#89918d]">
+                {activeTab === "all"
+                  ? "Issued purchase orders will appear here as suppliers prepare delivery."
+                  : "Try switching to a different tab or clearing the search."}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="shrink-0">
+          <Pagination
+            total={totalCount}
+            page={meta?.currentPage ?? page}
+            perPage={meta?.limit ?? perPage}
+            onPage={setPage}
+            onPerPage={setPerPage}
+            totalPages={totalPages}
+          />
+        </div>
       </section>
     </div>
   );
