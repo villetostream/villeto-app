@@ -127,6 +127,13 @@ export interface DeliveryReceiptLineItemRecord {
   finalQuantityMissing?: number | null;
   resolutionStatus?: ExceptionResolutionStatus | string;
   vendorDisposition?: VendorExceptionDisposition | string | null;
+  recommendedDisposition?: VendorExceptionDisposition | string | null;
+  dispositionAllocations?: Array<{
+    disposition: string;
+    quantity: number;
+    expectedRedeliveryDate?: string | null;
+    reason?: string | null;
+  }>;
   expectedRedeliveryDate?: string | null;
   vendorResponseReason?: string | null;
   notes?: string | null;
@@ -144,6 +151,13 @@ export interface DeliveryReceiptRecord {
   vendorResponseReason?: string | null;
   vendorRespondedAt?: string | null;
   vendorDisposition?: VendorExceptionDisposition | string | null;
+  recommendedDisposition?: VendorExceptionDisposition | string | null;
+  dispositionAllocations?: Array<{
+    disposition: string;
+    quantity: number;
+    expectedRedeliveryDate?: string | null;
+    reason?: string | null;
+  }>;
   expectedRedeliveryDate?: string | null;
   finalDecision?: FinalDecisionChoice | string | null;
   decisionVersion?: number;
@@ -271,11 +285,45 @@ export interface PurchaseOrderRecord {
 }
 
 /**
+ * Computes the true quantity awaiting buyer receipt confirmation, subtracting:
+ * 1. Any phantom discrepancy where missing units were later accepted via dispute
+ *    resolution (`quantityReceived > quantityPhysicallyReceived`)
+ * 2. Any missing/rejected units recorded as `quantityForfeited` on confirmed receipts
+ *    that the backend failed to subtract from `quantityDispatched - quantityReceived`
+ * 3. Any stale awaiting count when `confirmationDate` is already on or after the
+ *    latest `shipmentDate` / `digitalDeliveryDate` (meaning the latest shipment
+ *    was already confirmed by the buyer).
+ */
+export function getEffectiveAwaitingReceiptQty(po: PurchaseOrderRecord): number {
+  const rawAwaiting = Number(po.quantityAwaitingReceipt ?? 0);
+  if (rawAwaiting <= 0) return 0;
+
+  const received = Number(po.quantityReceived ?? 0);
+  const physicallyReceived = Number(po.quantityPhysicallyReceived ?? received);
+  const resolvedMissingDelta = Math.max(0, received - physicallyReceived);
+  const forfeited = Number(po.quantityForfeited ?? 0);
+
+  const adjusted = Math.max(0, rawAwaiting - resolvedMissingDelta - forfeited);
+  if (adjusted <= 0) return 0;
+
+  const latestShipmentStr = po.shipmentDate || po.digitalDeliveryDate;
+  if (po.confirmationDate && latestShipmentStr) {
+    const confirmedTime = new Date(po.confirmationDate).getTime();
+    const shippedTime = new Date(latestShipmentStr).getTime();
+    if (!isNaN(confirmedTime) && !isNaN(shippedTime) && confirmedTime >= shippedTime) {
+      return 0;
+    }
+  }
+
+  return adjusted;
+}
+
+/**
  * A PO needs the tenant's receipt confirmation when the vendor has dispatched
  * goods that haven't been confirmed as received yet.
  */
 export function needsReceiptConfirmation(po: PurchaseOrderRecord): boolean {
-  return Number(po.quantityAwaitingReceipt ?? 0) > 0;
+  return getEffectiveAwaitingReceiptQty(po) > 0;
 }
 
 /**

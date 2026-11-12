@@ -29,8 +29,6 @@ import {
 
 const REJECTION_CATEGORIES = [
   { value: "damaged", label: "Damaged in transit" },
-  { value: "missing", label: "Missing from shipment" },
-  { value: "damaged_and_missing", label: "Damaged and missing units" },
   { value: "quality_failure", label: "Defective / Quality failure" },
   { value: "wrong_item", label: "Wrong item delivered" },
   { value: "wrong_specification", label: "Wrong specification" },
@@ -149,16 +147,7 @@ export default function ConfirmReceiptModal({
     const maxQty = Number(li.quantityAwaitingReceipt ?? li.quantityReady ?? li.quantity ?? 1);
     const accepted = quantities[id] !== undefined ? quantities[id] : maxQty;
     const discrepancy = Math.max(0, maxQty - accepted);
-    const rawMissing = Math.min(discrepancy, Math.max(0, missingQuantities[id] ?? 0));
-    const itemCat =
-      rejectionMode === "per_item" && rejectedLineItemsCount > 1
-        ? perItemRejections[id]?.category
-        : rejectionCategory;
-
-    // If category is explicitly "missing" and user hasn't manually split rejected vs missing,
-    // treat all discrepancy units as missing.
-    const effectiveMissing =
-      itemCat === "missing" && rawMissing === 0 ? discrepancy : rawMissing;
+    const effectiveMissing = Math.min(discrepancy, Math.max(0, missingQuantities[id] ?? 0));
     const effectiveRejected = Math.max(0, discrepancy - effectiveMissing);
 
     return {
@@ -315,11 +304,14 @@ export default function ConfirmReceiptModal({
     if (!hasExceptions) return true;
     if (isUploadingEvidence) return false;
     if (rejectionMode === "all_same" || rejectedLineItems.length === 1) {
-      return !!rejectionCategory && rejectionReason.trim().length > 0;
+      if (totalRejectedOnly > 0 && !rejectionCategory) return false;
+      return rejectionReason.trim().length > 0;
     }
     return rejectedLineItems.every((li) => {
+      const { rejected } = getLineBreakdown(li);
       const itemData = perItemRejections[li.vendorDeliveryNoticeLineItemId];
-      return !!itemData?.category && itemData?.reason?.trim().length > 0;
+      if (rejected > 0 && !itemData?.category) return false;
+      return itemData?.reason?.trim().length > 0;
     });
   };
 
@@ -338,16 +330,30 @@ export default function ConfirmReceiptModal({
             ? ""
             : REJECTION_CATEGORIES.find((c) => c.value === custom?.category)?.label ||
               custom?.category;
-          itemReason = custom?.reason?.trim()
-            ? `${catLabel ? `${catLabel}: ` : ""}${custom.reason.trim()}`
-            : catLabel || "Exception reported during delivery inspection.";
+          const userReason = custom?.reason?.trim();
+          if (rejected > 0 && catLabel) {
+            itemReason = userReason ? `${catLabel}: ${userReason}` : catLabel;
+          } else if (userReason) {
+            itemReason = userReason;
+          } else if (missing > 0 && rejected === 0) {
+            itemReason = "Missing from shipment";
+          } else {
+            itemReason = "Exception reported during delivery inspection.";
+          }
         } else {
           const isOther = rejectionCategory === "other";
           const categoryObj = REJECTION_CATEGORIES.find((c) => c.value === rejectionCategory);
           const catLabel = isOther ? "" : categoryObj?.label;
-          itemReason = rejectionReason.trim()
-            ? `${catLabel ? `${catLabel}: ` : ""}${rejectionReason.trim()}`
-            : categoryObj?.label || "Exception reported during delivery inspection.";
+          const userReason = rejectionReason.trim();
+          if (rejected > 0 && catLabel) {
+            itemReason = userReason ? `${catLabel}: ${userReason}` : catLabel;
+          } else if (userReason) {
+            itemReason = userReason;
+          } else if (missing > 0 && rejected === 0) {
+            itemReason = "Missing from shipment";
+          } else {
+            itemReason = "Exception reported during delivery inspection.";
+          }
         }
       }
 
@@ -426,7 +432,7 @@ export default function ConfirmReceiptModal({
             </div>
 
             {/* Scrollable Body: Line Items & Notes */}
-            <div className="p-6 py-4 flex-1 overflow-y-auto min-h-0 [scrollbar-width:thin] [scrollbar-color:#d1d5db_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/15 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent space-y-4">
+            <div className="p-6 py-4 flex-1 overflow-y-auto modal-scrollbar min-h-0 space-y-4">
               {/* Line Items */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -642,7 +648,7 @@ export default function ConfirmReceiptModal({
                   <span>Inspection Outcome</span>
                 </div>
                 {/* Scrollable list with slim scrollbar only when items exceed 3 */}
-                <div className="space-y-1.5 max-h-[145px] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#d1d5db_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/15 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent pr-1">
+                <div className="space-y-1.5 max-h-[145px] overflow-y-auto modal-scrollbar pr-1">
                   {(lineItems || []).map((li: any) => {
                     const { maxQty, accepted, rejected, missing, discrepancy } = getLineBreakdown(li);
                     const isItemShort = discrepancy > 0;
@@ -767,42 +773,49 @@ export default function ConfirmReceiptModal({
             </div>
 
             {/* SCROLLABLE BODY: Only the line item inputs & attachment box scroll */}
-            <div className="p-6 sm:p-7 py-4 flex-1 overflow-y-auto min-h-0 [scrollbar-width:thin] [scrollbar-color:#d1d5db_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-black/15 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent space-y-4">
+            <div className="p-6 sm:p-7 py-4 flex-1 overflow-y-auto modal-scrollbar min-h-0 space-y-4">
               {/* FORM: ALL SAME REASON (DEFAULT / SINGLE ITEM) */}
               {(rejectionMode === "all_same" || rejectedLineItems.length <= 1) && (
                 <div className="space-y-4">
-                  {/* Structured Category Selector */}
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-semibold text-[#0b100e]">
-                      Exception Category <span className="text-[#d33d44]">*</span>
-                    </Label>
-                    <Select
-                      value={rejectionCategory}
-                      onValueChange={setRejectionCategory}
-                      disabled={isPending}
-                    >
-                      <SelectTrigger className="w-full h-11 rounded-[12px] border-black/[0.12] bg-white text-sm font-medium">
-                        <SelectValue placeholder="Select a reason category…" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-[12px] shadow-lg">
-                        {REJECTION_CATEGORIES.map((cat) => (
-                          <SelectItem key={cat.value} value={cat.value} className="text-sm py-2">
-                            {cat.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Structured Category Selector (only when units were physically rejected) */}
+                  {totalRejectedOnly > 0 && (
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-semibold text-[#0b100e]">
+                        Rejection Category <span className="text-[#d33d44]">*</span>
+                      </Label>
+                      <Select
+                        value={rejectionCategory}
+                        onValueChange={setRejectionCategory}
+                        disabled={isPending}
+                      >
+                        <SelectTrigger className="w-full h-11 rounded-[12px] border-black/[0.12] bg-white text-sm font-medium">
+                          <SelectValue placeholder="Select a rejection category…" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-[12px] shadow-lg">
+                          {REJECTION_CATEGORIES.map((cat) => (
+                            <SelectItem key={cat.value} value={cat.value} className="text-sm py-2">
+                              {cat.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   {/* Enter Exception Reason Textarea */}
                   <div className="space-y-1.5">
                     <Label className="text-sm font-semibold text-[#0b100e]">
-                      Exception Reason <span className="text-[#d33d44]">*</span>
+                      {totalRejectedOnly > 0 ? "Exception Reason" : "Reason for Missing Units"}{" "}
+                      <span className="text-[#d33d44]">*</span>
                     </Label>
                     <Textarea
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder="e.g. Ten units were damaged and two were missing."
+                      placeholder={
+                        totalRejectedOnly > 0
+                          ? "e.g. Items were damaged during transit..."
+                          : "e.g. Package was missing units upon unboxing..."
+                      }
                       rows={3}
                       disabled={isPending}
                       className="resize-none rounded-[14px] border-black/[0.12] py-2.5 px-3.5 text-sm placeholder:text-[#89918d] focus-visible:ring-[#00b29a]/30 focus-visible:border-[#00b29a]"
@@ -835,40 +848,42 @@ export default function ConfirmReceiptModal({
                           </span>
                         </div>
 
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-semibold text-[#0b100e]">
-                            Category for {li.name} <span className="text-[#d33d44]">*</span>
-                          </Label>
-                          <Select
-                            value={currentItemData.category}
-                            onValueChange={(val) =>
-                              setPerItemRejections((prev) => ({
-                                ...prev,
-                                [li.vendorDeliveryNoticeLineItemId]: {
-                                  ...prev[li.vendorDeliveryNoticeLineItemId],
-                                  category: val,
-                                  reason: prev[li.vendorDeliveryNoticeLineItemId]?.reason || "",
-                                },
-                              }))
-                            }
-                            disabled={isPending}
-                          >
-                            <SelectTrigger className="w-full h-9 rounded-[8px] border-black/[0.12] bg-white text-xs font-medium">
-                              <SelectValue placeholder="Select reason category…" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-[10px] shadow-lg">
-                              {REJECTION_CATEGORIES.map((cat) => (
-                                <SelectItem key={cat.value} value={cat.value} className="text-xs py-1.5">
-                                  {cat.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        {rejected > 0 && (
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold text-[#0b100e]">
+                              Rejection Category for {li.name} <span className="text-[#d33d44]">*</span>
+                            </Label>
+                            <Select
+                              value={currentItemData.category}
+                              onValueChange={(val) =>
+                                setPerItemRejections((prev) => ({
+                                  ...prev,
+                                  [li.vendorDeliveryNoticeLineItemId]: {
+                                    ...prev[li.vendorDeliveryNoticeLineItemId],
+                                    category: val,
+                                    reason: prev[li.vendorDeliveryNoticeLineItemId]?.reason || "",
+                                  },
+                                }))
+                              }
+                              disabled={isPending}
+                            >
+                              <SelectTrigger className="w-full h-9 rounded-[8px] border-black/[0.12] bg-white text-xs font-medium">
+                                <SelectValue placeholder="Select a rejection category…" />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-[10px] shadow-lg">
+                                {REJECTION_CATEGORIES.map((cat) => (
+                                  <SelectItem key={cat.value} value={cat.value} className="text-xs py-1.5">
+                                    {cat.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
 
                         <div className="space-y-1">
                           <Label className="text-[11px] font-semibold text-[#0b100e]">
-                            Exception Reason for {li.name} <span className="text-[#d33d44]">*</span>
+                            {rejected > 0 ? `Reason for ${li.name}` : `Reason for missing ${li.name}`} <span className="text-[#d33d44]">*</span>
                           </Label>
                           <Textarea
                             value={currentItemData.reason}
@@ -876,15 +891,20 @@ export default function ConfirmReceiptModal({
                               setPerItemRejections((prev) => ({
                                 ...prev,
                                 [li.vendorDeliveryNoticeLineItemId]: {
+                                  ...prev[li.vendorDeliveryNoticeLineItemId],
                                   category: prev[li.vendorDeliveryNoticeLineItemId]?.category || "",
                                   reason: e.target.value,
                                 },
                               }))
                             }
-                            placeholder={`Specify why ${li.name} had exceptions…`}
+                            placeholder={
+                              rejected > 0
+                                ? "Explain why these units were rejected..."
+                                : "Explain the missing units..."
+                            }
                             rows={2}
                             disabled={isPending}
-                            className="resize-none rounded-[8px] border-black/[0.12] py-1.5 px-2.5 text-xs"
+                            className="resize-none rounded-[10px] border-black/[0.12] py-2 px-3 text-xs placeholder:text-[#89918d]"
                           />
                         </div>
                       </div>

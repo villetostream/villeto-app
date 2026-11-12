@@ -550,6 +550,12 @@ function POTable({
                 let formattedDate = po.createdAt || po.issueDate;
                 try { formattedDate = format(new Date(formattedDate), "dd MMM, yyyy"); } catch { /* keep raw */ }
 
+                // Avoid false "Delivered" badge if backend marks status delivered while delivery outcome is not_delivered
+                const effectiveStatus =
+                  po.status === "delivered" && po.deliveryOutcome === "not_delivered"
+                    ? (po.fulfillmentState === "fully_ready" ? "ready_for_delivery" : "issued")
+                    : (po.deliveryOutcome && po.deliveryOutcome !== "not_delivered" ? po.deliveryOutcome : po.status);
+
                 return (
                   <tr
                     key={id}
@@ -566,7 +572,7 @@ function POTable({
                     <td className="px-5 py-4 text-[13px] font-semibold text-[#0b100e]">
                       {Number(po.totalAmount).toLocaleString("en-US", { style: "currency", currency: po.currency || "USD" })}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap"><StatusBadge status={po.status} /></td>
+                    <td className="px-5 py-4 whitespace-nowrap"><StatusBadge status={effectiveStatus} /></td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                       {isMyScope ? (
                         <MyPOActionMenu onView={() => navigateToDetail(id)} />

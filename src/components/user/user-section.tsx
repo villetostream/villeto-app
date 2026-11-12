@@ -588,6 +588,9 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
   if (pathname.match(/^\/procurement\/confirmation\/[^/]+$/))
     return "Confirmation Details";
   if (pathname.startsWith("/procurement/confirmation")) return "Receiving & Confirmation";
+  if (pathname.match(/^\/procurement\/invoices\/[^/]+$/))
+    return "Invoice Details";
+  if (pathname.startsWith("/procurement/invoices")) return "Vendor Invoices";
   if (pathname.startsWith("/procurement/categories")) return "Categories";
   if (pathname.startsWith("/procurement")) return "Procurement";
 
@@ -640,7 +643,8 @@ export function UserSection() {
     const isProcurementListPage =
       pathname === "/procurement/purchase-request" ||
       pathname === "/procurement/purchase-order" ||
-      pathname === "/procurement/confirmation";
+      pathname === "/procurement/confirmation" ||
+      pathname === "/procurement/invoices";
     const isExpensesListPageNow = pathname === "/expenses";
     if (!isExpensesListPageNow && !isProcurementListPage) resetDates();
     clearAction();
@@ -689,6 +693,7 @@ export function UserSection() {
     isPOEditPage,
     isPODetailPage,
     isConfirmationDetailPage,
+    isInvoiceDetailPage,
     isVendorDetailPage,
     isBackButtonPage,
   } = useMemo(() => {
@@ -716,7 +721,8 @@ export function UserSection() {
     const procListPage =
       pathname === "/procurement/purchase-request" ||
       pathname === "/procurement/purchase-order" ||
-      pathname === "/procurement/confirmation";
+      pathname === "/procurement/confirmation" ||
+      pathname === "/procurement/invoices";
     const uploadPage = pathname === "/expenses/new-expense/upload";
     const newExpPage = pathname === "/expenses/new-expense";
     const newReportPage = pathname === "/expenses/new-report";
@@ -732,6 +738,9 @@ export function UserSection() {
     const poDetailMatch =
       /^\/procurement\/purchase-order\/[^/]+$/.test(pathname) && !newPOPage;
     const confirmDetailMatch = /^\/procurement\/confirmation\/[^/]+$/.test(
+      pathname,
+    );
+    const invoiceDetailMatch = /^\/procurement\/invoices\/[^/]+$/.test(
       pathname,
     );
     const vendorDetailMatch =
@@ -761,6 +770,7 @@ export function UserSection() {
       poEditMatch ||
       poDetailMatch ||
       confirmDetailMatch ||
+      invoiceDetailMatch ||
       billPayAddMatch ||
       pathname === "/people/invite/leadership" ||
       pathname === "/people/invite/employees" ||
@@ -789,6 +799,7 @@ export function UserSection() {
       isPOEditPage: poEditMatch,
       isPODetailPage: poDetailMatch,
       isConfirmationDetailPage: confirmDetailMatch,
+      isInvoiceDetailPage: invoiceDetailMatch,
       isVendorDetailPage: vendorDetailMatch,
       isBackButtonPage: backButtonPage,
     };
@@ -1016,6 +1027,10 @@ export function UserSection() {
     }
     if (isConfirmationDetailPage) {
       router.push("/procurement/confirmation");
+      return;
+    }
+    if (isInvoiceDetailPage) {
+      router.push("/procurement/invoices");
       return;
     }
     router.push("/expenses");
