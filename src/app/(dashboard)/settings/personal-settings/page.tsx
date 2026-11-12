@@ -720,7 +720,7 @@ function CompanyProfileTab() {
         setIsLoading(true);
         const results = await Promise.allSettled([
           axios.get(API_KEYS.COMPANY.COMPANY_DETAILS(companyId)),
-          axios.get(API_KEYS.USER.USERS),
+          axios.get(API_KEYS.USER.USERS, { params: { view: "company-summary" } }),
         ]);
 
         const compResult = results[0];

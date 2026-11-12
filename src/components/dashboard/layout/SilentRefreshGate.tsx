@@ -24,19 +24,12 @@ import { apiUrl } from "@/lib/api-url";
 import { useEffect, useRef } from "react";
 import axios from "axios";
 import { useAuthStore } from "@/stores/auth-stores";
-import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
+import { refreshAccessToken } from "@/lib/tokenRefreshService";
 import { parseAuthorizationSnapshot } from "@/features/auth/authorization";
 
 
 /** Milliseconds of buffer — consider a token expired 30 s early */
 const EXPIRY_BUFFER_MS = 30_000;
-
-/** Renew the villeto_auth marker cookie so middleware stays in sync */
-function renewAuthCookie(expiresInMs: number) {
-  if (typeof document !== "undefined") {
-    document.cookie = `villeto_auth=true; path=/; max-age=${Math.floor(expiresInMs / 1000)}`;
-  }
-}
 
 export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
   const hasRun = useRef(false);
@@ -45,7 +38,7 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
     if (hasRun.current) return;
     hasRun.current = true;
 
-    const { accessToken, accessTokenExpiresAt, setAccessToken, setProfile, user } =
+    const { accessToken, accessTokenExpiresAt, setProfile, user } =
       useAuthStore.getState();
 
     // Token is still alive — nothing to do.
@@ -64,32 +57,7 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
     // which would itself try to refresh and fight this call.
     void (async () => {
       try {
-        const response = await axios.post(
-          apiUrl("auth/refresh"),
-          {},
-          { withCredentials: true }
-        );
-
-        const data = response.data?.data ?? response.data ?? {};
-        const newToken: string | undefined =
-          data.accessToken ?? response.data?.accessToken;
-        const expiresInMs: number =
-          data.accessTokenExpiresInMs ??
-          response.data?.accessTokenExpiresInMs ??
-          3_600_000;
-
-        if (!newToken) {
-          // Server responded but gave no token — treat as expired session.
-          // Don't call logoutAndRedirect() here — just signal done.
-          // DashboardLayoutContent will handle the redirect after seeing no user.
-          onDone?.();
-          return;
-        }
-
-        // Persist the fresh token and reschedule the proactive refresh timer.
-        setAccessToken(newToken, expiresInMs);
-        scheduleTokenRefresh(expiresInMs);
-        renewAuthCookie(expiresInMs);
+        const newToken = await refreshAccessToken();
 
         // If user profile is missing (e.g., hard refresh cleared sessionStorage),
         // fetch it now so the rest of the app has full user context.
@@ -102,7 +70,7 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
             });
             const responseData = me?.data?.data ?? me?.data;
             const { _company, companyId, ...userData } = responseData ?? {};
-            if (userData) {
+            if (userData && useAuthStore.getState().accessToken === newToken && !useAuthStore.getState().user) {
               const authorization = parseAuthorizationSnapshot(
                 userData.authorization
               );

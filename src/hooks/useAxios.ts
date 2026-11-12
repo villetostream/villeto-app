@@ -1,6 +1,5 @@
 "use client";
 
-import { apiUrl } from "@/lib/api-url";
 
 import axios, {
   AxiosError,
@@ -8,7 +7,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 import { invalidateAuthorization } from "@/features/auth/authorization";
-import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
+import { refreshAccessToken } from "@/lib/tokenRefreshService";
 import {
   CONNECTION_POOL_MESSAGE,
   isConnectionPoolError,
@@ -44,17 +43,6 @@ type ApiErrorPayload = {
   data?: { statusCode?: number };
 };
 
-type RefreshResponse = {
-  data?: {
-    accessToken?: string;
-    accessTokenExpiresInMs?: number;
-    data?: {
-      accessToken?: string;
-      accessTokenExpiresInMs?: number;
-    };
-  };
-};
-
 const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const apiClient = axios.create({
   baseURL: BASEURL,
@@ -68,7 +56,6 @@ function finishWorkspaceMutation(config?: InternalAxiosRequestConfig) {
   useEntityWorkspaceStore.getState().mutationFinished();
 }
 
-let refreshPromise: Promise<string> | null = null;
 
 // ── Client-side traffic shaping ─────────────────────────────────────────────────────────
 // A bounded concurrency gate (like a token bucket with N tokens) so a page
@@ -202,44 +189,6 @@ function redirectToLogin() {
   ) {
     window.location.assign("/login");
   }
-}
-
-function refreshAccessToken() {
-  if (refreshPromise) return refreshPromise;
-
-  refreshPromise = axios
-    .post<RefreshResponse["data"]>(
-      apiUrl("auth/refresh"),
-      {},
-      { withCredentials: true },
-    )
-    .then((response) => {
-      const accessToken =
-        response.data?.data?.accessToken ?? response.data?.accessToken;
-      if (!accessToken) {
-        throw new Error("No access token returned");
-      }
-
-      const expiresInMs =
-        response.data?.data?.accessTokenExpiresInMs ??
-        response.data?.accessTokenExpiresInMs ??
-        3_600_000;
-
-      useAuthStore.getState().setAccessToken(accessToken, expiresInMs);
-      scheduleTokenRefresh(expiresInMs);
-
-      // Keep the villeto_auth marker cookie alive
-      if (typeof document !== "undefined") {
-        document.cookie = `villeto_auth=true; path=/; max-age=${Math.floor(expiresInMs / 1000)}`;
-      }
-
-      return accessToken;
-    })
-    .finally(() => {
-      refreshPromise = null;
-    });
-
-  return refreshPromise;
 }
 
 function readEmbeddedStatus(data: unknown) {
@@ -416,10 +365,11 @@ apiClient.interceptors.response.use(
 
       originalRequest._retry = true;
       try {
-        const accessToken = await refreshAccessToken();
+        const accessToken = await refreshAccessToken(String(originalRequest.headers.get("Authorization") ?? "").replace(/^Bearer /, ""));
         originalRequest.headers.set("Authorization", `Bearer ${accessToken}`);
         return apiClient(originalRequest);
       } catch (refreshError) {
+        if (axios.isCancel(refreshError)) return Promise.reject(refreshError);
         useAuthStore.getState().logout();
         redirectToLogin();
         return Promise.reject(refreshError);
