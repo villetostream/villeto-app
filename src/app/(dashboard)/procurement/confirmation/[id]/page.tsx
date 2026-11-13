@@ -81,6 +81,17 @@ function formatExceptionReason(reason: string | null | undefined) {
   return reason.replace(/^Other\s*\(specify below\)\s*:\s*/i, "").trim();
 }
 
+function formatUnitLabel(qty: number, unitOfMeasure?: string | null) {
+  const raw = (unitOfMeasure || "unit").trim();
+  if (qty === 1) return raw;
+  const lower = raw.toLowerCase();
+  if (lower.endsWith("s")) return raw;
+  if (lower.endsWith("x") || lower.endsWith("z") || lower.endsWith("ch") || lower.endsWith("sh")) {
+    return `${raw}es`;
+  }
+  return `${raw}s`;
+}
+
 function WorkflowStep({ label, person, timestamp, done, pending, isLast, badge, badgeColor }: {
   label: string; person?: string; timestamp?: string; done?: boolean; pending?: boolean; isLast?: boolean; badge?: string; badgeColor?: string;
 }) {
@@ -431,22 +442,98 @@ function FulfillmentHistoryCard({
                       &quot;{matchingReceipt.vendorResponseReason}&quot;
                     </p>
                   )}
-                  {matchingReceipt.lineItems?.some((li: any) => li.dispositionAllocations && li.dispositionAllocations.length > 0) && (
-                    <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-200/50">
-                      {matchingReceipt.lineItems.flatMap((li: any) => li.dispositionAllocations || []).map((alloc: any, idx: number) => (
-                        <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-white border border-amber-200 text-xs shadow-2xs">
-                          <strong className="capitalize text-amber-950 font-bold">{alloc.disposition}:</strong>
-                          <span className="font-semibold text-amber-900">
-                            {alloc.quantity} {Number(alloc.quantity) === 1 ? "unit" : "units"}
-                          </span>
-                          {alloc.expectedRedeliveryDate && (
-                            <span className="text-[#68726d]">(due {formatDate(alloc.expectedRedeliveryDate).split(",")[0]})</span>
-                          )}
-                          {alloc.reason && <span className="text-[#84908a] italic">— &quot;{alloc.reason}&quot;</span>}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {(() => {
+                    const receiptItems = matchingReceipt.lineItems || [];
+                    const backorderEntries: { name: string; qty: number }[] = [];
+                    const forfeitEntries: { name: string; qty: number }[] = [];
+                    const disputeEntries: { name: string; qty: number }[] = [];
+                    const dueDates = new Set<string>();
+
+                    for (const li of receiptItems) {
+                      const itemName = li.name || "Item";
+                      const allocs = li.dispositionAllocations || [];
+                      if (allocs.length > 0) {
+                        for (const alloc of allocs) {
+                          const qty = Number(alloc.quantity || 0);
+                          if (qty <= 0) continue;
+                          if (alloc.disposition === "backorder") {
+                            backorderEntries.push({ name: itemName, qty });
+                            if (alloc.expectedRedeliveryDate) {
+                              dueDates.add(formatDate(alloc.expectedRedeliveryDate).split(",")[0]);
+                            }
+                          } else if (alloc.disposition === "forfeit") {
+                            forfeitEntries.push({ name: itemName, qty });
+                          }
+                        }
+                      } else {
+                        const excQty = Number(li.quantityRejected || 0) + Number(li.quantityMissing || 0);
+                        if (excQty > 0) {
+                          if (li.vendorDisposition === "backorder") {
+                            backorderEntries.push({ name: itemName, qty: excQty });
+                            if (li.expectedRedeliveryDate) {
+                              dueDates.add(formatDate(li.expectedRedeliveryDate).split(",")[0]);
+                            }
+                          } else if (li.vendorDisposition === "forfeit") {
+                            forfeitEntries.push({ name: itemName, qty: excQty });
+                          }
+                        }
+                      }
+
+                      if (
+                        li.vendorDisposition === "dispute" ||
+                        li.resolutionStatus === "disputed" ||
+                        li.resolutionStatus === "under_company_review"
+                      ) {
+                        const excQty = Number(li.quantityRejected || 0) + Number(li.quantityMissing || 0);
+                        disputeEntries.push({ name: itemName, qty: excQty });
+                      }
+                    }
+
+                    if (backorderEntries.length === 0 && forfeitEntries.length === 0 && disputeEntries.length === 0) {
+                      return null;
+                    }
+
+                    const formatEntries = (entries: { name: string; qty: number }[]) => {
+                      const visible = entries.slice(0, 3).map((e) => (e.qty > 0 ? `${e.name} (${e.qty})` : e.name));
+                      if (entries.length > 3) visible.push(`+${entries.length - 3} more`);
+                      return visible.join(", ");
+                    };
+
+                    const backorderedUnits = backorderEntries.reduce((s, e) => s + e.qty, 0);
+                    const forfeitedUnits = forfeitEntries.reduce((s, e) => s + e.qty, 0);
+                    const disputedUnits = disputeEntries.reduce((s, e) => s + e.qty, 0);
+                    const singleDueDate = dueDates.size === 1 ? Array.from(dueDates)[0] : null;
+
+                    return (
+                      <div className="space-y-1 pt-1.5 border-t border-amber-200/50 text-xs">
+                        {backorderedUnits > 0 && (
+                          <p className="text-amber-950">
+                            <span className="font-semibold">
+                              {backorderedUnits} {backorderedUnits === 1 ? "unit" : "units"} backordered
+                              {singleDueDate ? ` (due ${singleDueDate})` : ""}:
+                            </span>{" "}
+                            <span className="text-[#34413b]">{formatEntries(backorderEntries)}</span>
+                          </p>
+                        )}
+                        {forfeitedUnits > 0 && (
+                          <p className="text-amber-950">
+                            <span className="font-semibold">
+                              {forfeitedUnits} {forfeitedUnits === 1 ? "unit" : "units"} forfeited:
+                            </span>{" "}
+                            <span className="text-[#34413b]">{formatEntries(forfeitEntries)}</span>
+                          </p>
+                        )}
+                        {disputeEntries.length > 0 && (
+                          <p className="text-[#d33d44]">
+                            <span className="font-semibold">
+                              {disputedUnits > 0 ? `${disputedUnits} ${disputedUnits === 1 ? "unit" : "units"} disputed:` : "Disputed:"}
+                            </span>{" "}
+                            <span className="text-[#34413b]">{formatEntries(disputeEntries)}</span>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -763,18 +850,24 @@ function FulfillmentHistoryCard({
                           )}
 
                           {/* Disposition allocations if vendor split/allocated */}
-                          {receiptLineItem?.dispositionAllocations && receiptLineItem.dispositionAllocations.length > 0 && (
-                            <div className="space-y-1 pt-1">
-                              {receiptLineItem.dispositionAllocations.map((alloc: any, aIdx: number) => (
-                                <p key={aIdx} className="text-[10px] text-[#68726d] bg-gray-50 px-2 py-0.5 rounded border border-black/[0.04]">
-                                  <span className="font-semibold capitalize text-[#34413b]">{alloc.disposition}:</span>{" "}
-                                  {alloc.quantity} {Number(alloc.quantity) === 1 ? "unit" : "units"}
-                                  {alloc.expectedRedeliveryDate ? ` (due ${formatDate(alloc.expectedRedeliveryDate).split(",")[0]})` : ""}
-                                  {alloc.reason ? ` — "${alloc.reason}"` : ""}
-                                </p>
-                              ))}
-                            </div>
-                          )}
+                          {receiptLineItem?.dispositionAllocations && receiptLineItem.dispositionAllocations.length > 0 && (() => {
+                            const poLineItem = purchaseOrderLineItems.find(
+                              (pli: any) => pli.purchaseOrderLineItemId === item.purchaseOrderLineItemId
+                            );
+                            const uom = poLineItem?.unitOfMeasure || item.unitOfMeasure;
+                            return (
+                              <div className="space-y-1 pt-1">
+                                {receiptLineItem.dispositionAllocations.map((alloc: any, aIdx: number) => (
+                                  <p key={aIdx} className="text-[10px] text-[#68726d] bg-gray-50 px-2 py-0.5 rounded border border-black/[0.04]">
+                                    <span className="font-semibold capitalize text-[#34413b]">{alloc.disposition}:</span>{" "}
+                                    {alloc.quantity} {formatUnitLabel(Number(alloc.quantity || 0), uom)}
+                                    {alloc.expectedRedeliveryDate ? ` (due ${formatDate(alloc.expectedRedeliveryDate).split(",")[0]})` : ""}
+                                    {alloc.reason ? ` — "${alloc.reason}"` : ""}
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          })()}
 
                           {(() => {
                             const isLineDisputed =
@@ -844,7 +937,13 @@ function FulfillmentHistoryCard({
                               );
                             }
 
-                            if (!lineNote) return null;
+                            const isDuplicateAllocationNote =
+                              Boolean(lineNote) &&
+                              (receiptLineItem?.dispositionAllocations || []).some(
+                                (a: any) => a.reason && String(a.reason).trim() === String(lineNote).trim()
+                              );
+
+                            if (!lineNote || (!proposedItem && isDuplicateAllocationNote)) return null;
 
                             return (
                               <div
@@ -1093,6 +1192,7 @@ function ItemFulfillmentDrawer({
 
   const hasItemFinalDecision = (receiptConfirmations || []).some((rc: any) =>
     rc.finalDecision &&
+    rc.vendorActionRequired &&
     (rc.lineItems || []).some((rli: any) =>
       (item.purchaseOrderLineItemId && rli.purchaseOrderLineItemId === item.purchaseOrderLineItemId) ||
       (rli.name && rli.name === item.name)
@@ -1326,39 +1426,42 @@ function ItemFulfillmentDrawer({
                       ? "bg-blue-50 text-blue-600 border-blue-200"
                       : "bg-gray-50 text-gray-600 border-gray-200";
 
-                    if (matchingReceipt?.companyActionRequired) {
+                    if (hasLineExceptions && matchingReceipt?.companyActionRequired) {
                       badgeText = "Disputed · Action Required";
                       badgeColor = "bg-[#fdecee] text-[#d33d44] border-[#d33d44]/20";
-                    } else if (matchingReceipt?.vendorActionRequired) {
+                    } else if (hasLineExceptions && matchingReceipt?.vendorActionRequired) {
                       badgeText = matchingReceipt?.finalDecision ? "Ruling Issued · Awaiting Vendor" : "Awaiting Vendor Response";
                       badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
                     } else if (
-                      matchingReceipt?.decisionHistory?.some((h: any) => h.event === "vendor_accepted_final_decision") ||
-                      (matchingReceipt?.finalDecision && !matchingReceipt?.vendorActionRequired)
+                      hasLineExceptions &&
+                      (matchingReceipt?.decisionHistory?.some((h: any) => h.event === "vendor_accepted_final_decision") ||
+                      (matchingReceipt?.finalDecision && !matchingReceipt?.vendorActionRequired))
                     ) {
                       badgeText = "Ruling Accepted · Backordered";
                       badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
-                    } else if (matchingReceipt?.finalDecision) {
+                    } else if (hasLineExceptions && matchingReceipt?.finalDecision) {
                       badgeText = "Ruling Issued";
                       badgeColor = "bg-[#f0faf8] text-[#087f70] border-[#087f70]/20";
-                    } else if (isResolvedAfterDispute) {
+                    } else if (hasLineExceptions && isResolvedAfterDispute) {
                       badgeText = "Resolved After Dispute";
                       badgeColor = "bg-[#f0faf8] text-[#087f70] border-[#087f70]/20";
                     } else if (
-                      receiptLineItem?.vendorDisposition === "backorder" ||
+                      hasLineExceptions &&
+                      (receiptLineItem?.vendorDisposition === "backorder" ||
                       matchingReceipt?.resolutionStatus === "backordered" ||
-                      allocations.some((a: any) => a.disposition === "backorder")
+                      allocations.some((a: any) => a.disposition === "backorder"))
                     ) {
                       badgeText = "Backordered by Vendor";
                       badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
                     } else if (
-                      receiptLineItem?.vendorDisposition === "forfeit" ||
+                      hasLineExceptions &&
+                      (receiptLineItem?.vendorDisposition === "forfeit" ||
                       matchingReceipt?.resolutionStatus === "forfeited" ||
-                      allocations.some((a: any) => a.disposition === "forfeit")
+                      allocations.some((a: any) => a.disposition === "forfeit"))
                     ) {
                       badgeText = "Forfeited by Vendor";
                       badgeColor = "bg-gray-100 text-gray-700 border-gray-200";
-                    } else if (hasLineExceptions || matchingReceipt?.confirmationOutcome === "confirmed_with_exceptions") {
+                    } else if (hasLineExceptions) {
                       badgeText = "Confirmed with Exceptions";
                       badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
                     } else if (isReceiptConfirmed || liConfirmed) {
@@ -1479,7 +1582,9 @@ function ItemFulfillmentDrawer({
                                             }`}
                                           />
                                           <span className="capitalize font-bold text-[#0b100e]">{alloc.disposition}:</span>
-                                          <span className="font-semibold text-amber-950">{alloc.quantity} units</span>
+                                          <span className="font-semibold text-amber-950">
+                                            {alloc.quantity} {formatUnitLabel(Number(alloc.quantity || 0), item.unitOfMeasure)}
+                                          </span>
                                           {alloc.expectedRedeliveryDate && (
                                             <span className="text-[#68726d]">(due {formatDate(alloc.expectedRedeliveryDate).split(",")[0]})</span>
                                           )}
@@ -1490,7 +1595,10 @@ function ItemFulfillmentDrawer({
                                       </div>
                                     ))}
                                   </div>
-                                  {vendorNote && (
+                                  {vendorNote &&
+                                    !allocations.some(
+                                      (a: any) => a.reason && String(a.reason).trim() === String(vendorNote).trim()
+                                    ) && (
                                     <p className="text-[11px] text-[#68726d] italic pt-0.5">
                                       Note: &quot;{vendorNote}&quot;
                                     </p>
@@ -1562,7 +1670,11 @@ function ItemFulfillmentDrawer({
                                           <div className="flex items-center gap-2 pt-0.5">
                                             <span className="capitalize font-bold text-[#0b100e]">{String(vae.disposition || "backorder")}:</span>
                                             <span className="font-semibold text-amber-950">
-                                              {receiptLineItem.finalQuantityRejected ?? receiptLineItem.quantityRejected} units
+                                              {receiptLineItem.finalQuantityRejected ?? receiptLineItem.quantityRejected}{" "}
+                                              {formatUnitLabel(
+                                                Number(receiptLineItem.finalQuantityRejected ?? receiptLineItem.quantityRejected ?? 0),
+                                                item.unitOfMeasure
+                                              )}
                                             </span>
                                             {vae.expectedRedeliveryDate ? (
                                               <span className="text-[#68726d]">(due {formatDate(String(vae.expectedRedeliveryDate)).split(",")[0]})</span>
@@ -1587,12 +1699,12 @@ function ItemFulfillmentDrawer({
                                     return null;
                                   })()}
                                 </div>
-                              ) : (matchingReceipt?.vendorActionRequired || receiptLineItem.resolutionStatus === "awaiting_vendor_response" || matchingReceipt?.resolutionStatus === "awaiting_vendor_response") ? (
+                              ) : hasLineExceptions && (displayRejected + displayMissing > 0) && (matchingReceipt?.vendorActionRequired || receiptLineItem.resolutionStatus === "awaiting_vendor_response" || matchingReceipt?.resolutionStatus === "awaiting_vendor_response") ? (
                                 <div className="rounded-lg bg-amber-50/60 border border-amber-200/80 p-2.5 text-xs text-amber-900 flex items-center gap-2">
                                   <Clock3 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                                   <span>
                                     Vendor response is pending on the {displayRejected + displayMissing}{" "}
-                                    {displayRejected + displayMissing === 1 ? "exception unit" : "exception units"}.
+                                    {formatUnitLabel(displayRejected + displayMissing, item.unitOfMeasure)} in exception.
                                   </span>
                                 </div>
                               ) : (receiptLineItem.vendorDisposition || matchingReceipt?.vendorDisposition) ? (
@@ -2023,15 +2135,26 @@ function AwaitingNextDeliveryCard({
   const lineItems = po.lineItems || [];
   const totalOrdered = lineItems.reduce((acc: number, li: any) => acc + Number(li.quantity || 0), 0);
   const totalAccepted = lineItems.reduce((acc: number, li: any) => acc + Number(li.quantityAccepted ?? li.quantityReceived ?? 0), 0);
-  const remaining = Math.max(0, totalOrdered - totalAccepted);
+  const totalForfeited = lineItems.reduce((acc: number, li: any) => acc + Number(li.quantityForfeited || 0), 0);
+  const remaining = Math.max(0, totalOrdered - totalAccepted - totalForfeited);
   const hasOpenExceptions = (po.openExceptionCount ?? 0) > 0 || (po.deliveryOutcome || "").includes("with_exceptions");
+  const hasPendingExceptionResponse = Boolean(po.vendorResponseRequired || po.companyActionRequired);
 
-  const receiptWithFinalDecision = (po.receiptConfirmations || []).find((rc: any) => rc.finalDecision);
+  const receiptWithPendingFinalDecision = (po.receiptConfirmations || []).find(
+    (rc: any) => rc.finalDecision && rc.vendorActionRequired
+  );
+  const receiptWithSettledFinalDecision = !hasPendingExceptionResponse
+    ? (po.receiptConfirmations || []).find((rc: any) => rc.finalDecision)
+    : null;
+  const receiptWithFinalDecision = receiptWithPendingFinalDecision || receiptWithSettledFinalDecision;
   const hasCompanyFinalDecision = Boolean(receiptWithFinalDecision);
 
-  const vendorAcceptedRuling = receiptWithFinalDecision?.decisionHistory?.some(
-    (h: any) => h.event === "vendor_accepted_final_decision"
-  ) || (hasCompanyFinalDecision && !receiptWithFinalDecision?.vendorActionRequired && !po.vendorResponseRequired);
+  const vendorAcceptedRuling =
+    !hasPendingExceptionResponse &&
+    Boolean(receiptWithSettledFinalDecision) &&
+    (receiptWithSettledFinalDecision?.decisionHistory?.some(
+      (h: any) => h.event === "vendor_accepted_final_decision"
+    ) || !receiptWithSettledFinalDecision?.vendorActionRequired);
 
   const vendorAcceptedEvent = (receiptWithFinalDecision?.decisionHistory as any[])
     ?.slice()
@@ -2980,6 +3103,26 @@ function ConfirmationDetailPage() {
                         awaitingReceiptQty -
                         cannotFulfillQty
                     );
+
+                    const isBackorderedState =
+                      disp === "backordered" || item.fulfillmentState === "backordered";
+                    const isCannotFulfillState = disp === "cannot_fulfill";
+
+                    const totalBackorderedQty =
+                      backorderedExceptionQty + (isBackorderedState ? remainingToShipQty : 0);
+                    const combinedBackorderDate = isBackorderedState
+                      ? (expDate || backorderedExceptionDate)
+                      : (backorderedExceptionDate || expDate);
+
+                    const totalForfeitedQty =
+                      effectiveForfeitedQty +
+                      cannotFulfillQty +
+                      (isCannotFulfillState && cannotFulfillQty === 0 ? remainingToShipQty : 0);
+
+                    const unallocatedRemainingQty =
+                      !isBackorderedState && !isCannotFulfillState && cannotFulfillQty === 0
+                        ? remainingToShipQty
+                        : 0;
                     
                     return (
                       <tr 
@@ -3024,43 +3167,25 @@ function ConfirmationDetailPage() {
                                 </span>
                               )}
 
-                              {backorderedExceptionQty > 0 && (
+                              {totalBackorderedQty > 0 && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50/80 text-amber-800 border border-amber-200 whitespace-nowrap">
                                   <Clock3 className="w-3 h-3 text-amber-600" />
-                                  {backorderedExceptionQty} Backordered by vendor
-                                  {backorderedExceptionDate
-                                    ? ` (due ${formatDate(backorderedExceptionDate).split(",")[0]})`
+                                  {totalBackorderedQty} Backordered
+                                  {combinedBackorderDate
+                                    ? ` (due ${formatDate(combinedBackorderDate).split(",")[0]})`
                                     : ""}
                                 </span>
                               )}
 
-                              {effectiveForfeitedQty > 0 && (
+                              {totalForfeitedQty > 0 && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-gray-100 text-[#34413b] border border-black/[0.08] whitespace-nowrap">
-                                  {effectiveForfeitedQty} Forfeited by vendor
+                                  {totalForfeitedQty} Forfeited
                                 </span>
                               )}
 
-                              {cannotFulfillQty > 0 && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-700 whitespace-nowrap">
-                                  <AlertCircle className="w-3 h-3" /> {cannotFulfillQty} Cannot Fulfill
-                                </span>
-                              )}
-
-                              {remainingToShipQty > 0 && disp === "backordered" && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-[#f5f7f6] text-[#34413b] border border-black/[0.08] whitespace-nowrap">
-                                  <Clock3 className="w-3 h-3 text-amber-600" /> {remainingToShipQty} Backordered{expDate ? ` (due ${formatDate(expDate).split(",")[0]})` : ""}
-                                </span>
-                              )}
-
-                              {disp === "cannot_fulfill" && cannotFulfillQty === 0 && remainingToShipQty > 0 && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-700 whitespace-nowrap">
-                                  <AlertCircle className="w-3 h-3" /> {remainingToShipQty} Cannot Fulfill
-                                </span>
-                              )}
-
-                              {!disp && remainingToShipQty > 0 && cannotFulfillQty === 0 && (
+                              {unallocatedRemainingQty > 0 && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-[#f5f7f6] text-[#68726d] whitespace-nowrap">
-                                  {remainingToShipQty} {["service", "license"].includes(String(item.unitOfMeasure || "").toLowerCase()) || item.fulfillmentState === "not_started" ? "Awaiting fulfillment" : "Remaining to ship"}
+                                  {unallocatedRemainingQty} {["service", "license"].includes(String(item.unitOfMeasure || "").toLowerCase()) || item.fulfillmentState === "not_started" ? "Awaiting fulfillment" : "Remaining to ship"}
                                 </span>
                               )}
 
