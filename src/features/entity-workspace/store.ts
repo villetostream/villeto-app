@@ -130,7 +130,9 @@ export const useEntityWorkspaceStore = create<WorkspaceState>((set, get) => ({
     // and server-side array ordering must not spuriously bump generation and
     // trigger a mass refetch of all business-data queries.
     const policyChanged =
-      snapshotPolicyKey(state.snapshot) !== snapshotPolicyKey(snapshot);
+      !state.snapshot?.enabled && !snapshot.enabled
+        ? false
+        : snapshotPolicyKey(state.snapshot) !== snapshotPolicyKey(snapshot);
     const changed = selection !== state.selection || policyChanged;
     set({
       snapshot,

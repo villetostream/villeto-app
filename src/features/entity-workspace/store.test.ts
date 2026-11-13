@@ -208,4 +208,18 @@ describe("workspace state and request boundaries", () => {
       }),
     ).toBe("A");
   });
+  it("does not bump generation when hydrating a disabled workspace from null", () => {
+    useEntityWorkspaceStore.getState().reset("company:user");
+    const initialGeneration = useEntityWorkspaceStore.getState().generation;
+    useEntityWorkspaceStore.getState().hydrate({
+      enabled: false,
+      canSwitch: false,
+      canViewAll: false,
+      primaryAssignment: null,
+      defaultSelection: null,
+      blockers: [],
+      entities: [],
+    });
+    expect(useEntityWorkspaceStore.getState().generation).toBe(initialGeneration);
+  });
 });
