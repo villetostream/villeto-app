@@ -1,18 +1,25 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { BriefcaseBusiness, Building2, Check, Loader2, MessageSquare, MonitorPlay } from "lucide-react";
-import { toast } from "sonner";
+import { AlertCircle, BriefcaseBusiness, Building2, Check, Loader2, MessageSquare, MonitorPlay } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import { useOnboardingStore } from "@/stores/useVilletoStore";
 import { useStartOnboardingApi } from "@/queries/pre-onboarding/get-started";
@@ -30,6 +37,8 @@ export default function GetStarted() {
   const onboarding = useOnboardingStore();
   const startOnboarding = useStartOnboardingApi();
   const [isPending, startTransition] = useTransition();
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [emailConflictError, setEmailConflictError] = useState<string | null>(null);
   const loading = startOnboarding.isPending || isPending;
   const form = useForm<FormData>({ resolver: zodResolver(registrationSchema), defaultValues: { contactFirstName: onboarding.preOnboarding?.contactFirstName ?? "", contactLastName: onboarding.preOnboarding?.contactLastName ?? "", accountType: onboarding.preOnboarding?.accountType ?? undefined, contactEmail: onboarding.contactEmail || emailParam || "" } });
 
@@ -40,6 +49,8 @@ export default function GetStarted() {
 
   const onSubmit = async (data: FormData) => {
     try {
+      setSubmitError(null);
+      setEmailConflictError(null);
       const response = await startOnboarding.mutateAsync(data);
       onboarding.setPreOnboarding(data);
       onboarding.setOnboardingId(response.data.onboardingId as string);
@@ -49,7 +60,12 @@ export default function GetStarted() {
         router.push("/pre-onboarding/verify-otp");
       });
     } catch (error: unknown) {
-      toast.error(getApiErrorMessage(error, "Registration failed. Please try again."));
+      const message = getApiErrorMessage(error, "Registration failed. Please try again.");
+      if (/email/i.test(message)) {
+        setEmailConflictError(message);
+      } else {
+        setSubmitError(message);
+      }
     }
   };
   useWatch({ control: form.control, name: "accountType" });
@@ -74,11 +90,54 @@ export default function GetStarted() {
                   <button type="button" onClick={() => field.onChange("enterprise")} className={`flex items-start gap-3 rounded-[11px] border p-4 text-left transition-colors ${field.value === "enterprise" ? "border-[#0ea894] bg-[#e7f6f2]/60" : "border-black/[0.09] hover:border-[#0ea894]/50"}`}><span className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[#eef2f0] text-[#34403a]">{field.value === "enterprise" ? <Check className="size-4 text-[#087f70]" /> : <BriefcaseBusiness className="size-4" />}</span><span><span className="block text-[12px] font-semibold text-[#111714]">Set up my company</span><span className="mt-1 block text-[10px] leading-4 text-[#737d78]">Apply for a live workspace.</span></span></button>
                 </div></FormControl><FormMessage /></FormItem>
               )} />
+              {submitError && (
+                <p role="alert" className="text-[12px] font-medium text-red-600">
+                  {submitError}
+                </p>
+              )}
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row"><Button type="button" variant="outline" className="h-[50px] flex-1 rounded-[10px] border-black/[0.1] text-[13px] font-semibold" onClick={() => window.open("mailto:sales@villeto.com")} disabled={loading}><MessageSquare className="size-4" /> Talk to sales</Button><Button type="submit" disabled={loading} className="h-[50px] flex-1 rounded-[10px] bg-[#0ea894] text-[13px] font-semibold text-white hover:bg-[#0c9785]">{loading ? "Creating workspace..." : "Continue"}{loading && <Loader2 className="size-4 animate-spin" />}</Button></div>
             </form>
           </Form>
         </div>
       </div>
+
+      <Dialog open={Boolean(emailConflictError)} onOpenChange={(open) => !open && setEmailConflictError(null)}>
+        <DialogContent className="max-w-md rounded-[16px] p-6">
+          <DialogHeader className="space-y-2">
+            <div className="flex size-10 items-center justify-center rounded-full bg-red-50 text-red-600">
+              <AlertCircle className="size-5" />
+            </div>
+            <DialogTitle className="text-[18px] font-semibold text-[#0b100e]">
+              Email already in use
+            </DialogTitle>
+            <DialogDescription className="text-[13px] leading-5 text-[#68726d]">
+              {emailConflictError}
+              {onboarding.contactEmail ? (
+                <span className="mt-1.5 block font-medium text-[#202723]">
+                  {onboarding.contactEmail}
+                </span>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/login")}
+              className="h-10 rounded-[10px] border-black/[0.1] text-[13px] font-semibold"
+            >
+              Sign in instead
+            </Button>
+            <Button
+              type="button"
+              onClick={() => router.push("/pre-onboarding")}
+              className="h-10 rounded-[10px] bg-[#0ea894] text-[13px] font-semibold text-white hover:bg-[#0c9785]"
+            >
+              Use a different email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

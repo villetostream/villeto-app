@@ -28,7 +28,11 @@ export const useStartOnboardingApi = (): UseMutationResult<Response, Error, payl
     return useMutation<Response, Error, payload>({
         retry: false,
         mutationFn: async (payload: payload) => {
-            const res = await axiosInstance.post(API_KEYS.ONBOARDING.START_ONBOARDING, payload,);
+            const res = await axiosInstance.post(
+                API_KEYS.ONBOARDING.START_ONBOARDING,
+                payload,
+                { _skipErrorToast: true },
+            );
             return res.data;
         },
     });
