@@ -392,7 +392,9 @@ apiClient.interceptors.response.use(
 
     if (shouldShowToast) {
       const message = formatErrorMessage(error);
-      if (message && message !== "Network Error") toast.error(message);
+      if (message && message !== "Network Error") {
+        toast.error(message, { id: message });
+      }
     }
 
     return Promise.reject(error);
