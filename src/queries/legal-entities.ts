@@ -51,6 +51,39 @@ export interface Currency {
   minorUnits: number;
 }
 
+export interface EntityWorkspaceSettings {
+  enabled: boolean;
+  deploymentAvailable: boolean;
+  state: "enabled" | "company_disabled" | "deployment_disabled";
+}
+
+export function useEntityWorkspaceSettings() {
+  const axios = useAxios();
+  return useQuery<EntityWorkspaceSettings>({
+    queryKey: ["legal-entity-workspace-settings"],
+    queryFn: async () => {
+      const response = await axios.get("/legal-entities/workspace/settings");
+      return response.data?.data || response.data;
+    },
+  });
+}
+
+export function useEnableEntityWorkspace() {
+  const axios = useAxios();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      (await axios.patch("/legal-entities/workspace/settings", { enabled: true }))
+        .data,
+    onSuccess: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["legal-entity-workspace-settings"] }),
+        client.invalidateQueries({ queryKey: ["entity-workspace-bootstrap"] }),
+      ]);
+    },
+  });
+}
+
 export interface EmployeeAssignmentRow {
   user: {
     userId: string;
