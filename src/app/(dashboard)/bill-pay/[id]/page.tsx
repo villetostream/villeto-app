@@ -9,6 +9,7 @@ import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { ManualBillEvidence } from "@/features/bill-pay/intake/manual/ManualBillEvidence";
+import { BillPayInvoiceReviewActions } from "@/features/bill-pay/invoices/BillPayInvoiceReviewActions";
 import {
   Table,
   TableBody,
@@ -82,8 +83,6 @@ function RegularBillDetailsPage() {
     invoiceData.dueDate.slice(0, 10) < format(new Date(), "yyyy-MM-dd")
   );
 
-  const canApprove = policies.billPay.canApproveInvoice;
-
   useEffect(() => {
     setBackHandler(() => router.back());
     return () => clearBackHandler();
@@ -145,23 +144,24 @@ function RegularBillDetailsPage() {
                    {submitIntake.isPending ? "Submitting..." : "Submit for review"}
                 </Button>
              )}
-             {!isDraft && currentStage === "awaiting_approval" && canApprove && (
-                <Button onClick={() => router.push(`/procurement/invoices/${id}`)} className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
-                   Open invoice review
-                </Button>
-             )}
+             <BillPayInvoiceReviewActions
+               invoiceId={id}
+               status={invoiceData.status}
+             />
           </div>
         </div>
       </div>
 
-      {isManualDraft && invoiceData.intake && (
+      {invoiceData.intake && (invoiceData.intake.documents?.length || isManualDraft) ? (
         <div className="px-6 lg:px-8 max-w-[1200px] mx-auto w-full mb-6">
           <ManualBillEvidence
             intake={invoiceData.intake}
-            canAttach={policies.billPay.canCreateInvoice || policies.billPay.canEditInvoice}
+            invoiceId={id}
+            isDraft={!!isDraft}
+            canAttach={!!isManualDraft && (policies.billPay.canCreateInvoice || policies.billPay.canEditInvoice)}
           />
         </div>
-      )}
+      ) : null}
 
       <div className="px-6 lg:px-8 max-w-[1200px] mx-auto w-full">
         {/* Layout Grid */}
@@ -386,7 +386,7 @@ function RegularBillDetailsPage() {
                                  <p className="text-[12px] text-[#84908a] mt-1">{invoiceData?.approvedAt ? format(new Date(invoiceData.approvedAt), "dd-MM-yyyy hh:mm a") : "—"}</p>
                               </div>
                            </div>
-                       ) : currentStage === "under_review" ? (
+                       ) : invoiceData.status === "under_review" ? (
                            <div className="flex gap-4 min-h-[72px]">
                               <div className="flex flex-col items-center">
                                  <div className="w-[18px] h-[18px] rounded-full border-[2px] border-[#087f70] flex items-center justify-center shrink-0 bg-white z-10 mt-0.5">
