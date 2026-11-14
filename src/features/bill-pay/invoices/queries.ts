@@ -11,12 +11,15 @@ export function useBillPayInvoiceReviewAction() {
     mutationFn: async ({
       invoiceId,
       action,
+      reason,
     }: {
       invoiceId: string;
       action: InvoiceReviewAction;
+      reason?: string;
     }) => {
       const response = await axios.patch(
         `/bill-pay/invoices/${invoiceId}/${action}`,
+        action === "reject" ? { reason } : {},
       );
       return response.data;
     },

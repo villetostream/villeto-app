@@ -369,6 +369,7 @@ function RegularBillDetailsPage() {
                               <div className="pb-6">
                                  <p className="text-[13px] font-bold text-[#d33d44]">Rejected</p>
                                  <p className="text-[12px] text-[#84908a] mt-1">{invoiceData?.rejectedAt ? format(new Date(invoiceData.rejectedAt), "dd-MM-yyyy hh:mm a") : "—"}</p>
+                                 {invoiceData?.rejectionReason && <p className="mt-2 text-[13px] text-[#68726d]">Reason: {invoiceData.rejectionReason}</p>}
                               </div>
                            </div>
                        ) : invoiceData?.status === "approved" || currentStage === "paid" ? (

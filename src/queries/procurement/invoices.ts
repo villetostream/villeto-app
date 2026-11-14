@@ -32,6 +32,7 @@ export interface ProcurementInvoice {
   underReviewAt?: string | null;
   approvedAt?: string | null;
   rejectedAt?: string | null;
+  rejectionReason?: string | null;
   paidAt?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -120,9 +121,7 @@ export function useInvoiceAction() {
       (
         await axios.patch(
           `procurement/invoices/${invoiceId}/${action}`,
-          action === "reject"
-            ? { reason: reason || "Rejected during invoice review" }
-            : {},
+          action === "reject" ? { reason } : {},
         )
       ).data,
     onSuccess: () => {

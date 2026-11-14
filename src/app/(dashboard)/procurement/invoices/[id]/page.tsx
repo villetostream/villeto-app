@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import {
 } from "@/queries/procurement/invoices";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { InvoiceRejectDialog } from "@/features/bill-pay/invoices/InvoiceRejectDialog";
 
 export default function ProcurementInvoiceDetailsPage() {
   const router = useRouter();
@@ -35,10 +36,12 @@ export default function ProcurementInvoiceDetailsPage() {
 
   const paymentAction = useInvoicePaymentAction();
   const action = useInvoiceAction();
+  const [rejectOpen, setRejectOpen] = useState(false);
 
-  const runAction = async (next: "under-review" | "approve" | "reject") => {
+  const runAction = async (next: "under-review" | "approve" | "reject", reason?: string) => {
     try {
-      await action.mutateAsync({ invoiceId: id, action: next });
+      await action.mutateAsync({ invoiceId: id, action: next, reason });
+      setRejectOpen(false);
       toast.success(
         next === "approve"
           ? "Invoice approved and posted"
@@ -168,7 +171,7 @@ export default function ProcurementInvoiceDetailsPage() {
             {currentStage === "under_review" && canApprove && (
               <>
                 <Button
-                  onClick={() => runAction("reject")}
+                  onClick={() => setRejectOpen(true)}
                   variant="outline"
                   className="text-[#d33d44] border-red-200 hover:bg-red-50 hover:text-red-700 h-10 rounded-[8px] font-semibold text-[13px] px-6"
                 >
@@ -624,6 +627,11 @@ export default function ProcurementInvoiceDetailsPage() {
                               )
                             : "—"}
                         </p>
+                        {invoiceData?.rejectionReason && (
+                          <p className="mt-2 text-[13px] text-[#68726d]">
+                            Reason: {invoiceData.rejectionReason}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ) : currentStage === "approved" || currentStage === "paid" ? (
@@ -744,6 +752,14 @@ export default function ProcurementInvoiceDetailsPage() {
           </div>
         </div>
       </div>
+      {rejectOpen && (
+        <InvoiceRejectDialog
+          open
+          pending={action.isPending}
+          onOpenChange={setRejectOpen}
+          onConfirm={(reason) => void runAction("reject", reason)}
+        />
+      )}
     </div>
   );
 }

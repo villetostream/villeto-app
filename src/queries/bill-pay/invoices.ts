@@ -122,6 +122,7 @@ export interface BillPayInvoiceDetail extends BillPayInvoice {
   underReviewAt?: string | null;
   approvedAt?: string | null;
   rejectedAt?: string | null;
+  rejectionReason?: string | null;
   paidAt?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
