@@ -2,7 +2,7 @@ import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { useAxios } from "@/hooks/useAxios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-export type InvoiceReviewAction = "under-review" | "approve" | "reject";
+export type InvoiceReviewAction = "approve" | "reject";
 
 export function useBillPayInvoiceReviewAction() {
   const axios = useAxios();

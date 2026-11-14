@@ -28,11 +28,9 @@ export function BillPayInvoiceReviewActions({
       await review.mutateAsync({ invoiceId, action });
       setDecision(null);
       toast.success(
-        action === "under-review"
-          ? "Invoice review started."
-          : action === "approve"
-            ? "Invoice approved and posted."
-            : "Invoice rejected.",
+        action === "approve"
+          ? "Invoice approved and posted."
+          : "Invoice rejected.",
       );
     } catch (error) {
       toast.error(getApiErrorMessage(error, "Invoice action could not be completed."));
@@ -41,16 +39,8 @@ export function BillPayInvoiceReviewActions({
 
   return (
     <>
-      {status === "submitted" && policies.billPay.canReviewInvoice && (
-        <Button
-          type="button"
-          disabled={review.isPending}
-          onClick={() => void runAction("under-review")}
-        >
-          {review.isPending ? "Starting review..." : "Start review"}
-        </Button>
-      )}
-      {status === "under_review" && policies.billPay.canApproveInvoice && (
+      {(status === "submitted" || status === "under_review") &&
+        policies.billPay.canApproveInvoice && (
         <>
           <Button
             type="button"
