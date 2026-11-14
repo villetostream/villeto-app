@@ -24,7 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 // ── Source definitions ────────────────────────────────────────────────────────
 // These map the backend `source` enum values to display labels.
@@ -376,7 +376,7 @@ export function StandardBillsTable() {
                 const vendorName =
                   inv.vendor?.displayName || inv.vendor?.legalName || "—";
                 const nextDue = inv.dueDate
-                  ? format(new Date(inv.dueDate), "dd MMM yyyy")
+                  ? format(parseISO(inv.dueDate.slice(0, 10)), "dd MMM yyyy")
                   : "—";
 
                 return (

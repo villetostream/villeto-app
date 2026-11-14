@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import { ManualBillEvidence } from "@/features/bill-pay/intake/manual/ManualBillEvidence";
 import {
   Table,
   TableBody,
@@ -16,8 +17,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useGetBillPayInvoiceById } from "@/queries/bill-pay";
-import { format } from "date-fns";
+import { useGetBillPayInvoiceById, useSubmitBillPayIntake } from "@/queries/bill-pay";
+import { getApiErrorMessage } from "@/lib/types/api-error";
+import { toast } from "sonner";
+import { format, parseISO } from "date-fns";
+
+function formatInvoiceDate(value?: string | null) {
+  return value ? format(parseISO(value.slice(0, 10)), "dd-MM-yyyy") : "—";
+}
 
 function RegularBillDetailsPage() {
   const router = useRouter();
@@ -27,10 +34,33 @@ function RegularBillDetailsPage() {
   const { setBackHandler, clearBackHandler } = useHeaderBackStore();
 
   const { data: invoiceResponse, isLoading, isError } = useGetBillPayInvoiceById(id);
+  const submitIntake = useSubmitBillPayIntake();
   const invoiceData = invoiceResponse?.data;
+  const isDraft = invoiceData?.status === "draft";
+  const isManualDraft = isDraft && invoiceData?.intake?.source === "manual_entry";
+  const hasInvoiceDocument = invoiceData?.intake?.documents?.some(
+    (document) =>
+      document.documentType === "invoice" &&
+      document.malwareScanStatus === "clean",
+  ) ?? false;
+
+  const submitForReview = async () => {
+    const intakeId = invoiceData?.intake?.invoiceIntakeId;
+    if (!intakeId || !isDraft) return;
+    try {
+      const result = await submitIntake.mutateAsync(intakeId);
+      if (!result.submitted) {
+        toast.error(result.blockers[0]?.message || "Resolve the invoice blockers before submitting.");
+        return;
+      }
+      toast.success("Bill submitted for review.");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Could not submit the bill for review."));
+    }
+  };
 
   // Use the API's workflowStage for the status badge, fallback to pending logic
-  const currentStage = invoiceData?.workflowStage?.toLowerCase() || "awaiting_approval";
+  const currentStage = invoiceData?.workflowStage?.toLowerCase() || "draft";
 
   const isSpecifyPerInvoice = 
     invoiceData?.paymentTerms?.code === "CUSTOM_0" ||
@@ -49,7 +79,7 @@ function RegularBillDetailsPage() {
     invoiceData?.dueDate &&
     currentStage !== "paid" &&
     invoiceData?.paymentStatus !== "paid" &&
-    new Date(invoiceData.dueDate).getTime() < new Date().setHours(0, 0, 0, 0)
+    invoiceData.dueDate.slice(0, 10) < format(new Date(), "yyyy-MM-dd")
   );
 
   const canApprove = policies.billPay.canApproveInvoice;
@@ -105,7 +135,17 @@ function RegularBillDetailsPage() {
           </div>
           
           <div className="flex items-center gap-3">
-             {currentStage === "awaiting_approval" && canApprove && (
+             {isDraft && invoiceData?.intake?.source === "manual_entry" && !invoiceData.purchaseOrder && policies.billPay.canEditInvoice && (
+                <Button variant="outline" onClick={() => router.push(`/bill-pay/${id}/edit`)} className="h-10 rounded-[8px] font-semibold text-[13px] px-6">
+                   Edit Draft
+                </Button>
+             )}
+             {isDraft && invoiceData?.intake?.invoiceIntakeId && policies.billPay.canEditInvoice && (
+                <Button onClick={() => void submitForReview()} disabled={submitIntake.isPending || (isManualDraft && !hasInvoiceDocument)} className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
+                   {submitIntake.isPending ? "Submitting..." : "Submit for review"}
+                </Button>
+             )}
+             {!isDraft && currentStage === "awaiting_approval" && canApprove && (
                 <Button onClick={() => router.push(`/procurement/invoices/${id}`)} className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
                    Open invoice review
                 </Button>
@@ -113,6 +153,15 @@ function RegularBillDetailsPage() {
           </div>
         </div>
       </div>
+
+      {isManualDraft && invoiceData.intake && (
+        <div className="px-6 lg:px-8 max-w-[1200px] mx-auto w-full mb-6">
+          <ManualBillEvidence
+            intake={invoiceData.intake}
+            canAttach={policies.billPay.canCreateInvoice || policies.billPay.canEditInvoice}
+          />
+        </div>
+      )}
 
       <div className="px-6 lg:px-8 max-w-[1200px] mx-auto w-full">
         {/* Layout Grid */}
@@ -184,14 +233,14 @@ function RegularBillDetailsPage() {
                        {/* Row 2: Dates and Legal Entity */}
                        <div className="min-w-0">
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Invoice Date</p>
-                          <p className="text-[13px] font-bold text-[#10231d]">{invoiceData?.invoiceDate ? format(new Date(invoiceData.invoiceDate), "dd-MM-yyyy") : "—"}</p>
+                          <p className="text-[13px] font-bold text-[#10231d]">{invoiceData?.invoiceDate ? formatInvoiceDate(invoiceData.invoiceDate) : "—"}</p>
                        </div>
 
                        <div className="min-w-0">
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Due Date</p>
                           <div className="flex items-center gap-1.5 flex-wrap">
                              <span className="text-[13px] font-bold text-[#10231d]">
-                                {invoiceData?.dueDate ? format(new Date(invoiceData.dueDate), "dd-MM-yyyy") : "—"}
+                                {invoiceData?.dueDate ? formatInvoiceDate(invoiceData.dueDate) : "—"}
                              </span>
                              {isOverdue && (
                                 <span className="text-[10px] font-semibold text-[#d33d44] bg-[#fdf2f2] px-1.5 py-0.5 rounded border border-[#fbd5d5] shrink-0">
@@ -203,7 +252,7 @@ function RegularBillDetailsPage() {
 
                        <div className="min-w-0">
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Delivery Date</p>
-                          <p className="text-[13px] font-bold text-[#10231d]">{invoiceData?.deliveryDate ? format(new Date(invoiceData.deliveryDate), "dd-MM-yyyy") : "—"}</p>
+                          <p className="text-[13px] font-bold text-[#10231d]">{invoiceData?.deliveryDate ? formatInvoiceDate(invoiceData.deliveryDate) : "—"}</p>
                        </div>
 
                        <div className="min-w-0">
@@ -301,8 +350,8 @@ function RegularBillDetailsPage() {
                              <div className="w-px bg-black/[0.06] flex-1 my-1"></div>
                           </div>
                           <div className="pb-6">
-                             <p className="text-[13px] font-bold text-[#10231d]">Submitted</p>
-                             <p className="text-[12px] text-[#84908a] mt-1">{invoiceData?.submittedAt ? format(new Date(invoiceData.submittedAt), "dd-MM-yyyy hh:mm a") : invoiceData?.createdAt ? format(new Date(invoiceData.createdAt), "dd-MM-yyyy hh:mm a") : invoiceData?.invoiceDate ? format(new Date(invoiceData.invoiceDate), "dd-MM-yyyy hh:mm a") : "—"}</p>
+                             <p className="text-[13px] font-bold text-[#10231d]">{isDraft ? "Draft saved" : "Submitted"}</p>
+                             <p className="text-[12px] text-[#84908a] mt-1">{isDraft ? (invoiceData?.createdAt ? format(new Date(invoiceData.createdAt), "dd-MM-yyyy hh:mm a") : "—") : (invoiceData?.submittedAt ? format(new Date(invoiceData.submittedAt), "dd-MM-yyyy hh:mm a") : "—")}</p>
                           </div>
                        </div>
                        
@@ -322,7 +371,7 @@ function RegularBillDetailsPage() {
                                  <p className="text-[12px] text-[#84908a] mt-1">{invoiceData?.rejectedAt ? format(new Date(invoiceData.rejectedAt), "dd-MM-yyyy hh:mm a") : "—"}</p>
                               </div>
                            </div>
-                       ) : currentStage === "approved" || currentStage === "paid" ? (
+                       ) : invoiceData?.status === "approved" || currentStage === "paid" ? (
                            <div className="flex gap-4 min-h-[72px]">
                               <div className="flex flex-col items-center">
                                  <div className="w-[18px] h-[18px] rounded-full flex items-center justify-center shrink-0 bg-white z-10 mt-0.5">
@@ -358,7 +407,7 @@ function RegularBillDetailsPage() {
                               </div>
                               <div className="pb-6">
                                  <p className="text-[13px] font-bold text-[#68726d]">Approval</p>
-                                 <StatusBadge status="pending" className="mt-1.5" />
+                                 {isDraft ? <p className="text-[12px] text-[#84908a] mt-1">Not submitted</p> : <StatusBadge status="pending" className="mt-1.5" />}
                               </div>
                            </div>
                        )}
