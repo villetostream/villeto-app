@@ -102,6 +102,7 @@ export interface BillPayInvoiceDetail extends BillPayInvoice {
     documents?: Array<{
       invoiceDocumentId: string;
       filename: string;
+      mimeType?: string | null;
       documentType?: string | null;
       malwareScanStatus: string;
     }>;
