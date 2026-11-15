@@ -281,7 +281,11 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
       canManageCompany: has(permissionSet, PERMISSIONS.expense.manage),
     },
     billPay: {
-      canViewInvoices: hasAny(permissionSet, [PERMISSIONS.billPay.invoiceView, PERMISSIONS.billPay.intakeView]),
+      canViewInvoices: hasAny(permissionSet, [
+        PERMISSIONS.billPay.invoiceView,
+        PERMISSIONS.vendorInvoice.readCompany,
+        PERMISSIONS.billPay.intakeView,
+      ]),
       canCreateIntake: has(permissionSet, PERMISSIONS.billPay.intakeCreate),
       canCreateInvoice: has(permissionSet, PERMISSIONS.billPay.invoiceCreate),
       canEditInvoice: has(permissionSet, PERMISSIONS.billPay.invoiceEdit),
