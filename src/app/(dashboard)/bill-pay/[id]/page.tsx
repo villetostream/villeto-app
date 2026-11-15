@@ -8,7 +8,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
-import { ManualBillEvidence } from "@/features/bill-pay/intake/manual/ManualBillEvidence";
+import { InvoiceDocumentPanel } from "@/features/bill-pay/invoices/InvoiceDocumentPanel";
+import { BillPayInvoiceReviewActions } from "@/features/bill-pay/invoices/BillPayInvoiceReviewActions";
 import {
   Table,
   TableBody,
@@ -82,8 +83,6 @@ function RegularBillDetailsPage() {
     invoiceData.dueDate.slice(0, 10) < format(new Date(), "yyyy-MM-dd")
   );
 
-  const canApprove = policies.billPay.canApproveInvoice;
-
   useEffect(() => {
     setBackHandler(() => router.back());
     return () => clearBackHandler();
@@ -113,12 +112,12 @@ function RegularBillDetailsPage() {
 
   return (
     <div className="flex-1 pb-8 flex flex-col">
-      {/* Header Section (Sticky) */}
       <div className="sticky -top-3 sm:-top-5 lg:-top-6 z-10 bg-[#f4f7f5] pb-4 mb-8 px-6 lg:px-8 pt-5 sm:pt-7 lg:pt-8 -mt-3 sm:-mt-5 lg:-mt-6 border-b border-black/[0.04]">
-        <div className="max-w-[1200px] mx-auto w-full flex flex-col sm:flex-row justify-between items-start gap-4">
+        <div className="max-w-[1440px] mx-auto w-full flex flex-col sm:flex-row justify-between items-start gap-4">
           <div>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#087f70]">Standard bill</p>
             <div className="flex items-center gap-3 mb-1.5 flex-wrap">
-              <h1 className="text-[24px] font-bold text-[#10231d]">
+              <h1 className="text-[26px] font-bold tracking-tight text-[#10231d]">
                 {invoiceData?.invoiceNumber || (id.startsWith('In-') ? id : `INV-${id.substring(0,6).toUpperCase()}`)}
               </h1>
               <StatusBadge 
@@ -131,7 +130,7 @@ function RegularBillDetailsPage() {
                 </span>
               )}
             </div>
-            <p className="text-[13px] text-[#68726d]">View a detailed breakdown of the information in the invoice</p>
+            <p className="text-[13px] text-[#68726d]">Review the bill details and original invoice together.</p>
           </div>
           
           <div className="flex items-center gap-3">
@@ -145,30 +144,19 @@ function RegularBillDetailsPage() {
                    {submitIntake.isPending ? "Submitting..." : "Submit for review"}
                 </Button>
              )}
-             {!isDraft && currentStage === "awaiting_approval" && canApprove && (
-                <Button onClick={() => router.push(`/procurement/invoices/${id}`)} className="bg-[#087f70] hover:bg-[#076b5e] text-white h-10 rounded-[8px] font-semibold text-[13px] px-6">
-                   Open invoice review
-                </Button>
-             )}
+             <BillPayInvoiceReviewActions
+               invoiceId={id}
+               status={invoiceData.status}
+             />
           </div>
         </div>
       </div>
 
-      {isManualDraft && invoiceData.intake && (
-        <div className="px-6 lg:px-8 max-w-[1200px] mx-auto w-full mb-6">
-          <ManualBillEvidence
-            intake={invoiceData.intake}
-            canAttach={policies.billPay.canCreateInvoice || policies.billPay.canEditInvoice}
-          />
-        </div>
-      )}
-
-      <div className="px-6 lg:px-8 max-w-[1200px] mx-auto w-full">
-        {/* Layout Grid */}
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <div className="px-6 lg:px-8 max-w-[1440px] mx-auto w-full">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(380px,0.9fr)] xl:items-start">
            
            {/* Main Content (Left) */}
-           <div className="flex-1 space-y-6 min-w-0 w-full">
+           <div className="min-w-0 space-y-6">
               
               {/* Summary */}
               <Card className="rounded-[14px] shadow-sm border-black/[0.08] overflow-hidden">
@@ -176,7 +164,7 @@ function RegularBillDetailsPage() {
                     <h3 className="text-[15px] font-bold text-[#10231d]">Summary</h3>
                  </CardHeader>
                  <CardContent className="p-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-y-6 gap-x-6">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-6 lg:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
                        {/* Row 1: Vendor, Related PO, Payment Terms, Payment Status */}
                        <div className="min-w-0">
                           <p className="text-[12px] font-medium text-[#68726d] mb-1.5">Vendor</p>
@@ -329,9 +317,13 @@ function RegularBillDetailsPage() {
 
            </div>
 
-           {/* Sidebar (Right) */}
-           <div className="w-full lg:w-[320px] shrink-0 space-y-6">
-             
+           <aside className="min-w-0 space-y-6">
+              <InvoiceDocumentPanel
+                intake={invoiceData.intake}
+                invoiceId={id}
+                isDraft={isDraft}
+                canAttach={!!isManualDraft && (policies.billPay.canCreateInvoice || policies.billPay.canEditInvoice)}
+              />
               <Card className="rounded-[14px] shadow-sm border-black/[0.08] overflow-hidden">
                  <div className="px-6 py-5 border-b border-black/[0.04]">
                     <h3 className="text-[15px] font-bold text-[#10231d]">Payment flow</h3>
@@ -369,6 +361,7 @@ function RegularBillDetailsPage() {
                               <div className="pb-6">
                                  <p className="text-[13px] font-bold text-[#d33d44]">Rejected</p>
                                  <p className="text-[12px] text-[#84908a] mt-1">{invoiceData?.rejectedAt ? format(new Date(invoiceData.rejectedAt), "dd-MM-yyyy hh:mm a") : "—"}</p>
+                                 {invoiceData?.rejectionReason && <p className="mt-2 text-[13px] text-[#68726d]">Reason: {invoiceData.rejectionReason}</p>}
                               </div>
                            </div>
                        ) : invoiceData?.status === "approved" || currentStage === "paid" ? (
@@ -386,7 +379,7 @@ function RegularBillDetailsPage() {
                                  <p className="text-[12px] text-[#84908a] mt-1">{invoiceData?.approvedAt ? format(new Date(invoiceData.approvedAt), "dd-MM-yyyy hh:mm a") : "—"}</p>
                               </div>
                            </div>
-                       ) : currentStage === "under_review" ? (
+                       ) : invoiceData.status === "under_review" ? (
                            <div className="flex gap-4 min-h-[72px]">
                               <div className="flex flex-col items-center">
                                  <div className="w-[18px] h-[18px] rounded-full border-[2px] border-[#087f70] flex items-center justify-center shrink-0 bg-white z-10 mt-0.5">
@@ -444,7 +437,7 @@ function RegularBillDetailsPage() {
                  </CardContent>
               </Card>
 
-           </div>
+           </aside>
         </div>
       </div>
     </div>

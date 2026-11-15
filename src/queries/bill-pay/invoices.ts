@@ -102,6 +102,7 @@ export interface BillPayInvoiceDetail extends BillPayInvoice {
     documents?: Array<{
       invoiceDocumentId: string;
       filename: string;
+      mimeType?: string | null;
       documentType?: string | null;
       malwareScanStatus: string;
     }>;
@@ -122,6 +123,7 @@ export interface BillPayInvoiceDetail extends BillPayInvoice {
   underReviewAt?: string | null;
   approvedAt?: string | null;
   rejectedAt?: string | null;
+  rejectionReason?: string | null;
   paidAt?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
