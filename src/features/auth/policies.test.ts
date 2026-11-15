@@ -111,6 +111,15 @@ describe("authorization policies", () => {
     expect(policies.billPay.canViewSensitivePayment).toBe(false);
   });
 
+  it("lets finance invoice readers open Bill Pay without a separate Bill Pay view permission", () => {
+    const policies = buildAuthorizationPolicies(snapshot([
+      "procurement.vendor_invoice.read_company",
+    ]));
+    expect(policies.billPay.canViewInvoices).toBe(true);
+    expect(policies.billPay.canEditInvoice).toBe(false);
+    expect(policies.billPay.canApproveInvoice).toBe(false);
+  });
+
   it("keeps mailbox connection management separate from email viewing", () => {
     const manager = buildAuthorizationPolicies(snapshot([
       "bill_pay.mailbox_connection.manage",
