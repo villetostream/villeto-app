@@ -3,7 +3,14 @@
 import { useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { ExternalLink, FileText, RefreshCw, Upload } from "lucide-react";
+import {
+  ExternalLink,
+  Eye,
+  FileText,
+  RefreshCw,
+  Upload,
+  X,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -62,6 +69,7 @@ export function InvoiceDocumentPanel({
     (document) => document.malwareScanStatus === "clean",
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const selected =
     cleanDocuments.find(
       (document) => document.invoiceDocumentId === selectedId,
@@ -69,6 +77,7 @@ export function InvoiceDocumentPanel({
     cleanDocuments.find((document) => document.documentType === "invoice") ??
     cleanDocuments[0];
   const kind = selected ? documentKind(selected) : null;
+  const previewOpen = !!selected && previewId === selected.invoiceDocumentId;
 
   const access = useQuery({
     queryKey: workspaceQueryKey([
@@ -86,9 +95,10 @@ export function InvoiceDocumentPanel({
           )
         ).data,
       ),
-    enabled: !!selected,
+    enabled: previewOpen,
     staleTime: 4 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
     retry: false,
   });
 
@@ -104,6 +114,7 @@ export function InvoiceDocumentPanel({
         file,
       });
       setSelectedId(added.invoiceDocumentId);
+      setPreviewId(null);
       toast.success("Invoice document attached.");
     } catch (error) {
       toast.error(
@@ -129,6 +140,8 @@ export function InvoiceDocumentPanel({
     }
   };
 
+  if (!selected && !canAttach && documents.length === 0) return null;
+
   return (
     <section
       aria-labelledby="invoice-preview-heading"
@@ -139,18 +152,35 @@ export function InvoiceDocumentPanel({
           <div className="flex items-center gap-2 text-[#10231d]">
             <FileText aria-hidden="true" className="h-4 w-4 text-[#087f70]" />
             <h2 id="invoice-preview-heading" className="text-[15px] font-bold">
-              Invoice preview
+              Invoice document
             </h2>
           </div>
           <p className="mt-1 text-xs text-[#68726d]">
             {isDraft && !selected
               ? "Attach an invoice to submit this draft."
               : selected
-                ? "Check the original document alongside the bill details."
-                : "No invoice document is available for this bill."}
+                ? "Preview the original document when you need it."
+                : "No clean invoice document is available to preview."}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {selected && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setPreviewId(previewOpen ? null : selected.invoiceDocumentId)
+              }
+            >
+              {previewOpen ? (
+                <X aria-hidden="true" className="mr-1.5 h-3.5 w-3.5" />
+              ) : (
+                <Eye aria-hidden="true" className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {previewOpen ? "Close preview" : "Preview"}
+            </Button>
+          )}
           {selected && (
             <Button
               type="button"
@@ -197,7 +227,10 @@ export function InvoiceDocumentPanel({
             <button
               key={document.invoiceDocumentId}
               type="button"
-              onClick={() => setSelectedId(document.invoiceDocumentId)}
+              onClick={() => {
+                setSelectedId(document.invoiceDocumentId);
+                setPreviewId(null);
+              }}
               aria-pressed={
                 selected?.invoiceDocumentId === document.invoiceDocumentId
               }
@@ -210,70 +243,66 @@ export function InvoiceDocumentPanel({
         </div>
       )}
 
-      <div className="border-b border-[#e7eeea] px-5 py-3 sm:px-6">
-        <p
-          className="truncate text-xs font-semibold text-[#10231d]"
-          title={selected?.filename}
-        >
-          {selected?.filename ?? "No file selected"}
-        </p>
-      </div>
+      {selected && (
+        <div className="border-t border-[#e7eeea] px-5 py-3 sm:px-6">
+          <p
+            className="truncate text-xs font-semibold text-[#10231d]"
+            title={selected.filename}
+          >
+            {selected.filename}
+          </p>
+        </div>
+      )}
 
-      <div className="h-[420px] bg-[#f4f7f5] p-3 sm:h-[560px]">
-        {selected && access.data?.url && kind === "pdf" ? (
-          <InvoicePdfPreview key={access.data.url} url={access.data.url} />
-        ) : selected && access.data?.url && kind === "image" ? (
-          <div className="relative h-full overflow-hidden rounded-lg border border-[#dce7e1] bg-white">
-            <Image
-              src={access.data.url}
-              alt={`Invoice document ${selected.filename}`}
-              fill
-              unoptimized
-              loading="eager"
-              className="object-contain"
-              referrerPolicy="no-referrer"
-            />
-          </div>
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-[#cbdad2] bg-white px-6 text-center">
-            <FileText
-              aria-hidden="true"
-              className="mb-3 h-9 w-9 text-[#9aada3]"
-            />
-            <p className="text-sm font-semibold text-[#10231d]">
-              {access.isPending && selected
-                ? "Loading preview…"
-                : access.isError
-                  ? "Preview unavailable"
-                  : selected
-                    ? "Preview unavailable for this file"
-                    : "No invoice attached"}
-            </p>
-            <p className="mt-1 max-w-64 text-xs leading-5 text-[#68726d]">
-              {access.isError
-                ? "Try refreshing the preview or open the file in a new tab."
-                : selected
-                  ? "Open the file to inspect it."
-                  : "The invoice will appear here once a clean document is attached."}
-            </p>
-            {selected && access.isError && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-4"
-                onClick={() => void access.refetch()}
-              >
-                <RefreshCw aria-hidden="true" className="mr-1.5 h-3.5 w-3.5" />
-                Retry preview
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
-      <p className="px-5 py-3 text-[11px] leading-4 text-[#68726d] sm:px-6">
-        Preview access is temporary. Refresh the page if a document expires.
-      </p>
+      {previewOpen && (
+        <div className="h-[420px] border-t border-[#e7eeea] bg-[#f4f7f5] p-3 sm:h-[560px]">
+          {!access.isFetching && access.data?.url && kind === "pdf" ? (
+            <InvoicePdfPreview key={access.data.url} url={access.data.url} />
+          ) : !access.isFetching && access.data?.url && kind === "image" ? (
+            <div className="relative h-full overflow-hidden rounded-lg border border-[#dce7e1] bg-white">
+              <Image
+                src={access.data.url}
+                alt={`Invoice document ${selected.filename}`}
+                fill
+                unoptimized
+                loading="eager"
+                className="object-contain"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-[#cbdad2] bg-white px-6 text-center">
+              <FileText
+                aria-hidden="true"
+                className="mb-3 h-9 w-9 text-[#9aada3]"
+              />
+              <p className="text-sm font-semibold text-[#10231d]">
+                {access.isFetching ? "Loading preview…" : "Preview unavailable"}
+              </p>
+              <p className="mt-1 max-w-64 text-xs leading-5 text-[#68726d]">
+                {access.isError
+                  ? "Try again or open the file in a new tab."
+                  : "Open the file to inspect it."}
+              </p>
+              {access.isError && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => void access.refetch()}
+                >
+                  <RefreshCw
+                    aria-hidden="true"
+                    className="mr-1.5 h-3.5 w-3.5"
+                  />
+                  Retry preview
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
