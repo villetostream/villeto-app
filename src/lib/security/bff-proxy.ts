@@ -505,7 +505,22 @@ export async function handleBffProxyRequest(
       stripAccessTokenFromPayload(parsedJson);
 
     if (upstreamResponse.ok && accessToken) {
-      const sealed = sealBffSession(accessToken, expiresInMs);
+      let sealed: string;
+      try {
+        sealed = sealBffSession(accessToken, expiresInMs);
+      } catch (err) {
+        console.error(
+          "[BFF] Failed to seal session cookie:",
+          err instanceof Error ? err.message : "Unknown error",
+        );
+        return Response.json(
+          {
+            message:
+              "Server session configuration error: BFF_SESSION_SECRET must be configured.",
+          },
+          { status: 500 },
+        );
+      }
       responseHeaders.append(
         "set-cookie",
         serializeAccessSessionCookie(sealed, expiresInMs, isHttps),
