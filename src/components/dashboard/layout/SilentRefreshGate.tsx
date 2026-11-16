@@ -26,16 +26,10 @@ import axios from "axios";
 import { useAuthStore } from "@/stores/auth-stores";
 import { refreshAccessToken } from "@/lib/tokenRefreshService";
 import { parseAuthorizationSnapshot } from "@/features/auth/authorization";
-import { setAuthMarkerCookie } from "@/lib/security/auth-cookie";
 
 
 /** Milliseconds of buffer — consider a token expired 30 s early */
 const EXPIRY_BUFFER_MS = 30_000;
-
-/** Renew the villeto_auth marker cookie so middleware stays in sync */
-function renewAuthCookie(expiresInMs: number) {
-  setAuthMarkerCookie(expiresInMs);
-}
 
 export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
   const hasRun = useRef(false);
@@ -47,7 +41,6 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
     const {
       isAuthenticated,
       accessTokenExpiresAt,
-      setAuthenticated,
       setProfile,
       user,
     } = useAuthStore.getState();
@@ -64,39 +57,10 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
     }
 
     // Attempt silent refresh via the httpOnly refresh-token cookie.
-    // Use raw axios (not apiClient) to avoid triggering the 401 interceptor
-    // which would itself try to refresh and fight this call.
+    // Use shared singleflight refreshAccessToken so startup & proactive timers stay coordinated.
     void (async () => {
       try {
-        const response = await axios.post(
-          apiUrl("auth/refresh"),
-          {},
-          { withCredentials: true }
-        );
-
-        const data = response.data?.data ?? response.data ?? {};
-        const authenticated = Boolean(
-          data.authenticated ??
-            response.data?.authenticated ??
-            (response.status >= 200 && response.status < 300)
-        );
-        const expiresInMs: number =
-          data.accessTokenExpiresInMs ??
-          response.data?.accessTokenExpiresInMs ??
-          3_600_000;
-
-        if (!authenticated) {
-          // Server responded without an authenticated session — treat as expired.
-          // Don't call logoutAndRedirect() here — just signal done.
-          // DashboardLayoutContent will handle the redirect after seeing no user.
-          onDone?.();
-          return;
-        }
-
-        // Persist the authenticated state and reschedule the proactive refresh timer.
-        setAuthenticated(true, expiresInMs);
-        scheduleTokenRefresh(expiresInMs);
-        renewAuthCookie(expiresInMs);
+        await refreshAccessToken();
 
         // If user profile is missing (e.g., hard refresh cleared sessionStorage),
         // fetch it now via BFF (HttpOnly cookie attached automatically).
@@ -108,7 +72,7 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
             });
             const responseData = me?.data?.data ?? me?.data;
             const { _company, companyId, ...userData } = responseData ?? {};
-            if (userData && useAuthStore.getState().accessToken === newToken && !useAuthStore.getState().user) {
+            if (userData && useAuthStore.getState().isAuthenticated && !useAuthStore.getState().user) {
               const authorization = parseAuthorizationSnapshot(
                 userData.authorization
               );

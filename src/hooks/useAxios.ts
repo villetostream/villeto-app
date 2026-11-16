@@ -7,8 +7,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 import { invalidateAuthorization } from "@/features/auth/authorization";
-import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
-import { setAuthMarkerCookie } from "@/lib/security/auth-cookie";
+import { refreshAccessToken } from "@/lib/tokenRefreshService";
 import {
   CONNECTION_POOL_MESSAGE,
   isConnectionPoolError,
@@ -44,17 +43,6 @@ type ApiErrorPayload = {
   data?: { statusCode?: number };
 };
 
-type RefreshResponse = {
-  data?: {
-    authenticated?: boolean;
-    accessTokenExpiresInMs?: number;
-    data?: {
-      authenticated?: boolean;
-      accessTokenExpiresInMs?: number;
-    };
-  };
-};
-
 const BASEURL = "/api/bff";
 const apiClient = axios.create({
   baseURL: BASEURL,
@@ -67,8 +55,6 @@ function finishWorkspaceMutation(config?: InternalAxiosRequestConfig) {
   config._workspaceMutation = false;
   useEntityWorkspaceStore.getState().mutationFinished();
 }
-
-let refreshPromise: Promise<void> | null = null;
 
 // ── Client-side traffic shaping ─────────────────────────────────────────────────────────
 // A bounded concurrency gate (like a token bucket with N tokens) so a page
@@ -202,43 +188,6 @@ function redirectToLogin() {
   ) {
     window.location.assign("/login");
   }
-}
-
-function refreshAccessToken(): Promise<void> {
-  if (refreshPromise) return refreshPromise;
-
-  refreshPromise = axios
-    .post<RefreshResponse["data"]>(
-      apiUrl("auth/refresh"),
-      {},
-      { withCredentials: true },
-    )
-    .then((response) => {
-      const authenticated = Boolean(
-        response.data?.data?.authenticated ??
-          response.data?.authenticated ??
-          (response.status >= 200 && response.status < 300),
-      );
-      if (!authenticated) {
-        throw new Error("Session refresh failed");
-      }
-
-      const expiresInMs =
-        response.data?.data?.accessTokenExpiresInMs ??
-        response.data?.accessTokenExpiresInMs ??
-        3_600_000;
-
-      useAuthStore.getState().setAuthenticated(true, expiresInMs);
-      scheduleTokenRefresh(expiresInMs);
-
-      // Keep the villeto_auth marker cookie alive
-      setAuthMarkerCookie(expiresInMs);
-    })
-    .finally(() => {
-      refreshPromise = null;
-    });
-
-  return refreshPromise;
 }
 
 function readEmbeddedStatus(data: unknown) {

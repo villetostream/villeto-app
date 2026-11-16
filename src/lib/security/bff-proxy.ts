@@ -224,6 +224,20 @@ export function rewriteUpstreamSetCookie(
   return rewritten.join("; ");
 }
 
+function extractJwtSubject(token: string): string | null {
+  const parts = token.split(".");
+  if (parts.length < 2 || !parts[1]) return null;
+  try {
+    const json = Buffer.from(parts[1], "base64url").toString("utf8");
+    const parsed = JSON.parse(json) as { sub?: unknown };
+    return typeof parsed?.sub === "string" && parsed.sub.length > 0
+      ? parsed.sub
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Extracts and removes raw accessToken fields from login/refresh JSON payloads
  * so browser JavaScript never handles raw bearer JWTs.
@@ -271,10 +285,17 @@ export function stripAccessTokenFromPayload(payload: unknown): {
   }
 
   if (accessToken) {
+    const subject = extractJwtSubject(accessToken);
     if (dataObj) {
       dataObj.authenticated = true;
+      if (subject && typeof dataObj.userId !== "string") {
+        dataObj.userId = subject;
+      }
     } else {
       clone.authenticated = true;
+      if (subject && typeof clone.userId !== "string") {
+        clone.userId = subject;
+      }
     }
   }
 
