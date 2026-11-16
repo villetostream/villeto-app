@@ -1,4 +1,4 @@
-/** Join raw Axios auth URLs consistently with or without a trailing base slash. */
-export function apiUrl(path: string, base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "") {
+/** Join API URLs consistently via the Next.js BFF proxy unless a base override is supplied. */
+export function apiUrl(path: string, base = "/api/bff") {
   return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }

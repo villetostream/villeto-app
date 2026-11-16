@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from "react";
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
+import { readSheet } from "read-excel-file/browser";
 import EmployeeInviteFileUpload from "@/components/dashboard/people/invite/EmployeeInviteFileUpload";
 import EmployeePreviewTable, {
   EmployeeData,
@@ -18,6 +18,10 @@ import { notifySetupGuide } from "@/lib/setupGuideEvents";
 import { usePeopleStatistics } from "@/queries/users/get-people-statistics";
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/types/api-error";
+import {
+  sanitizePlainObjectRow,
+  validateSpreadsheetFile,
+} from "@/lib/security/file-upload";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Upload04Icon } from "@hugeicons/core-free-icons";
 import { useAxios } from "@/hooks/useAxios";
@@ -110,28 +114,35 @@ function InviteEmployeesPage() {
 
   const handleFileSelect = useCallback(
     (file: File) => {
+      const validation = validateSpreadsheetFile(file, 60 * 1024 * 1024);
+      if (!validation.valid) {
+        toast.error(validation.error);
+        return;
+      }
+
       setRawFile(file);
       setValidationResult(null);
 
-      const mapRows = (rows: Record<string, any>[]) => {
+      const mapRows = (rawRows: Record<string, any>[]) => {
+        const rows = rawRows.map((row) => sanitizePlainObjectRow(row));
         const mapped: EmployeeData[] = rows.map((row, i) => ({
           id: `preview-${i}`,
-          employee_external_id: row["employee_external_id"] ?? "",
-          first_name: row["first_name"] ?? "",
-          last_name: row["last_name"] ?? "",
-          email: row["email"] ?? "",
-          manager_external_id: row["manager_external_id"] ?? "",
-          department_name: row["department_name"] ?? "",
-          department_external_id: row["department_external_id"] ?? "",
-          job_title: row["job_title"] ?? "",
-          management_level: row["management_level"] ?? "",
-          job_grade: row["job_grade"] ?? "",
-          business_unit: row["business_unit"] ?? "",
-          location: row["location"] ?? "",
-          employment_type: row["employment_type"] ?? "",
-          status: row["status"] ?? "",
-          effective_date: row["effective_date"] ?? "",
-          legal_entity_code: row["legal_entity_code"] ?? "",
+          employee_external_id: String(row["employee_external_id"] ?? ""),
+          first_name: String(row["first_name"] ?? ""),
+          last_name: String(row["last_name"] ?? ""),
+          email: String(row["email"] ?? ""),
+          manager_external_id: String(row["manager_external_id"] ?? ""),
+          department_name: String(row["department_name"] ?? ""),
+          department_external_id: String(row["department_external_id"] ?? ""),
+          job_title: String(row["job_title"] ?? ""),
+          management_level: String(row["management_level"] ?? ""),
+          job_grade: String(row["job_grade"] ?? ""),
+          business_unit: String(row["business_unit"] ?? ""),
+          location: String(row["location"] ?? ""),
+          employment_type: String(row["employment_type"] ?? ""),
+          status: String(row["status"] ?? ""),
+          effective_date: String(row["effective_date"] ?? ""),
+          legal_entity_code: String(row["legal_entity_code"] ?? ""),
         }));
 
         if (mapped.length === 0) {
@@ -145,24 +156,45 @@ function InviteEmployeesPage() {
       };
 
       const fileName = file.name.toLowerCase();
-      if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
+      if (fileName.endsWith(".xlsx")) {
+        void (async () => {
           try {
-            const data = new Uint8Array(e.target?.result as ArrayBuffer);
-            const workbook = XLSX.read(data, { type: "array" });
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
-            const rows = XLSX.utils.sheet_to_json(worksheet, {
-              defval: "",
-            }) as Record<string, any>[];
+            const sheetRows = await readSheet(file);
+            if (!sheetRows.length) {
+              mapRows([]);
+              return;
+            }
+            const headers = sheetRows[0].map((cell) =>
+              cell === null || cell === undefined ? "" : String(cell).trim(),
+            );
+            const rows: Record<string, unknown>[] = sheetRows
+              .slice(1)
+              .filter((r) => r.some((cell) => cell !== null && cell !== undefined && String(cell) !== ""))
+              .map((r) => {
+                const record: Record<string, unknown> = Object.create(null);
+                headers.forEach((header, idx) => {
+                  if (
+                    !header ||
+                    header === "__proto__" ||
+                    header === "constructor" ||
+                    header === "prototype"
+                  ) {
+                    return;
+                  }
+                  const val = r[idx];
+                  record[header] = val === null || val === undefined ? "" : val;
+                });
+                return record;
+              });
             mapRows(rows);
           } catch {
             toast.error("Failed to parse Excel file.");
           }
-        };
-        reader.onerror = () => toast.error("Failed to read file.");
-        reader.readAsArrayBuffer(file);
+        })();
+      } else if (fileName.endsWith(".xls")) {
+        toast.error(
+          "Legacy .xls format cannot be previewed in the browser. Please convert to .xlsx or .csv.",
+        );
       } else {
         Papa.parse(file, {
           header: true,

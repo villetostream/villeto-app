@@ -20,6 +20,7 @@ import { loginSchema } from "@/lib/schemas/schemas";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
 import { parseAuthorizationSnapshot } from "@/features/auth/authorization";
+import { setAuthMarkerCookie } from "@/lib/security/auth-cookie";
 
 type FormData = z.infer<typeof loginSchema>;
 
@@ -30,7 +31,7 @@ export default function LoginPage() {
   const login = useLogin();
   const isLoading = login.isPending;
   const setUser = useAuthStore().login;
-  const setAccessToken = useAuthStore().setAccessToken;
+  const setAuthenticated = useAuthStore().setAuthenticated;
 
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -64,13 +65,13 @@ export default function LoginPage() {
       
       setUser({ ...user, authorization });
       
-      // Start proactive refresh so the token is renewed 5 min before expiry
+      // Start proactive refresh so the BFF HttpOnly session is renewed 5 min before expiry
       const expiresInMs = response.data.accessTokenExpiresInMs ?? 3600000;
-      setAccessToken(response.data.accessToken, expiresInMs);
+      setAuthenticated(true, expiresInMs);
       scheduleTokenRefresh(expiresInMs);
       
       // Set an auth cookie so Next.js middleware knows we are authenticated
-      document.cookie = `villeto_auth=true; path=/; max-age=${Math.floor(expiresInMs / 1000)}`;
+      setAuthMarkerCookie(expiresInMs);
       
       // Hard-navigate to dashboard so the browser sends the freshly-set cookies 
       // to Next.js middleware, preventing it from redirecting back to /login.

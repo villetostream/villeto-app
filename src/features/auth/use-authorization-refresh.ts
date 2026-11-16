@@ -13,10 +13,10 @@ const pending = new Map<string, Promise<void>>();
 export function refreshAuthorization(client: AxiosInstance): Promise<void> {
   const state = useAuthStore.getState();
   const user = state.user;
-  const token = state.accessToken;
+  const isAuthenticated = state.isAuthenticated;
   const companyId = user?.companyId || user?.company?.companyId;
-  if (!user || !token || !companyId) return Promise.resolve();
-  const key = JSON.stringify([companyId, user.userId, token]);
+  if (!user || !isAuthenticated || !companyId) return Promise.resolve();
+  const key = JSON.stringify([companyId, user.userId]);
   const existing = pending.get(key);
   if (existing) return existing;
   const revision = state.authorization?.revision;
@@ -27,7 +27,7 @@ export function refreshAuthorization(client: AxiosInstance): Promise<void> {
     const data = response.data?.data ?? response.data;
     const current = useAuthStore.getState();
     // A late response must never restore another login's access or profile.
-    if (current.accessToken !== token || current.user?.userId !== user.userId ||
+    if (!current.isAuthenticated || current.user?.userId !== user.userId ||
       (current.user?.companyId || current.user?.company?.companyId) !== companyId) return;
     if (data.userId !== user.userId || data.companyId !== companyId) throw new Error("Session identity mismatch");
     const authorization = data.unchanged === true

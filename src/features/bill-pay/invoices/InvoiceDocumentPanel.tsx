@@ -19,6 +19,8 @@ import { getApiErrorMessage } from "@/lib/types/api-error";
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 import { unwrap } from "@/features/bill-pay/shared/query-utils";
 import { useAttachManualInvoiceDocument } from "@/features/bill-pay/intake/manual/queries";
+import { sanitizeExternalHttpUrl } from "@/lib/security/url";
+import { sanitizeImageSrc } from "@/lib/security/blob-preview";
 
 type InvoiceDocument = {
   invoiceDocumentId: string;
@@ -129,9 +131,10 @@ export function InvoiceDocumentPanel({
     if (newTab) newTab.opener = null;
     try {
       const result = (await access.refetch()).data;
-      if (!result?.url) throw new Error("Invoice document is unavailable.");
-      if (newTab) newTab.location.href = result.url;
-      else window.location.assign(result.url);
+      const safeUrl = sanitizeExternalHttpUrl(result?.url);
+      if (!safeUrl) throw new Error("Invoice document is unavailable.");
+      if (newTab) newTab.location.href = safeUrl;
+      else window.location.assign(safeUrl);
     } catch (error) {
       newTab?.close();
       toast.error(
@@ -256,12 +259,19 @@ export function InvoiceDocumentPanel({
 
       {previewOpen && (
         <div className="h-[420px] border-t border-[#e7eeea] bg-[#f4f7f5] p-3 sm:h-[560px]">
-          {!access.isFetching && access.data?.url && kind === "pdf" ? (
-            <InvoicePdfPreview key={access.data.url} url={access.data.url} />
-          ) : !access.isFetching && access.data?.url && kind === "image" ? (
+          {!access.isFetching &&
+          sanitizeExternalHttpUrl(access.data?.url) &&
+          kind === "pdf" ? (
+            <InvoicePdfPreview
+              key={access.data!.url}
+              url={sanitizeExternalHttpUrl(access.data!.url)!}
+            />
+          ) : !access.isFetching &&
+            sanitizeImageSrc(access.data?.url) &&
+            kind === "image" ? (
             <div className="relative h-full overflow-hidden rounded-lg border border-[#dce7e1] bg-white">
               <Image
-                src={access.data.url}
+                src={sanitizeImageSrc(access.data!.url)!}
                 alt={`Invoice document ${selected.filename}`}
                 fill
                 unoptimized

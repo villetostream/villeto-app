@@ -173,7 +173,10 @@ function PaymentSetupPage() {
           executionDate: format(new Date(), "yyyy-MM-dd"),
           amount: payment.amount,
           bankReference: externalRef,
-          idempotencyKey: Math.random().toString(36).substring(7),
+          idempotencyKey:
+            typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+              ? crypto.randomUUID()
+              : `${Date.now()}-${paymentRequestId}`,
         },
       });
       toast.success("External payment recorded successfully");

@@ -59,14 +59,12 @@ export default function DashboardModals() {
 
   // ── Restore session guard ──────────────────────────────────
   useEffect(() => {
-    if (!flowGuardKey) return;
+    if (!flowGuardKey || mustChangePassword) return;
     const timeoutId = window.setTimeout(() => {
       const done = sessionStorage.getItem(flowGuardKey) === "1";
       if (done) {
         setHasCompletedFlow(true);
-        if (!mustChangePassword) {
-          setSetupGuideReady(true);
-        }
+        setSetupGuideReady(true);
       }
     }, 0);
     return () => clearTimeout(timeoutId);
@@ -75,9 +73,11 @@ export default function DashboardModals() {
   // ── Show password modal when needed ───────────────────────
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      if (hasCompletedFlow || !user) return;
+      if (!user) return;
+      if (hasCompletedFlow && !mustChangePassword) return;
 
-      const isBlockingModalNeeded = isFirstLogin && (isCompanyFounder || mustChangePassword);
+      // Always enforce backend-mandated password rotation regardless of loginCount or sessionStorage
+      const isBlockingModalNeeded = mustChangePassword || (isFirstLogin && isCompanyFounder);
 
       if (isBlockingModalNeeded) {
         passwordFlowStartedRef.current = true;

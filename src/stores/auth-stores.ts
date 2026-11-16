@@ -26,7 +26,8 @@ export type {
 
 interface AuthState {
     user: User | null;
-    accessToken: string | null;
+    /** Tracks authenticated BFF session state; raw JWTs stay in HttpOnly cookies. */
+    isAuthenticated: boolean;
     /** Unix timestamp (ms) when the access token expires. Null if unknown. */
     accessTokenExpiresAt: number | null;
     isLoading: boolean;
@@ -39,7 +40,7 @@ interface AuthState {
     _permissionSet: Set<string>;
     _capabilityGrantsByKey: Map<string, AuthorizationCapabilityGrant[]>;
 
-    setAccessToken: (token: string, expiresInMs?: number) => void;
+    setAuthenticated: (authenticated: boolean, expiresInMs?: number) => void;
     login: (data: User) => void;
     /** Refresh server profile/permissions without recording human activity. */
     setProfile: (data: User) => void;
@@ -77,7 +78,7 @@ export const useAuthStore = create<AuthState>()(
     persist(
         (set, get) => ({
             user: null,
-            accessToken: null,
+            isAuthenticated: false,
             accessTokenExpiresAt: null,
             isLoading: true,
             authorization: null,
@@ -89,11 +90,13 @@ export const useAuthStore = create<AuthState>()(
                 return getCurrencyConfig(countryCode).symbol;
             },
 
-            setAccessToken: (accessToken, expiresInMs) => set({
-                accessToken,
-                ...(expiresInMs != null
+            setAuthenticated: (isAuthenticated, expiresInMs) => set({
+                isAuthenticated,
+                ...(isAuthenticated && expiresInMs != null
                     ? { accessTokenExpiresAt: Date.now() + expiresInMs }
-                    : {}),
+                    : !isAuthenticated
+                      ? { accessTokenExpiresAt: null }
+                      : {}),
             }),
 
             setAuthorization: (authorization) => {
@@ -152,7 +155,7 @@ export const useAuthStore = create<AuthState>()(
 
                 set({
                     user: null,
-                    accessToken: null,
+                    isAuthenticated: false,
                     accessTokenExpiresAt: null,
                     authorization: null,
                     authorizationFetchedAt: null,
@@ -187,10 +190,29 @@ export const useAuthStore = create<AuthState>()(
             hydrate: () => {
                 const authorization = get().authorization;
                 const expiresAt = get().accessTokenExpiresAt;
-                const token = get().accessToken;
+                const isAuthenticated = get().isAuthenticated;
+
+                // Scrub any legacy accessToken persisted before BFF migration.
+                if (typeof window !== 'undefined') {
+                    try {
+                        const raw = sessionStorage.getItem('auth-storage');
+                        if (raw && raw.includes('accessToken')) {
+                            const parsed = JSON.parse(raw) as {
+                                state?: Record<string, unknown>;
+                                version?: number;
+                            };
+                            if (parsed?.state && 'accessToken' in parsed.state) {
+                                delete parsed.state.accessToken;
+                                sessionStorage.setItem('auth-storage', JSON.stringify(parsed));
+                            }
+                        }
+                    } catch {
+                        // Ignore storage errors in restricted browsers.
+                    }
+                }
 
                 // Reschedule the proactive refresh timer using remaining token lifetime
-                if (token && expiresAt) {
+                if (isAuthenticated && expiresAt) {
                     const remainingMs = expiresAt - Date.now();
                     if (remainingMs > 0) {
                         scheduleTokenRefresh(remainingMs);
@@ -210,7 +232,7 @@ export const useAuthStore = create<AuthState>()(
             storage: createJSONStorage(() => sessionStorage),
             partialize: (state) => ({
                 user: state.user,
-                accessToken: state.accessToken,
+                isAuthenticated: state.isAuthenticated,
                 accessTokenExpiresAt: state.accessTokenExpiresAt,
                 authorization: state.authorization,
                 authorizationFetchedAt: state.authorizationFetchedAt,

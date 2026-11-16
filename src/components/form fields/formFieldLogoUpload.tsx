@@ -15,6 +15,7 @@ import {
 import { X, Upload, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
+import { validateRasterImageFile } from "@/lib/security/file-upload";
 
 interface FormFieldLogoUploadProps<T extends FieldValues = FieldValues> {
   control: Control<T>;
@@ -90,7 +91,7 @@ const LogoUploadContent: React.FC<LogoUploadContentProps> = ({
           );
         } else if (rejection.errors[0]?.code === "file-invalid-type") {
           setError(
-            "Please upload a valid image file (PNG, JPG, JPEG, SVG, WEBP)."
+            "Please upload a valid image file (PNG, JPG, JPEG, GIF, WEBP)."
           );
         } else {
           setError("File upload failed. Please try again.");
@@ -103,6 +104,11 @@ const LogoUploadContent: React.FC<LogoUploadContentProps> = ({
       }
 
       const file = acceptedFiles[0];
+      const validation = validateRasterImageFile(file, maxSize);
+      if (!validation.valid) {
+        setError(validation.error);
+        return;
+      }
       onChange(file);
     },
     [maxSize, onChange]
@@ -270,7 +276,7 @@ const FormFieldLogoUpload = <T extends FieldValues = FieldValues>({
   label,
   description,
   maxSize = 5 * 1024 * 1024, // 5MB default
-  accept = { "image/*": [".png", ".jpg", ".jpeg", ".svg", ".webp"] },
+  accept = { "image/*": [".png", ".jpg", ".jpeg", ".webp", ".gif"] },
   variant = "default", // Default to original behavior
 }: FormFieldLogoUploadProps<T>) => {
   return (

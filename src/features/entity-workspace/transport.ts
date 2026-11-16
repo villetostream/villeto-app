@@ -3,7 +3,10 @@ const ENTITY_ROUTES =
 
 function normalizeRoute(url: string): string {
   const withoutOrigin = url.replace(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\/[^/?#]+/, "");
-  return withoutOrigin.split("?")[0].replace(/^\/+/, "");
+  return withoutOrigin
+    .split("?")[0]
+    .replace(/^\/+/, "")
+    .replace(/^api\/bff\/+/, "");
 }
 
 export function workspaceRoute(url: string, method = "GET"): boolean {
@@ -65,8 +68,9 @@ export function reportReviewRoute(
   url: string,
   params?: Record<string, unknown>,
 ): boolean {
-  const withoutOrigin = url.replace(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\/[^/?#]+/, "");
-  const [route, search = ""] = withoutOrigin.replace(/^\/+/, "").split("?");
+  const route = normalizeRoute(url);
+  const queryIndex = url.indexOf("?");
+  const search = queryIndex >= 0 ? url.slice(queryIndex + 1) : "";
   const scope = params?.scope || new URLSearchParams(search).get("scope");
   return (
     route === "companies/expense/reports" ||

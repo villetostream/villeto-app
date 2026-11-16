@@ -238,7 +238,7 @@ export const usePersonalExpenses = (
 ) => {
   const axios = useAxios();
   const authReady = useAuthStore((state) => !state.isLoading);
-  const accessToken = useAuthStore((state) => state.accessToken);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return useQuery({
     queryKey: workspaceQueryKey([
@@ -249,7 +249,7 @@ export const usePersonalExpenses = (
       sortBy,
       sortOrder,
     ]),
-    enabled: enabled && authReady && !!accessToken,
+    enabled: enabled && authReady && isAuthenticated,
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       params.append("scope", "own");
@@ -286,7 +286,7 @@ export const useDraftExpenses = (
 ) => {
   const axios = useAxios();
   const authReady = useAuthStore((state) => !state.isLoading);
-  const accessToken = useAuthStore((state) => state.accessToken);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return useQuery({
     queryKey: workspaceQueryKey([
@@ -297,7 +297,7 @@ export const useDraftExpenses = (
       sortBy,
       sortOrder,
     ]),
-    enabled: authReady && !!accessToken,
+    enabled: authReady && isAuthenticated,
     queryFn: async ({ signal }) => {
       // Ensure we don't send scope/status to the drafts endpoint if it expects them as path/intrinsic
       const params = new URLSearchParams();
@@ -369,7 +369,7 @@ export const useCompanyExpenses = (
 ) => {
   const axios = useAxios();
   const authReady = useAuthStore((state) => !state.isLoading);
-  const accessToken = useAuthStore((state) => state.accessToken);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return useQuery({
     queryKey: workspaceQueryKey([
@@ -379,7 +379,7 @@ export const useCompanyExpenses = (
       sortBy,
       sortOrder,
     ]),
-    enabled: !!scope && enabled && authReady && !!accessToken,
+    enabled: !!scope && enabled && authReady && isAuthenticated,
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       params.append("scope", scope);

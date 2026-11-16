@@ -38,12 +38,16 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
     if (hasRun.current) return;
     hasRun.current = true;
 
-    const { accessToken, accessTokenExpiresAt, setProfile, user } =
-      useAuthStore.getState();
+    const {
+      isAuthenticated,
+      accessTokenExpiresAt,
+      setProfile,
+      user,
+    } = useAuthStore.getState();
 
     // Token is still alive — nothing to do.
     const tokenAlive =
-      accessToken &&
+      isAuthenticated &&
       accessTokenExpiresAt &&
       accessTokenExpiresAt - Date.now() > EXPIRY_BUFFER_MS;
 
@@ -53,24 +57,22 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
     }
 
     // Attempt silent refresh via the httpOnly refresh-token cookie.
-    // Use raw axios (not apiClient) to avoid triggering the 401 interceptor
-    // which would itself try to refresh and fight this call.
+    // Use shared singleflight refreshAccessToken so startup & proactive timers stay coordinated.
     void (async () => {
       try {
-        const newToken = await refreshAccessToken();
+        await refreshAccessToken();
 
         // If user profile is missing (e.g., hard refresh cleared sessionStorage),
-        // fetch it now so the rest of the app has full user context.
+        // fetch it now via BFF (HttpOnly cookie attached automatically).
         if (!user) {
           try {
             const me = await axios.get(apiUrl("users/me"), {
               params: { view: "bootstrap" },
-              headers: { Authorization: `Bearer ${newToken}` },
               withCredentials: true,
             });
             const responseData = me?.data?.data ?? me?.data;
             const { _company, companyId, ...userData } = responseData ?? {};
-            if (userData && useAuthStore.getState().accessToken === newToken && !useAuthStore.getState().user) {
+            if (userData && useAuthStore.getState().isAuthenticated && !useAuthStore.getState().user) {
               const authorization = parseAuthorizationSnapshot(
                 userData.authorization
               );

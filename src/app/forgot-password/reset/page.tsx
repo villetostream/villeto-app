@@ -8,16 +8,18 @@ import { Eye, EyeOff, Loader2, Lock, Mail, Key, ShieldCheck, ArrowLeft, ArrowRig
 import { toast } from "sonner";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
+import { passwordSchema } from "@/lib/validation/common";
+import { getApiErrorMessage } from "@/lib/types/api-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 function getPasswordStrength(password: string): number {
     let score = 0;
-    if (password.length >= 8) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[a-z]/.test(password)) score++;
+    if (password.length >= 8 && password.length <= 100) score++;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
     if (/[0-9]/.test(password)) score++;
+    if (/[^a-zA-Z0-9]/.test(password)) score++;
     return score;
 }
 
@@ -38,20 +40,18 @@ export default function CompleteResetPage() {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const hasMinLength = newPassword.length >= 8;
+    const hasMinLength = newPassword.length >= 8 && newPassword.length <= 100;
     const hasNumber = /[0-9]/.test(newPassword);
     const hasUpper = /[A-Z]/.test(newPassword);
     const hasLower = /[a-z]/.test(newPassword);
+    const hasSpecialChar = /[^a-zA-Z0-9]/.test(newPassword);
     const passwordsMatch = newPassword === confirmPassword && newPassword.length > 0;
     const strength = getPasswordStrength(newPassword);
 
     const isValid =
         token.trim().length > 0 &&
         email.trim().length > 0 &&
-        hasMinLength &&
-        hasNumber &&
-        hasUpper &&
-        hasLower &&
+        passwordSchema.safeParse(newPassword).success &&
         passwordsMatch;
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -61,15 +61,14 @@ export default function CompleteResetPage() {
         try {
             await axios.patch(API_KEYS.AUTH.PASSWORD_RESET_COMPLETE, {
                 token: token.trim(),
-                email: email.trim(),
+                email: email.trim().toLowerCase(),
                 newPassword,
                 confirmPassword,
             });
             toast.success("Password reset successful. Please sign in.");
             router.push("/login");
-        } catch (error: any) {
-            const message = error?.response?.data?.message;
-            toast.error(message ?? "Failed to reset password. Please try again.");
+        } catch (error: unknown) {
+            toast.error(getApiErrorMessage(error, "Failed to reset password. Please try again."));
         } finally {
             setIsSubmitting(false);
         }
@@ -216,6 +215,7 @@ export default function CompleteResetPage() {
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors ${hasNumber ? "border-[#0ea894]/30 text-[#0ea894] bg-[#0ea894]/5" : "border-black/[0.08] text-[#84908a] bg-[#f9faf9]"}`}>Number</span>
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors ${hasUpper ? "border-[#0ea894]/30 text-[#0ea894] bg-[#0ea894]/5" : "border-black/[0.08] text-[#84908a] bg-[#f9faf9]"}`}>Uppercase</span>
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors ${hasLower ? "border-[#0ea894]/30 text-[#0ea894] bg-[#0ea894]/5" : "border-black/[0.08] text-[#84908a] bg-[#f9faf9]"}`}>Lowercase</span>
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors ${hasSpecialChar ? "border-[#0ea894]/30 text-[#0ea894] bg-[#0ea894]/5" : "border-black/[0.08] text-[#84908a] bg-[#f9faf9]"}`}>Special character</span>
                         </div>
 
                         <Button

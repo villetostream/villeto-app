@@ -43,7 +43,7 @@ type ApiErrorPayload = {
   data?: { statusCode?: number };
 };
 
-const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const BASEURL = "/api/bff";
 const apiClient = axios.create({
   baseURL: BASEURL,
   withCredentials: true,
@@ -55,7 +55,6 @@ function finishWorkspaceMutation(config?: InternalAxiosRequestConfig) {
   config._workspaceMutation = false;
   useEntityWorkspaceStore.getState().mutationFinished();
 }
-
 
 // ── Client-side traffic shaping ─────────────────────────────────────────────────────────
 // A bounded concurrency gate (like a token bucket with N tokens) so a page
@@ -280,9 +279,8 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
       workspace.mutationStarted();
     }
   }
-  const accessToken = useAuthStore.getState().accessToken;
-  if (accessToken) {
-    config.headers.set("Authorization", `Bearer ${accessToken}`);
+  if (config.url?.startsWith("/api/bff/") || config.url === "/api/bff") {
+    config.baseURL = "";
   }
   return config;
 });
@@ -365,8 +363,7 @@ apiClient.interceptors.response.use(
 
       originalRequest._retry = true;
       try {
-        const accessToken = await refreshAccessToken(String(originalRequest.headers.get("Authorization") ?? "").replace(/^Bearer /, ""));
-        originalRequest.headers.set("Authorization", `Bearer ${accessToken}`);
+        await refreshAccessToken();
         return apiClient(originalRequest);
       } catch (refreshError) {
         if (axios.isCancel(refreshError)) return Promise.reject(refreshError);

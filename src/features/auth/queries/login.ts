@@ -6,7 +6,7 @@ import type { User } from '@/features/auth/types';
 import type { LoginFormData } from '@/features/auth/schemas';
 
 interface LoginData {
-    accessToken: string;
+    authenticated?: boolean;
     user: User;
 }
 

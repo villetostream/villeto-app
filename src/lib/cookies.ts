@@ -27,11 +27,16 @@ export function setCookie(name: string, value: unknown, options: CookieOptions =
     const encodedValue = encodeURIComponent(JSON.stringify(value));
     const expires = options.expires || new Date(Date.now() + COOKIE_EXPIRATION_MS);
 
+    const isHttps =
+      typeof window !== 'undefined' && window.location?.protocol === 'https:';
+    const secure = options.secure ?? isHttps;
+    const sameSite = options.sameSite ?? 'lax';
+
     let cookieString = `${name}=${encodedValue}; expires=${expires.toUTCString()}; path=${options.path || '/'}`;
 
     if (options.domain) cookieString += `; domain=${options.domain}`;
-    if (options.secure) cookieString += '; secure';
-    if (options.sameSite) cookieString += `; samesite=${options.sameSite}`;
+    if (secure) cookieString += '; secure';
+    if (sameSite) cookieString += `; samesite=${sameSite}`;
 
     document.cookie = cookieString;
   } catch (error) {
@@ -77,9 +82,14 @@ export function getCookie<T = unknown>(name: string): T | null {
 export function removeCookie(name: string, options: CookieOptions = {}): void {
   if (typeof document === 'undefined') return;
   const expires = new Date(0); // Set to past date to expire immediately
-  let cookieString = `${name}=; expires=${expires.toUTCString()}; path=${options.path || '/'}`;
+  const isHttps =
+    typeof window !== 'undefined' && window.location?.protocol === 'https:';
+  const secure = options.secure ?? isHttps;
+  const sameSite = options.sameSite ?? 'lax';
+  let cookieString = `${name}=; expires=${expires.toUTCString()}; path=${options.path || '/'}; samesite=${sameSite}`;
 
   if (options.domain) cookieString += `; domain=${options.domain}`;
+  if (secure) cookieString += '; secure';
 
   document.cookie = cookieString;
 }

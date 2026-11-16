@@ -14,6 +14,8 @@ import { formatTime, formatFileSize } from "./chat-utils";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { DocumentText } from "iconsax-reactjs";
+import { sanitizeNavigationHref } from "@/lib/security/url";
+import { sanitizeImageSrc } from "@/lib/security/blob-preview";
 
 interface Props {
   message: ChatMessage;
@@ -68,12 +70,18 @@ function AttachmentPreview({
   attachment: Attachment;
   isOwn: boolean;
 }) {
-  if (attachment.type === "image") {
+  const safeHref =
+    attachment.url.startsWith("blob:")
+      ? attachment.url
+      : sanitizeNavigationHref(attachment.url) ?? "#";
+  const safeImgSrc = sanitizeImageSrc(attachment.url);
+
+  if (attachment.type === "image" && safeImgSrc) {
     return (
-      <a href={attachment.url} target="_blank" rel="noreferrer">
+      <a href={safeHref} target="_blank" rel="noopener noreferrer">
         <div className="relative w-48 h-32 rounded-[12px] overflow-hidden border border-black/[0.08]">
           <Image
-            src={attachment.url}
+            src={safeImgSrc}
             alt={attachment.name}
             fill
             className="object-cover"
@@ -85,8 +93,9 @@ function AttachmentPreview({
 
   return (
     <a
-      href={attachment.url}
+      href={safeHref}
       download={attachment.name}
+      rel="noopener noreferrer"
       className={cn(
         "flex items-center gap-2 px-3 py-2 rounded-[12px] border text-[13px] max-w-[200px]",
         isOwn

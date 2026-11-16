@@ -2,6 +2,7 @@ import { apiUrl } from "@/lib/api-url";
 import axios from "axios";
 import { useAuthStore } from "@/stores/auth-stores";
 import { clearTokenRefresh } from "@/lib/tokenRefreshService";
+import { clearAuthMarkerCookie } from "@/lib/security/auth-cookie";
 
 
 export async function logoutAndRedirect() {
@@ -25,7 +26,8 @@ export async function logoutAndRedirect() {
         key?.startsWith("expense-status-") ||
         key?.startsWith("villeto_") ||
         key?.startsWith("line_item_staging:") ||
-        key?.startsWith("bill_line_item_staging:")
+        key?.startsWith("bill_line_item_staging:") ||
+        key === "personal-expenses"
       ) {
         keysToRemove.push(key);
       }
@@ -33,7 +35,7 @@ export async function logoutAndRedirect() {
     keysToRemove.forEach(k => localStorage.removeItem(k));
   } catch {}
   
-  document.cookie = "villeto_auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+  clearAuthMarkerCookie();
   
   window.location.href = "/login";
 }
