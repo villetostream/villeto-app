@@ -24,7 +24,7 @@ import { apiUrl } from "@/lib/api-url";
 import { useEffect, useRef } from "react";
 import axios from "axios";
 import { useAuthStore } from "@/stores/auth-stores";
-import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
+import { refreshAccessToken } from "@/lib/tokenRefreshService";
 import { parseAuthorizationSnapshot } from "@/features/auth/authorization";
 import { setAuthMarkerCookie } from "@/lib/security/auth-cookie";
 
@@ -108,7 +108,7 @@ export default function SilentRefreshGate({ onDone }: { onDone?: () => void }) {
             });
             const responseData = me?.data?.data ?? me?.data;
             const { _company, companyId, ...userData } = responseData ?? {};
-            if (userData) {
+            if (userData && useAuthStore.getState().accessToken === newToken && !useAuthStore.getState().user) {
               const authorization = parseAuthorizationSnapshot(
                 userData.authorization
               );

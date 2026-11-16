@@ -31,7 +31,7 @@ export function RegisteredVendorsTable() {
 
   const [filters, setFilters] = useState<Record<string, any>>({});
 
-  const { data: invoicesResponse, isLoading } = useGetBillPayInvoices(
+  const { data: invoicesResponse, isLoading, refetch, isFetching } = useGetBillPayInvoices(
     {
       legalEntityId,
       page: tableprops.page,
@@ -185,7 +185,7 @@ export function RegisteredVendorsTable() {
         router.push(`/bill-pay/${id}`);
       }}
       tableHeader={{
-        actionButton: <></>,
+        actionButton: <Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Refresh</Button>,
         isSearchable: true,
         isExportable: false,
         isFilter: true,

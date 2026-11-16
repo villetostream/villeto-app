@@ -1,4 +1,5 @@
 "use client";
+import { useSummaryPage } from "@/queries/efficiency/use-summary-page";
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -69,7 +70,6 @@ import { Button } from "@/components/ui/button";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 import {
   useGetExpenseCategoriesApi,
-  useGetExpenseCategoryCoverageAllApi,
 } from "@/queries/companies/get-expense-categories";
 import { useDeleteCategoryApi } from "@/queries/companies/delete-category";
 import { usePolicyListPage } from "@/queries/companies/use-policy-list-page";
@@ -86,7 +86,6 @@ import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
-import { useDataTable } from "@/components/datatable/useDataTable";
 import { EmptyState } from "@/components/ui/empty-state";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
 import { useAuthStore } from "@/stores/auth-stores";
@@ -1303,9 +1302,11 @@ function PoliciesPage() {
     can("policy.domain", "expense") ||
     can("policy.domain", "procurement");
 
-  const expCatApi = useGetExpenseCategoryCoverageAllApi({
-    enabled: policyType === "expense" && canReadExpenseCategories,
-  });
+  const { query: expCatApi, ...expenseTableProps } = useSummaryPage<Record<string, unknown>>(
+    "companies/categories/policy-coverage", [...QUERY_KEYS.expenses.categories, "coverage-admin"], activeTab === "expense" ? search : "",
+    { module: "expense", scope: "all", status: "all", includeCategoriesWithoutPolicies: true, view: activeTab === "expense" ? "summary" : "statistics" },
+    policyType === "expense" && canReadExpenseCategories, "name",
+  );
   const canManageCategories = can("expense.category", "manage");
   const canCreatePolicy = can("policy", "create");
 
@@ -1347,15 +1348,6 @@ function PoliciesPage() {
   const { query: policiesApi, ...policyTableProps } = usePolicyListPage(
     search, activeTab, policyType === "expense" && canReadPolicies,
   );
-
-  const expenseTableProps = useDataTable({
-    initialPage: 1,
-    initialPageSize: 10,
-    totalItems: 0,
-    manualSorting: false,
-    manualFiltering: false,
-    manualPagination: false,
-  });
 
   const capitalizeName = (n: string) =>
     n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "";
@@ -1550,16 +1542,7 @@ function PoliciesPage() {
   const draftedCount = policiesApi.data?.summary?.draft ?? 0;
   const pendingCount = policiesApi.data?.summary?.pending ?? 0;
 
-  const filteredCategories = useMemo(() => {
-    const q = search.toLowerCase();
-    return liveExpenseCategories.filter(
-      (c) =>
-        !q ||
-        c.category.toLowerCase().includes(q) ||
-        c.description.toLowerCase().includes(q) ||
-        c.createdBy.toLowerCase().includes(q),
-    );
-  }, [search, liveExpenseCategories]);
+  const filteredCategories = liveExpenseCategories;
 
   const handleViewCategory = useCallback(
     async (categoryId: string) => {
@@ -1801,7 +1784,7 @@ function PoliciesPage() {
     },
     {
       label: "Categories",
-      value: liveExpenseCategories.length,
+      value: expCatApi.isError ? "—" : expCatApi.data?.summary.categories ?? 0,
       detail: "Expense classifications",
       icon: Tag,
       tone: "blue",
@@ -2133,6 +2116,7 @@ function PoliciesPage() {
     () => [
       {
         accessorKey: "category",
+        id: "name",
         header: "Category",
         cell: ({ row }) => (
           <span className="font-medium text-foreground">
@@ -2142,6 +2126,7 @@ function PoliciesPage() {
       },
       {
         accessorKey: "description",
+        enableSorting: false,
         header: "Description",
         cell: ({ row }) => (
           <TooltipProvider delayDuration={200}>
@@ -2167,6 +2152,7 @@ function PoliciesPage() {
       },
       {
         accessorKey: "createdBy",
+        enableSorting: false,
         header: "Created By",
         cell: ({ row }) => (
           <span className="text-foreground/75">{row.original.createdBy}</span>
@@ -2174,6 +2160,7 @@ function PoliciesPage() {
       },
       {
         accessorKey: "date",
+        id: "createdAt",
         header: "Date",
         cell: ({ row }) => (
           <span className="text-foreground/75 tabular-nums">
@@ -2183,6 +2170,7 @@ function PoliciesPage() {
       },
       {
         accessorKey: "isPolicyAttached",
+        enableSorting: false,
         header: "Attached Policies",
         cell: ({ row }) => {
           const cat = row.original;
@@ -2512,7 +2500,7 @@ function PoliciesPage() {
                         </p>
                       </div>
                     </div>
-                  ) : liveExpenseCategories.length === 0 ? (
+                  ) : expCatApi.isError ? (<p role="alert" className="p-6">Could not load categories. Use Refresh to retry.</p>) : expCatApi.data?.summary.categories === 0 ? (
                     <div className="flex-1 flex justify-center items-center py-16 px-6 bg-white overflow-y-auto">
                       <div className="flex flex-col items-center text-center max-w-sm">
                         <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
@@ -2554,10 +2542,12 @@ function PoliciesPage() {
                           />
                         }
                         onRowClick={(row) => handleViewCategory(row.id)}
-                        paginationProps={{
-                          ...expenseTableProps.paginationProps,
-                          total: filteredCategories.length,
-                        }}
+                        manualPagination
+                        manualFiltering
+                        manualSorting
+                        initialSorting={expenseTableProps.sorting}
+                        onSortingChange={expenseTableProps.setSorting}
+                        paginationProps={expenseTableProps.paginationProps}
                       />
                     </div>
                   )}

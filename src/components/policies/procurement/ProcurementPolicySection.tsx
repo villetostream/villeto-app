@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useSummaryPage } from "@/queries/efficiency/use-summary-page";
+import { QUERY_KEYS } from "@/shared/lib/query/keys";
+
+import { useMemo, useState, useCallback } from "react";
 import {
   Clock,
   Eye,
@@ -24,7 +27,6 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PolicySummaryStrip, type PolicySummaryItem } from "@/components/policies/PolicyWorkspace";
 import { DataTable } from "@/components/datatable";
-import { useDataTable } from "@/components/datatable/useDataTable";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ColumnDef } from "@tanstack/react-table";
@@ -32,21 +34,17 @@ import { ProcurementPolicyDetailsModal } from "./ProcurementPolicyDetailsModal";
 import { SPEND_PROGRAM_GROUPS } from "./constants";
 import type { SpendProgramListItem } from "./types";
 import {
-  useGetSpendPrograms,
   useDeleteSpendProgramDraft,
   useApproveSpendProgram,
   useRejectSpendProgram,
   useGetSpendProgramSettings,
   useDeleteSpendProgram,
 } from "@/queries/procurement/policies";
-import type { ProcurementPolicyApiRecord } from "@/queries/procurement/policies";
 import { saveSpendProgramRejection } from "@/lib/policies/rejection-store";
 import { isUserCreatorOfSpendProgram } from "@/lib/policies/spend-program-creator-store";
 import { useAuthStore } from "@/stores/auth-stores";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useGetEligibleRoles } from "@/queries/policies/governance";
-import { useAxios } from "@/hooks/useAxios";
 import { PROCUREMENT_KEYS } from "@/lib/constants/apis";
 import {
   AlertDialog,
@@ -143,17 +141,12 @@ export function ProcurementPolicySection({
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const tableProps = useDataTable({
-    initialPage: 1,
-    initialPageSize: 10,
-    totalItems: 0,
-    manualSorting: false,
-    manualFiltering: false,
-    manualPagination: false,
-  });
-
-  const axios = useAxios();
-  const { data, isLoading, refetch, isRefetching } = useGetSpendPrograms(1, 100);
+  const { query, ...tableProps } = useSummaryPage<SpendProgramListItem>(PROCUREMENT_KEYS.SPEND_PROGRAMS, QUERY_KEYS.procurement.spendPrograms, search, {
+    collection: viewTab === "archived" ? "archived" : "current",
+    status: statusFilter === "all" || viewTab === "archived" ? undefined : statusFilter === "pending" ? "pending_approval" : statusFilter,
+    group: groupFilter === "all" ? undefined : groupFilter,
+  }, true);
+  const { data, isLoading, isError, refetch, isRefetching } = query;
   const deleteDraftMutation = useDeleteSpendProgramDraft();
   const approveMutation = useApproveSpendProgram();
   const rejectMutation = useRejectSpendProgram();
@@ -164,47 +157,13 @@ export function ProcurementPolicySection({
 
   const programs = useMemo<SpendProgramListItem[]>(() => data?.data ?? [], [data?.data]);
 
-  const approvedCount = useMemo(() => programs.filter((p) => p.status === "active").length, [programs]);
-  const pendingCount  = useMemo(() => programs.filter((p) => p.status === "pending" || p.status === "pending_approval").length, [programs]);
-  const draftCount    = useMemo(() => programs.filter((p) => p.status === "draft").length, [programs]);
-
   const summary: PolicySummaryItem[] = [
-    { label: "Active",   value: approvedCount, detail: "Currently enforced",     icon: ShieldCheck, tone: "teal" },
-    { label: "Pending",  value: pendingCount,  detail: "Waiting for approval",   icon: Clock,       tone: "amber" },
-    { label: "Drafts",   value: draftCount,    detail: "Still being configured", icon: FileText,    tone: "slate" },
-    { label: "Total",    value: programs.filter(p => !["inactive","archived"].includes(p.status)).length, detail: "Spend programs", icon: ShoppingCart, tone: "blue" },
+    { label: "Active", value: isError ? "—" : data?.summary.active ?? 0, detail: "Currently enforced", icon: ShieldCheck, tone: "teal" },
+    { label: "Pending", value: isError ? "—" : data?.summary.pending ?? 0, detail: "Waiting for approval", icon: Clock, tone: "amber" },
+    { label: "Drafts", value: isError ? "—" : data?.summary.draft ?? 0, detail: "Still being configured", icon: FileText, tone: "slate" },
+    { label: "Total", value: isError ? "—" : data?.summary.total ?? 0, detail: "Spend programs", icon: ShoppingCart, tone: "blue" },
   ];
-
-  const ARCHIVED_STATUSES = ["inactive", "archived"];
-
-  const filteredPrograms = useMemo(() => {
-    const q = search.toLowerCase();
-    return programs.filter((p) => {
-      const isArchived = ARCHIVED_STATUSES.includes(p.status?.toLowerCase());
-      if (viewTab === "archived") {
-        if (!isArchived) return false;
-      } else {
-        if (isArchived) return false;
-        // Status sub-filter
-        if (statusFilter !== "all") {
-          const statusMatch = p.status?.toLowerCase() === statusFilter.toLowerCase() ||
-            (statusFilter === "pending" && p.status?.toLowerCase() === "pending_approval");
-          if (!statusMatch) return false;
-        }
-      }
-      // Group filter
-      if (groupFilter !== "all") {
-        const inGroup = Array.isArray(p.groups) && p.groups.some(g => g === groupFilter);
-        if (!inGroup) return false;
-      }
-      // Search
-      return !q || p.name.toLowerCase().includes(q);
-    });
-  }, [programs, search, viewTab, statusFilter, groupFilter]);
-
-  useEffect(() => {
-    tableProps.setTotalItems(filteredPrograms.length);
-  }, [filteredPrograms.length, tableProps.setTotalItems]);
+  const filteredPrograms = programs;
 
   const user = useAuthStore((state) => state.user);
   const { can } = useAuthStore();
@@ -212,50 +171,12 @@ export function ProcurementPolicySection({
   const canDeactivate = can("policy", "deactivate");
   const canApprove    = can("policy", "approve");
 
-  const [programDetailsMap, setProgramDetailsMap] = useState<Record<string, any>>({});
-
-  const pendingProgramIds = useMemo(() => {
-    return programs
-      .filter((p) => p.status === "pending" || p.status === "pending_approval")
-      .map((p) => p.procurementSpendProgramId || (p as any).procurementPolicyId || (p as any).id)
-      .filter(Boolean);
-  }, [programs]);
-
-  useEffect(() => {
-    if (pendingProgramIds.length === 0) return;
-    let isMounted = true;
-    Promise.all(
-      pendingProgramIds.map(async (id: string) => {
-        try {
-          const res = await axios.get(PROCUREMENT_KEYS.SPEND_PROGRAM(id));
-          const prog = res?.data?.data ?? res?.data;
-          return prog ? { id, data: prog } : null;
-        } catch {
-          return null;
-        }
-      })
-    ).then((results) => {
-      if (!isMounted) return;
-      const updates: Record<string, any> = {};
-      results.forEach((r) => {
-        if (r?.data) updates[r.id] = r.data;
-      });
-      if (Object.keys(updates).length > 0) {
-        setProgramDetailsMap((prev) => ({ ...prev, ...updates }));
-      }
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, [pendingProgramIds, axios]);
-
   const checkIfReviewable = useCallback((program: SpendProgramListItem) => {
     const isPending = program.status === "pending" || program.status === "pending_approval";
     if (!isPending) return false;
 
     const progId = program.procurementSpendProgramId || (program as any).procurementPolicyId || (program as any).id;
-    const details = progId ? programDetailsMap[progId] : undefined;
-    const fullProg = details ? { ...program, ...details } : program;
+    const fullProg = program;
 
     const currentUserId = user?.userId || (user as any)?.id || (user as any)?._id || "";
     const userFullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim().toLowerCase();
@@ -316,19 +237,18 @@ export function ProcurementPolicySection({
     if (approvalSetting?.allRolesCanApprove) return true;
     if (approvalSetting?.approverRoleIds?.length) return approvalSetting.approverRoleIds.includes(currentUserRoleId);
     return canApprove;
-  }, [user, programDetailsMap, spendProgramSettingsResponse?.data, canApprove]);
+  }, [user, spendProgramSettingsResponse?.data, canApprove]);
 
   const handleRowClick = useCallback((row: SpendProgramListItem) => {
     const progId = row.procurementSpendProgramId || (row as any).procurementPolicyId || (row as any).id;
-    const details = progId ? programDetailsMap[progId] : undefined;
-    const fullRow = details ? { ...row, ...details } : row;
+    const fullRow = row;
     setDetailPolicy({
       id: progId,
       isDraft: row.status === "draft",
       isReviewMode: checkIfReviewable(fullRow),
       initialData: fullRow,
     });
-  }, [checkIfReviewable, programDetailsMap]);
+  }, [checkIfReviewable]);
 
   const handleOpenSpendReview = useCallback((program: SpendProgramListItem) => {
     handleRowClick(program);
@@ -355,6 +275,7 @@ export function ProcurementPolicySection({
       },
       {
         accessorKey: "groups",
+        enableSorting: false,
         header: "Stage",
         cell: ({ row }) => {
           const GROUP_SORT_ORDER = ["pr_submission", "pr_to_po", "po_submission"];
@@ -376,6 +297,7 @@ export function ProcurementPolicySection({
       },
       {
         accessorKey: "categories",
+        enableSorting: false,
         header: "Categories",
         cell: ({ row }) => {
           const cats = row.original.categories ?? [];
@@ -431,10 +353,10 @@ export function ProcurementPolicySection({
       },
       {
         id: "createdBy",
+        enableSorting: false,
         header: "Created By",
         cell: ({ row }) => {
-          const progId = row.original.procurementSpendProgramId || (row.original as any).procurementPolicyId || (row.original as any).id;
-          const details = progId ? programDetailsMap[progId] : undefined;
+          const details = undefined;
           const currentUserId = user?.userId || (user as any)?.id || "";
           const currentUserName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
           return (
@@ -521,7 +443,7 @@ export function ProcurementPolicySection({
         },
       },
     ],
-    [canUpdate, canDeactivate, canApprove, handleOpenSpendReview, setDetailPolicy, onEdit, deleteDraftMutation, checkIfReviewable, programDetailsMap, user]
+    [canUpdate, canDeactivate, canApprove, handleOpenSpendReview, setDetailPolicy, onEdit, deleteDraftMutation, checkIfReviewable, user]
   );
 
   return (
@@ -631,7 +553,7 @@ export function ProcurementPolicySection({
           <div className="flex justify-center items-center py-20">
             <Loader2 className="w-6 h-6 animate-spin text-[#68726d]" />
           </div>
-        ) : programs.filter(p => !ARCHIVED_STATUSES.includes(p.status)).length === 0 && viewTab === "policies" ? (
+        ) : isError ? (<p role="alert" className="p-6">Could not load procurement policies. Use Refresh to retry.</p>) : data?.summary.total === 0 && viewTab === "policies" ? (
           <div className="flex-1 flex justify-center items-center py-16 px-6 overflow-y-auto">
             <div className="flex flex-col items-center text-center max-w-sm">
               <div className="flex size-12 rounded-[14px] bg-[#e8f8f5] items-center justify-center mb-5">
@@ -673,7 +595,10 @@ export function ProcurementPolicySection({
               manualPagination={true}
               data={filteredPrograms}
               columns={columns}
-              initialSorting={[{ id: "createdAt", desc: true }]}
+              initialSorting={tableProps.sorting}
+              onSortingChange={tableProps.setSorting}
+              manualSorting
+              manualFiltering
               height="auto"
               emptyState={
                 <div className="w-full flex justify-center flex-col items-center pb-10">

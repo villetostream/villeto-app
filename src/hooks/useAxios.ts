@@ -1,6 +1,5 @@
 "use client";
 
-import { apiUrl } from "@/lib/api-url";
 
 import axios, {
   AxiosError,
@@ -418,6 +417,7 @@ apiClient.interceptors.response.use(
         await refreshAccessToken();
         return apiClient(originalRequest);
       } catch (refreshError) {
+        if (axios.isCancel(refreshError)) return Promise.reject(refreshError);
         useAuthStore.getState().logout();
         redirectToLogin();
         return Promise.reject(refreshError);
