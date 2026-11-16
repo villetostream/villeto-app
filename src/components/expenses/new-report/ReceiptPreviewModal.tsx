@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { normalizeReceiptSrc, hasReceiptSrc } from "@/lib/utils/receipt-image";
 import { ImagePlus } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
+import { validateRasterImageFile } from "@/lib/security/file-upload";
 
 interface ReceiptPreviewModalProps {
   isOpen: boolean;
@@ -37,7 +39,10 @@ export function ReceiptPreviewModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
+    const validation = validateRasterImageFile(file, 10 * 1024 * 1024);
+    if (!validation.valid) {
+      toast.error(validation.error);
+      e.target.value = "";
       return;
     }
 

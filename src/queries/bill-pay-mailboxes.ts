@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { useAxios } from "@/hooks/useAxios";
 import { saveMailboxAttachment } from "@/lib/mailbox-attachment-download";
+import { createSafeAttachmentPreviewBlob } from "@/lib/security/blob-preview";
 
 export type TenantMailboxConnectionStatus =
   | "pending_authorization"
@@ -227,17 +228,21 @@ export function useViewTenantMailboxAttachment() {
       url: string;
       filename: string;
       mimeType: string;
+      canPreviewInline: boolean;
       data: Blob;
     }> => {
       const response = await axios.get<Blob>(
         `bill-pay/mailbox-connections/${tenantMailboxConnectionId}/messages/${messageId}/attachments/${encodeURIComponent(attachmentId)}/download`,
         { responseType: "blob" },
       );
-      const blob = new Blob([response.data], {
-        type: mimeType || response.data.type || "application/octet-stream",
-      });
+      const { blob, canPreviewInline, safeMimeType } =
+        createSafeAttachmentPreviewBlob(
+          response.data,
+          mimeType || response.data.type,
+          filename,
+        );
       const url = URL.createObjectURL(blob);
-      return { url, filename, mimeType, data: blob };
+      return { url, filename, mimeType: safeMimeType, canPreviewInline, data: blob };
     },
   });
 }

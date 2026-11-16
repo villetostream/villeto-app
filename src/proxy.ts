@@ -1,24 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-
-function contentSecurityPolicy() {
-  const connectSources = ["'self'", 'https:'];
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-  if (apiBaseUrl) {
-    try {
-      const apiOrigin = new URL(apiBaseUrl).origin;
-      const hostname = new URL(apiOrigin).hostname;
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        connectSources.push(apiOrigin);
-      }
-    } catch {
-      // Invalid API URLs are handled by the API client; keep the CSP restrictive.
-    }
-  }
-
-  return `default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src ${connectSources.join(' ')};`;
-}
+import { getSecurityHeaders } from './lib/security/headers';
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -51,7 +33,9 @@ export function proxy(request: NextRequest) {
     pathname.startsWith('/favicon.ico');
 
   if (!isPublicPath) {
-    const hasAuthCookie = request.cookies.has('villeto_auth');
+    const hasAuthCookie =
+      request.cookies.has('villeto_auth') ||
+      request.cookies.has('villeto_access');
 
     if (!hasAuthCookie) {
       return NextResponse.redirect(new URL('/login', request.url));
@@ -61,14 +45,10 @@ export function proxy(request: NextRequest) {
   // 3. Security headers
   const response = NextResponse.next();
 
-  response.headers.set('X-Frame-Options', 'DENY');
-  response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-  response.headers.set(
-    'Content-Security-Policy',
-    contentSecurityPolicy(),
-  );
+  const securityHeaders = getSecurityHeaders({ isPublicPath });
+  for (const [headerName, headerValue] of Object.entries(securityHeaders)) {
+    response.headers.set(headerName, headerValue);
+  }
 
   return response;
 }

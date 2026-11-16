@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/auth-stores";
 import { create } from "zustand";
 import { deferStateUpdate } from "@/lib/defer-state-update";
 import { logger } from "@/lib/logger";
+import { apiUrl } from "@/lib/api-url";
 
 // ── Global Store for Unread Count ──────────────────────────────────────────
 interface NotificationCountState {
@@ -28,13 +29,6 @@ export const useNotificationCountStore = create<NotificationCountState>(
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.villeto.com/";
-
-function apiUrl(path: string) {
-  return `${BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
-}
-
 // ── Singleton guard: only one SSE + polling loop runs at a time ────────────
 let _hookMountCount = 0;
 let _sseController: AbortController | null = null;
@@ -54,19 +48,18 @@ let _pollInterval: ReturnType<typeof setInterval> | null = null;
  */
 export function useNotificationCountHook() {
   const generation = useEntityWorkspaceStore((state) => state.generation);
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { setUnreadCount } = useNotificationCountStore();
 
   // ── Fetch unread count from dedicated endpoint ────────────────────────────
   const fetchCount = useCallback(async () => {
-    if (!accessToken) return;
+    if (!isAuthenticated) return;
     try {
       const res = await workspaceFetch(
         apiUrl("events/notifications/unread-count"),
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
           },
           credentials: "include",
         },
@@ -90,7 +83,7 @@ export function useNotificationCountHook() {
       logger.error("[fetchCount] Error:", err);
       // Silently fail — badge stays at previous value
     }
-  }, [accessToken, setUnreadCount, generation]);
+  }, [isAuthenticated, setUnreadCount, generation]);
 
   // Keep a stable ref so the SSE handler always has the latest closure
   const fetchCountRef = useRef(fetchCount);
@@ -129,7 +122,7 @@ export function useNotificationCountHook() {
 
   // ── SSE subscription (singleton) ──────────────────────────────────────────
   useEffect(() => {
-    if (!accessToken) return;
+    if (!isAuthenticated) return;
 
     // Don't open a second SSE if one is already running
     if (_sseController && !_sseController.signal.aborted) {
@@ -144,7 +137,6 @@ export function useNotificationCountHook() {
       try {
         const res = await workspaceFetch(apiUrl("events/notifications"), {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
             Accept: "text/event-stream",
             "Cache-Control": "no-cache",
           },
@@ -208,7 +200,7 @@ export function useNotificationCountHook() {
         _sseController = null;
       }
     };
-  }, [accessToken]);
+  }, [isAuthenticated]);
 }
 
 /**

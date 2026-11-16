@@ -34,6 +34,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Rnd } from "react-rnd";
+import {
+  isSafeInlinePreviewMime,
+  isSafeRasterImageMime,
+  openSafeUrlInNewTab,
+} from "@/lib/security/blob-preview";
+import { saveMailboxAttachment } from "@/lib/mailbox-attachment-download";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -788,10 +794,29 @@ function MailboxPage() {
                               variant="ghost"
                               size="icon"
                               className="size-8 text-[#64716c] hover:text-[#087f70]"
-                              onClick={() =>
-                                window.open(attachmentViewer.url, "_blank")
+                              onClick={() => {
+                                if (
+                                  isSafeInlinePreviewMime(
+                                    attachmentViewer.mimeType,
+                                    attachmentViewer.filename,
+                                  )
+                                ) {
+                                  openSafeUrlInNewTab(attachmentViewer.url);
+                                } else if (attachmentViewer.data) {
+                                  saveMailboxAttachment(attachmentViewer.data, {
+                                    filename: attachmentViewer.filename,
+                                    mimeType: attachmentViewer.mimeType,
+                                  });
+                                }
+                              }}
+                              title={
+                                isSafeInlinePreviewMime(
+                                  attachmentViewer.mimeType,
+                                  attachmentViewer.filename,
+                                )
+                                  ? "Open in new tab"
+                                  : "Download file"
                               }
-                              title="Open in new tab"
                             >
                               <ExternalLink className="size-4" />
                             </Button>
@@ -831,10 +856,10 @@ function MailboxPage() {
                                 attachmentViewer.data || attachmentViewer.url
                               }
                             />
-                          ) : attachmentViewer.mimeType.startsWith("image/") ||
-                            attachmentViewer.filename
-                              .toLowerCase()
-                              .match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                          ) : isSafeRasterImageMime(
+                              attachmentViewer.mimeType,
+                              attachmentViewer.filename,
+                            ) ? (
                             <div className="flex items-center justify-center p-4 h-full">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
@@ -855,13 +880,23 @@ function MailboxPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() =>
-                                  window.open(attachmentViewer.url, "_blank")
-                                }
+                                onClick={() => {
+                                  if (attachmentViewer.data) {
+                                    saveMailboxAttachment(
+                                      attachmentViewer.data,
+                                      {
+                                        filename: attachmentViewer.filename,
+                                        mimeType: attachmentViewer.mimeType,
+                                      },
+                                    );
+                                  } else {
+                                    openSafeUrlInNewTab(attachmentViewer.url);
+                                  }
+                                }}
                                 className="mt-2 text-[12px]"
                               >
-                                <ExternalLink className="size-3.5 mr-1.5" />{" "}
-                                Open in new tab
+                                <Download className="size-3.5 mr-1.5" />{" "}
+                                Download file
                               </Button>
                             </div>
                           )}

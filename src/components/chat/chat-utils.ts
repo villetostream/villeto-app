@@ -55,7 +55,7 @@ export function formatFileSize(bytes: number): string {
 }
 
 export function isImageFile(name: string): boolean {
-  return /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(name);
+  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(name);
 }
 
 export function createAttachmentFromFile(file: File) {

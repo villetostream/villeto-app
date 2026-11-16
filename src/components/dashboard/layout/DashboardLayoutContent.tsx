@@ -63,7 +63,7 @@ export default function DashboardLayoutContent({
     (state) => state.generation,
   );
   const { user, isLoading } = useAuthStore();
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isTourActive = useTourStore((s) => s.isTourActive);
   const setupGuideReady = useTourStore((s) => s.setupGuideReady);
 
@@ -118,7 +118,7 @@ export default function DashboardLayoutContent({
     return <SplashScreen />;
   }
 
-  if (!accessToken) {
+  if (!isAuthenticated) {
     return <SplashScreen />; // Wait for initial proactive refresh
   }
 

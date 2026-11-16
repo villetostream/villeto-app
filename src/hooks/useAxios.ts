@@ -9,6 +9,7 @@ import axios, {
 } from "axios";
 import { invalidateAuthorization } from "@/features/auth/authorization";
 import { scheduleTokenRefresh } from "@/lib/tokenRefreshService";
+import { setAuthMarkerCookie } from "@/lib/security/auth-cookie";
 import {
   CONNECTION_POOL_MESSAGE,
   isConnectionPoolError,
@@ -46,16 +47,16 @@ type ApiErrorPayload = {
 
 type RefreshResponse = {
   data?: {
-    accessToken?: string;
+    authenticated?: boolean;
     accessTokenExpiresInMs?: number;
     data?: {
-      accessToken?: string;
+      authenticated?: boolean;
       accessTokenExpiresInMs?: number;
     };
   };
 };
 
-const BASEURL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const BASEURL = "/api/bff";
 const apiClient = axios.create({
   baseURL: BASEURL,
   withCredentials: true,
@@ -68,7 +69,7 @@ function finishWorkspaceMutation(config?: InternalAxiosRequestConfig) {
   useEntityWorkspaceStore.getState().mutationFinished();
 }
 
-let refreshPromise: Promise<string> | null = null;
+let refreshPromise: Promise<void> | null = null;
 
 // ── Client-side traffic shaping ─────────────────────────────────────────────────────────
 // A bounded concurrency gate (like a token bucket with N tokens) so a page
@@ -204,7 +205,7 @@ function redirectToLogin() {
   }
 }
 
-function refreshAccessToken() {
+function refreshAccessToken(): Promise<void> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = axios
@@ -214,10 +215,13 @@ function refreshAccessToken() {
       { withCredentials: true },
     )
     .then((response) => {
-      const accessToken =
-        response.data?.data?.accessToken ?? response.data?.accessToken;
-      if (!accessToken) {
-        throw new Error("No access token returned");
+      const authenticated = Boolean(
+        response.data?.data?.authenticated ??
+          response.data?.authenticated ??
+          (response.status >= 200 && response.status < 300),
+      );
+      if (!authenticated) {
+        throw new Error("Session refresh failed");
       }
 
       const expiresInMs =
@@ -225,15 +229,11 @@ function refreshAccessToken() {
         response.data?.accessTokenExpiresInMs ??
         3_600_000;
 
-      useAuthStore.getState().setAccessToken(accessToken, expiresInMs);
+      useAuthStore.getState().setAuthenticated(true, expiresInMs);
       scheduleTokenRefresh(expiresInMs);
 
       // Keep the villeto_auth marker cookie alive
-      if (typeof document !== "undefined") {
-        document.cookie = `villeto_auth=true; path=/; max-age=${Math.floor(expiresInMs / 1000)}`;
-      }
-
-      return accessToken;
+      setAuthMarkerCookie(expiresInMs);
     })
     .finally(() => {
       refreshPromise = null;
@@ -331,9 +331,8 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
       workspace.mutationStarted();
     }
   }
-  const accessToken = useAuthStore.getState().accessToken;
-  if (accessToken) {
-    config.headers.set("Authorization", `Bearer ${accessToken}`);
+  if (config.url?.startsWith("/api/bff/") || config.url === "/api/bff") {
+    config.baseURL = "";
   }
   return config;
 });
@@ -416,8 +415,7 @@ apiClient.interceptors.response.use(
 
       originalRequest._retry = true;
       try {
-        const accessToken = await refreshAccessToken();
-        originalRequest.headers.set("Authorization", `Bearer ${accessToken}`);
+        await refreshAccessToken();
         return apiClient(originalRequest);
       } catch (refreshError) {
         useAuthStore.getState().logout();

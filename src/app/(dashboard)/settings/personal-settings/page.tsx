@@ -14,6 +14,7 @@ import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
+import { validateRasterImageFile } from "@/lib/security/file-upload";
 import { notifySetupGuide } from "@/lib/setupGuideEvents";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -279,6 +280,12 @@ function MyProfileTab() {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const validation = validateRasterImageFile(file, 5 * 1024 * 1024);
+    if (!validation.valid) {
+      toast.error(validation.error);
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => setAvatarPreview(reader.result as string);
     reader.readAsDataURL(file);
@@ -587,6 +594,12 @@ function LogoUploader({
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const validation = validateRasterImageFile(file, 5 * 1024 * 1024);
+    if (!validation.valid) {
+      toast.error(validation.error);
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => onLogoChange(file, reader.result as string);
     reader.readAsDataURL(file);
@@ -606,7 +619,7 @@ function LogoUploader({
           <Pencil className="w-3.5 h-3.5 text-white" />
         </div>
       </div>
-      <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" className="hidden" onChange={handleFile} />
+      <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/webp,image/gif" className="hidden" onChange={handleFile} />
     </div>
   );
 }

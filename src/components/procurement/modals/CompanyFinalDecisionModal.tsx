@@ -13,6 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { sanitizeNavigationHref } from "@/lib/security/url";
+import { sanitizeImageSrc } from "@/lib/security/blob-preview";
 import {
   Dialog,
   DialogContent,
@@ -738,9 +740,9 @@ export default function CompanyFinalDecisionModal({
                         <span className="font-semibold">{previewPhoto.label}</span>
                         <div className="flex items-center gap-2">
                           <a
-                            href={previewPhoto.url}
+                            href={sanitizeNavigationHref(previewPhoto.url) ?? "#"}
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/15 hover:bg-white/25 text-[11px]"
                           >
                             Open Original <ExternalLink className="w-3 h-3" />
@@ -756,7 +758,7 @@ export default function CompanyFinalDecisionModal({
                       </div>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={previewPhoto.url}
+                        src={sanitizeImageSrc(previewPhoto.url)}
                         alt={previewPhoto.label}
                         className="max-h-64 mx-auto object-contain rounded"
                       />

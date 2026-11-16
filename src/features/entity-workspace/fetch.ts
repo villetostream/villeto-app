@@ -13,13 +13,17 @@ export async function workspaceFetch(
   init: RequestInit = {},
 ): Promise<Response> {
   const state = useEntityWorkspaceStore.getState();
+  const baseOrigin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "http://localhost";
   const url = new URL(
     typeof input === "string"
       ? input
       : input instanceof URL
         ? input.href
         : input.url,
-    "http://localhost",
+    baseOrigin,
   );
   const request = input instanceof Request ? input : null;
   const method = init.method || request?.method || "GET";
@@ -27,7 +31,9 @@ export async function workspaceFetch(
     process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.villeto.com/",
   );
   const internal =
-    url.origin === backend.origin || url.origin === "http://localhost";
+    url.origin === backend.origin ||
+    url.origin === baseOrigin ||
+    url.origin === "http://localhost";
   const optionalDetail = optionalWorkspaceDetail(url.pathname, method);
   const scoped =
     internal &&

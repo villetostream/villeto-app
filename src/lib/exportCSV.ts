@@ -1,5 +1,6 @@
 import { logger } from "@/lib/logger";
 import { isRecord } from "@/lib/types/api-error";
+import { DANGEROUS_OBJECT_KEYS } from "@/lib/security/file-upload";
 // function flattenObject(ob: unknown, prefix = "", result: unknown = {}): unknown {
 //     for (const key in ob) {
 //       if (Object.prototype.hasOwnProperty.call(ob, key)) {
@@ -115,6 +116,19 @@ function flattenObject(
   return result;
 }
 
+// Escape CSV values and neutralize spreadsheet formula injection (=, +, -, @, tab, CR)
+export function escapeCSVValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  let str = String(value);
+  if (/^[\s\t\r]*[=+\-@]/.test(str) || str.startsWith("\t") || str.startsWith("\r")) {
+    str = `'${str}`;
+  }
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    str = '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
 // Function to export data as CSV. If filename isn't provided, it is generated based on the type.
 export default function exportToCSV(
   data: unknown,
@@ -145,32 +159,24 @@ export default function exportToCSV(
   const headers = Array.from(headersSet);
   csvContent += headers.join(",") + "\n";
 
-  // Escape CSV values if needed
-  const escapeCSV = (value: unknown) => {
-    if (value === null || value === undefined) return "";
-    let str = String(value);
-    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-      str = '"' + str.replace(/"/g, '""') + '"';
-    }
-    return str;
-  };
-
   // Create each row
   flatData.forEach((item) => {
-    const row = headers.map((header) => escapeCSV(item[header])).join(",");
+    const row = headers.map((header) => escapeCSVValue(item[header])).join(",");
     csvContent += row + "\n";
   });
 
   // Create a blob and trigger the download
+  const safeFileName = finalFileName.replace(/[\\/:*?"<>|\r\n]/g, "_");
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
   const url = URL.createObjectURL(blob);
   link.setAttribute("href", url);
-  link.setAttribute("download", finalFileName);
+  link.setAttribute("download", safeFileName);
   link.style.visibility = "hidden";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 //alternative
@@ -253,23 +259,34 @@ function ensureRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
-// Helper to convert flattened keys into nested objects/arrays
+// Helper to convert flattened keys into nested objects/arrays safely (guards against prototype pollution)
 export function unflatten(obj: Record<string, unknown>) {
   const result: Record<string, unknown> = {};
 
-  for (const flatKey in obj) {
+  for (const flatKey of Object.keys(obj)) {
     const value = obj[flatKey];
-    const segments = flatKey.split('.');
+    const segments = flatKey.split(".");
+    if (segments.some((seg) => {
+      const base = seg.replace(/\[\d+\]$/, "");
+      return DANGEROUS_OBJECT_KEYS.has(seg) || DANGEROUS_OBJECT_KEYS.has(base);
+    })) {
+      continue;
+    }
+
     let current: Record<string, unknown> = result;
 
-    segments.forEach((segment, idx) => {
+    for (let idx = 0; idx < segments.length; idx++) {
+      const segment = segments[idx];
       const arrayMatch = segment.match(/^(.+)\[(\d+)\]$/);
       const isLast = idx === segments.length - 1;
 
       if (arrayMatch) {
         const key = arrayMatch[1];
         const index = parseInt(arrayMatch[2], 10);
-        const arr = ensureArray(current[key]);
+        if (DANGEROUS_OBJECT_KEYS.has(key) || !Number.isFinite(index) || index < 0 || index >= 10_000) {
+          break;
+        }
+        const arr = ensureArray(Object.prototype.hasOwnProperty.call(current, key) ? current[key] : undefined);
         current[key] = arr;
 
         if (isLast) {
@@ -280,17 +297,20 @@ export function unflatten(obj: Record<string, unknown>) {
           current = nested;
         }
       } else {
-        // plain object key
         const key = segment;
+        if (DANGEROUS_OBJECT_KEYS.has(key)) {
+          break;
+        }
         if (isLast) {
           current[key] = value;
         } else {
-          const nested = ensureRecord(current[key]);
+          const existing = Object.prototype.hasOwnProperty.call(current, key) ? current[key] : undefined;
+          const nested = ensureRecord(existing);
           current[key] = nested;
           current = nested;
         }
       }
-    });
+    }
   }
 
   return result;

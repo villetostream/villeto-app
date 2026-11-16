@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useRouter } from "next/navigation";
+import { apiUrl } from "@/lib/api-url";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,14 +37,8 @@ interface NotificationProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.villeto.com/";
 const UUID_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-
-function apiUrl(path: string) {
-  return `${BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
-}
 
 
 function getString(value: unknown, fallback = ""): string {
@@ -102,7 +97,6 @@ function timeAgo(iso: string): string {
  */
 async function resolveMessageIds(
   message: string,
-  accessToken: string | null,
 ): Promise<string> {
   const matches = Array.from(new Set(message.match(UUID_RE) ?? []));
   if (!matches.length) return message;
@@ -142,7 +136,6 @@ async function resolveMessageIds(
       try {
         const res = await workspaceFetch(endpoint, {
           headers: {
-            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
             "Content-Type": "application/json",
           },
           credentials: "include",
@@ -201,7 +194,6 @@ function NotificationView({
   const workspace = useEntityWorkspaceStore.getState();
   const cacheKey = `${workspace.identity}:${workspace.selection || "legacy"}:${workspace.generation}`;
   const cachedNotifications = notificationCache.get(cacheKey) || null;
-  const accessToken = useAuthStore.getState().accessToken;
   const router = useRouter();
   const setGlobalUnreadCount = useNotificationCountStore(
     (s) => s.setUnreadCount,
@@ -229,10 +221,8 @@ function NotificationView({
 
   // ── Auth headers ─────────────────────────────────────────────────────────────
   const authHeaders = useCallback((): Record<string, string> => {
-    const h: Record<string, string> = { "Content-Type": "application/json" };
-    if (accessToken) h["Authorization"] = `Bearer ${accessToken}`;
-    return h;
-  }, [accessToken]);
+    return { "Content-Type": "application/json" };
+  }, []);
 
   // ── Fetch + resolve messages ──────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
@@ -269,7 +259,7 @@ function NotificationView({
           const msg = n.message ?? "";
           if (!msg.match(UUID_RE)) return n;
           try {
-            const resolvedMessage = await resolveMessageIds(msg, accessToken);
+            const resolvedMessage = await resolveMessageIds(msg);
             return { ...n, resolvedMessage };
           } catch {
             return n;
@@ -285,7 +275,7 @@ function NotificationView({
       if (useEntityWorkspaceStore.getState().generation === generation)
         setLoading(false);
     }
-  }, [authHeaders, accessToken, cacheKey, generation]);
+  }, [authHeaders, cacheKey, generation]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {

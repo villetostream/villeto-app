@@ -30,6 +30,8 @@ import {
   pickString,
 } from "@/lib/types/api-error";
 import { logger } from "@/lib/logger";
+import { sanitizeNavigationHref } from "@/lib/security/url";
+import { apiUrl } from "@/lib/api-url";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,14 +58,8 @@ interface TabConfig {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.villeto.com/";
 const UUID_RE =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-
-function apiUrl(path: string) {
-  return `${BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
-}
 
 function normalise(raw: Record<string, unknown>): NotificationItem {
   return {
@@ -124,7 +120,6 @@ function inferCategory(
 
 async function resolveMessageIds(
   message: string,
-  accessToken: string | null,
 ): Promise<string> {
   const matches = Array.from(new Set(message.match(UUID_RE) ?? []));
   if (!matches.length) return message;
@@ -160,7 +155,6 @@ async function resolveMessageIds(
       try {
         const res = await workspaceFetch(endpoint, {
           headers: {
-            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
             "Content-Type": "application/json",
           },
           credentials: "include",
@@ -272,7 +266,7 @@ export default function InboxPage() {
 function InboxWorkspaceView() {
   const generation = useEntityWorkspaceStore((state) => state.generation);
   const readOnly = workspaceReadOnly();
-  const accessToken = useAuthStore.getState().accessToken;
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const setGlobalUnreadCount = useNotificationCountStore(
     (s) => s.setUnreadCount,
   );
@@ -290,10 +284,8 @@ function InboxWorkspaceView() {
 
   // ── Auth headers ─────────────────────────────────────────────────────────────
   const authHeaders = useCallback((): Record<string, string> => {
-    const h: Record<string, string> = { "Content-Type": "application/json" };
-    if (accessToken) h["Authorization"] = `Bearer ${accessToken}`;
-    return h;
-  }, [accessToken]);
+    return { "Content-Type": "application/json" };
+  }, []);
 
   // ── Fetch all ────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(
@@ -328,7 +320,7 @@ function InboxWorkspaceView() {
             try {
               return {
                 ...n,
-                resolvedMessage: await resolveMessageIds(msg, accessToken),
+                resolvedMessage: await resolveMessageIds(msg),
               };
             } catch {
               return n;
@@ -347,7 +339,7 @@ function InboxWorkspaceView() {
         }
       }
     },
-    [authHeaders, accessToken, generation],
+    [authHeaders, generation],
   );
 
   useEffect(() => {
@@ -358,7 +350,7 @@ function InboxWorkspaceView() {
 
   // ── SSE ──────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!accessToken) return;
+    if (!isAuthenticated) return;
     const controller = new AbortController();
     sseAbortRef.current = controller;
     let buffer = "";
@@ -367,7 +359,6 @@ function InboxWorkspaceView() {
       try {
         const res = await workspaceFetch(apiUrl("events/notifications"), {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
             Accept: "text/event-stream",
             "Cache-Control": "no-cache",
           },
@@ -402,7 +393,7 @@ function InboxWorkspaceView() {
               const incoming = normalise(asRecord(parsed));
               const msg = incoming.message ?? "";
               const resolvedMessage = msg.match(UUID_RE)
-                ? await resolveMessageIds(msg, accessToken).catch(() => msg)
+                ? await resolveMessageIds(msg).catch(() => msg)
                 : msg;
               if (useEntityWorkspaceStore.getState().generation !== generation)
                 return;
@@ -427,7 +418,7 @@ function InboxWorkspaceView() {
       }
     })();
     return () => controller.abort();
-  }, [accessToken, generation]);
+  }, [isAuthenticated, generation]);
 
   // ── Mark single read ─────────────────────────────────────────────────────────
   const markRead = useCallback(
@@ -687,7 +678,7 @@ function InboxWorkspaceView() {
                         )}
                         {n.actionText && (
                           <a
-                            href={n.actionUrl ?? "#"}
+                            href={sanitizeNavigationHref(n.actionUrl) ?? "#"}
                             onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 mt-2 hover:underline"
                           >
@@ -845,7 +836,7 @@ function InboxWorkspaceView() {
                       Action Required
                     </p>
                     <a
-                      href={selected.actionUrl ?? "#"}
+                      href={sanitizeNavigationHref(selected.actionUrl) ?? "#"}
                       className="flex items-center justify-between w-full px-4 py-3.5 rounded-xl border border-teal-200 bg-teal-50 hover:bg-teal-100 transition-colors group"
                     >
                       <span className="text-sm font-medium text-teal-700">

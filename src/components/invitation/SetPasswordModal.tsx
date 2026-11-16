@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAxios } from "@/hooks/useAxios";
 import { API_KEYS } from "@/lib/constants/apis";
+import { passwordSchema } from "@/lib/validation/common";
 
 interface SetPasswordModalProps {
     open: boolean;
@@ -26,10 +27,10 @@ interface SetPasswordModalProps {
 
 function getPasswordStrength(password: string): number {
     let score = 0;
-    if (password.length >= 8) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[a-z]/.test(password)) score++;
+    if (password.length >= 8 && password.length <= 100) score++;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
     if (/[0-9]/.test(password)) score++;
+    if (/[^a-zA-Z0-9]/.test(password)) score++;
     return score; // 0–4
 }
 
@@ -70,16 +71,14 @@ export default function SetPasswordModal({
     const [showConfirm, setShowConfirm] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
-    const hasMinLength = password.length >= 8;
+    const hasMinLength = password.length >= 8 && password.length <= 100;
     const hasNumber = /[0-9]/.test(password);
     const hasUpper = /[A-Z]/.test(password);
     const hasLower = /[a-z]/.test(password);
+    const hasSpecialChar = /[^a-zA-Z0-9]/.test(password);
     const passwordsMatch = password === confirm && password.length > 0;
     const isValid =
-        hasMinLength &&
-        hasNumber &&
-        hasUpper &&
-        hasLower &&
+        passwordSchema.safeParse(password).success &&
         passwordsMatch &&
         (!requireOldPassword || oldPassword.trim().length > 0);
 
@@ -98,7 +97,7 @@ export default function SetPasswordModal({
                 await axios.post(API_KEYS.USER.PASSWORD_SET, {
                     password,
                     confirmPassword: confirm,
-                    email,
+                    email: email.trim().toLowerCase(),
                 });
             }
             if (onSuccess) {
@@ -259,6 +258,7 @@ export default function SetPasswordModal({
                         <ValidationBadge label="Number" met={hasNumber} />
                         <ValidationBadge label="Uppercase Letter" met={hasUpper} />
                         <ValidationBadge label="Lowercase Letter" met={hasLower} />
+                        <ValidationBadge label="Special Character" met={hasSpecialChar} />
                     </div>
 
                     {/* Continue button */}

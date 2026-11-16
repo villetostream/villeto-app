@@ -12,6 +12,7 @@ import {
   useDisconnectTenantMailbox,
 } from "@/queries/bill-pay-mailboxes";
 import { getApiErrorMessage } from "@/lib/types/api-error";
+import { isSafeOAuthAuthorizationUrl } from "@/lib/security/url";
 
 const statusLabel: Record<TenantMailboxConnection["status"], string> = {
   pending_authorization: "Awaiting authorization",
@@ -54,7 +55,12 @@ export function MailboxConnectionsSettings({ legalEntityId }: { legalEntityId: s
     try {
       const res = await startAuthorization.mutateAsync({ legalEntityId });
       if (res?.authorizationUrl) {
-        window.location.href = res.authorizationUrl;
+        const safeUrl = isSafeOAuthAuthorizationUrl(res.authorizationUrl);
+        if (!safeUrl) {
+          toast.error("Received an untrusted authorization URL. Please contact support.");
+          return;
+        }
+        window.location.href = safeUrl;
       }
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Failed to start connection process"));

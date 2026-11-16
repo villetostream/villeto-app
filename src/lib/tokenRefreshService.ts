@@ -11,6 +11,7 @@ import { apiUrl } from "@/lib/api-url";
  */
 
 import axios from "axios";
+import { setAuthMarkerCookie } from "@/lib/security/auth-cookie";
 
 /** Refresh 5 minutes before expiry */
 const EARLY_REFRESH_MS = 5 * 60 * 1000;
@@ -34,25 +35,24 @@ export function scheduleTokenRefresh(expiresInMs: number) {
         { withCredentials: true }
       );
 
-      const newToken =
-        response.data?.data?.accessToken ||
-        response.data?.accessToken ||
-        null;
+      const authenticated = Boolean(
+        response.data?.data?.authenticated ??
+          response.data?.authenticated ??
+          (response.status >= 200 && response.status < 300)
+      );
 
       const newExpiresInMs =
         response.data?.data?.accessTokenExpiresInMs ||
         response.data?.accessTokenExpiresInMs ||
         3600000; // default 1 hour
 
-      if (newToken) {
+      if (authenticated) {
         // Import dynamically to avoid circular deps
         const { useAuthStore } = await import("@/stores/auth-stores");
-        useAuthStore.getState().setAccessToken(newToken, newExpiresInMs);
+        useAuthStore.getState().setAuthenticated(true, newExpiresInMs);
 
         // Keep the villeto_auth marker cookie alive
-        if (typeof document !== "undefined") {
-          document.cookie = `villeto_auth=true; path=/; max-age=${Math.floor(newExpiresInMs / 1000)}`;
-        }
+        setAuthMarkerCookie(newExpiresInMs);
 
         // Schedule the next refresh
         scheduleTokenRefresh(newExpiresInMs);

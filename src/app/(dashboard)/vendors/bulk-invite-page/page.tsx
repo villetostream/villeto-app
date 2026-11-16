@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useInviteVendorV2 } from "@/queries/vendors/vendor-network";
 import { toast } from "sonner";
+import { validateSpreadsheetFile } from "@/lib/security/file-upload";
 import { useRouter } from "next/navigation";
 import { Download, Trash2, Loader2 } from "lucide-react";
 import {
@@ -181,6 +182,11 @@ function VendorBulkInvitePage() {
   }, [paginationProps]);
 
   const handleFileSelect = (f: File) => {
+    const validation = validateSpreadsheetFile(f, 15 * 1024 * 1024);
+    if (!validation.valid) {
+      toast.error(validation.error);
+      return;
+    }
     setFile(f);
     parseFile(f);
   };

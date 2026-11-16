@@ -8,7 +8,7 @@ import { User } from "@/stores/auth-stores";
 
 interface Response {
     data: {
-        accessToken: string,
+        authenticated?: boolean,
         user: User,
         accessTokenExpiresInMs?: number,
     }
