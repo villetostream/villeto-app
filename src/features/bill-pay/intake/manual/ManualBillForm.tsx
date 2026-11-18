@@ -53,11 +53,10 @@ function ManualBillEditor({
   const {
     legalEntityId,
     entitiesLoading,
-    workspaceSettings,
-    workspaceSettingsError,
-    refetchWorkspaceSettings,
-    enableWorkspace,
-    enableCompanyWorkspace,
+    financeEntityEligible,
+    financeEntitiesLoading,
+    financeEntitiesError,
+    refetchFinanceEntities,
     handleSubmit,
     isSaving,
     cancel,
@@ -96,41 +95,13 @@ function ManualBillEditor({
         </div>
         <Card className="overflow-hidden rounded-[14px] border-black/[0.08] shadow-sm">
           <CardContent className="space-y-8 p-5 sm:p-8">
-            {workspaceSettings?.enabled === false && (
-              <div className="rounded-[10px] border border-amber-200 bg-amber-50 p-4 text-[12px] text-[#68726d]">
-                <p className="font-semibold text-[#0b100e]">
-                  Company workspace setup is required to save this draft.
-                </p>
-                <p className="mt-1">
-                  Enabling it applies to the whole company and uses each
-                  person&apos;s legal entity assignments and access.
-                </p>
-                {workspaceSettings.deploymentAvailable ? (
-                  <Button
-                    type="button"
-                    onClick={enableCompanyWorkspace}
-                    disabled={enableWorkspace.isPending}
-                    className="mt-3 bg-[#087f70] text-white hover:bg-[#076b5e]"
-                  >
-                    {enableWorkspace.isPending
-                      ? "Enabling..."
-                      : "Enable company workspace"}
-                  </Button>
-                ) : (
-                  <p className="mt-2 text-[#a46709]">
-                    A platform administrator must enable the workspace feature
-                    first.
-                  </p>
-                )}
-              </div>
-            )}
-            {workspaceSettingsError && (
+            {financeEntitiesError && (
               <button
                 type="button"
                 className="text-[12px] text-red-700 underline"
-                onClick={() => void refetchWorkspaceSettings()}
+                onClick={() => void refetchFinanceEntities()}
               >
-                Could not check workspace setup. Retry
+                Could not check finance entity access. Retry
               </button>
             )}
             <ManualBillDetails editor={editor} />
@@ -148,7 +119,12 @@ function ManualBillEditor({
                 type="button"
                 className="h-10 min-w-32 rounded-[8px] bg-[#087f70] text-[13px] font-semibold text-white hover:bg-[#076b5e]"
                 onClick={handleSubmit}
-                disabled={isSaving || workspaceSettings?.enabled !== true}
+                disabled={
+                  isSaving ||
+                  financeEntitiesLoading ||
+                  financeEntitiesError ||
+                  !financeEntityEligible
+                }
               >
                 {isSaving
                   ? "Saving..."

@@ -9,7 +9,7 @@ type InvoicePayload = Omit<
 >;
 
 interface ManualBillSaveInput {
-  companyWorkspaceEnabled: boolean;
+  financeEntityEligible: boolean;
   legalEntityId: string;
   vendorId: string;
   vendorSelected: boolean;
@@ -33,7 +33,7 @@ export function prepareManualBillSave(
   input: ManualBillSaveInput,
 ): SavePreparation {
   const {
-    companyWorkspaceEnabled,
+    financeEntityEligible,
     legalEntityId,
     vendorId,
     vendorSelected,
@@ -49,11 +49,11 @@ export function prepareManualBillSave(
     draft,
   } = input;
 
-  if (!companyWorkspaceEnabled) {
+  if (!financeEntityEligible) {
     return {
       ok: false,
       message:
-        "Enable the company legal entity workspace before saving this bill.",
+        "Select a legal entity with finance access before saving this bill.",
     };
   }
   if (
