@@ -75,6 +75,7 @@ export function useSaveManualBillDraft() {
           source: "manual_entry",
           externalReference: invoice.invoiceNumber,
           structuredInput: { captureMethod: "manual" },
+          idempotencyKey,
         },
         { headers: { "Idempotency-Key": idempotencyKey } },
       );
