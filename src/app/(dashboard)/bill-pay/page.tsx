@@ -26,7 +26,6 @@ import {
   startOfMonth,
   endOfMonth,
   subMonths,
-  startOfMonth as startOfM,
 } from "date-fns";
 
 import { DatePicker } from "@/components/ui/date-picker";
@@ -112,11 +111,11 @@ function BillPayPage() {
           description: "Upload or enter an invoice",
           onClick: () => router.push("/bill-pay/add"),
         },
-        {
+        ...(policies.billPay.canCreateInvoice ? [{
           label: "Set Up Recurring Bill",
-          description: "Automate regular bills",
+          description: "Track expected vendor invoices",
           onClick: () => router.push("/bill-pay/add-recurring"),
-        },
+        }] : []),
       ],
       ...(policies.billPay.canViewMailboxConnections && {
         secondaryAction: {
@@ -141,71 +140,50 @@ function BillPayPage() {
     style: "currency",
     currency: baseCurrency,
   });
-  // Helper to format metric
-  const getMetricFormat = (metricObj: any) => {
-    const amount = metricObj?.amount
-      ? formatter.format(parseFloat(metricObj.amount))
-      : "—";
-    const pctChangeRaw = parseFloat(metricObj?.amountPercentageChange || "0");
-    const pctChangeText = `${Math.abs(pctChangeRaw).toFixed(1)}% vs last period`;
-    const trendDir =
-      pctChangeRaw > 0 ? "up" : pctChangeRaw < 0 ? "down" : "neutral";
-    return { amount, pctChangeText, trendDir };
-  };
-
-  const totalBills = getMetricFormat(summaryData?.metrics?.totalBills);
-  const pendingApprovals = getMetricFormat(
-    summaryData?.metrics?.awaitingApproval,
+  const totalBillsAmount = summaryData?.metrics?.totalBills?.amount
+    ? formatter.format(Number(summaryData.metrics.totalBills.amount))
+    : "—";
+  const periodFilter = (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {period === "custom" && (
+        <div className="flex items-center gap-2">
+          <DatePicker
+            date={customStartDate}
+            setDate={setCustomStartDate}
+            placeholder="Start Date"
+            className="w-[140px] h-10 border-gray-200 bg-white text-gray-600 rounded-[10px]"
+            toDate={customEndDate}
+          />
+          <span className="text-gray-400">-</span>
+          <DatePicker
+            date={customEndDate}
+            setDate={setCustomEndDate}
+            placeholder="End Date"
+            className="w-[140px] h-10 border-gray-200 bg-white text-gray-600 rounded-[10px]"
+            fromDate={customStartDate}
+          />
+        </div>
+      )}
+      <div className="w-[160px]">
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger className="h-10 px-4 border-gray-200 bg-white text-gray-600 font-medium rounded-[10px] w-full">
+            <SelectValue placeholder="Select period" />
+          </SelectTrigger>
+          <SelectContent className="rounded-[12px] border-black/[0.055] shadow-lg">
+            <SelectItem value="this_month">This Month</SelectItem>
+            <SelectItem value="last_month">Last Month</SelectItem>
+            <SelectItem value="last_3_months">Last 3 Months</SelectItem>
+            <SelectItem value="custom">Custom Range</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
   );
-  const readyForPayment = getMetricFormat(
-    summaryData?.metrics?.readyForPayment,
-  );
-  const completed = getMetricFormat(summaryData?.metrics?.completed);
 
   return (
     <div className="flex flex-col h-full pb-2">
       <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Dashboard Header & Period Filter */}
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Dashboard Summary
-          </h2>
-          <div className="flex items-center justify-end gap-2">
-            {period === "custom" && (
-              <div className="flex items-center gap-2">
-                <DatePicker
-                  date={customStartDate}
-                  setDate={setCustomStartDate}
-                  placeholder="Start Date"
-                  className="w-[140px] h-10 border-gray-200 bg-white text-gray-600 rounded-[10px]"
-                  toDate={customEndDate}
-                />
-                <span className="text-gray-400">-</span>
-                <DatePicker
-                  date={customEndDate}
-                  setDate={setCustomEndDate}
-                  placeholder="End Date"
-                  className="w-[140px] h-10 border-gray-200 bg-white text-gray-600 rounded-[10px]"
-                  fromDate={customStartDate}
-                />
-              </div>
-            )}
-            <div className="w-[160px]">
-              <Select value={period} onValueChange={setPeriod}>
-                <SelectTrigger className="h-10 px-4 border-gray-200 bg-white text-gray-600 font-medium rounded-[10px] w-full">
-                  <SelectValue placeholder="Select period" />
-                </SelectTrigger>
-                <SelectContent className="rounded-[12px] border-black/[0.055] shadow-lg">
-                  <SelectItem value="this_month">This Month</SelectItem>
-                  <SelectItem value="last_month">Last Month</SelectItem>
-                  <SelectItem value="last_3_months">Last 3 Months</SelectItem>
-                  <SelectItem value="custom">Custom Range</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
+        <BillPayTabs activeTab={activeTab} setActiveTab={setActiveTab} periodFilter={periodFilter}>
         {/* Summary Cards */}
         {summaryData?.scope === "all" ? (
           <div className="space-y-3" aria-label="Bills by currency">
@@ -262,7 +240,7 @@ function BillPayPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
             <StatsCard
               title="Total Bills This Month"
-              value={totalBills.amount}
+              value={totalBillsAmount}
               subtitle={
                 <span className="text-[11px] text-[#68726d]">
                   {summaryData?.metrics?.totalBills?.count != null ? `${summaryData.metrics.totalBills.count} bills` : "Total invoices in this period"}
@@ -327,8 +305,7 @@ function BillPayPage() {
           </div>
         )}
 
-        {/* Tabs Section */}
-        <BillPayTabs activeTab={activeTab} setActiveTab={setActiveTab} />
+        </BillPayTabs>
 
         {/* TODO: Uncomment when backend delivers email-configuration endpoints */}
         {/* {policies.billPay.canManageConfiguration && <ConfigureEmailModal open={showConfigureEmail} onOpenChange={setShowConfigureEmail} />} */}

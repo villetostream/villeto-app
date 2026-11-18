@@ -1,295 +1,155 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Filter, MoreHorizontal, Eye, PauseCircle, PlayCircle, Edit3, ChevronDown } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Filter, MoreHorizontal, Search } from "lucide-react";
+import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
+import { useRecurringOccurrences, useRecurringProfiles, type OccurrenceState } from "@/queries/bill-pay/recurring";
+import { RecurringCardSubscriptionsTable } from "./RecurringCardSubscriptionsTable";
 
-export interface RecurringBillRow {
-  id: string;
-  vendorName: string;
-  description: string;
-  amount: string;
-  frequency: string;
-  nextDue: string;
-  status: "active" | "pending" | "action_required" | string;
-}
-
-const mockRecurringBills: RecurringBillRow[] = [
-  { id: "00041", vendorName: "Acme Ltd", description: "Cloud Services", amount: "₦4,200,000.00", frequency: "Monthly", nextDue: "-", status: "pending" },
-  { id: "00041", vendorName: "Delta Services", description: "Office Supplies", amount: "₦4,200,000.00", frequency: "Weekly", nextDue: "10 Sept 2025", status: "active" },
-  { id: "00041", vendorName: "Nova Tech", description: "Advisory Services", amount: "₦4,200,000.00", frequency: "Monthly", nextDue: "-", status: "pending" },
-  { id: "00041", vendorName: "Zenith Corp", description: "Software Subscription", amount: "₦4,200,000.00", frequency: "Weekly", nextDue: "10 Sept 2025", status: "active" },
-  { id: "00041", vendorName: "Delta Services", description: "Equipment Lease", amount: "₦4,200,000.00", frequency: "Monthly", nextDue: "-", status: "action_required" },
-  { id: "00041", vendorName: "Pinnacle Ltd", description: "Monthly Stationery", amount: "₦4,200,000.00", frequency: "Weekly", nextDue: "10 Sept 2025", status: "active" },
-  { id: "00041", vendorName: "Delta Services", description: "Software Subscription", amount: "₦4,200,000.00", frequency: "Monthly", nextDue: "10 Sept 2025", status: "active" },
-  { id: "00041", vendorName: "Atlas Partners", description: "Equipment Lease", amount: "₦4,200,000.00", frequency: "Weekly", nextDue: "10 Sept 2025", status: "active" },
+const views: Array<{ key: "schedules" | OccurrenceState; label: string }> = [
+  { key: "schedules", label: "All" }, { key: "upcoming", label: "Upcoming" },
+  { key: "due", label: "Due" }, { key: "overdue", label: "Overdue" },
+  { key: "matched", label: "Matched" }, { key: "skipped", label: "Skipped" },
 ];
 
-export function RecurringBillsTable() {
+const money = (value: string | null, currency: string) => value
+  ? new Intl.NumberFormat("en-NG", { style: "currency", currency }).format(Number(value))
+  : "Variable";
+
+const shortDate = (value: string | null) => value
+  ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+    .format(new Date(`${value}T00:00:00Z`))
+  : "—";
+
+const statusStyle = (status: string) => status === "active" || status === "matched"
+  ? "bg-[#f1f9f1] text-[#348a3e]"
+  : status === "overdue" || status === "ended"
+    ? "bg-[#fef0ef] text-[#ce3c37]"
+    : "bg-[#fff8eb] text-[#e29a0b]";
+
+function InvoiceRecurringBillsTable() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("all");
+  const entities = useTransactionLegalEntities("finance");
+  const entityOptions = entities.data?.data || [];
+  const [selectedEntityId, setSelectedEntityId] = useState("");
+  const legalEntityId = entityOptions.some((entity) => entity.legalEntityId === selectedEntityId)
+    ? selectedEntityId
+    : entityOptions[0]?.legalEntityId || "";
+  const [view, setView] = useState<(typeof views)[number]["key"]>("schedules");
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [pageSize, setPageSize] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
+  const [scheduleStatus, setScheduleStatus] = useState("");
+  const [cadence, setCadence] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const schedules = useRecurringProfiles({ legalEntityId, status: scheduleStatus || undefined,
+    cadence: cadence || undefined, search: search.trim() || undefined, page, limit: 10 }, view === "schedules");
+  const occurrences = useRecurringOccurrences({ legalEntityId, status: view === "schedules" ? undefined : view,
+    from: from || undefined, to: to || undefined, page, limit: 10 }, view !== "schedules");
+  const selected = view === "schedules" ? schedules : occurrences;
+  const meta = selected.data?.meta;
 
-  const displayItems = useMemo(() => {
-    let list = mockRecurringBills;
-    if (activeTab === "active") {
-      list = list.filter((i) => i.status === "active");
-    } else if (activeTab === "action_required") {
-      list = list.filter((i) => i.status === "action_required");
-    } else if (activeTab === "pending") {
-      list = list.filter((i) => i.status === "pending");
-    }
+  if (entities.isLoading) return <div className="rounded-xl border bg-white p-6 text-sm text-gray-500">Loading legal entities…</div>;
+  if (entities.isError) return <div className="rounded-xl border bg-white p-6 text-sm text-red-600">Could not load legal entities. <button type="button" className="underline" onClick={() => entities.refetch()}>Try again</button></div>;
+  if (!legalEntityId || legalEntityId === "all") return <div className="rounded-xl border bg-white p-6 text-sm text-gray-500">Select one legal entity to view recurring bills.</div>;
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (i) =>
-          i.vendorName.toLowerCase().includes(q) ||
-          i.id.toLowerCase().includes(q) ||
-          i.description.toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [activeTab, search]);
-
-  const totalEntries = 170;
-  const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
-
-  const startEntry = Math.min((currentPage - 1) * pageSize + 1, totalEntries);
-  const endEntry = Math.min(currentPage * pageSize, totalEntries);
-
-  const pageNumbers = useMemo(() => {
-    const pages = [];
-    const maxPagesToShow = 8;
-    for (let i = 1; i <= Math.min(totalPages, maxPagesToShow); i++) {
-      pages.push(i);
-    }
-    return pages;
-  }, [totalPages]);
-
-  const renderStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#ecfdf5] text-[#10b981] whitespace-nowrap">
-            Active
-          </span>
-        );
-      case "pending":
-        return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#fff8eb] text-[#d97706] whitespace-nowrap">
-            Pending
-          </span>
-        );
-      case "action_required":
-        return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#fff8eb] text-[#d97706] whitespace-nowrap">
-            Action required
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#f3f4f6] text-gray-700 capitalize whitespace-nowrap">
-            {status.replace(/_/g, " ")}
-          </span>
-        );
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-2xl border border-black/[0.06] p-5 shadow-sm space-y-4">
-      {/* Top Toolbar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        {/* Status Sub-filter Tabs */}
-        <div className="flex items-center gap-1 bg-[#f3f4f6] p-1 rounded-xl max-w-full overflow-x-auto">
-          {[
-            { key: "all", label: "All" },
-            { key: "active", label: "Active" },
-            { key: "action_required", label: "Action required" },
-            { key: "pending", label: "Pending" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => {
-                setActiveTab(tab.key);
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                activeTab === tab.key
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-900 font-medium"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Right Search & Action Controls */}
-        <div className="flex items-center gap-2 w-full lg:w-auto">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-[#0da594] placeholder-gray-400 bg-white"
-            />
-          </div>
-          <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors shrink-0 bg-white">
-            <Filter className="w-3.5 h-3.5 text-gray-500" />
-            Filter
-          </button>
-        </div>
+  return <section className="rounded-xl border border-[#eaecf0] bg-white p-5">
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-[#f0f1f2] p-1" role="tablist" aria-label="Recurring bill status">
+        {views.map((item) => <button key={item.key} type="button" onClick={() => { setView(item.key); setPage(1); }}
+          role="tab" aria-selected={view === item.key}
+          className={`whitespace-nowrap rounded-md px-4 py-2 text-xs font-medium ${view === item.key ? "bg-white text-[#181d27] shadow-sm" : "text-[#66737f] hover:text-[#181d27]"}`}>
+          {item.label}
+        </button>)}
       </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto -mx-5 px-5">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-gray-100 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-              <th className="py-3 px-4">ID</th>
-              <th className="py-3 px-4">VENDOR NAME</th>
-              <th className="py-3 px-4">DESCRIPTION</th>
-              <th className="py-3 px-4">AMOUNT</th>
-              <th className="py-3 px-4">FREQUENCY</th>
-              <th className="py-3 px-4">NEXT DUE</th>
-              <th className="py-3 px-4">STATUS</th>
-              <th className="py-3 px-4 text-right">ACTION</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {displayItems.map((item, idx) => (
-              <tr
-                key={`${item.id}-${idx}`}
-                onClick={() => router.push(`/bill-pay/recurring/${item.id}`)}
-                className="hover:bg-gray-50/70 transition-colors cursor-pointer group"
-              >
-                <td className="py-4 px-4 text-xs font-normal text-gray-500 whitespace-nowrap">
-                  {item.id}
-                </td>
-                <td className="py-4 px-4 text-xs font-bold text-gray-900 whitespace-nowrap">
-                  {item.vendorName}
-                </td>
-                <td className="py-4 px-4 text-xs font-normal text-gray-500 whitespace-nowrap">
-                  {item.description}
-                </td>
-                <td className="py-4 px-4 text-xs font-bold text-gray-900 whitespace-nowrap">
-                  {item.amount}
-                </td>
-                <td className="py-4 px-4 text-xs font-normal text-gray-500 whitespace-nowrap">
-                  {item.frequency}
-                </td>
-                <td className="py-4 px-4 text-xs font-normal text-gray-500 whitespace-nowrap">
-                  {item.nextDue}
-                </td>
-                <td className="py-4 px-4 whitespace-nowrap">
-                  {renderStatusBadge(item.status)}
-                </td>
-                <td className="py-4 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="h-8 w-8 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44 rounded-xl border border-black/[0.08] shadow-lg">
-                      <DropdownMenuItem
-                        onClick={() => router.push(`/bill-pay/recurring/${item.id}`)}
-                        className="text-xs cursor-pointer gap-2"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-gray-500" /> View Schedule
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-xs cursor-pointer gap-2">
-                        <Edit3 className="w-3.5 h-3.5 text-gray-500" /> Edit Schedule
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-xs cursor-pointer gap-2">
-                        {item.status === "active" ? (
-                          <>
-                            <PauseCircle className="w-3.5 h-3.5 text-amber-500" /> Pause Schedule
-                          </>
-                        ) : (
-                          <>
-                            <PlayCircle className="w-3.5 h-3.5 text-emerald-500" /> Activate
-                          </>
-                        )}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination Footer */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 text-xs text-gray-500 border-t border-gray-100">
-        <div className="flex items-center gap-3">
-          <span>
-            Showing {startEntry}-{endEntry} of {totalEntries} entries
-          </span>
-          <div className="relative inline-flex items-center">
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-1 pr-6 text-xs text-gray-700 font-medium focus:outline-none focus:border-[#0da594] cursor-pointer"
-            >
-              <option value={4}>4</option>
-              <option value={8}>8</option>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none text-gray-400" />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Previous
-          </button>
-          {pageNumbers.map((p) => (
-            <button
-              key={p}
-              onClick={() => setCurrentPage(p)}
-              className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
-                p === currentPage
-                  ? "bg-[#0da594] text-white font-semibold shadow-sm"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Next
-          </button>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+      {view === "schedules" && <label className="flex h-10 items-center gap-2 rounded-lg border border-[#eaecf0] px-3 text-[#66737f]">
+        <Search size={16} aria-hidden="true" />
+        <input aria-label="Search recurring schedules" value={search}
+          onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search"
+          className="w-32 bg-transparent text-xs outline-none sm:w-40" />
+      </label>}
+      <button type="button" aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)}
+        className="flex h-10 items-center gap-2 rounded-lg border border-[#eaecf0] px-3 text-xs font-medium text-[#1a2e40]">
+        <Filter size={16} aria-hidden="true" /> Filter
+      </button>
       </div>
     </div>
-  );
+    {showFilters && <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-[#f9fafb] p-3">
+      {!entities.workspaceEnabled && entityOptions.length > 1 && <select aria-label="Legal entity" value={legalEntityId}
+        onChange={(event) => { setSelectedEntityId(event.target.value); setPage(1); }}
+        className="h-9 rounded-lg border border-[#eaecf0] bg-white px-3 text-xs">
+        {entityOptions.map((entity) => <option key={entity.legalEntityId} value={entity.legalEntityId}>{entity.legalName}</option>)}
+      </select>}
+    {view === "schedules" ? <>
+      <select aria-label="Schedule status" value={scheduleStatus} onChange={(event) => { setScheduleStatus(event.target.value); setPage(1); }}
+        className="h-9 rounded-lg border border-[#eaecf0] bg-white px-3 text-xs">
+        <option value="">All states</option><option value="active">Active</option><option value="paused">Paused</option><option value="ended">Ended</option>
+      </select>
+      <select aria-label="Cadence" value={cadence} onChange={(event) => { setCadence(event.target.value); setPage(1); }}
+        className="h-9 rounded-lg border border-[#eaecf0] bg-white px-3 text-xs">
+        <option value="">All cadences</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option>
+      </select>
+    </> : <>
+      <label>From <input aria-label="Expected from date" type="date" value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); }}
+        className="ml-1 rounded-lg border border-gray-200 px-2 py-1.5" /></label>
+      <label>To <input aria-label="Expected to date" type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }}
+        className="ml-1 rounded-lg border border-gray-200 px-2 py-1.5" /></label>
+    </>}</div>}
+    {selected.isLoading ? <div className="py-12 text-center text-sm text-gray-500">Loading recurring bills…</div>
+      : selected.isError ? <div className="py-12 text-center text-sm text-red-600">Could not load recurring bills. <button type="button" className="underline" onClick={() => selected.refetch()}>Try again</button></div>
+      : (selected.data?.data.length || 0) === 0 ? <div className="py-12 text-center text-sm text-gray-500">{view === "schedules" ? "No recurring schedules yet." : `No ${view} occurrences.`}</div>
+      : <div className="overflow-x-auto"><table className="w-full min-w-[850px] border-collapse text-left text-xs">
+        <thead><tr className="border-y border-[#eaecf0] bg-[#f9fafb] text-[10px] uppercase tracking-wide text-[#485866]">
+          <th className="px-4 py-3">ID</th><th className="px-4 py-3">Vendor name</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Amount</th>
+          <th className="px-4 py-3">Frequency</th><th className="px-4 py-3">Next due</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Action</th>
+        </tr></thead>
+        <tbody>{view === "schedules" ? (schedules.data?.data || []).map((row) => <tr key={row.recurringBillId}
+          className="border-b border-[#f0f1f2] text-[#1a2e40] hover:bg-[#f9fafb]">
+          <td className="px-4 py-4 font-medium" title={row.recurringBillId}>{row.recurringBillId.slice(0, 8)}</td>
+          <td className="px-4 py-4 font-semibold">{row.vendorName || "Vendor"}</td><td className="px-4 py-4">{row.description}</td>
+          <td className="px-4 py-4">{money(row.expectedAmount, row.currency)}</td><td className="px-4 py-4 capitalize">{row.cadence}</td>
+          <td className="px-4 py-4">{shortDate(row.nextExpectedDate)}</td>
+          <td className="px-4 py-4"><span className={`rounded-md px-2 py-1 capitalize ${statusStyle(row.status)}`}>{row.status}</span></td>
+          <td className="px-4 py-4"><button type="button" aria-label={`View ${row.vendorName || "recurring bill"} schedule`}
+            className="rounded-md p-1 text-[#66737f] hover:bg-[#eaecf0]" onClick={() => router.push(`/bill-pay/recurring/${row.recurringBillId}`)}><MoreHorizontal size={18} aria-hidden="true" /></button></td>
+        </tr>) : (occurrences.data?.data || []).map((row) => <tr key={row.recurringBillOccurrenceId}
+          className="border-b border-[#f0f1f2] text-[#1a2e40] hover:bg-[#f9fafb]">
+          <td className="px-4 py-4 font-medium" title={row.recurringBillOccurrenceId}>{row.recurringBillOccurrenceId.slice(0, 8)}</td>
+          <td className="px-4 py-4 font-semibold">{row.vendorName || "Vendor"}</td><td className="px-4 py-4">{row.description}</td>
+          <td className="px-4 py-4">{money(row.expectedAmount, row.currency)}</td><td className="px-4 py-4 capitalize">{row.cadence}</td>
+          <td className="px-4 py-4">{shortDate(row.expectedDate)}</td>
+          <td className="px-4 py-4"><span className={`rounded-md px-2 py-1 capitalize ${statusStyle(row.status)}`}>{row.status}</span></td>
+          <td className="px-4 py-4"><button type="button" aria-label={`View ${row.vendorName || "recurring bill"} schedule`}
+            className="rounded-md p-1 text-[#66737f] hover:bg-[#eaecf0]" onClick={() => router.push(`/bill-pay/recurring/${row.recurringBillId}`)}><MoreHorizontal size={18} aria-hidden="true" /></button></td>
+        </tr>)}</tbody>
+      </table></div>}
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-xs text-[#485866]">
+      <span>{meta ? `Showing ${meta.totalCount ? (page - 1) * 10 + 1 : 0}–${Math.min(page * 10, meta.totalCount)} of ${meta.totalCount} entries` : ""}</span>
+      <div className="flex items-center gap-2">
+        <button type="button" className="rounded-md px-3 py-2 disabled:opacity-40" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
+        <span className="rounded-md bg-[#00b8a9] px-3 py-2 text-white">{page}</span>
+        <button type="button" className="rounded-md px-3 py-2 disabled:opacity-40" disabled={page >= (meta?.totalPages || 1)} onClick={() => setPage(page + 1)}>Next</button>
+      </div>
+    </div>
+  </section>;
+}
+
+export function RecurringBillsTable() {
+  const [type, setType] = useState<"invoice" | "card">("invoice");
+  return <div className="space-y-4">
+    <div className="inline-flex rounded-xl border border-black/[0.04] bg-[#edeef0] p-1">
+      <button type="button" onClick={() => setType("invoice")}
+        className={`rounded-lg px-4 py-2 text-xs font-semibold ${type === "invoice" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>
+        Vendor invoices
+      </button>
+      <button type="button" onClick={() => setType("card")}
+        className={`rounded-lg px-4 py-2 text-xs font-semibold ${type === "card" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>
+        Company card subscriptions
+      </button>
+    </div>
+    {type === "invoice" ? <InvoiceRecurringBillsTable /> : <RecurringCardSubscriptionsTable />}
+  </div>;
 }

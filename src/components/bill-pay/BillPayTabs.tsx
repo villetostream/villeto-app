@@ -1,25 +1,23 @@
 "use client";
 
-import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
+import type { ReactNode } from "react";
 import { StandardBillsTable } from "./StandardBillsTable";
 import { RecurringBillsTable } from "./RecurringBillsTable";
 
 interface BillPayTabsProps {
   activeTab: string;
   setActiveTab: (val: string) => void;
+  periodFilter?: ReactNode;
+  children?: ReactNode;
 }
 
-export function BillPayTabs({ activeTab, setActiveTab }: BillPayTabsProps) {
-  const workspaceEnabled = useEntityWorkspaceStore(
-    (state) => !!state.snapshot?.enabled
-  );
-
+export function BillPayTabs({ activeTab, setActiveTab, periodFilter, children }: BillPayTabsProps) {
   const isRecurring = activeTab === "recurring";
 
   return (
     <div className="flex-1 flex flex-col min-h-0 space-y-4">
       {/* Top View Switcher (Standard Bills vs Recurring Bills) */}
-      <div className="flex items-center justify-between gap-4 shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-4 shrink-0">
         <div className="inline-flex p-1 bg-[#edeef0] rounded-xl border border-black/[0.04]">
           <button
             onClick={() => setActiveTab("standard")}
@@ -42,20 +40,18 @@ export function BillPayTabs({ activeTab, setActiveTab }: BillPayTabsProps) {
             Recurring Bills
           </button>
         </div>
-        <div id="tab-actions" className="flex items-center gap-2" />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div id="tab-actions" className="flex items-center gap-2" />
+          {periodFilter}
+        </div>
       </div>
+
+      {children}
 
       {/* Tab Content */}
       <div className="flex-1 min-h-0">
         {isRecurring ? (
-          workspaceEnabled ? (
-            <div className="rounded-xl border bg-white p-6 text-sm text-[#68726d]">
-              Recurring bills are a placeholder. Scheduling is not connected to
-              the payment workflow.
-            </div>
-          ) : (
-            <RecurringBillsTable />
-          )
+          <RecurringBillsTable />
         ) : (
           <StandardBillsTable />
         )}
