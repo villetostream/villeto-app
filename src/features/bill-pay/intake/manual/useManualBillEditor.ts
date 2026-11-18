@@ -16,10 +16,7 @@ import {
   useUpdateManualBillDraft,
 } from "./queries";
 import type { BillPayInvoiceDetail } from "@/queries/bill-pay/invoices";
-import {
-  useEnableEntityWorkspace,
-  useEntityWorkspaceSettings,
-} from "@/queries/legal-entities";
+import { useEligibleLegalEntities } from "@/queries/legal-entities";
 import { getApiErrorMessage } from "@/lib/types/api-error";
 import { prepareManualBillSave } from "./save";
 import {
@@ -59,12 +56,7 @@ export function useManualBillEditor(
 
   const saveDraft = useSaveManualBillDraft();
   const updateDraft = useUpdateManualBillDraft();
-  const {
-    data: workspaceSettings,
-    isError: workspaceSettingsError,
-    refetch: refetchWorkspaceSettings,
-  } = useEntityWorkspaceSettings();
-  const enableWorkspace = useEnableEntityWorkspace();
+  const financeEntities = useEligibleLegalEntities("finance");
   const {
     data: legalEntitiesData,
     workspaceEnabled,
@@ -81,6 +73,12 @@ export function useManualBillEditor(
       (legalEntities.length === 1 ? legalEntities[0].legalEntityId : "");
   const legalEntity = legalEntities.find(
     (entity) => entity.legalEntityId === legalEntityId,
+  );
+  const financeEntityEligible = Boolean(
+    legalEntityId &&
+      financeEntities.data?.some(
+        (entity) => entity.legalEntityId === legalEntityId,
+      ),
   );
   const vendorId =
     vendorSelection.entityId === legalEntityId ? vendorSelection.vendorId : "";
@@ -140,7 +138,7 @@ export function useManualBillEditor(
 
   const handleSubmit = async () => {
     const prepared = prepareManualBillSave({
-      companyWorkspaceEnabled: workspaceSettings?.enabled === true,
+      financeEntityEligible,
       legalEntityId,
       vendorId,
       vendorSelected: Boolean(selectedVendor),
@@ -186,22 +184,6 @@ export function useManualBillEditor(
       router.push("/bill-pay/" + savedInvoiceId);
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Failed to save bill."));
-    }
-  };
-
-  const enableCompanyWorkspace = async () => {
-    try {
-      await enableWorkspace.mutateAsync();
-      toast.success(
-        "Legal entity workspace enabled. Check the entity selection before saving.",
-      );
-    } catch (cause) {
-      toast.error(
-        getApiErrorMessage(
-          cause,
-          "Unable to enable the legal entity workspace",
-        ),
-      );
     }
   };
 
@@ -256,10 +238,10 @@ export function useManualBillEditor(
     workspaceEnabled,
     entitiesLoading,
     entitiesError,
-    workspaceSettings,
-    workspaceSettingsError,
-    refetchWorkspaceSettings,
-    enableWorkspace,
+    financeEntityEligible,
+    financeEntitiesLoading: financeEntities.isLoading,
+    financeEntitiesError: financeEntities.isError,
+    refetchFinanceEntities: financeEntities.refetch,
     vendorId,
     vendorSiteId,
     selectedVendor,
@@ -272,7 +254,6 @@ export function useManualBillEditor(
     addLineItem,
     updateLineItem,
     handleSubmit,
-    enableCompanyWorkspace,
     isSaving: saveDraft.isPending || updateDraft.isPending,
     cancel: () =>
       router.push(invoiceId ? "/bill-pay/" + invoiceId : "/bill-pay"),
