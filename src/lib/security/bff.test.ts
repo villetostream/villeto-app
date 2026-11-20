@@ -39,7 +39,8 @@ describe("BFF sealed session cookies", () => {
     const sealed = sealBffSession("jwt.header.sig", 60_000, now, TEST_SECRET);
 
     const parts = sealed.split(".");
-    const tampered = [parts[0], parts[1], parts[2], `${parts[3].slice(0, -1)}A`].join(".");
+    const flip = parts[3].endsWith("A") ? "B" : "A";
+    const tampered = [parts[0], parts[1], parts[2], `${parts[3].slice(0, -1)}${flip}`].join(".");
     expect(unsealBffSession(tampered, now + 1000, TEST_SECRET)).toBeNull();
     expect(unsealBffSession(sealed, now + 1000, "wrong-secret-0123456789abcdef")).toBeNull();
     expect(unsealBffSession(sealed, now + 60_001, TEST_SECRET)).toBeNull();

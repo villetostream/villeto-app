@@ -15,7 +15,9 @@ import {
   ChevronDown,
   Loader2,
   X,
+  RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
 import { useGetBillPayInvoices, type BillPayInvoice } from "@/queries/bill-pay";
 import {
@@ -267,7 +269,6 @@ export function StandardBillsTable() {
           ))}
         </div>
 
-        <Button variant="outline" disabled={isFetching || !legalEntityId || isSearchPending} onClick={() => void refetch()}>Refresh</Button>
         {/* Search, Source filter, and settings */}
         <div className="flex items-center gap-2 w-full lg:w-auto">
           <div className="relative flex-1 lg:w-56">
@@ -300,6 +301,19 @@ export function StandardBillsTable() {
             className="flex items-center justify-center p-2 rounded-xl border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors shrink-0 bg-white"
           >
             <SlidersHorizontal className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => {
+              void refetch();
+              toast.success("Invoices refreshed");
+            }}
+            disabled={isLoading || isFetching || !legalEntityId}
+            title="Refresh invoices"
+            className="flex items-center gap-2 h-9 px-3.5 rounded-[8px] border border-black/[0.12] text-[13px] text-[#0b100e] bg-white hover:bg-[#f9faf9] transition-colors whitespace-nowrap disabled:opacity-60 cursor-pointer shrink-0"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-[#087f70] ${isLoading || isFetching ? "animate-spin" : ""}`} />
+            <span className="font-semibold text-[13px]">{isLoading || isFetching ? "Refreshing..." : "Refresh"}</span>
           </button>
         </div>
       </div>
@@ -366,7 +380,6 @@ export function StandardBillsTable() {
                 <th className="py-3 px-4">AMOUNT</th>
                 <th className="py-3 px-4">DUE DATE</th>
                 <th className="py-3 px-4">STATUS</th>
-                <th className="py-3 px-4 text-right">ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -402,35 +415,6 @@ export function StandardBillsTable() {
                     </td>
                     <td className="py-4 px-4 whitespace-nowrap">
                       <StatusBadge status={inv.workflowStage} />
-                    </td>
-                    <td
-                      className="py-4 px-4 text-right whitespace-nowrap"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="h-8 w-8 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="w-44 rounded-xl border border-black/[0.08] shadow-lg"
-                        >
-                          <DropdownMenuItem
-                            onClick={() => router.push(`/bill-pay/${id}`)}
-                            className="text-xs cursor-pointer gap-2"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-gray-500" /> View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-xs cursor-pointer gap-2">
-                            <CreditCard className="w-3.5 h-3.5 text-gray-500" /> Pay Bill
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-xs cursor-pointer gap-2">
-                            <Download className="w-3.5 h-3.5 text-gray-500" /> Download PDF
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </td>
                   </tr>
                 );

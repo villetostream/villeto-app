@@ -104,7 +104,6 @@ export function DashboardSidebar({
     return [];
   });
 
-  const logout = useAuthStore((state) => state.logout);
   const can = useAuthStore((state) => state.can);
   const user = useAuthStore((state) => state.user);
   const isAuthLoading =
@@ -122,6 +121,10 @@ export function DashboardSidebar({
   }, [isTourActive, state, setOpen]);
 
   const [syncedLocation, setSyncedLocation] = useState(location);
+  const [expandedNestedMenus, setExpandedNestedMenus] = useState<string[]>([
+    "Architecture Demo",
+  ]);
+
   if (location !== syncedLocation) {
     setSyncedLocation(location);
     if (location.startsWith("/expenses")) setExpandedMenus(["Expenses"]);
@@ -129,7 +132,14 @@ export function DashboardSidebar({
       setExpandedMenus(["Procurement"]);
     else if (location.startsWith("/settings")) setExpandedMenus(["Settings"]);
     else if (location.startsWith("/policies")) setExpandedMenus(["Policies"]);
-    else if (location.startsWith("/bill-pay")) setExpandedMenus(["Bill Pay"]);
+    else if (location.startsWith("/bill-pay")) {
+      setExpandedMenus(["Bill Pay"]);
+      if (location.startsWith("/bill-pay/demo")) {
+        setExpandedNestedMenus((prev) =>
+          prev.includes("Architecture Demo") ? prev : [...prev, "Architecture Demo"],
+        );
+      }
+    }
   }
 
   const { data: companyData, isLoading: isQueryLoading } = useQuery({
@@ -197,10 +207,43 @@ export function DashboardSidebar({
       if (
         location.startsWith("/bill-pay/payments") ||
         location.startsWith("/bill-pay/mailbox") ||
-        location.startsWith("/bill-pay/settings")
+        location.startsWith("/bill-pay/settings") ||
+        location.startsWith("/bill-pay/demo")
       )
         return false;
       return location.startsWith(basePath);
+    }
+
+    if (basePath.startsWith("/bill-pay/demo")) {
+      if (href.includes("?")) {
+        const currentTab = searchParams.get("tab");
+        const targetTab = href.split("?tab=")[1]?.split("&")[0];
+        if (basePath === location) {
+          if (!targetTab && !currentTab) return true;
+          return currentTab === targetTab;
+        }
+        return false;
+      }
+      if (href === "/bill-pay/demo") {
+        const currentTab = searchParams.get("tab");
+        return location === "/bill-pay/demo" && (!currentTab || currentTab === "standard");
+      }
+      return location === basePath;
+    }
+
+    if (href.includes("?")) {
+      const currentTab = searchParams.get("tab");
+      const targetTab = href.split("?tab=")[1]?.split("&")[0];
+      if (basePath === location) {
+        if (!targetTab && !currentTab) return true;
+        return currentTab === targetTab;
+      }
+      return false;
+    }
+
+    if (href === "/bill-pay/demo") {
+      const currentTab = searchParams.get("tab");
+      return location === "/bill-pay/demo" && (!currentTab || currentTab === "standard");
     }
 
     return location.startsWith(basePath);
@@ -322,6 +365,11 @@ export function DashboardSidebar({
           const filteredSubs = currentItem.subItems
             .map((sub) => {
               const currentSub = { ...sub };
+              if (currentSub.subItems && currentSub.subItems.length > 0) {
+                currentSub.subItems = currentSub.subItems.filter((n) =>
+                  hasNavPermission(n.permissions),
+                );
+              }
               if (currentSub.label === "All Expenses") {
                 if (!canViewCompanyExpenses) currentSub.label = "My Expenses";
                 currentSub.href = canViewCompanyExpenses
@@ -509,7 +557,71 @@ export function DashboardSidebar({
                       </span>
                     );
                   }
-                  const subActive = isActive(sub.href!);
+
+                  const hasNested = !!(sub.subItems && sub.subItems.length > 0);
+                  if (hasNested) {
+                    const isNestedOpen = expandedNestedMenus.includes(sub.label);
+                    const isNestedGroupActive =
+                      sub.subItems?.some((n) => n.href && isActive(n.href)) ||
+                      (sub.href ? isActive(sub.href) : false);
+
+                    return (
+                      <div key={sub.label} className="space-y-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpandedNestedMenus((prev) =>
+                              prev.includes(sub.label)
+                                ? prev.filter((l) => l !== sub.label)
+                                : [...prev, sub.label],
+                            );
+                          }}
+                          className={cn(
+                            "flex items-center justify-between w-full px-2.5 py-2 rounded-[7px] text-[12px] transition-colors text-left",
+                            isNestedGroupActive
+                              ? "bg-[#38d5bc]/10 text-[#70ead7] font-semibold"
+                              : "text-white/60 hover:bg-white/[0.06] hover:text-white/85",
+                          )}
+                        >
+                          <span className="truncate">{sub.label}</span>
+                          <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                            {renderBadge(sub.badge)}
+                            <ChevronDown
+                              className={cn(
+                                "size-3 shrink-0 text-white/45 transition-transform duration-200",
+                                isNestedOpen && "rotate-180",
+                              )}
+                            />
+                          </div>
+                        </button>
+
+                        {isNestedOpen && (
+                          <div className="ml-2.5 space-y-0.5 border-l border-white/10 pl-2.5 py-0.5">
+                            {sub.subItems?.map((nested) => {
+                              const nestedActive = nested.href ? isActive(nested.href) : false;
+                              return (
+                                <Link
+                                  key={nested.label}
+                                  href={nested.href || "#"}
+                                  className={cn(
+                                    "flex items-center justify-between w-full px-2 py-1.5 rounded-[6px] text-[11px] transition-colors",
+                                    nestedActive
+                                      ? "bg-[#38d5bc]/15 text-[#55e2cc] font-semibold"
+                                      : "text-white/50 hover:bg-white/[0.06] hover:text-white/85",
+                                  )}
+                                >
+                                  <span className="truncate">{nested.label}</span>
+                                  {renderBadge(nested.badge)}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  const subActive = sub.href ? isActive(sub.href) : false;
                   return (
                     <Link
                       key={sub.label}

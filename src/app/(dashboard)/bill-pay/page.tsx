@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useGetBillPayDashboardSummary } from "@/queries/bill-pay";
 import { BillPayTabs } from "@/components/bill-pay/BillPayTabs";
 import { Receipt2, ClipboardText, Cards, TickCircle } from "iconsax-reactjs";
+import { Sparkles } from "lucide-react";
 import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
 // TODO: Uncomment when backend delivers email-configuration endpoints
 // import { ConfigureEmailModal } from "@/components/bill-pay/ConfigureEmailModal";
@@ -145,6 +146,14 @@ function BillPayPage() {
     : "—";
   const periodFilter = (
     <div className="flex flex-wrap items-center justify-end gap-2">
+      <button
+        type="button"
+        onClick={() => router.push("/bill-pay/demo")}
+        className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-[10px] border border-[#087f70]/25 bg-[#f0faf8] text-[#087f70] hover:bg-[#e4f6f2] text-xs font-semibold transition-colors cursor-pointer"
+      >
+        <Sparkles className="w-3.5 h-3.5" />
+        Interactive Demo
+      </button>
       {period === "custom" && (
         <div className="flex items-center gap-2">
           <DatePicker

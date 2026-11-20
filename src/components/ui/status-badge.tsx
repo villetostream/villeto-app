@@ -8,7 +8,8 @@ export type UnifiedStatus =
   | "paid" 
   | "flagged" | "scheduled"
   | "inactive" | "deactivated"
-  | "invited" | "onboarding" | "processing";
+  | "invited" | "onboarding" | "processing"
+  | "upcoming" | "due" | "overdue" | "matched" | "skipped" | "paused" | "ended";
 
 interface StatusBadgeProps {
   status: string | null | undefined;
@@ -36,10 +37,12 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "done":
     case "converted_to_po":
     case "partially_converted_to_po":
+    case "matched":
       colorClasses = "text-[#087f70] bg-[#f0faf8] border-[#c8ece4]";
       if (normalizedStatus === "posted") defaultLabel = "Posted";
       if (normalizedStatus === "converted_to_po") defaultLabel = "Converted to PO";
       if (normalizedStatus === "partially_converted_to_po") defaultLabel = "Partially Converted to PO";
+      if (normalizedStatus === "matched") defaultLabel = "Matched";
       break;
       
     // Deep Teal (Financial Success)
@@ -58,6 +61,9 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "partially_delivered":
     case "partially_delivered_with_exceptions":
     case "delivered_with_exceptions":
+    case "full_delivery_with_exceptions":
+    case "due":
+    case "paused":
       colorClasses = "text-[#b27b00] bg-[#fff9e6] border-[#ffe099]";
       if (normalizedStatus === "resubmitted") {
         defaultLabel = "Resubmitted";
@@ -69,6 +75,10 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
         defaultLabel = "Partially Delivered";
       } else if (normalizedStatus === "delivered_with_exceptions") {
         defaultLabel = "Delivered (Issues)";
+      } else if (normalizedStatus === "due") {
+        defaultLabel = "Due";
+      } else if (normalizedStatus === "paused") {
+        defaultLabel = "Paused";
       }
       break;
       
@@ -80,7 +90,7 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
       if (normalizedStatus === "not_submitted") defaultLabel = "Draft";
       break;
       
-    // Blue (Informational / Onboarding / Processing / Issued)
+    // Blue (Informational / Onboarding / Processing / Issued / Upcoming)
     case "invited":
     case "onboarding":
     case "processing":
@@ -88,19 +98,23 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "acknowledged":
     case "ready_for_delivery":
     case "ready_to_issue":
+    case "upcoming":
       colorClasses = "text-[#0066cc] bg-[#f0f6ff] border-[#d6e7ff]";
       if (normalizedStatus === "ready_for_delivery") defaultLabel = "Ready for Delivery";
       if (normalizedStatus === "ready_to_issue") defaultLabel = "Ready to Issue";
+      if (normalizedStatus === "upcoming") defaultLabel = "Upcoming";
       break;
       
-    // Red (Error / Rejection / Cancellation)
+    // Red (Error / Rejection / Cancellation / Overdue)
     case "rejected":
     case "declined":
     case "returned":
     case "cancelled":
     case "withdrawn":
+    case "overdue":
       colorClasses = "text-[#d33d44] bg-[#fdf2f2] border-[#fbd5d5]";
       if (normalizedStatus === "declined") defaultLabel = "Rejected";
+      if (normalizedStatus === "overdue") defaultLabel = "Overdue";
       break;
       
     // Purple (Warning / Flagged / Scheduled)
@@ -109,10 +123,14 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
       colorClasses = "text-[#7c3aed] bg-[#f5f3ff] border-[#ddd6fe]";
       break;
       
-    // Gray (Dormant / Inactive)
+    // Gray (Dormant / Inactive / Skipped / Ended)
     case "inactive":
     case "deactivated":
+    case "skipped":
+    case "ended":
       colorClasses = "text-[#68726d] bg-[#f5f7f6] border-[#e2e5e4]";
+      if (normalizedStatus === "skipped") defaultLabel = "Skipped";
+      if (normalizedStatus === "ended") defaultLabel = "Ended";
       break;
 
     default:

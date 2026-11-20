@@ -2,57 +2,100 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { format, parseISO } from "date-fns";
+import { Loader2, Check, Info } from "lucide-react";
+import { Receipt2, Cards } from "iconsax-reactjs";
+import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useTransactionLegalEntities } from "@/features/entity-workspace/hooks";
 import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { useEligibleInvoiceVendors } from "@/features/bill-pay/intake/manual/queries";
 import { resolveRecurringEntityId } from "./recurring-entity";
 import {
-  useCreateRecurring, useUpdateRecurring, type RecurringCadence, type RecurringProfile,
+  useCreateRecurring,
+  useUpdateRecurring,
+  type RecurringCadence,
+  type RecurringProfile,
 } from "@/queries/bill-pay/recurring";
 import { useCreateRecurringCardSubscription } from "@/queries/bill-pay/recurring-card";
 
-export function RecurringBillForm({ profile, lockSchedule = false, onSaved, onCardSaved, onCancel }: {
-  profile?: RecurringProfile; lockSchedule?: boolean; onSaved: (id: string) => void;
-  onCardSaved?: (id: string) => void; onCancel?: () => void;
-}) {
+interface RecurringBillFormProps {
+  profile?: RecurringProfile;
+  lockSchedule?: boolean;
+  onSaved: (id: string) => void;
+  onCardSaved?: (id: string) => void;
+  onCancel?: () => void;
+}
+
+const CADENCE_OPTIONS: Array<{ value: RecurringCadence; label: string }> = [
+  { value: "weekly",    label: "Weekly" },
+  { value: "monthly",   label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "yearly",    label: "Yearly" },
+];
+
+export function RecurringBillForm({
+  profile,
+  lockSchedule = false,
+  onSaved,
+  onCardSaved,
+  onCancel,
+}: RecurringBillFormProps) {
   const entities = useTransactionLegalEntities("finance");
   const options = entities.data?.data?.filter((entity) => entity.legalEntityId !== "all") || [];
   const workspaceSelection = useEntityWorkspaceStore((state) => state.selection);
   const primaryAssignmentId = useEntityWorkspaceStore(
-    (state) => state.snapshot?.primaryAssignment?.legalEntityId || null,
+    (state) => state.snapshot?.primaryAssignment?.legalEntityId || null
   );
-  const [legacyChoiceId, setLegacyChoiceId] = useState("");
-  const [choosingEntity, setChoosingEntity] = useState(false);
+
   const selectedEntityId = resolveRecurringEntityId(options, {
     profileEntityId: profile?.legalEntityId,
     workspaceEnabled: entities.workspaceEnabled,
     workspaceSelection,
     primaryAssignmentId,
-    legacyChoiceId,
+    legacyChoiceId: "",
   });
+
   const selectedEntity = options.find((entity) => entity.legalEntityId === selectedEntityId);
-  const canChangeEntity = !profile && !entities.workspaceEnabled && options.length > 1;
+
   const vendors = useEligibleInvoiceVendors(selectedEntityId);
   const [vendorId, setVendorId] = useState(profile?.vendorId || "");
   const previousEntityId = useRef(selectedEntityId);
+
   useEffect(() => {
-    if (!profile && previousEntityId.current && previousEntityId.current !== selectedEntityId)
+    if (!profile && previousEntityId.current && previousEntityId.current !== selectedEntityId) {
       setVendorId("");
+    }
     previousEntityId.current = selectedEntityId;
   }, [selectedEntityId, profile]);
+
+  // Form states
   const [description, setDescription] = useState(profile?.description || "");
   const [cadence, setCadence] = useState<RecurringCadence>(profile?.cadence || "monthly");
-  const [firstDate, setFirstDate] = useState(profile?.firstExpectedInvoiceDate || "");
-  const [endDate, setEndDate] = useState(profile?.endDate || "");
+  const [firstDate, setFirstDate] = useState<Date | undefined>(
+    profile?.firstExpectedInvoiceDate ? parseISO(profile.firstExpectedInvoiceDate) : undefined
+  );
+  const [endDate, setEndDate] = useState<Date | undefined>(
+    profile?.endDate ? parseISO(profile.endDate) : undefined
+  );
   const [expectedAmount, setExpectedAmount] = useState(profile?.expectedAmount || "");
   const [variancePercent, setVariancePercent] = useState(profile?.variancePercent || "");
+
+  // Card subscription states
   const [paymentType, setPaymentType] = useState<"invoice" | "card_subscription">("invoice");
-  const [step, setStep] = useState<1 | 2>(1);
   const [merchantName, setMerchantName] = useState("");
   const [subscriptionName, setSubscriptionName] = useState("");
-  const [cardFirstDate, setCardFirstDate] = useState("");
+  const [cardFirstDate, setCardFirstDate] = useState<Date | undefined>();
   const [cardExpectedAmount, setCardExpectedAmount] = useState("");
   const [cardVariancePercent, setCardVariancePercent] = useState("");
+
   const create = useCreateRecurring();
   const createCard = useCreateRecurringCardSubscription();
   const update = useUpdateRecurring();
@@ -60,17 +103,10 @@ export function RecurringBillForm({ profile, lockSchedule = false, onSaved, onCa
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!profile && paymentType === "invoice" && step === 1) {
-      if (!selectedEntityId || !vendorId || !description.trim() || !firstDate) {
-        toast.error("Choose a vendor and enter a description and start date.");
-        return;
-      }
-      setStep(2);
-      return;
-    }
+
     if (paymentType === "card_subscription") {
       if (!selectedEntityId || !merchantName.trim() || !subscriptionName.trim() || !cardFirstDate) {
-        toast.error("Enter a merchant, subscription name, and first expected charge date.");
+        toast.error("Please enter a merchant, subscription name, and first expected charge date.");
         return;
       }
       try {
@@ -79,176 +115,481 @@ export function RecurringBillForm({ profile, lockSchedule = false, onSaved, onCa
           merchantName: merchantName.trim(),
           description: subscriptionName.trim(),
           cadence,
-          firstExpectedChargeDate: cardFirstDate,
-          expectedAmount: cardExpectedAmount || null,
-          variancePercent: cardExpectedAmount && cardVariancePercent ? Number(cardVariancePercent) : null,
+          firstExpectedChargeDate: format(cardFirstDate, "yyyy-MM-dd"),
+          expectedAmount: cardExpectedAmount.trim() || null,
+          variancePercent:
+            cardExpectedAmount && cardVariancePercent ? Number(cardVariancePercent) : null,
         });
         toast.success("Card subscription draft saved");
         onCardSaved?.(saved.recurringCardSubscriptionId);
       } catch {
-        toast.error("Could not save the card subscription draft. Check the fields and try again.");
+        toast.error("Could not save the card subscription draft. Please check the fields and try again.");
       }
       return;
     }
-    if (!selectedEntityId || !vendorId || !description.trim() || !firstDate) {
-      toast.error("Choose a legal entity, vendor, description, and first expected date.");
+
+    // Vendor Invoice
+    if (!selectedEntityId) {
+      toast.error("Please select an active legal entity from the top workspace menu.");
       return;
     }
+    if (!vendorId) {
+      toast.error("Please choose an eligible vendor.");
+      return;
+    }
+    if (!description.trim()) {
+      toast.error("Please enter a description for this recurring bill.");
+      return;
+    }
+    if (!firstDate) {
+      toast.error("Please select the first expected invoice date.");
+      return;
+    }
+
     const input = {
-      legalEntityId: selectedEntityId, vendorId, description: description.trim(), cadence,
-      firstExpectedInvoiceDate: firstDate, endDate: endDate || null,
-      expectedAmount: expectedAmount || null,
+      legalEntityId: selectedEntityId,
+      vendorId,
+      description: description.trim(),
+      cadence,
+      firstExpectedInvoiceDate: format(firstDate, "yyyy-MM-dd"),
+      endDate: endDate ? format(endDate, "yyyy-MM-dd") : null,
+      expectedAmount: expectedAmount.trim() || null,
       variancePercent: expectedAmount && variancePercent ? Number(variancePercent) : null,
     };
+
     try {
       const saved = profile
-        ? await update.mutateAsync({ id: profile.recurringBillId, expectedVersion: profile.version,
-            ...input, ...(lockSchedule ? { cadence: undefined, firstExpectedInvoiceDate: undefined } : {}) })
+        ? await update.mutateAsync({
+            id: profile.recurringBillId,
+            expectedVersion: profile.version,
+            ...input,
+            ...(lockSchedule ? { cadence: undefined, firstExpectedInvoiceDate: undefined } : {}),
+          })
         : await create.mutateAsync(input);
+
       toast.success(profile ? "Recurring schedule updated" : "Recurring schedule created");
       onSaved(saved.recurringBillId);
     } catch {
-      toast.error("Could not save the recurring schedule. Check the fields and try again.");
+      toast.error("Could not save the recurring schedule. Please check the fields and try again.");
     }
   }
 
-  return <form onSubmit={submit} className="space-y-5">
-    <div><h1 className="text-xl font-semibold text-[#1a2e40]">{profile ? "Edit recurring bill" : "Set Up Recurring Bill"}</h1>
-      <p className="mt-1 text-sm text-[#66737f]">Track each expected invoice and review the actual bill when it arrives.</p></div>
-    {!profile && paymentType === "invoice" && <div className="flex items-center gap-2 text-xs" aria-label="Setup progress">
-      <span className={`flex items-center gap-2 ${step === 1 ? "font-semibold text-[#00b8a9]" : "text-[#66737f]"}`}>
-        <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] ${step === 1 ? "bg-[#00b8a9] text-white" : "bg-[#eaecf0]"}`}>1</span> Billing Information
-      </span>
-      <span className="h-px w-8 bg-[#eaecf0]" />
-      <span className={`flex items-center gap-2 ${step === 2 ? "font-semibold text-[#00b8a9]" : "text-[#66737f]"}`}>
-        <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] ${step === 2 ? "bg-[#00b8a9] text-white" : "bg-[#eaecf0]"}`}>2</span> Configuration
-      </span>
-    </div>}
-    <div className="space-y-5 rounded-xl border border-[#eaecf0] bg-white p-5 shadow-sm sm:p-6">
-    <h2 className="text-base font-semibold text-[#333]">{profile ? "Schedule information" : paymentType === "invoice" && step === 2 ? "Configuration" : "Billing Information"}</h2>
-    <div className="grid gap-4 sm:grid-cols-2">
-      <div className={`space-y-1 text-sm font-medium ${!profile && paymentType === "invoice" && step === 2 ? "hidden" : ""}`}><span>Legal entity</span>
-        {selectedEntityId && !choosingEntity ? (
-          <div className="flex h-10 items-center justify-between rounded-lg border bg-gray-50 px-3 text-sm">
-            <span>{selectedEntity?.legalName || "Schedule legal entity"}</span>
-            {canChangeEntity && <button type="button" className="text-xs font-semibold text-[#087f70]" onClick={() => setChoosingEntity(true)}>Change</button>}
+  const currencySymbol = selectedEntity?.baseCurrency || "NGN";
+
+  return (
+    <form onSubmit={submit} className="space-y-6">
+      {/* ── Type Selector (Only on New) ── */}
+      {!profile && (
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold text-[#10231d] uppercase tracking-wider">
+            How is this expense paid?
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setPaymentType("invoice")}
+              className={`relative flex items-start gap-3.5 p-4 rounded-2xl border text-left transition-all ${
+                paymentType === "invoice"
+                  ? "border-[#087f70] bg-[#f0faf8] ring-1 ring-[#087f70] shadow-sm"
+                  : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/50"
+              }`}
+            >
+              <div
+                className={`p-2 rounded-xl shrink-0 ${
+                  paymentType === "invoice"
+                    ? "bg-[#087f70] text-white"
+                    : "bg-gray-100 text-gray-500"
+                }`}
+              >
+                <Receipt2 variant="Bulk" className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0 pr-6">
+                <span className="block text-sm font-semibold text-[#10231d]">
+                  Vendor Invoice
+                </span>
+                <span className="mt-0.5 block text-xs text-[#68726d] leading-relaxed">
+                  Vendor sends regular invoices. Each bill is automatically matched to this schedule for review and approval.
+                </span>
+              </div>
+              {paymentType === "invoice" && (
+                <div className="absolute top-4 right-4 w-5 h-5 rounded-full bg-[#087f70] text-white flex items-center justify-center">
+                  <Check className="w-3 h-3 stroke-[3]" />
+                </div>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPaymentType("card_subscription")}
+              className={`relative flex items-start gap-3.5 p-4 rounded-2xl border text-left transition-all ${
+                paymentType === "card_subscription"
+                  ? "border-[#087f70] bg-[#f0faf8] ring-1 ring-[#087f70] shadow-sm"
+                  : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/50"
+              }`}
+            >
+              <div
+                className={`p-2 rounded-xl shrink-0 ${
+                  paymentType === "card_subscription"
+                    ? "bg-[#087f70] text-white"
+                    : "bg-gray-100 text-gray-500"
+                }`}
+              >
+                <Cards variant="Bulk" className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0 pr-6">
+                <span className="block text-sm font-semibold text-[#10231d]">
+                  Company Card Subscription
+                </span>
+                <span className="mt-0.5 block text-xs text-[#68726d] leading-relaxed">
+                  Merchant charges a company card directly each cycle. Track recurring software and cloud subscriptions.
+                </span>
+              </div>
+              {paymentType === "card_subscription" && (
+                <div className="absolute top-4 right-4 w-5 h-5 rounded-full bg-[#087f70] text-white flex items-center justify-center">
+                  <Check className="w-3 h-3 stroke-[3]" />
+                </div>
+              )}
+            </button>
           </div>
-        ) : !entities.workspaceEnabled ? (
-          <div className="flex items-center gap-2">
-            <select aria-label="Legal entity" value={selectedEntityId} onChange={(event) => { setLegacyChoiceId(event.target.value); setChoosingEntity(false); }}
-              className="block h-10 min-w-0 flex-1 rounded-lg border px-3 text-sm">
-              <option value="">Select legal entity</option>{options.map((entity) => <option key={entity.legalEntityId} value={entity.legalEntityId}>{entity.legalName}</option>)}
-            </select>
-            {choosingEntity && <button type="button" className="text-xs font-semibold text-gray-600" onClick={() => setChoosingEntity(false)}>Cancel</button>}
+        </div>
+      )}
+
+      {/* ── Main Form Card ── */}
+      <div className="bg-white rounded-2xl border border-black/[0.06] p-6 shadow-sm space-y-6">
+        <div className="border-b border-gray-100 pb-4">
+          <h2 className="text-base font-semibold text-[#10231d]">
+            {profile
+              ? "Schedule Details"
+              : paymentType === "card_subscription"
+              ? "Card Subscription Details"
+              : "Recurring Bill Details"}
+          </h2>
+          <p className="mt-0.5 text-xs text-[#68726d]">
+            {paymentType === "card_subscription"
+              ? "Specify merchant and billing cycle to monitor charges."
+              : "Set up the vendor, cycle, and expected amounts to track upcoming invoices."}
+          </p>
+        </div>
+
+        {paymentType === "card_subscription" ? (
+          /* ── Card Subscription Form ── */
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* Merchant name */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Merchant Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={merchantName}
+                  onChange={(e) => setMerchantName(e.target.value)}
+                  maxLength={255}
+                  required
+                  placeholder="e.g. Google, OpenAI, Figma"
+                  className="w-full h-10 px-3 rounded-[10px] border border-black/[0.1] text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#087f70] focus:ring-2 focus:ring-[#087f70]/20"
+                />
+              </div>
+
+              {/* Subscription or plan */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Subscription or Plan Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={subscriptionName}
+                  onChange={(e) => setSubscriptionName(e.target.value)}
+                  maxLength={255}
+                  required
+                  placeholder="e.g. Google Workspace Business Plus"
+                  className="w-full h-10 px-3 rounded-[10px] border border-black/[0.1] text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#087f70] focus:ring-2 focus:ring-[#087f70]/20"
+                />
+              </div>
+
+              {/* Cadence (Custom Dropdown) */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Cadence <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  value={cadence}
+                  onValueChange={(val) => setCadence(val as RecurringCadence)}
+                >
+                  <SelectTrigger className="w-full h-10 px-3 rounded-[10px] border-black/[0.1] text-xs bg-white text-gray-900 focus:ring-2 focus:ring-[#087f70]/20 focus:border-[#087f70]">
+                    <SelectValue placeholder="Select cadence" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-[12px] border-black/[0.08] shadow-lg">
+                    {CADENCE_OPTIONS.map((c) => (
+                      <SelectItem key={c.value} value={c.value} className="text-xs">
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* First expected charge date */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  First Expected Charge Date <span className="text-red-500">*</span>
+                </label>
+                <DatePicker
+                  date={cardFirstDate}
+                  setDate={setCardFirstDate}
+                  placeholder="Select charge date"
+                  className="rounded-[10px] border-black/[0.1] text-xs"
+                />
+              </div>
+
+              {/* Company card (informative preview) */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Company Card
+                </label>
+                <div className="w-full h-10 px-3 rounded-[10px] border border-dashed border-gray-200 bg-gray-50 flex items-center text-xs text-gray-400">
+                  Card feed selection will unlock as card feeds connect
+                </div>
+              </div>
+
+              {/* Subscription owner (informative preview) */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Subscription Owner
+                </label>
+                <div className="w-full h-10 px-3 rounded-[10px] border border-dashed border-gray-200 bg-gray-50 flex items-center text-xs text-gray-400">
+                  Creator assigned until team owner controls are enabled
+                </div>
+              </div>
+
+              {/* Expected amount */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Expected Amount ({currencySymbol}, optional)
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]+(\.[0-9]{1,4})?"
+                  value={cardExpectedAmount}
+                  onChange={(e) => setCardExpectedAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full h-10 px-3 rounded-[10px] border border-black/[0.1] text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#087f70] focus:ring-2 focus:ring-[#087f70]/20"
+                />
+              </div>
+
+              {/* Variance warning % */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Variance Warning % (optional)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={cardVariancePercent}
+                  disabled={!cardExpectedAmount}
+                  onChange={(e) => setCardVariancePercent(e.target.value)}
+                  placeholder="e.g. 10"
+                  className="w-full h-10 px-3 rounded-[10px] border border-black/[0.1] text-xs text-gray-900 placeholder-gray-400 disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:border-[#087f70] focus:ring-2 focus:ring-[#087f70]/20"
+                />
+              </div>
+            </div>
+
+            {/* Explanatory callout */}
+            <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-200/80 bg-[#fffbeb] text-xs text-[#92400e]">
+              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-amber-900">Direct Card Monitoring</p>
+                <p className="leading-relaxed">
+                  Merchants charge your company card directly. Saving this draft tracks expectations and flags unexpected charge variances once feeds are connected. Do not enter card numbers.
+                </p>
+              </div>
+            </div>
           </div>
         ) : (
-          <p className="rounded-lg border bg-gray-50 px-3 py-2 text-xs text-gray-600">Select one legal entity in the workspace to create a schedule.</p>
+          /* ── Vendor Invoice Form ── */
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* Vendor name (Custom Select Dropdown) */}
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Vendor Name <span className="text-red-500">*</span>
+                </label>
+                <Select value={vendorId} onValueChange={setVendorId}>
+                  <SelectTrigger className="w-full h-10 px-3 rounded-[10px] border-black/[0.1] text-xs bg-white text-gray-900 focus:ring-2 focus:ring-[#087f70]/20 focus:border-[#087f70]">
+                    <SelectValue placeholder="Select eligible vendor" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-[12px] border-black/[0.08] shadow-lg max-h-60">
+                    {vendors.data?.vendors.map((vendor) => (
+                      <SelectItem key={vendor.vendorId} value={vendor.vendorId} className="text-xs">
+                        {vendor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {vendors.isError && (
+                  <p className="text-[11px] text-red-600">Could not load eligible vendors.</p>
+                )}
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Description <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  maxLength={255}
+                  required
+                  placeholder="e.g. AWS Cloud Services — Monthly Production Hosting"
+                  className="w-full h-10 px-3 rounded-[10px] border border-black/[0.1] text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#087f70] focus:ring-2 focus:ring-[#087f70]/20"
+                />
+              </div>
+
+              {/* Frequency (Cadence Custom Select) */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Frequency <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  value={cadence}
+                  disabled={lockSchedule}
+                  onValueChange={(val) => setCadence(val as RecurringCadence)}
+                >
+                  <SelectTrigger className="w-full h-10 px-3 rounded-[10px] border-black/[0.1] text-xs bg-white text-gray-900 focus:ring-2 focus:ring-[#087f70]/20 focus:border-[#087f70] disabled:bg-gray-50 disabled:text-gray-400">
+                    <SelectValue placeholder="Select frequency" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-[12px] border-black/[0.08] shadow-lg">
+                    {CADENCE_OPTIONS.map((c) => (
+                      <SelectItem key={c.value} value={c.value} className="text-xs">
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Start Date */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Start Date (First Expected Invoice) <span className="text-red-500">*</span>
+                </label>
+                <DatePicker
+                  date={firstDate}
+                  setDate={setFirstDate}
+                  disabled={lockSchedule}
+                  placeholder="Select start date"
+                  className="rounded-[10px] border-black/[0.1] text-xs"
+                />
+              </div>
+
+              {/* End Date (optional) */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  End Date <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <DatePicker
+                  date={endDate}
+                  setDate={setEndDate}
+                  placeholder="Ongoing (no end date)"
+                  className="rounded-[10px] border-black/[0.1] text-xs"
+                  fromDate={firstDate}
+                />
+              </div>
+
+              {/* Expected amount */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Expected Amount ({currencySymbol}) <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]+(\.[0-9]{1,4})?"
+                  value={expectedAmount}
+                  onChange={(e) => setExpectedAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full h-10 px-3 rounded-[10px] border border-black/[0.1] text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#087f70] focus:ring-2 focus:ring-[#087f70]/20"
+                />
+              </div>
+
+              {/* Amount tolerance % */}
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Amount Tolerance % <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={variancePercent}
+                  disabled={!expectedAmount}
+                  onChange={(e) => setVariancePercent(e.target.value)}
+                  placeholder="e.g. 10"
+                  className="w-full h-10 px-3 rounded-[10px] border border-black/[0.1] text-xs text-gray-900 placeholder-gray-400 disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:border-[#087f70] focus:ring-2 focus:ring-[#087f70]/20"
+                />
+              </div>
+            </div>
+
+            {lockSchedule && (
+              <p className="text-xs text-[#68726d]">
+                Cadence and start date are fixed once expected invoice occurrences exist. End this schedule and create a new one to change cycle rules.
+              </p>
+            )}
+
+            {/* Explanatory callout */}
+            <div className="flex items-start gap-3 p-4 rounded-xl border border-[#087f70]/20 bg-[#f0faf8] text-xs text-[#065f55]">
+              <Info className="w-4 h-4 text-[#087f70] shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-[#087f70]">Automated Invoice Matching</p>
+                <p className="leading-relaxed text-[#065f55]">
+                  Incoming invoices from this vendor will be linked to each expected cycle. Amount tolerance flags variances during your team's review, but will never automatically approve or release payment.
+                </p>
+              </div>
+            </div>
+          </div>
         )}
+
+        {/* ── Action Buttons ── */}
+        <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-100">
+          {onCancel && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              className="rounded-xl border-gray-200 text-xs font-semibold h-10 px-5 text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </Button>
+          )}
+          <Button
+            type="submit"
+            disabled={
+              pending ||
+              !selectedEntityId ||
+              (paymentType === "invoice" && (!vendorId || Boolean(vendors.isError)))
+            }
+            className="rounded-xl bg-[#087f70] hover:bg-[#076a5e] text-white text-xs font-semibold h-10 px-6 shadow-sm"
+          >
+            {pending ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Saving…
+              </span>
+            ) : paymentType === "card_subscription" ? (
+              "Save Subscription Draft"
+            ) : profile ? (
+              "Save Changes"
+            ) : (
+              "Create Schedule"
+            )}
+          </Button>
+        </div>
       </div>
-      {!profile && step === 1 && <fieldset className="space-y-2 sm:col-span-2">
-        <legend className="text-sm font-medium">How is this paid?</legend>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" aria-pressed={paymentType === "invoice"} onClick={() => setPaymentType("invoice")}
-            className={`rounded-xl border p-4 text-left ${paymentType === "invoice" ? "border-[#087f70] bg-[#f3fbf9] ring-1 ring-[#087f70]" : "border-gray-200 hover:bg-gray-50"}`}>
-            <span className="block text-sm font-semibold">Vendor invoice</span>
-            <span className="mt-1 block text-xs font-normal text-gray-500">The vendor sends an invoice for review and approval.</span>
-          </button>
-          <button type="button" aria-pressed={paymentType === "card_subscription"} onClick={() => setPaymentType("card_subscription")}
-            className={`rounded-xl border p-4 text-left ${paymentType === "card_subscription" ? "border-[#087f70] bg-[#f3fbf9] ring-1 ring-[#087f70]" : "border-gray-200 hover:bg-gray-50"}`}>
-            <span className="block text-sm font-semibold">Company card subscription</span>
-            <span className="mt-1 block text-xs font-normal text-gray-500">The merchant charges the company card each cycle.</span>
-          </button>
-        </div>
-      </fieldset>}
-      {paymentType === "card_subscription" ? <>
-        <label className="space-y-1 text-sm font-medium">Merchant
-          <input value={merchantName} onChange={(event) => setMerchantName(event.target.value)} maxLength={255} required
-            className="block h-10 w-full rounded-lg border px-3 text-sm" placeholder="e.g. Google or OpenAI" />
-        </label>
-        <label className="space-y-1 text-sm font-medium">Subscription or plan
-          <input value={subscriptionName} onChange={(event) => setSubscriptionName(event.target.value)} maxLength={255} required
-            className="block h-10 w-full rounded-lg border px-3 text-sm" placeholder="e.g. Google Workspace Business" />
-        </label>
-        <label className="space-y-1 text-sm font-medium">Cadence
-          <select value={cadence} onChange={(event) => setCadence(event.target.value as RecurringCadence)} className="block h-10 w-full rounded-lg border px-3 text-sm">
-            <option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option>
-          </select>
-        </label>
-        <label className="space-y-1 text-sm font-medium">First expected charge date
-          <input type="date" value={cardFirstDate} onChange={(event) => setCardFirstDate(event.target.value)} required className="block h-10 w-full rounded-lg border px-3 text-sm" />
-        </label>
-        <label className="space-y-1 text-sm font-medium">Company card
-          <select disabled className="block h-10 w-full rounded-lg border bg-gray-50 px-3 text-sm text-gray-500">
-            <option>Connect a card feed to select an account</option>
-          </select>
-        </label>
-        <label className="space-y-1 text-sm font-medium">Subscription owner
-          <select disabled className="block h-10 w-full rounded-lg border bg-gray-50 px-3 text-sm text-gray-500">
-            <option>Creator is assigned until owner selection is available</option>
-          </select>
-        </label>
-        <label className="space-y-1 text-sm font-medium">Expected amount ({selectedEntity?.baseCurrency || "entity currency"}, optional)
-          <input inputMode="decimal" pattern="[0-9]+(\\.[0-9]{1,4})?" value={cardExpectedAmount} onChange={(event) => setCardExpectedAmount(event.target.value)}
-            className="block h-10 w-full rounded-lg border px-3 text-sm" placeholder="Used to flag unexpected changes" />
-        </label>
-        <label className="space-y-1 text-sm font-medium">Variance warning % (optional)
-          <input type="number" min="0" max="100" step="0.01" value={cardVariancePercent} disabled={!cardExpectedAmount}
-            onChange={(event) => setCardVariancePercent(event.target.value)}
-            className="block h-10 w-full rounded-lg border px-3 text-sm" placeholder="e.g. 10" />
-        </label>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm sm:col-span-2">
-          <p className="font-semibold text-amber-900">Save as a draft</p>
-          <p className="mt-1 text-xs text-amber-800">The merchant charges your company card outside Villeto. Saving this draft does not activate transaction matching or pay a bill.</p>
-          <p className="mt-2 text-xs text-amber-800">Card account and owner selection will unlock as card feeds and policy controls are connected. Do not enter card numbers here.</p>
-        </div>
-      </> : <>
-      <label className={`space-y-1 text-sm font-medium sm:col-span-2 ${!profile && step === 2 ? "hidden" : ""}`}>Vendor Name
-        <select value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="block h-10 w-full rounded-lg border border-[#eaecf0] px-3 text-sm">
-          <option value="">Select eligible vendor</option>{vendors.data?.vendors.map((vendor) => <option key={vendor.vendorId} value={vendor.vendorId}>{vendor.name}</option>)}
-        </select>
-      </label>
-      <label className={`space-y-1 text-sm font-medium sm:col-span-2 ${!profile && step === 2 ? "hidden" : ""}`}>Description
-        <input value={description} onChange={(event) => setDescription(event.target.value)} maxLength={255} required={Boolean(profile || step === 1)}
-          className="block h-10 w-full rounded-lg border border-[#eaecf0] px-3 text-sm" placeholder="e.g. AWS Cloud Services — Monthly" />
-      </label>
-      <label className={`space-y-1 text-sm font-medium ${!profile && step === 1 ? "hidden" : ""}`}>Frequency
-        <select value={cadence} disabled={lockSchedule} onChange={(event) => setCadence(event.target.value as RecurringCadence)} className="block h-10 w-full rounded-lg border border-[#eaecf0] px-3 text-sm">
-          <option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option>
-        </select>
-      </label>
-      <label className={`space-y-1 text-sm font-medium ${!profile && step === 2 ? "hidden" : ""}`}>Start Date
-        <input type="date" required={Boolean(profile || step === 1)} value={firstDate} disabled={lockSchedule} onChange={(event) => setFirstDate(event.target.value)}
-          className="block h-10 w-full rounded-lg border border-[#eaecf0] px-3 text-sm" />
-      </label>
-      <label className={`space-y-1 text-sm font-medium ${!profile && step === 1 ? "hidden" : ""}`}>End Date (optional)
-        <input type="date" min={firstDate || undefined} value={endDate} onChange={(event) => setEndDate(event.target.value)} className="block h-10 w-full rounded-lg border border-[#eaecf0] px-3 text-sm" />
-      </label>
-      <label className={`space-y-1 text-sm font-medium ${!profile && step === 2 ? "hidden" : ""}`}>Expected Amount ({options.find((item) => item.legalEntityId === selectedEntityId)?.baseCurrency || "base currency"}, optional)
-        <input inputMode="decimal" value={expectedAmount} onChange={(event) => setExpectedAmount(event.target.value)} pattern="[0-9]+(\\.[0-9]{1,4})?"
-          className="block h-10 w-full rounded-lg border border-[#eaecf0] px-3 text-sm" placeholder="0.00" />
-      </label>
-      <label className={`space-y-1 text-sm font-medium ${!profile && step === 1 ? "hidden" : ""}`}>Amount Tolerance % (optional)
-        <input type="number" min="0" max="100" step="0.01" value={variancePercent} disabled={!expectedAmount}
-          onChange={(event) => setVariancePercent(event.target.value)}
-          className="block h-10 w-full rounded-lg border border-[#eaecf0] px-3 text-sm" placeholder="e.g. 10" />
-      </label>
-      </>}
-    </div>
-    {paymentType === "invoice" && vendors.isError && <p className="text-sm text-red-600">Could not load eligible vendors.</p>}
-    {lockSchedule && paymentType === "invoice" && <p className="text-xs text-[#68726d]">Cadence and first date are fixed once expected occurrences exist. End this schedule and create a new one to change its cycle.</p>}
-    {paymentType === "invoice" && !profile && step === 2 && <div className="rounded-lg bg-[#e6f8f6] p-3 text-xs text-[#1a2e40] sm:col-span-2">
-      Each received invoice is matched for review. Amount tolerance only flags differences; it never approves or pays an invoice.
-    </div>}
-    <div className="flex flex-wrap justify-end gap-3 border-t border-[#eaecf0] pt-5 sm:col-span-2">
-      {paymentType === "invoice" && !profile && step === 2 && <button type="button" onClick={() => setStep(1)}
-        className="rounded-lg border border-[#485866] px-5 py-2.5 text-sm font-semibold text-[#1a2e40]">Back</button>}
-      {onCancel && <button type="button" onClick={onCancel}
-        className="rounded-lg border border-[#485866] px-5 py-2.5 text-sm font-semibold text-[#1a2e40]">Cancel</button>}
-      <button type="submit" disabled={pending || !selectedEntityId || (paymentType === "invoice" && (!vendorId || vendors.isError))}
-        className="rounded-lg bg-[#00b8a9] px-6 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
-        {pending ? "Saving…" : paymentType === "card_subscription" ? "Save subscription draft" : profile ? "Save changes" : step === 1 ? "Continue" : "Create schedule"}
-      </button>
-    </div>
-    </div>
-  </form>;
+    </form>
+  );
 }
