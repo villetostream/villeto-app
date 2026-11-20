@@ -567,8 +567,19 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
   }
 
   // Bill Pay sub-routes
+  if (pathname === "/bill-pay/demo") return "Bill Pay";
+  if (pathname === "/bill-pay/demo/intake") return "Intake & Vendor Portal";
+  if (pathname === "/bill-pay/demo/payments")
+    return "Payments & Reconciliation";
+  if (pathname === "/bill-pay/demo/company-expenses")
+    return "Company Expenses (Corporate Cards)";
   if (pathname === "/bill-pay/add") return "Add a Bill";
   if (pathname === "/bill-pay/add-recurring") return "Set Up Recurring Bill";
+  if (pathname.startsWith("/bill-pay/recurring-card-subscriptions/"))
+    return "Card Subscription Details";
+  if (pathname.startsWith("/bill-pay/recurring/"))
+    return "Recurring Bill Details";
+  if (pathname.match(/^\/bill-pay\/[^/]+$/)) return "Bill Details";
 
   // Procurement sub-routes
   if (pathname === "/procurement/purchase-request/new")
@@ -609,7 +620,9 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
     (item) => item.href === "/settings/data-integration",
   );
   if (settingsItem?.subItems && pathname.startsWith("/settings/")) {
-    const sub = settingsItem.subItems.find((s) => pathname.startsWith(s.href));
+    const sub = settingsItem.subItems.find(
+      (s) => s.href && pathname.startsWith(s.href),
+    );
     if (sub) return sub.label;
     if (pathname.startsWith("/settings")) return settingsItem.label;
   }
@@ -695,6 +708,7 @@ export function UserSection() {
     isConfirmationDetailPage,
     isInvoiceDetailPage,
     isVendorDetailPage,
+    isBillPaySubRoute,
     isBackButtonPage,
   } = useMemo(() => {
     const expDetailMatch = /^\/expenses\/\d+$/.test(pathname);
@@ -745,8 +759,11 @@ export function UserSection() {
     );
     const vendorDetailMatch =
       /^\/vendors\/[^/]+$/.test(pathname) && !vendorBulkPage;
-    const billPayAddMatch =
-      pathname === "/bill-pay/add" || pathname === "/bill-pay/add-recurring";
+    const billPaySubRouteMatch =
+      pathname.startsWith("/bill-pay/") &&
+      pathname !== "/bill-pay" &&
+      pathname !== "/bill-pay/settings" &&
+      !pathname.startsWith("/bill-pay/demo");
 
     const backButtonPage =
       expDetailMatch ||
@@ -771,7 +788,7 @@ export function UserSection() {
       poDetailMatch ||
       confirmDetailMatch ||
       invoiceDetailMatch ||
-      billPayAddMatch ||
+      billPaySubRouteMatch ||
       pathname === "/people/invite/leadership" ||
       pathname === "/people/invite/employees" ||
       pathname === "/people/create-role";
@@ -801,6 +818,7 @@ export function UserSection() {
       isConfirmationDetailPage: confirmDetailMatch,
       isInvoiceDetailPage: invoiceDetailMatch,
       isVendorDetailPage: vendorDetailMatch,
+      isBillPaySubRoute: billPaySubRouteMatch,
       isBackButtonPage: backButtonPage,
     };
   }, [pathname]);
@@ -1031,6 +1049,10 @@ export function UserSection() {
     }
     if (isInvoiceDetailPage) {
       router.push("/procurement/invoices");
+      return;
+    }
+    if (isBillPaySubRoute) {
+      router.push("/bill-pay");
       return;
     }
     router.push("/expenses");

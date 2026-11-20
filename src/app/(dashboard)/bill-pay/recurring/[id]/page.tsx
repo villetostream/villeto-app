@@ -3,73 +3,294 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { format, parseISO } from "date-fns";
+import {
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Eye,
+  FileText,
+  Info,
+  Loader2,
+  Pause,
+  Play,
+  RotateCcw,
+  StopCircle,
+} from "lucide-react";
+import { Receipt2, Cards } from "iconsax-reactjs";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { RecurringBillForm } from "@/components/bill-pay/RecurringBillForm";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import { useAuthStore } from "@/stores/auth-stores";
 import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 import {
-  useDismissRecurringMatch, useMatchRecurring, useRecurringCandidates,
-  useRecurringProfile, useRecurringTransition, useSkipRecurring,
+  useDismissRecurringMatch,
+  useMatchRecurring,
+  useRecurringCandidates,
+  useRecurringProfile,
+  useRecurringTransition,
+  useSkipRecurring,
+  type RecurringCandidate,
   type RecurringOccurrence,
 } from "@/queries/bill-pay/recurring";
 
-const shortDate = (value: string | null) => value
-  ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
-    .format(new Date(`${value}T00:00:00Z`))
-  : "—";
+function formatDate(value: string | null) {
+  if (!value) return "—";
+  try {
+    return format(parseISO(value.slice(0, 10)), "dd MMM yyyy");
+  } catch {
+    return value;
+  }
+}
 
-function OccurrenceReview({ occurrence, canReview }: { occurrence: RecurringOccurrence; canReview: boolean }) {
+function formatCurrency(amount: string | number | null, currency: string = "NGN") {
+  if (amount == null || amount === "") return "Variable";
+  const numeric = typeof amount === "number" ? amount : parseFloat(amount) || 0;
+  return new Intl.NumberFormat("en-NG", { style: "currency", currency }).format(numeric);
+}
+
+function OccurrenceReview({
+  occurrence,
+  canReview,
+}: {
+  occurrence: RecurringOccurrence;
+  canReview: boolean;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [skipReason, setSkipReason] = useState("");
-  const candidates = useRecurringCandidates(occurrence.recurringBillOccurrenceId, open && occurrence.status !== "matched" && occurrence.status !== "skipped");
+
+  const candidatesQuery = useRecurringCandidates(
+    occurrence.recurringBillOccurrenceId,
+    open && occurrence.status !== "matched" && occurrence.status !== "skipped"
+  );
   const match = useMatchRecurring();
   const dismiss = useDismissRecurringMatch();
   const skip = useSkipRecurring();
 
   async function handleSkip() {
-    if (!skipReason.trim()) return toast.error("Enter a reason for skipping this period.");
+    if (!skipReason.trim()) {
+      toast.error("Please enter a reason for skipping this period.");
+      return;
+    }
     try {
-      await skip.mutateAsync({ occurrenceId: occurrence.recurringBillOccurrenceId, reason: skipReason.trim() });
-      toast.success("Period skipped");
+      await skip.mutateAsync({
+        occurrenceId: occurrence.recurringBillOccurrenceId,
+        reason: skipReason.trim(),
+      });
+      toast.success("Period marked as skipped");
       setOpen(false);
-    } catch { toast.error("Could not skip this period."); }
+    } catch {
+      toast.error("Could not skip this period.");
+    }
   }
 
-  return <div className="rounded-xl border bg-white p-4 space-y-3">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><p className="font-semibold text-[#10231d]">{occurrence.periodStart} – {occurrence.periodEnd}</p>
-        <p className="text-xs text-[#68726d]">Expected invoice: {occurrence.expectedDate} · <span className="capitalize">{occurrence.status}</span></p></div>
-      {occurrence.vendorInvoiceId ? <button type="button" className="text-xs font-semibold text-[#087f70] underline"
-        onClick={() => router.push(`/bill-pay/${occurrence.vendorInvoiceId}`)}>Open in Standard Bills</button>
-        : occurrence.status === "skipped" ? <span className="text-xs text-[#68726d]">{occurrence.skipReason}</span>
-          : <button type="button" className="rounded-lg border px-3 py-1.5 text-xs font-semibold" onClick={() => setOpen(!open)}>{open ? "Hide review" : "Review invoices"}</button>}
+  return (
+    <div className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm space-y-4">
+      {/* Header Row */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm text-[#10231d]">
+              {formatDate(occurrence.periodStart)} – {formatDate(occurrence.periodEnd)}
+            </span>
+            <StatusBadge status={occurrence.status} />
+          </div>
+          <p className="text-xs text-[#68726d]">
+            Expected invoice date: <span className="font-medium text-gray-800">{formatDate(occurrence.expectedDate)}</span>
+          </p>
+        </div>
+
+        <div>
+          {occurrence.vendorInvoiceId ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push(`/bill-pay/${occurrence.vendorInvoiceId}`)}
+              className="rounded-xl border-[#087f70]/30 text-[#087f70] hover:bg-[#f0faf8] text-xs font-semibold h-9 px-3 gap-1.5"
+            >
+              <Receipt2 className="w-3.5 h-3.5" />
+              View Matched Bill
+            </Button>
+          ) : occurrence.status === "skipped" ? (
+            <span className="text-xs text-gray-500 italic bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
+              Skipped: {occurrence.skipReason || "No invoice expected"}
+            </span>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(!open)}
+              className={`rounded-xl text-xs font-semibold h-9 px-3 transition-colors ${
+                open
+                  ? "border-[#087f70] text-[#087f70] bg-[#f0faf8]"
+                  : "border-gray-200 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              {open ? "Hide Received Invoices" : "Review Invoices"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Review & Candidate Matching Section */}
+      {open && (
+        <div className="pt-4 border-t border-gray-100 space-y-4">
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600">
+              Matching Received Invoices
+            </h4>
+
+            {candidatesQuery.isLoading ? (
+              <div className="flex items-center gap-2 py-6 text-xs text-gray-500 justify-center">
+                <Loader2 className="w-4 h-4 animate-spin text-[#087f70]" />
+                Scanning for received vendor invoices…
+              </div>
+            ) : candidatesQuery.isError ? (
+              <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-xs text-red-700 flex items-center justify-between">
+                <span>Could not load matching invoice candidates.</span>
+                <button
+                  type="button"
+                  onClick={() => void candidatesQuery.refetch()}
+                  className="font-semibold underline"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : !candidatesQuery.data?.length ? (
+              <div className="p-4 rounded-xl border border-gray-100 bg-gray-50 text-xs text-gray-600 text-center">
+                No matching invoice from this vendor has arrived for this cycle yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {candidatesQuery.data.map((candidate: RecurringCandidate) => (
+                  <div
+                    key={candidate.vendorInvoiceId}
+                    className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm space-y-3 hover:border-gray-300 transition-colors"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-xs text-gray-900">
+                            Invoice #{candidate.invoiceNumber}
+                          </span>
+                          <StatusBadge status={candidate.workflowStage} />
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Invoice Date: {formatDate(candidate.invoiceDate)}
+                        </p>
+                      </div>
+                      <span className="font-bold text-sm text-gray-900">
+                        {formatCurrency(candidate.amount, candidate.currency)}
+                      </span>
+                    </div>
+
+                    {/* Match Reasons & Variance */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                      {candidate.reasons.map((r, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium"
+                        >
+                          {r.replace(/_/g, " ")}
+                        </span>
+                      ))}
+                      {candidate.varianceWarning && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
+                          Amount varies {candidate.variancePercent}% from expectation
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    {canReview && (
+                      <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                        <Button
+                          type="button"
+                          disabled={match.isPending}
+                          onClick={async () => {
+                            try {
+                              await match.mutateAsync({
+                                occurrenceId: occurrence.recurringBillOccurrenceId,
+                                vendorInvoiceId: candidate.vendorInvoiceId,
+                              });
+                              toast.success("Invoice linked successfully! Review in Standard Bills.");
+                              setOpen(false);
+                            } catch {
+                              toast.error("Could not link this invoice.");
+                            }
+                          }}
+                          className="rounded-xl bg-[#087f70] hover:bg-[#076a5e] text-white text-xs font-semibold h-8 px-3"
+                        >
+                          {match.isPending ? "Linking…" : "Confirm Match"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={dismiss.isPending}
+                          onClick={async () => {
+                            try {
+                              await dismiss.mutateAsync({
+                                occurrenceId: occurrence.recurringBillOccurrenceId,
+                                vendorInvoiceId: candidate.vendorInvoiceId,
+                                invoiceMatchId: candidate.invoiceMatchId,
+                              });
+                              toast.success("Suggestion dismissed");
+                            } catch {
+                              toast.error("Could not dismiss this suggestion.");
+                            }
+                          }}
+                          className="rounded-xl border-gray-200 text-xs font-semibold h-8 px-3 text-gray-600 hover:bg-gray-50"
+                        >
+                          Dismiss
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/bill-pay/${candidate.vendorInvoiceId}`)}
+                          className="text-xs font-semibold text-[#087f70] hover:underline ml-auto"
+                        >
+                          View Bill Details →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Skip Period Option */}
+          {canReview && (
+            <div className="pt-3 border-t border-gray-100 space-y-2">
+              <label className="block text-xs font-medium text-gray-700">
+                No bill expected for this cycle? Provide a reason to mark as skipped:
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={skipReason}
+                  onChange={(e) => setSkipReason(e.target.value)}
+                  maxLength={1000}
+                  placeholder="e.g. Free trial month or service paused"
+                  className="flex-1 h-9 px-3 rounded-xl border border-gray-200 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#087f70]"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={skip.isPending || !skipReason.trim()}
+                  onClick={handleSkip}
+                  className="rounded-xl border-gray-200 text-xs font-semibold h-9 px-4 text-gray-700 hover:bg-gray-50"
+                >
+                  {skip.isPending ? "Skipping…" : "Skip Period"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
-    {open && <div className="space-y-3 border-t pt-3">
-      {candidates.isLoading ? <p className="text-sm text-gray-500">Finding received invoices…</p>
-        : candidates.isError ? <p className="text-sm text-red-600">Could not load invoice matches. <button type="button" onClick={() => candidates.refetch()} className="underline">Retry</button></p>
-          : !candidates.data?.length ? <p className="text-sm text-gray-500">No matching vendor invoice has arrived for this period.</p>
-            : candidates.data.map((candidate) => <div key={candidate.vendorInvoiceId} className="rounded-lg border p-3 text-sm space-y-2">
-              <div className="flex flex-wrap justify-between gap-2"><div><p className="font-semibold">Invoice {candidate.invoiceNumber}</p>
-                <p className="text-xs text-gray-500">Dated {candidate.invoiceDate} · {candidate.workflowStage.replaceAll("_", " ")}</p></div>
-                <p className="font-semibold">{candidate.currency} {candidate.amount}</p></div>
-              <p className="text-xs text-gray-500">{candidate.reasons.join(", ").replaceAll("_", " ")}
-                {candidate.varianceWarning && ` · Amount varies ${candidate.variancePercent}% from expectation`}</p>
-              {canReview && <div className="flex gap-2">
-                <button type="button" disabled={match.isPending} className="rounded-lg bg-[#087f70] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                  onClick={async () => { try { await match.mutateAsync({ occurrenceId: occurrence.recurringBillOccurrenceId, vendorInvoiceId: candidate.vendorInvoiceId }); toast.success("Invoice linked; review it in Standard Bills"); setOpen(false); } catch { toast.error("Could not link this invoice."); } }}>Confirm match</button>
-                <button type="button" disabled={dismiss.isPending} className="rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
-                  onClick={async () => { try { await dismiss.mutateAsync({ occurrenceId: occurrence.recurringBillOccurrenceId, vendorInvoiceId: candidate.vendorInvoiceId, invoiceMatchId: candidate.invoiceMatchId }); toast.success("Suggestion dismissed"); } catch { toast.error("Could not dismiss this match."); } }}>Dismiss</button>
-              </div>}
-            </div>)}
-      {canReview && <div className="flex flex-wrap items-end gap-2 border-t pt-3">
-        <label className="flex-1 text-xs font-medium">No invoice expected this period? Give a reason to skip.
-          <input value={skipReason} onChange={(event) => setSkipReason(event.target.value)} maxLength={1000}
-            className="mt-1 block h-9 w-full rounded-lg border px-2 text-sm" placeholder="Reason for skipping" /></label>
-        <button type="button" disabled={skip.isPending || !skipReason.trim()} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50" onClick={handleSkip}>Skip period</button>
-      </div>}
-    </div>}
-  </div>;
+  );
 }
 
 function RecurringBillDetailsPage() {
@@ -79,7 +300,8 @@ function RecurringBillDetailsPage() {
   const id = params.id as string;
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState(false);
-  const profile = useRecurringProfile(id, page);
+
+  const profileQuery = useRecurringProfile(id, page);
   const transition = useRecurringTransition();
   const can = useAuthStore((state) => state.can);
   const canEdit = can("bill_pay.invoice", "edit");
@@ -90,67 +312,317 @@ function RecurringBillDetailsPage() {
     return () => clearBackHandler();
   }, [setBackHandler, clearBackHandler, router]);
 
-  async function changeState(action: "pause" | "resume" | "end") {
-    try { await transition.mutateAsync({ id, action }); toast.success(`Schedule ${action === "end" ? "ended" : action === "pause" ? "paused" : "resumed"}`); }
-    catch { toast.error("Could not change this schedule."); }
+  async function handleStateTransition(action: "pause" | "resume" | "end") {
+    try {
+      await transition.mutateAsync({ id, action });
+      toast.success(
+        `Schedule ${action === "end" ? "ended" : action === "pause" ? "paused" : "resumed"}`
+      );
+    } catch {
+      toast.error("Could not update this schedule status.");
+    }
   }
 
-  if (profile.isLoading) return <div className="p-6 text-sm text-gray-500">Loading recurring schedule…</div>;
-  if (profile.isError || !profile.data) return <div className="p-6 text-sm text-red-600">Could not load this recurring schedule. <button type="button" className="underline" onClick={() => profile.refetch()}>Try again</button></div>;
-  const value = profile.data;
+  if (profileQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-24 text-sm text-gray-500">
+        <Loader2 className="w-5 h-5 animate-spin text-[#087f70]" />
+        Loading recurring schedule…
+      </div>
+    );
+  }
+
+  if (profileQuery.isError || !profileQuery.data) {
+    return (
+      <div className="py-20 text-center space-y-3">
+        <p className="text-sm font-semibold text-red-600">Could not load this recurring schedule.</p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void profileQuery.refetch()}
+          className="rounded-xl text-xs font-semibold"
+        >
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
+  const value = profileQuery.data;
   const history = value.occurrences;
 
-  return <div className="mx-auto max-w-6xl space-y-6 pb-8">
-    <div className="flex flex-wrap items-start justify-between gap-4"><div>
-      <div className="flex items-center gap-3"><h1 className="text-2xl font-semibold text-[#1a2e40]">{value.vendorName || "Vendor"}</h1>
-        <span className={`rounded-md px-2 py-1 text-xs font-medium capitalize ${value.status === "active" ? "bg-[#f1f9f1] text-[#348a3e]" : "bg-[#fff8eb] text-[#e29a0b]"}`}>{value.status}</span></div>
-      <p className="mt-1 text-sm text-[#66737f]">{value.description}</p>
-    </div>{canEdit && value.status !== "ended" && <div className="flex flex-wrap gap-2">
-      <button type="button" className="rounded-lg border border-[#00b8a9] px-4 py-2 text-sm font-semibold text-[#00a99c]" onClick={() => setEditing(!editing)}>{editing ? "Close editor" : "Edit Bill"}</button>
-      <button type="button" disabled={transition.isPending} className="rounded-lg border border-[#eaecf0] px-4 py-2 text-sm font-semibold text-[#1a2e40]" onClick={() => changeState(value.status === "active" ? "pause" : "resume")}>{value.status === "active" ? "Pause" : "Resume"}</button>
-      <button type="button" disabled={transition.isPending} className="rounded-lg bg-[#e53935] px-4 py-2 text-sm font-semibold text-white" onClick={() => changeState("end")}>End schedule</button>
-    </div>}</div>
-    {editing && <RecurringBillForm key={`${value.recurringBillId}-${value.version}`} profile={value} lockSchedule={history.meta.totalCount > 0}
-      onSaved={() => { setEditing(false); void profile.refetch(); }} onCancel={() => setEditing(false)} />}
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_230px]">
-      <div className="space-y-4">
-        <section className="rounded-xl border border-[#eaecf0] bg-white p-5 text-sm">
-          <p className="text-2xl font-semibold text-[#00b8a9]">{value.expectedAmount
-            ? new Intl.NumberFormat("en-NG", { style: "currency", currency: value.currency }).format(Number(value.expectedAmount))
-            : "Variable amount"} <span className="text-xs font-normal text-[#66737f]">/ {value.cadence.replace("ly", "")}</span></p>
-          <h2 className="mt-6 font-semibold text-[#333]">Schedule Information</h2>
-          <div className="mt-3 grid gap-4 sm:grid-cols-3">
-            <div><p className="text-[10px] uppercase text-[#66737f]">Frequency</p><p className="mt-1 font-medium capitalize text-[#1a2e40]">{value.cadence}</p></div>
-            <div><p className="text-[10px] uppercase text-[#66737f]">Start Date</p><p className="mt-1 font-medium text-[#1a2e40]">{shortDate(value.firstExpectedInvoiceDate)}</p></div>
-            <div><p className="text-[10px] uppercase text-[#66737f]">End Date</p><p className="mt-1 font-medium text-[#1a2e40]">{value.endDate ? shortDate(value.endDate) : "Never"}</p></div>
+  return (
+    <div className="mx-auto max-w-6xl space-y-6 pb-12">
+      {/* Header bar */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#10231d]">
+              {value.vendorName || "Vendor Schedule"}
+            </h1>
+            <StatusBadge status={value.status} />
           </div>
-        </section>
-        <section className="rounded-xl border border-[#eaecf0] bg-white p-5 text-sm">
-          <h2 className="font-semibold text-[#333]">Invoice Matching</h2>
-          <div className="mt-3 grid gap-4 sm:grid-cols-3">
-            <div><p className="text-[10px] uppercase text-[#66737f]">Expected Amount</p><p className="mt-1 font-medium text-[#1a2e40]">{value.expectedAmount ? `${value.currency} ${value.expectedAmount}` : "Variable"}</p></div>
-            <div><p className="text-[10px] uppercase text-[#66737f]">Amount Tolerance</p><p className="mt-1 font-medium text-[#1a2e40]">{value.variancePercent ? `±${value.variancePercent}%` : "No threshold"}</p></div>
-            <div><p className="text-[10px] uppercase text-[#66737f]">Invoice Review</p><p className="mt-1 font-medium text-[#1a2e40]">Required for every invoice</p></div>
-          </div>
-        </section>
-      </div>
-      <aside className="self-start overflow-hidden rounded-xl border border-[#eaecf0] bg-white text-sm">
-        <h2 className="bg-[#1a2e40] px-4 py-3 font-semibold text-white">Schedule Progress</h2>
-        <div className="space-y-4 p-4">
-          <div className="border-l-2 border-[#00b8a9] pl-3"><p className="font-medium text-[#1a2e40]">Schedule created</p><p className="mt-1 text-xs text-[#66737f]">Expected invoices are tracked.</p></div>
-          <div className="border-l-2 border-[#eaecf0] pl-3"><p className="font-medium text-[#1a2e40]">Next expected invoice</p><p className="mt-1 text-xs text-[#66737f]">{shortDate(value.nextExpectedDate)}</p></div>
-          <div className="border-l-2 border-[#eaecf0] pl-3"><p className="font-medium text-[#1a2e40]">Received invoice</p><p className="mt-1 text-xs text-[#66737f]">Review and match each arrival below.</p></div>
+          <p className="mt-1 text-xs text-[#68726d]">
+            {value.description} · ID: {value.recurringBillId.slice(0, 8)}
+          </p>
         </div>
-      </aside>
+
+        {canEdit && value.status !== "ended" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditing(!editing)}
+              className="rounded-xl border-[#087f70] text-[#087f70] hover:bg-[#f0faf8] text-xs font-semibold h-9 px-4"
+            >
+              {editing ? "Close Editor" : "Edit Schedule"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={transition.isPending}
+              onClick={() => handleStateTransition(value.status === "active" ? "pause" : "resume")}
+              className="rounded-xl border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-semibold h-9 px-4 gap-1.5"
+            >
+              {value.status === "active" ? (
+                <>
+                  <Pause className="w-3.5 h-3.5 text-amber-600" /> Pause Schedule
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 text-emerald-600" /> Resume Schedule
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={transition.isPending}
+              onClick={() => handleStateTransition("end")}
+              className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold h-9 px-4 gap-1.5"
+            >
+              <StopCircle className="w-3.5 h-3.5" /> End Schedule
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Edit Form Drawer / Card */}
+      {editing && (
+        <div className="rounded-2xl border border-black/[0.08] bg-white p-6 shadow-sm">
+          <RecurringBillForm
+            key={`${value.recurringBillId}-${value.version}`}
+            profile={value}
+            lockSchedule={history.meta.totalCount > 0}
+            onSaved={() => {
+              setEditing(false);
+              void profileQuery.refetch();
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        </div>
+      )}
+
+      {/* Two-Column Overview & Sidebar */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+        {/* Main Content Area */}
+        <div className="space-y-6">
+          {/* Hero Amount & Key Metrics */}
+          <div className="bg-white rounded-2xl border border-black/[0.06] p-6 shadow-sm space-y-6">
+            <div>
+              <p className="text-xs uppercase font-semibold tracking-wider text-gray-400">
+                Expected Amount per Cycle
+              </p>
+              <p className="mt-1 text-3xl font-extrabold text-[#087f70]">
+                {formatCurrency(value.expectedAmount, value.currency)}
+                <span className="text-xs font-medium text-[#68726d] ml-1.5">
+                  / {value.cadence.replace("ly", "")}
+                </span>
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3 pt-4 border-t border-gray-100">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Frequency
+                </p>
+                <p className="mt-1 font-semibold text-xs text-gray-900 capitalize">
+                  {value.cadence}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Start Date
+                </p>
+                <p className="mt-1 font-semibold text-xs text-gray-900">
+                  {formatDate(value.firstExpectedInvoiceDate)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  End Date
+                </p>
+                <p className="mt-1 font-semibold text-xs text-gray-900">
+                  {value.endDate ? formatDate(value.endDate) : "Ongoing"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Next Expected Invoice
+                </p>
+                <p className="mt-1 font-semibold text-xs text-gray-900">
+                  {formatDate(value.nextExpectedDate)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Amount Tolerance
+                </p>
+                <p className="mt-1 font-semibold text-xs text-gray-900">
+                  {value.variancePercent ? `±${value.variancePercent}%` : "No tolerance threshold"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Approval Policy
+                </p>
+                <p className="mt-1 font-semibold text-xs text-gray-900">
+                  Review required on receipt
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Expected Invoice Periods (Occurrences) */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-[#10231d]">
+                  Expected Invoice Periods
+                </h2>
+                <p className="text-xs text-[#68726d]">
+                  Each billing period generated for this recurring schedule.
+                </p>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                {history.meta.totalCount} {history.meta.totalCount === 1 ? "period" : "periods"}
+              </span>
+            </div>
+
+            {history.data.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-black/[0.06] p-8 text-center text-xs text-gray-500 shadow-sm">
+                No expected invoice periods generated yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {history.data.map((occurrence: RecurringOccurrence) => (
+                  <OccurrenceReview
+                    key={occurrence.recurringBillOccurrenceId}
+                    occurrence={occurrence}
+                    canReview={canReview}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Pagination */}
+            {history.meta.totalPages > 1 && (
+              <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
+                <span>
+                  Page {page} of {history.meta.totalPages}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="rounded-lg text-xs h-8 px-3"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={page >= history.meta.totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="rounded-lg text-xs h-8 px-3"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Platform Standard Dark Progress Card */}
+          <div className="bg-[#10231d] rounded-2xl p-5 text-white shadow-sm space-y-4">
+            <h3 className="font-semibold text-sm text-white">Schedule Progress</h3>
+
+            <div className="space-y-4">
+              {/* Step 1: Created */}
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#087f70] flex items-center justify-center shrink-0 mt-0.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div>
+                  <p className="font-semibold text-xs text-white">Schedule Active</p>
+                  <p className="text-[11px] text-gray-300">
+                    Started {formatDate(value.firstExpectedInvoiceDate)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2: Tracking */}
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-[#087f70]/30 border border-[#087f70] flex items-center justify-center shrink-0 mt-0.5">
+                  <Clock className="w-3.5 h-3.5 text-[#087f70]" />
+                </div>
+                <div>
+                  <p className="font-semibold text-xs text-white">Next Invoice</p>
+                  <p className="text-[11px] text-gray-300">
+                    Due {formatDate(value.nextExpectedDate)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3: Review */}
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Receipt2 className="w-3.5 h-3.5 text-gray-400" />
+                </div>
+                <div>
+                  <p className="font-semibold text-xs text-white/70">Bill Matching</p>
+                  <p className="text-[11px] text-gray-400">
+                    Received invoices held for review before release
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Schedule Rules Card */}
+          <div className="bg-white rounded-2xl border border-black/[0.06] p-5 shadow-sm space-y-3">
+            <h4 className="font-semibold text-xs text-[#10231d]">Workflow Rules</h4>
+            <div className="text-xs text-[#68726d] space-y-2">
+              <p>
+                • Invoices matching the vendor name and period are held for reviewer confirmation.
+              </p>
+              <p>
+                • Amount tolerances flag unexpected price increases without releasing payments automatically.
+              </p>
+              <p>
+                • Matched invoices proceed to Standard Bills for 3-way check and authorization.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div className="space-y-3"><h2 className="text-lg font-semibold">Expected invoice periods</h2>
-      {history.data.length === 0 ? <div className="rounded-xl border bg-white p-6 text-sm text-gray-500">No expected periods yet.</div>
-        : history.data.map((occurrence) => <OccurrenceReview key={occurrence.recurringBillOccurrenceId} occurrence={occurrence} canReview={canReview} />)}
-      <div className="flex items-center gap-3 text-sm"><button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="rounded border px-3 py-1 disabled:opacity-40">Previous</button>
-        <span>Page {page} of {Math.max(1, history.meta.totalPages)}</span>
-        <button type="button" disabled={page >= history.meta.totalPages} onClick={() => setPage(page + 1)} className="rounded border px-3 py-1 disabled:opacity-40">Next</button></div>
-    </div>
-  </div>;
+  );
 }
 
 export default withPermissions(RecurringBillDetailsPage, [

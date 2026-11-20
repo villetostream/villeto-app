@@ -42,12 +42,13 @@ export interface NavItem {
 
 interface SubItem {
   label: string;
-  href: string;
+  href?: string;
   /** Empty = always visible. One or more = user needs at least one of these. */
   permissions: NavPermission[];
   badge?: string;
   imageUrl?: string;
   comingSoon?: boolean;
+  subItems?: SubItem[];
 }
 
 // ─── Navigation Items ─────────────────────────────────────────────────────────
@@ -215,6 +216,44 @@ export const navigationItems: NavItem[] = [
         permissions: [
           { resource: "bill_pay.configuration", action: "manage" },
           { resource: "bill_pay.mailbox_connection", action: "manage" },
+        ],
+      },
+      {
+        label: "Architecture Demo",
+        href: "/bill-pay/demo",
+        permissions: [],
+        badge: "Demo",
+        subItems: [
+          {
+            label: "Standard Bills (AP)",
+            href: "/bill-pay/demo?tab=standard",
+            permissions: [],
+          },
+          {
+            label: "Recurring & Contracts",
+            href: "/bill-pay/demo?tab=recurring",
+            permissions: [],
+          },
+          {
+            label: "Company Expenses (Cards)",
+            href: "/bill-pay/demo/company-expenses",
+            permissions: [],
+          },
+          {
+            label: "Payments Queue",
+            href: "/bill-pay/demo/payments",
+            permissions: [],
+          },
+          {
+            label: "Intake & Supplier Portal",
+            href: "/bill-pay/demo/intake",
+            permissions: [],
+          },
+          {
+            label: "Vendors & Governance",
+            href: "/bill-pay/demo/vendors",
+            permissions: [],
+          },
         ],
       },
     ],
