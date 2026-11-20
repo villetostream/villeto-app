@@ -61,12 +61,9 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "partially_delivered":
     case "partially_delivered_with_exceptions":
     case "delivered_with_exceptions":
-<<<<<<< Updated upstream
-=======
     case "full_delivery_with_exceptions":
     case "due":
     case "paused":
->>>>>>> Stashed changes
       colorClasses = "text-[#b27b00] bg-[#fff9e6] border-[#ffe099]";
       if (normalizedStatus === "resubmitted") {
         defaultLabel = "Resubmitted";
