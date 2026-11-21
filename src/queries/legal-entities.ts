@@ -75,11 +75,9 @@ export function useEnableEntityWorkspace() {
     mutationFn: async () =>
       (await axios.patch("/legal-entities/workspace/settings", { enabled: true }))
         .data,
-    onSuccess: async () => {
-      await Promise.all([
-        client.invalidateQueries({ queryKey: ["legal-entity-workspace-settings"] }),
-        client.invalidateQueries({ queryKey: ["entity-workspace-bootstrap"] }),
-      ]);
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["legal-entity-workspace-settings"] });
+      client.invalidateQueries({ queryKey: ["entity-workspace-bootstrap"] });
     },
   });
 }

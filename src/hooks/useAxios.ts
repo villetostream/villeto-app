@@ -60,7 +60,7 @@ function finishWorkspaceMutation(config?: InternalAxiosRequestConfig) {
 // A bounded concurrency gate (like a token bucket with N tokens) so a page
 // that mounts many queries can't fire them all at once and trip the backend
 // rate limiter. Excess requests queue in FIFO order.
-const MAX_CONCURRENT_REQUESTS = 6;
+const MAX_CONCURRENT_REQUESTS = 10;
 let inFlight = 0;
 const waiters: Array<() => void> = [];
 
@@ -247,14 +247,16 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     reportReviewRoute(config.url || "", config.params);
   if (workspace.snapshot?.enabled && scoped) {
     if (!workspace.selection && !optionalDetail)
-      throw new axios.CanceledError(
+      throw requestCancellation(
+        config,
         "A legal entity assignment or workspace selection is required",
       );
     if (
       config._workspaceGeneration !== undefined &&
       config._workspaceGeneration !== workspace.generation
     )
-      throw new axios.CanceledError(
+      throw requestCancellation(
+        config,
         "Workspace changed before the request could be retried",
       );
     config._workspaceGeneration = workspace.generation;
@@ -264,7 +266,8 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
       !["get", "head", "options"].includes(config.method || "get") ||
       /notifications\/mark/.test(config.url || "");
     if (mutation && workspaceReadOnly())
-      throw new axios.CanceledError(
+      throw requestCancellation(
+        config,
         "Select an active legal entity before performing this action",
       );
     if (workspace.selection === "all") {
@@ -315,19 +318,21 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error: unknown) => {
+    const errorConfig = (error as any)?.config as InternalAxiosRequestConfig | undefined;
+    if (errorConfig) {
+      releaseSlot(errorConfig);
+      finishWorkspaceMutation(errorConfig);
+    }
+
     if (!axios.isAxiosError<ApiErrorPayload>(error)) {
       return Promise.reject(error);
     }
 
     if (axios.isCancel(error)) {
-      releaseSlot(error.config);
-      finishWorkspaceMutation(error.config);
       return Promise.reject(error);
     }
     const originalRequest = error.config;
     if (!originalRequest) return Promise.reject(error);
-    releaseSlot(originalRequest);
-    finishWorkspaceMutation(originalRequest);
     throwIfRequestCanceled(originalRequest);
 
     // ── Throttling / transient upstream errors ──

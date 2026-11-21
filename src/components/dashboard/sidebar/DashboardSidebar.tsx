@@ -5,7 +5,7 @@ import { QUERY_KEYS } from "@/shared/lib/query/keys";
 import { workspaceQueryKey } from "@/features/entity-workspace/store";
 
 import { cn } from "@/lib/utils";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -109,7 +109,7 @@ export function DashboardSidebar({
   const isAuthLoading =
     useAuthStore((state) => state.isLoading) || isProfileLoading;
   const axios = useAxios();
-  const { state, setOpen, isMobile } = useSidebar();
+  const { state, setOpen, isMobile, toggleSidebar } = useSidebar();
   const isTourActive = useTourStore((s) => s.isTourActive);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -734,23 +734,50 @@ export function DashboardSidebar({
   return (
     <Sidebar
       collapsible="icon"
-      className="border-r border-white/[0.06] !bg-[#0b1f1a] text-white [&_[data-slot=sidebar-inner]]:!bg-[#0b1f1a]"
+      className="z-20 border-r border-white/[0.06] !bg-[#0b1f1a] text-white [&_[data-slot=sidebar-inner]]:!bg-[#0b1f1a]"
     >
       {/* ── Header: Logo + Toggle ── */}
-      <SidebarHeader className="border-b border-white/[0.07] !p-0 space-y-0 bg-[#0b1f1a]">
-        <div className={cn("flex flex-col", isExpanded ? "pl-4 pr-6" : "px-2")}>
+      <SidebarHeader className="relative w-full border-b border-white/[0.07] !p-0 space-y-0 bg-[#0b1f1a]">
+        {/* Floating border-line toggle button (centered on the vertical divider line in both states) */}
+        {!isTourActive && (
+          <Tooltip delayDuration={120}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => toggleSidebar()}
+                aria-label={isExpanded ? "Collapse navigation" : "Expand navigation"}
+                className="absolute -right-3 top-5 z-30 size-6 rounded-full bg-white border border-dashboard-border shadow-xs hover:bg-dashboard-hover flex items-center justify-center cursor-pointer transition-colors"
+              >
+                {isExpanded ? (
+                  <PanelLeftClose className="size-3.5 text-[#087f70]" />
+                ) : (
+                  <PanelLeftOpen className="size-3.5 text-[#087f70]" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="right"
+              sideOffset={8}
+              className="rounded-[6px] border border-white/[0.08] bg-[#0b1f1a] px-2.5 py-1 text-[11px] font-medium text-white shadow-[0_5px_15px_rgba(0,0,0,0.3)] [&>svg]:hidden"
+            >
+              {isExpanded ? "Collapse navigation" : "Expand navigation"}
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        <div className={cn("flex flex-col w-full", isExpanded ? "pl-4 pr-6" : "px-2")}>
           <div
             className={cn(
-              "flex items-center h-[72px] transition-all duration-300",
-              isExpanded ? "justify-between" : "justify-center",
+              "flex items-center h-[72px] w-full transition-all duration-300",
+              isExpanded ? "justify-start" : "justify-center",
             )}
           >
             {isExpanded ? (
-              <>
-                <Link
-                  href="/dashboard"
-                  className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
-                >
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2.5 px-3 hover:opacity-90 transition-opacity"
+              >
+                <div className="flex w-8 items-center justify-center shrink-0">
                   <Image
                     src="/images/villeto-logo-v.png"
                     alt="Villeto"
@@ -759,20 +786,25 @@ export function DashboardSidebar({
                     className="object-contain"
                     priority
                   />
-                  <span className="text-[20px] font-semibold tracking-[-0.04em] text-white">
-                    Villeto
-                  </span>
-                </Link>
-                {!isTourActive && (
-                  <SidebarTrigger className="shrink-0 cursor-pointer rounded-[8px] text-white/45 hover:bg-white/[0.08] hover:text-white" />
-                )}
-              </>
+                </div>
+                <span className="text-[20px] font-semibold tracking-[-0.04em] text-white">
+                  Villeto
+                </span>
+              </Link>
             ) : (
-              !isTourActive && (
-                <CollapsedNavTooltip label="Expand navigation" show>
-                  <SidebarTrigger className="shrink-0 cursor-pointer rounded-[8px] text-white/45 hover:bg-white/[0.08] hover:text-white" />
-                </CollapsedNavTooltip>
-              )
+              <Link
+                href="/dashboard"
+                className="flex items-center justify-center hover:opacity-90 transition-opacity"
+              >
+                <Image
+                  src="/images/villeto-logo-v.png"
+                  alt="Villeto"
+                  width={27}
+                  height={24}
+                  className="object-contain"
+                  priority
+                />
+              </Link>
             )}
           </div>
 

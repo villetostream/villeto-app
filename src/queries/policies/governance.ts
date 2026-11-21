@@ -104,16 +104,16 @@ export const useUpdateApprovalSettings = (target: PolicyTarget) => {
       );
       return res.data;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({
+    onSuccess: () => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.policyGovernance.all),
-        refetchType: "all",
+        refetchType: "active",
       });
-      await qc.invalidateQueries({
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(
           QUERY_KEYS.policyGovernance.byTarget(target),
         ),
-        refetchType: "all",
+        refetchType: "active",
       });
     },
   });

@@ -6,7 +6,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Figtree", sans-serif;
+  --font-sans: "Figtree", "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -203,13 +203,16 @@
   --primary-glow: oklch(0.78 0.15 175.6); /* slightly dimmed glow */
   --primary-light: oklch(0.7035 0.1242 184.62 / 0.0588);
 }
-body {
-  font-family: var(--font-geist-sans);
-}
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  html,
+  body {
+    -webkit-font-smoothing: auto;
+    -moz-osx-font-smoothing: auto;
+    text-rendering: optimizeLegibility;
   }
   ::selection {
     background-color: rgba(8, 127, 112, 0.18);

@@ -133,7 +133,7 @@ export default function ProcurementInvoiceDetailsPage() {
     <div className="flex-1 pb-8 flex flex-col min-h-0 overflow-auto">
       {/* Header Section (Sticky) */}
       <div className="sticky top-0 z-10 bg-[#f4f7f5] pb-4 mb-8 px-6 lg:px-8 pt-5 sm:pt-7 lg:pt-8 border-b border-black/[0.04]">
-        <div className="max-w-[1200px] mx-auto w-full flex flex-col sm:flex-row justify-between items-start gap-4">
+        <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto flex flex-col sm:flex-row justify-between items-start gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1.5 flex-wrap">
               <h1 className="text-[24px] font-bold text-[#10231d]">
@@ -198,7 +198,7 @@ export default function ProcurementInvoiceDetailsPage() {
         </div>
       </div>
 
-      <div className="px-6 lg:px-8 max-w-[1200px] mx-auto w-full">
+      <div className="px-6 lg:px-8 w-full max-w-7xl 2xl:max-w-[1536px] mx-auto">
         {/* Layout Grid */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* Main Content (Left) */}

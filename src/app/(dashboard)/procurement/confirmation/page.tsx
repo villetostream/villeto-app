@@ -467,14 +467,16 @@ function ConfirmationPage() {
                   item.status === "partially_delivered" ||
                   item.status === "partially_delivered_with_exceptions" ||
                   (item.closeBlockers || []).includes("delivery_incomplete");
+                const hasOpenExceptions =
+                  (item.openExceptionCount ?? 0) > 0 ||
+                  Boolean(item.vendorResponseRequired);
                 const deliveryOutcomeKey = isStillPartial
-                  ? (item.status || "partially_delivered")
+                  ? hasOpenExceptions
+                    ? "partially_delivered_with_exceptions"
+                    : "partially_delivered"
                   : item.deliveryOutcome && item.deliveryOutcome !== "not_delivered"
                     ? item.deliveryOutcome
                     : item.status || "ready_for_delivery";
-                const hasOpenExceptions =
-                  (item.openExceptionCount ?? 0) > 0 ||
-                  (item.deliveryOutcome || "").includes("with_exceptions") && (item.openExceptionCount ?? 0) > 0;
                 const displayForfeited =
                   isStillPartial && (item.quantityOutstanding ?? 0) === 0
                     ? 0
@@ -514,19 +516,18 @@ function ConfirmationPage() {
                             <AlertTriangle className="size-3" /> Dispute decision required
                           </span>
                         )}
-                        {!item.companyActionRequired && item.vendorResponseRequired && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                            Awaiting vendor response
+                        {!item.companyActionRequired && item.vendorResponseRequired ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#fff9e6] px-2 py-0.5 text-[10px] font-semibold text-[#b27b00] border border-[#ffe099]">
+                            <Clock3 className="size-3 text-[#b27b00]" /> Awaiting vendor response
                           </span>
-                        )}
-                        {(item.openExceptionCount ?? 0) > 0 && (
+                        ) : (item.openExceptionCount ?? 0) > 0 ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-amber-50/80 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
                             {item.openExceptionCount} open exception{item.openExceptionCount === 1 ? "" : "s"}
                           </span>
-                        )}
-                        {item.fulfillmentState === "backordered" && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
-                            <Clock3 className="size-3" /> Backordered by vendor
+                        ) : null}
+                        {item.fulfillmentState === "backordered" && !item.companyActionRequired && !item.vendorResponseRequired && (item.openExceptionCount ?? 0) === 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#fff9e6] px-2 py-0.5 text-[10px] font-semibold text-[#b27b00] border border-[#ffe099]">
+                            <Clock3 className="size-3 text-[#b27b00]" /> Backordered by vendor
                           </span>
                         )}
                       </div>
@@ -587,7 +588,7 @@ function ConfirmationPage() {
                           Awaiting delivery
                         </span>
                       ) : hasOpenExceptions ? (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#fff9e6] text-[#b27b00] border border-[#ffe099] whitespace-nowrap">
                           {labels[deliveryOutcomeKey] || "With exceptions"}
                         </span>
                       ) : deliveryOutcomeKey === "partially_delivered" ? (

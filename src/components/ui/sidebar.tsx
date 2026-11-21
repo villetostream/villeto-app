@@ -238,7 +238,7 @@ function Sidebar({
       <motion.div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh md:flex",
+          "fixed inset-y-0 z-20 hidden h-svh md:flex",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -288,7 +288,7 @@ function Sidebar({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="flex flex-col items-center h-full"
+                className="flex flex-col items-center h-full w-full"
               >
                 {/* Render icon-only content here if needed */}
                 {children} {/* Adjust to show icons only */}
@@ -392,7 +392,7 @@ function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="sidebar-header"
       data-sidebar="header"
-      className={cn("flex flex-col gap-2 p-2", className)}
+      className={cn("flex flex-col gap-2 p-2 w-full", className)}
       {...props}
     />
   );

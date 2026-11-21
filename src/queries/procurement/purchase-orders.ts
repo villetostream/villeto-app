@@ -582,8 +582,8 @@ export const useShortClosePOLine = (purchaseOrderId: string) => {
       );
       return response.data;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
+    onSuccess: () => {
+      queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(
           QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId),
         ),
@@ -594,6 +594,7 @@ export const useShortClosePOLine = (purchaseOrderId: string) => {
       });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrders),
+        refetchType: "active",
       });
     },
   });
@@ -611,8 +612,8 @@ export const useConfirmPOFinalBilling = (purchaseOrderId: string) => {
       );
       return response.data;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
+    onSuccess: () => {
+      queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(
           QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId),
         ),
@@ -623,6 +624,7 @@ export const useConfirmPOFinalBilling = (purchaseOrderId: string) => {
       });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrders),
+        refetchType: "active",
       });
     },
   });
@@ -670,15 +672,17 @@ export const useConfirmPOReceipt = (id: string) => {
       );
       return response.data;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
+    onSuccess: () => {
+      queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(id)),
       });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(["procurement", "confirmations"]),
+        refetchType: "active",
       });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(["procurement", "fulfillment-exceptions"]),
+        refetchType: "active",
       });
       queryClient.removeQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrders),
@@ -686,6 +690,7 @@ export const useConfirmPOReceipt = (id: string) => {
       });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrders),
+        refetchType: "active",
       });
     },
   });
@@ -743,18 +748,16 @@ export const useUploadReceiptExceptionEvidence = (purchaseOrderId: string) => {
       );
       return (response.data?.data ?? response.data) as ReceiptEvidenceItem;
     },
-    onSuccess: async (_data, { deliveryReceiptId }) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId)),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: workspaceQueryKey(QUERY_KEYS.procurement.poReceipt(purchaseOrderId, deliveryReceiptId)),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: workspaceQueryKey(QUERY_KEYS.procurement.fulfillmentException(deliveryReceiptId)),
-        }),
-      ]);
+    onSuccess: (_data, { deliveryReceiptId }) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.poReceipt(purchaseOrderId, deliveryReceiptId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.fulfillmentException(deliveryReceiptId)),
+      });
     },
   });
 };
@@ -899,26 +902,27 @@ export const useSubmitReceiptFinalDecision = (purchaseOrderId: string) => {
       );
       return response.data;
     },
-    onSuccess: async (_data, { deliveryReceiptId }) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId)),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: workspaceQueryKey(QUERY_KEYS.procurement.poReceipt(purchaseOrderId, deliveryReceiptId)),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: workspaceQueryKey(QUERY_KEYS.procurement.fulfillmentException(deliveryReceiptId)),
-        }),
-      ]);
+    onSuccess: (_data, { deliveryReceiptId }) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.poReceipt(purchaseOrderId, deliveryReceiptId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.fulfillmentException(deliveryReceiptId)),
+      });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(["procurement", "confirmations"]),
+        refetchType: "active",
       });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(["procurement", "fulfillment-exceptions"]),
+        refetchType: "active",
       });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrders),
+        refetchType: "active",
       });
     },
   });
@@ -949,23 +953,23 @@ export const useResolveReceiptException = (purchaseOrderId: string) => {
       );
       return response.data;
     },
-    onSuccess: async (_data, { deliveryReceiptId }) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId)),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: workspaceQueryKey(QUERY_KEYS.procurement.poReceipt(purchaseOrderId, deliveryReceiptId)),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: workspaceQueryKey(QUERY_KEYS.procurement.fulfillmentException(deliveryReceiptId)),
-        }),
-      ]);
+    onSuccess: (_data, { deliveryReceiptId }) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.purchaseOrder(purchaseOrderId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.poReceipt(purchaseOrderId, deliveryReceiptId)),
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKey(QUERY_KEYS.procurement.fulfillmentException(deliveryReceiptId)),
+      });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(["procurement", "confirmations"]),
+        refetchType: "active",
       });
       queryClient.invalidateQueries({
         queryKey: workspaceQueryKey(["procurement", "fulfillment-exceptions"]),
+        refetchType: "active",
       });
     },
   });

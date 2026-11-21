@@ -1042,8 +1042,8 @@ function CreatePOView({
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
       {/* ── Page Header — outside scroll area so action buttons stay in view ── */}
-      <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
-        <div className="w-full flex items-start justify-between gap-4 flex-wrap">
+      <div className="shrink-0 pt-6 sm:pt-8 px-6 sm:px-8 lg:px-10 pb-5 sm:pb-6">
+        <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
@@ -1071,8 +1071,8 @@ function CreatePOView({
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-9 sm:px-11 pb-9 sm:pb-11">
-      <div className="max-w-6xl mx-auto flex gap-6 items-start flex-1 min-h-0">
+      <div className="flex-1 overflow-y-auto min-h-0 px-6 sm:px-8 lg:px-10 pb-9 sm:pb-11">
+      <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto flex gap-6 items-start flex-1 min-h-0">
         {/* ── Left ─────────────────────────────────────────────────────── */}
         <div className="flex-1 space-y-4 min-w-0">
           {/* Info cards */}
@@ -1972,8 +1972,8 @@ function PRDetailPage() {
 
       <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
         {/* Global Page Header — transparent with exact original padding */}
-        <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
-          <div className="w-full flex items-start justify-between gap-4 flex-wrap">
+        <div className="shrink-0 pt-6 sm:pt-8 px-6 sm:px-8 lg:px-10 pb-5 sm:pb-6">
+          <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto flex items-start justify-between gap-4 flex-wrap">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl font-bold text-[#0b100e]">{pr.requestNumber}</h1>
@@ -2050,8 +2050,8 @@ function PRDetailPage() {
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-9 sm:px-11 pb-9 sm:pb-11">
-          <div className="flex flex-col h-full max-w-6xl mx-auto">
+        <div className="flex-1 overflow-y-auto min-h-0 px-6 sm:px-8 lg:px-10 pb-9 sm:pb-11">
+          <div className="flex flex-col h-full w-full max-w-7xl 2xl:max-w-[1536px] mx-auto">
 
         {/* Self-approval restriction note — shown to requesters who hold approve
             permission but are viewing their own pending request. Mirrors the

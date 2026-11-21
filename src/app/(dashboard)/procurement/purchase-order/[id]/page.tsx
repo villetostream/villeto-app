@@ -944,8 +944,8 @@ function PODetailPage() {
       {/* Layout */}
       <div className="flex flex-col h-[calc(100vh-64px)] -m-3 sm:-m-5 min-h-0">
         {/* Header - Transparent with exact original padding */}
-        <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
-          <div className="max-w-6xl mx-auto w-full flex items-center justify-between flex-wrap gap-4">
+        <div className="shrink-0 pt-6 sm:pt-8 px-6 sm:px-8 lg:px-10 pb-5 sm:pb-6">
+          <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto flex items-center justify-between flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold text-[#0b100e]">{po.poNumber || "Unnamed PO"}</h1>
@@ -1036,8 +1036,8 @@ function PODetailPage() {
 
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-9 sm:px-11 pb-9 sm:pb-11">
-          <div className="max-w-6xl mx-auto flex flex-col">
+        <div className="flex-1 overflow-y-auto min-h-0 px-6 sm:px-8 lg:px-10 pb-9 sm:pb-11">
+          <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto flex flex-col">
             {/* Split layout */}
             <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* Left Column */}
