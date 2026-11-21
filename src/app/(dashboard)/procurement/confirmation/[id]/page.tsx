@@ -21,6 +21,7 @@ import {
   UploadCloud,
   AlertTriangle,
   Scale,
+  RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -233,7 +234,21 @@ function FulfillmentHistoryCard({
   const resolutionStatus = matchingReceipt?.resolutionStatus;
   const companyActionRequired = Boolean(matchingReceipt?.companyActionRequired);
   const vendorActionRequired = Boolean(matchingReceipt?.vendorActionRequired);
-  const isResolvedAfterDispute = resolutionStatus === "resolved_after_dispute";
+
+  const hasVendorAcceptedFinalDecision = Boolean(
+    (matchingReceipt?.decisionHistory as any[])?.some(
+      (h: any) => h.event === "vendor_accepted_final_decision"
+    )
+  );
+  const isDisputeSettled =
+    Boolean(matchingReceipt?.finalDecision) &&
+    !companyActionRequired &&
+    !vendorActionRequired;
+
+  const isResolvedAfterDispute =
+    resolutionStatus === "resolved_after_dispute" ||
+    isDisputeSettled ||
+    hasVendorAcceptedFinalDecision;
 
   const hasActiveAttention =
     canReceiveThisFulfillment ||
@@ -249,7 +264,18 @@ function FulfillmentHistoryCard({
     index: number;
   } | null>(null);
   const evidenceInputRef = useRef<HTMLInputElement | null>(null);
-  const isDigital = notice.fulfillmentMethod === "digital";
+
+  const lineMethods = Array.from(new Set((notice.lineItems || []).map((li: any) => li.fulfillmentMethod).filter(Boolean)));
+  const lineCarriers = Array.from(new Set((notice.lineItems || []).map((li: any) => li.carrier).filter(Boolean)));
+  const lineTrackingNumbers = Array.from(new Set((notice.lineItems || []).map((li: any) => li.trackingNumber).filter(Boolean)));
+  const lineExpectedDeliveryDate = (notice.lineItems || []).map((li: any) => li.expectedDeliveryDate).filter(Boolean)[0];
+
+  const effectiveMethod = notice.fulfillmentMethod || (lineMethods.length > 1 ? "mixed" : lineMethods[0]) || "carrier";
+  const effectiveCarrier = notice.carrier || lineCarriers.join(", ") || notice.dispatchReference || "—";
+  const effectiveTracking = notice.trackingNumber || lineTrackingNumbers.join(", ") || notice.waybillNumber || notice.shipmentReference || notice.fulfillmentReference || "—";
+  const effectiveExpectedDelivery = notice.expectedDeliveryDate || notice.estimatedDeliveryDate || lineExpectedDeliveryDate;
+
+  const isDigital = effectiveMethod === "digital";
   const titlePrefix = isDigital ? "Digital Delivery" : "Shipment";
 
   const canAppendEvidence =
@@ -275,15 +301,15 @@ function FulfillmentHistoryCard({
 
   return (
     <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden transition-colors">
-      <button 
+      <div 
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-5 text-left hover:bg-[#f9faf9] transition-colors focus:outline-none"
+        className="w-full flex items-center justify-between p-4 sm:p-5 gap-3.5 text-left hover:bg-[#f9faf9] transition-colors cursor-pointer select-none"
       >
-        <div>
+        <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-[#0b100e]">
             {titlePrefix} #{index + 1} 
           </h3>
-          <p className="text-xs text-[#68726d] mt-1">
+          <p className="text-xs text-[#68726d] mt-1 truncate">
             {formatDate(notice.readyAt)} • {notice.declaration === "full" ? "Full Delivery" : "Partial Delivery"}
             {isConfirmed && matchingReceipt?.receivedAt && (
               <> • Confirmed {formatDate(matchingReceipt.receivedAt)}</>
@@ -296,32 +322,66 @@ function FulfillmentHistoryCard({
             )}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           {companyActionRequired && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#fdecee] text-[#d33d44] border border-[#d33d44]/20">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#fdecee] text-[#d33d44] border border-[#d33d44]/20 shrink-0">
               <AlertTriangle className="w-3.5 h-3.5" /> Under Company Review
             </span>
           )}
           {vendorActionRequired && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
               <Clock3 className="w-3.5 h-3.5" /> Awaiting Vendor Response
             </span>
           )}
           {!companyActionRequired && !vendorActionRequired && (
             hasExceptions && resolutionStatus ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                {RESOLUTION_STATUS_LABELS[resolutionStatus] || resolutionStatus.replace(/_/g, " ")}
-              </span>
+              (() => {
+                const label = RESOLUTION_STATUS_LABELS[resolutionStatus] || resolutionStatus.replace(/_/g, " ");
+                if (isResolvedAfterDispute || resolutionStatus === "resolved" || resolutionStatus === "resolved_after_dispute") {
+                  const displayLabel = isDisputeSettled || hasVendorAcceptedFinalDecision ? "Resolution Agreed" : label;
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#f0faf8] text-[#087f70] border border-[#c8ece4] shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#087f70]" /> {displayLabel}
+                    </span>
+                  );
+                }
+                if (resolutionStatus === "backordered" || resolutionStatus === "backorder") {
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#fff9e6] text-[#b27b00] border border-[#ffe099] shrink-0">
+                      <Clock3 className="w-3.5 h-3.5 text-[#b27b00]" /> {label}
+                    </span>
+                  );
+                }
+                if (resolutionStatus === "forfeited" || resolutionStatus === "forfeit") {
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200 shrink-0">
+                      {label}
+                    </span>
+                  );
+                }
+                if (resolutionStatus === "under_company_review" || resolutionStatus === "disputed") {
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#fdecee] text-[#d33d44] border border-[#d33d44]/20 shrink-0">
+                      <AlertTriangle className="w-3.5 h-3.5 text-[#d33d44]" /> {label}
+                    </span>
+                  );
+                }
+                return (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                    {label}
+                  </span>
+                );
+              })()
             ) : isConfirmed ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#f0faf8] text-[#087f70] border border-[#087f70]/20">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#f0faf8] text-[#087f70] border border-[#087f70]/20 shrink-0">
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#087f70]" /> Confirmed
               </span>
             ) : isPartiallyConfirmed ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
                 <Clock3 className="w-3.5 h-3.5" /> Partially Confirmed
               </span>
             ) : notice.dispatchStatus && notice.dispatchStatus !== "not_applicable" ? (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold shrink-0 ${
                 notice.dispatchStatus === "dispatched" ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-600"
               }`}>
                 {notice.dispatchStatus === "dispatched" ? "Dispatched" : "Pending Dispatch"}
@@ -335,11 +395,12 @@ function FulfillmentHistoryCard({
             !isResolvedAfterDispute &&
             matchingReceipt && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onMakeFinalDecision(matchingReceipt);
               }}
-              className="h-8 px-3.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer bg-[#087f70] text-white hover:bg-[#076a5e]"
+              className="h-8 px-3.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer bg-[#087f70] text-white hover:bg-[#076a5e] shrink-0"
             >
               <Gavel className="w-3.5 h-3.5" />
               Resolve Dispute
@@ -348,44 +409,54 @@ function FulfillmentHistoryCard({
 
           {canReceiveThisFulfillment && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onReceive();
               }}
-              className="h-8 px-4 rounded-lg bg-[#087f70] text-white text-xs font-semibold hover:bg-[#076a5e] transition-colors whitespace-nowrap"
+              className="h-8 px-4 rounded-lg bg-[#087f70] text-white text-xs font-semibold hover:bg-[#076a5e] transition-colors whitespace-nowrap shrink-0"
             >
               Receive {isDigital ? "Delivery" : "Shipment"}
             </button>
           )}
-          {expanded ? <ChevronDown className="w-5 h-5 text-[#89918d]" /> : <ChevronRight className="w-5 h-5 text-[#89918d]" />}
+          <div className="w-7 h-7 rounded-md flex items-center justify-center text-[#89918d] hover:text-[#0b100e] hover:bg-black/[0.04] transition-colors shrink-0">
+            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </div>
         </div>
-      </button>
+      </div>
 
       {expanded && (
         <div className="border-t border-black/[0.06]">
           {matchingReceipt && (hasStatusNote || hasAnyEvidenceBlock) && (
             <div className="px-5 py-4 bg-[#fcfcfc] border-b border-black/[0.05] space-y-3.5">
-              {companyActionRequired && !vendorActionRequired && (
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-semibold text-[#0b100e]">Vendor Disputed</span>
-                    {matchingReceipt.lineItems?.some((l: any) => l.vendorDisposition === "dispute" || l.resolutionStatus === "under_company_review" || l.resolutionStatus === "disputed") && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-[#d33d44]">
-                        on {matchingReceipt.lineItems
-                          .filter((l: any) => l.vendorDisposition === "dispute" || l.resolutionStatus === "under_company_review" || l.resolutionStatus === "disputed")
-                          .map((l: any) => l.name)
-                          .filter(Boolean)
-                          .join(", ")}
+              {companyActionRequired && !vendorActionRequired && (() => {
+                const disputedLines = (matchingReceipt.lineItems || []).filter(
+                  (l: any) =>
+                    l.vendorDisposition === "dispute" ||
+                    l.resolutionStatus === "under_company_review" ||
+                    l.resolutionStatus === "disputed"
+                );
+                const hasMultipleDisputed = disputedLines.length > 1;
+                return (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold text-[#0b100e]">Vendor Disputed</span>
+                      {disputedLines.length > 0 && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-[#d33d44]">
+                          {disputedLines.length} {disputedLines.length === 1 ? "item" : "items"} ({disputedLines.map((l: any) => l.name).filter(Boolean).join(", ")})
+                        </span>
+                      )}
+                      <span className="text-[#34413b] italic">
+                        {hasMultipleDisputed
+                          ? ": See individual item responses below to review and record final determination."
+                          : matchingReceipt.vendorResponseReason
+                          ? `: "${matchingReceipt.vendorResponseReason}"`
+                          : ": The vendor disputed one or more exception lines. Review their response and record the final decision."}
                       </span>
-                    )}
-                    <span className="text-[#34413b] italic">
-                      {matchingReceipt.vendorResponseReason
-                        ? `: "${matchingReceipt.vendorResponseReason}"`
-                        : ": The vendor disputed one or more exception lines. Review their response and record the final decision."}
-                    </span>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {vendorActionRequired && !companyActionRequired && matchingReceipt.finalDecision ? (
                 <div className="flex flex-col gap-1 rounded-lg bg-[#f0faf8] border border-[#087f70]/20 p-3 text-xs text-[#065f55]">
@@ -537,22 +608,51 @@ function FulfillmentHistoryCard({
                 </div>
               )}
 
-              {isResolvedAfterDispute && (
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <p className="text-[#34413b]">
-                    <span className="font-semibold text-[#087f70]">
-                      Dispute Resolved ({FINAL_DECISION_LABELS[matchingReceipt.finalDecision || ""] || matchingReceipt.finalDecision || "Final Decision Recorded"})
-                    </span>
-                    {matchingReceipt.resolutionNote ? ` — "${matchingReceipt.resolutionNote}"` : ""}
-                  </p>
-                  {matchingReceipt.resolvedAt && (
-                    <span className="text-[11px] text-[#89918d]">
-                      {matchingReceipt.resolvedByName ? `${matchingReceipt.resolvedByName} · ` : ""}
-                      {formatDate(matchingReceipt.resolvedAt)}
-                    </span>
-                  )}
-                </div>
-              )}
+              {isResolvedAfterDispute && (() => {
+                const determinationEvent = (matchingReceipt.decisionHistory as any[])
+                  ?.slice()
+                  .reverse()
+                  .find((h: any) => h.event === "company_final_determination");
+                const vendorAcceptedEv = (matchingReceipt.decisionHistory as any[])
+                  ?.slice()
+                  .reverse()
+                  .find((h: any) => h.event === "vendor_accepted_final_decision");
+                const note =
+                  matchingReceipt.resolutionNote ||
+                  determinationEvent?.determinationNotes ||
+                  determinationEvent?.reason ||
+                  vendorAcceptedEv?.reason;
+                const decidedDate =
+                  matchingReceipt.resolvedAt ||
+                  vendorAcceptedEv?.recordedAt ||
+                  determinationEvent?.recordedAt;
+                return (
+                  <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-[#f0faf8] border border-[#087f70]/20 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-[#087f70] flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-[#087f70]" />
+                        Dispute Resolved ({FINAL_DECISION_LABELS[matchingReceipt.finalDecision || ""] || matchingReceipt.finalDecision || "Final Decision Recorded"})
+                      </span>
+                      {decidedDate && (
+                        <span className="text-[11px] text-[#087f70]/80">
+                          {matchingReceipt.resolvedByName ? `${matchingReceipt.resolvedByName} · ` : ""}
+                          Decided {formatDate(String(decidedDate))}
+                        </span>
+                      )}
+                    </div>
+                    {note && (
+                      <p className="italic text-[#34413b] pl-5.5">
+                        &quot;{note}&quot;
+                      </p>
+                    )}
+                    {vendorAcceptedEv && (
+                      <p className="text-[11px] text-[#087f70] pl-5.5 font-medium">
+                        Vendor accepted ruling · Replacement scheduled on backorder
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {hasAnyEvidenceBlock && (
                 <div className="flex flex-wrap items-start gap-8">
@@ -674,7 +774,9 @@ function FulfillmentHistoryCard({
           <div className="p-5 grid grid-cols-4 gap-4 bg-[#fcfcfc]">
             <div>
               <p className="text-[10px] font-medium text-[#89918d] uppercase tracking-wide">Method</p>
-              <p className="text-sm font-medium text-[#111815] mt-1 capitalize">{notice.fulfillmentMethod?.replace(/_/g, " ") || "—"}</p>
+              <p className="text-sm font-medium text-[#111815] mt-1 capitalize">
+                {effectiveMethod === "vendor_truck" ? "Vendor Truck" : effectiveMethod === "mixed" ? "Mixed Delivery" : effectiveMethod.replace(/_/g, " ")}
+              </p>
             </div>
             {isDigital ? (
               <div className="col-span-3">
@@ -687,11 +789,11 @@ function FulfillmentHistoryCard({
               <>
                 <div>
                   <p className="text-[10px] font-medium text-[#89918d] uppercase tracking-wide">Carrier / Dispatch Ref</p>
-                  <p className="text-sm font-medium text-[#111815] mt-1">{notice.carrier || notice.dispatchReference || "—"}</p>
+                  <p className="text-sm font-medium text-[#111815] mt-1">{effectiveCarrier}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-medium text-[#89918d] uppercase tracking-wide">Tracking / Waybill</p>
-                  <p className="text-sm font-medium text-[#111815] mt-1">{notice.trackingNumber || notice.waybillNumber || notice.shipmentReference || notice.fulfillmentReference || "—"}</p>
+                  <p className="text-sm font-medium text-[#111815] mt-1">{effectiveTracking}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-medium text-[#89918d] uppercase tracking-wide">
@@ -699,8 +801,8 @@ function FulfillmentHistoryCard({
                   </p>
                   <p className="text-sm font-medium text-[#111815] mt-1">
                     {notice.packingSlipNumber ||
-                      ((notice.expectedDeliveryDate || notice.estimatedDeliveryDate)
-                        ? formatDate(notice.expectedDeliveryDate || notice.estimatedDeliveryDate).split(",")[0]
+                      (effectiveExpectedDelivery
+                        ? formatDate(effectiveExpectedDelivery).split(",")[0]
                         : "—")}
                   </p>
                 </div>
@@ -757,6 +859,32 @@ function FulfillmentHistoryCard({
                   const lineVendorDisposition = receiptLineItem?.vendorDisposition;
                   const lineResolutionStatus = receiptLineItem?.resolutionStatus;
                   const lineRedeliveryDate = receiptLineItem?.expectedRedeliveryDate;
+                  const isLineDisputed =
+                    lineVendorDisposition === "dispute" ||
+                    lineResolutionStatus === "disputed" ||
+                    lineResolutionStatus === "under_company_review";
+                  const disputeEvent = (matchingReceipt?.decisionHistory as any[])
+                    ?.slice()
+                    .reverse()
+                    .find((h: any) => h.event === "vendor_disputed");
+                  const proposedItem = Array.isArray(disputeEvent?.proposedLineItems)
+                    ? disputeEvent.proposedLineItems.find(
+                        (p: any) =>
+                          (receiptLineItem?.deliveryReceiptLineItemId &&
+                            p.deliveryReceiptLineItemId === receiptLineItem.deliveryReceiptLineItemId) ||
+                          (receiptLineItem?.purchaseOrderLineItemId &&
+                            p.purchaseOrderLineItemId === receiptLineItem.purchaseOrderLineItemId) ||
+                          (p.name && p.name === item.name)
+                      )
+                    : undefined;
+                  const lineNote =
+                    receiptLineItem?.vendorResponseReason ||
+                    proposedItem?.vendorResponseReason ||
+                    proposedItem?.reason ||
+                    (isLineDisputed && !matchingReceipt?.vendorResponseReason?.includes(" | ")
+                      ? (disputeEvent?.reason || matchingReceipt?.vendorResponseReason)
+                      : null);
+                  const hasDisputeCard = isLineDisputed && (Boolean(lineNote) || Boolean(proposedItem));
 
                   return (
                   <tr key={i} className="border-b border-black/[0.04] last:border-b-0">
@@ -800,40 +928,45 @@ function FulfillmentHistoryCard({
                           )}
 
                           {/* Single line-level disposition / resolution badge */}
-                          {(lineVendorDisposition || (lineResolutionStatus && lineResolutionStatus !== "not_required")) && (
-                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                              {lineResolutionStatus === "resolved_after_dispute" ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[#f0faf8] text-[#087f70]">
-                                  Resolved After Dispute
-                                </span>
-                              ) : lineVendorDisposition === "backorder" || lineResolutionStatus === "backordered" ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[#f5f7f6] text-[#34413b] border border-black/[0.06]">
-                                  <Clock3 className="w-3 h-3 text-amber-600" /> Backordered by Vendor
-                                  {lineRedeliveryDate
-                                    ? ` (due ${formatDate(lineRedeliveryDate).split(",")[0]})`
-                                    : ""}
-                                </span>
-                              ) : lineVendorDisposition === "forfeit" || lineResolutionStatus === "forfeited" ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[#f5f7f6] text-[#68726d] border border-black/[0.06]">
-                                  Forfeited by Vendor
-                                </span>
-                              ) : lineVendorDisposition === "dispute" || lineResolutionStatus === "disputed" ? (
-                                matchingReceipt?.finalDecision ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[#f0faf8] text-[#087f70] border border-[#087f70]/20">
-                                    <Gavel className="w-3 h-3 text-[#087f70]" /> Company Ruling: Upheld Finding
+                          {(() => {
+                            const hasAllocations = Boolean(receiptLineItem?.dispositionAllocations && receiptLineItem.dispositionAllocations.length > 0);
+                            if (!lineVendorDisposition && (!lineResolutionStatus || lineResolutionStatus === "not_required")) return null;
+
+                            return (
+                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                {lineResolutionStatus === "resolved_after_dispute" ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[#f0faf8] text-[#087f70]">
+                                    Resolved After Dispute
                                   </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[#fdecee] text-[#d33d44]">
-                                    Vendor Disputed
+                                ) : (lineVendorDisposition === "backorder" || lineResolutionStatus === "backordered") && !hasAllocations ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                                    <RotateCcw className="w-3 h-3 text-amber-600 shrink-0" /> Replacement Redelivery
+                                    {lineRedeliveryDate
+                                      ? ` (due ${formatDate(lineRedeliveryDate).split(",")[0]})`
+                                      : ""}
                                   </span>
-                                )
-                              ) : lineResolutionStatus ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[#f5f7f6] text-[#34413b]">
-                                  {RESOLUTION_STATUS_LABELS[lineResolutionStatus] || lineResolutionStatus.replace(/_/g, " ")}
-                                </span>
-                              ) : null}
-                            </div>
-                          )}
+                                ) : (lineVendorDisposition === "forfeit" || lineResolutionStatus === "forfeited") && !hasAllocations ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[#f5f7f6] text-[#68726d] border border-black/[0.06]">
+                                    Forfeited by Vendor
+                                  </span>
+                                ) : lineVendorDisposition === "dispute" || lineResolutionStatus === "disputed" ? (
+                                  matchingReceipt?.finalDecision ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[#f0faf8] text-[#087f70] border border-[#087f70]/20">
+                                      <Gavel className="w-3 h-3 text-[#087f70]" /> Company Ruling: Upheld Finding
+                                    </span>
+                                  ) : !hasDisputeCard ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[#fdecee] text-[#d33d44]">
+                                      Vendor Disputed
+                                    </span>
+                                  ) : null
+                                ) : lineResolutionStatus && !hasAllocations ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[#f5f7f6] text-[#34413b]">
+                                    {RESOLUTION_STATUS_LABELS[lineResolutionStatus] || lineResolutionStatus.replace(/_/g, " ")}
+                                  </span>
+                                ) : null}
+                              </div>
+                            );
+                          })()}
 
                           {/* Recommended disposition by company */}
                           {receiptLineItem?.recommendedDisposition && (
@@ -856,42 +989,49 @@ function FulfillmentHistoryCard({
                             );
                             const uom = poLineItem?.unitOfMeasure || item.unitOfMeasure;
                             return (
-                              <div className="space-y-1 pt-1">
-                                {receiptLineItem.dispositionAllocations.map((alloc: any, aIdx: number) => (
-                                  <p key={aIdx} className="text-[10px] text-[#68726d] bg-gray-50 px-2 py-0.5 rounded border border-black/[0.04]">
-                                    <span className="font-semibold capitalize text-[#34413b]">{alloc.disposition}:</span>{" "}
-                                    {alloc.quantity} {formatUnitLabel(Number(alloc.quantity || 0), uom)}
-                                    {alloc.expectedRedeliveryDate ? ` (due ${formatDate(alloc.expectedRedeliveryDate).split(",")[0]})` : ""}
-                                    {alloc.reason ? ` — "${alloc.reason}"` : ""}
-                                  </p>
-                                ))}
+                              <div className="flex flex-col gap-1 pt-1">
+                                {receiptLineItem.dispositionAllocations.map((alloc: any, aIdx: number) => {
+                                  const isBackorder = alloc.disposition === "backorder" || alloc.disposition === "backordered";
+                                  const dispLabel = isBackorder ? "Replacement Redelivery:" : `${alloc.disposition}:`;
+                                  return (
+                                    <div key={aIdx} className="flex items-center gap-1.5 flex-wrap">
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold shrink-0 ${
+                                          isBackorder
+                                            ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                            : "bg-[#f5f7f6] text-[#34413b] border border-black/[0.06]"
+                                        }`}
+                                        title={alloc.reason ? `Vendor Note: "${alloc.reason}"` : undefined}
+                                      >
+                                        {isBackorder ? (
+                                          <RotateCcw className="w-3 h-3 text-amber-600 shrink-0" />
+                                        ) : (
+                                          <Clock3 className="w-3 h-3 text-amber-600 shrink-0" />
+                                        )}
+                                        <span>{dispLabel}</span>
+                                        <span className="font-normal">{alloc.quantity} {formatUnitLabel(Number(alloc.quantity || 0), uom)}</span>
+                                        {alloc.expectedRedeliveryDate && (
+                                          <span className="font-normal text-amber-700/80">
+                                            (due {formatDate(alloc.expectedRedeliveryDate).split(",")[0]})
+                                          </span>
+                                        )}
+                                      </span>
+                                      {alloc.reason && (
+                                        <span
+                                          className="text-[11px] text-[#68726d] italic truncate max-w-[280px]"
+                                          title={`Vendor Note: "${alloc.reason}"`}
+                                        >
+                                          — &quot;{alloc.reason}&quot;
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             );
                           })()}
 
                           {(() => {
-                            const isLineDisputed =
-                              lineVendorDisposition === "dispute" ||
-                              lineResolutionStatus === "disputed" ||
-                              lineResolutionStatus === "under_company_review";
-                            const disputeEvent = (matchingReceipt?.decisionHistory as any[])
-                              ?.slice()
-                              .reverse()
-                              .find((h: any) => h.event === "vendor_disputed");
-                            const proposedItem = Array.isArray(disputeEvent?.proposedLineItems)
-                              ? disputeEvent.proposedLineItems.find(
-                                  (p: any) =>
-                                    (receiptLineItem?.deliveryReceiptLineItemId &&
-                                      p.deliveryReceiptLineItemId === receiptLineItem.deliveryReceiptLineItemId) ||
-                                    (receiptLineItem?.purchaseOrderLineItemId &&
-                                      p.purchaseOrderLineItemId === receiptLineItem.purchaseOrderLineItemId) ||
-                                    (p.name && p.name === item.name)
-                                )
-                              : undefined;
-                            const lineNote =
-                              receiptLineItem?.vendorResponseReason ||
-                              proposedItem?.reason ||
-                              (isLineDisputed ? (disputeEvent?.reason || matchingReceipt?.vendorResponseReason) : null);
 
                             if (matchingReceipt?.finalDecision && receiptLineItem && (isLineDisputed || receiptLineItem.finalQuantityAccepted != null)) {
                               const vendorAcceptedEvent = (matchingReceipt.decisionHistory as any[])
@@ -943,27 +1083,39 @@ function FulfillmentHistoryCard({
                                 (a: any) => a.reason && String(a.reason).trim() === String(lineNote).trim()
                               );
 
-                            if (!lineNote || (!proposedItem && isDuplicateAllocationNote)) return null;
+                            if (!lineNote && !proposedItem) return null;
+                            if (!proposedItem && isDuplicateAllocationNote) return null;
+
+                            if (isLineDisputed) {
+                              return (
+                                <div className="flex flex-col gap-1 pt-1 text-xs">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-[#d33d44] border border-red-200 shrink-0">
+                                      Vendor Disputed
+                                    </span>
+                                    {proposedItem && (
+                                      <span className="text-[11px] text-[#34413b] font-medium shrink-0">
+                                        Claims: <strong className="text-[#087f70]">{proposedItem.quantityAccepted} accepted</strong>, <strong className="text-[#d33d44]">{proposedItem.quantityRejected} rejected</strong>
+                                        {proposedItem.quantityMissing > 0 ? `, ${proposedItem.quantityMissing} missing` : ""}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {lineNote && (
+                                    <p
+                                      className="text-[11px] text-[#68726d] italic pl-2 border-l-2 border-red-200 truncate max-w-[340px]"
+                                      title={`Vendor Dispute Note: "${lineNote}"`}
+                                    >
+                                      &ldquo;{lineNote}&rdquo;
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            }
 
                             return (
-                              <div
-                                className={`rounded p-2 text-xs space-y-0.5 mt-1.5 ${
-                                  isLineDisputed
-                                    ? "bg-red-50/70 border border-red-200/80 text-red-950"
-                                    : "bg-gray-50 border border-black/[0.05] text-[#34413b]"
-                                }`}
-                              >
-                                <span className={`font-semibold block ${isLineDisputed ? "text-[#d33d44]" : "text-[#0b100e]"}`}>
-                                  {isLineDisputed ? "Vendor Dispute Note:" : "Vendor Note:"}
-                                </span>
-                                <p className="italic">&quot;{lineNote}&quot;</p>
-                                {proposedItem && (
-                                  <p className="text-[10px] text-[#68726d] font-normal pt-0.5">
-                                    Vendor proposes: {proposedItem.quantityAccepted} accepted, {proposedItem.quantityRejected} rejected
-                                    {proposedItem.quantityMissing > 0 ? `, ${proposedItem.quantityMissing} missing` : ""}.
-                                  </p>
-                                )}
-                              </div>
+                              <p className="text-[11px] text-[#68726d] italic pt-0.5 truncate max-w-[360px]" title={`Vendor Note: "${lineNote}"`}>
+                                <span className="font-medium text-[#34413b] not-italic">Vendor note:</span> &quot;{lineNote}&quot;
+                              </p>
                             );
                           })()}
                         </div>
@@ -972,36 +1124,88 @@ function FulfillmentHistoryCard({
                     <td className="px-5 py-3 align-top">
                       {outstandingAfterReceipt === undefined ? (
                         <span className="text-[#68726d]">—</span>
-                      ) : (
-                        <div className="flex flex-col gap-1.5 items-start">
-                          <div>
-                            <p className="font-medium text-[#111815]">{outstandingAfterReceipt} remaining</p>
-                            <p className="text-[11px] text-[#89918d]">of {orderedQuantity} ordered</p>
+                      ) : (() => {
+                        const allocs = receiptLineItem?.dispositionAllocations || [];
+                        const allocBackorderQty = allocs
+                          .filter((a: any) => a.disposition === "backorder" || a.disposition === "backordered")
+                          .reduce((s: number, a: any) => s + Number(a.quantity || 0), 0);
+
+                        const vendorAcceptedEv = (matchingReceipt?.decisionHistory as any[])
+                          ?.slice()
+                          .reverse()
+                          .find((h: any) => h.event === "vendor_accepted_final_decision");
+
+                        const hasAgreedReplacement =
+                          allocBackorderQty > 0 ||
+                          lineVendorDisposition === "backorder" ||
+                          lineResolutionStatus === "backordered" ||
+                          Boolean(
+                            matchingReceipt?.finalDecision &&
+                            (vendorAcceptedEv?.disposition === "backorder" || !matchingReceipt?.vendorActionRequired)
+                          );
+
+                        const rejectedQty = Number(receiptLineItem?.finalQuantityRejected ?? receiptLineItem?.quantityRejected ?? 0);
+                        const missingQty = Number(receiptLineItem?.finalQuantityMissing ?? receiptLineItem?.quantityMissing ?? 0);
+                        const totalExceptionUnits = rejectedQty + missingQty;
+
+                        const replacementQty = hasAgreedReplacement
+                          ? (allocBackorderQty > 0 ? allocBackorderQty : totalExceptionUnits)
+                          : 0;
+
+                        const replacementDueDate =
+                          allocs.find((a: any) => a.expectedRedeliveryDate)?.expectedRedeliveryDate ||
+                          lineRedeliveryDate ||
+                          vendorAcceptedEv?.expectedRedeliveryDate;
+
+                        const unshippedBatchQty = Math.max(0, outstandingAfterReceipt - replacementQty);
+                        const isBatch = Boolean(item.dispositionReason?.toLowerCase().includes("batch") || item.remainingDisposition === "backordered");
+
+                        return (
+                          <div className="flex flex-col gap-1.5 items-start">
+                            <div>
+                              <p className="font-medium text-[#111815]">{outstandingAfterReceipt} remaining</p>
+                              <p className="text-[11px] text-[#89918d]">of {orderedQuantity} ordered</p>
+                            </div>
+
+                            {item.remainingDisposition === "cannot_fulfill" ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-50 text-red-700 text-xs font-medium whitespace-nowrap mt-0.5">
+                                <AlertCircle className="w-3.5 h-3.5" /> {remainingQty} Cannot Fulfill
+                              </span>
+                            ) : outstandingAfterReceipt === 0 ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#f0faf8] text-[#087f70] text-xs font-medium whitespace-nowrap mt-0.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-[#087f70]" /> Fully Fulfilled
+                              </span>
+                            ) : (
+                              <div className="space-y-1.5 mt-0.5 w-full">
+                                {unshippedBatchQty > 0 && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/80 whitespace-nowrap">
+                                      <Package className="w-3 h-3 text-blue-600 shrink-0" />
+                                      {unshippedBatchQty} {isBatch ? "next batch" : "unshipped"}
+                                      {item.expectedReadyDate ? ` (exp. ${formatDate(item.expectedReadyDate).split(",")[0]})` : ""}
+                                    </span>
+                                  </div>
+                                )}
+                                {replacementQty > 0 && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80 whitespace-nowrap">
+                                      <RotateCcw className="w-3 h-3 text-amber-600 shrink-0" />
+                                      {replacementQty} replacement
+                                      {replacementDueDate ? ` (due ${formatDate(String(replacementDueDate)).split(",")[0]})` : ""}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {item.dispositionReason && (
+                              <p className="text-[11px] text-[#89918d] italic truncate max-w-[200px]" title={item.dispositionReason}>
+                                Batch note: &quot;{item.dispositionReason}&quot;
+                              </p>
+                            )}
                           </div>
-                          {item.remainingDisposition === "cannot_fulfill" ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-50 text-red-700 text-xs font-medium whitespace-nowrap mt-0.5">
-                              <AlertCircle className="w-3.5 h-3.5" /> {remainingQty} Cannot Fulfill
-                            </span>
-                          ) : item.remainingDisposition === "backordered" ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-medium whitespace-nowrap mt-0.5">
-                              <Clock3 className="w-3.5 h-3.5" /> {remainingQty} Backordered{item.expectedReadyDate ? ` (exp. ${formatDate(item.expectedReadyDate).split(",")[0]})` : ""}
-                            </span>
-                          ) : notice.declaration === "full" && outstandingAfterReceipt === 0 ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#f0faf8] text-[#087f70] text-xs font-medium whitespace-nowrap mt-0.5">
-                              Fully Fulfilled
-                            </span>
-                          ) : notice.declaration === "full" && outstandingAfterReceipt > 0 ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-medium whitespace-nowrap mt-0.5">
-                              <Clock3 className="w-3.5 h-3.5" /> {outstandingAfterReceipt} awaiting replacement
-                            </span>
-                          ) : null}
-                          {item.dispositionReason && (
-                            <p className="text-[11px] text-[#89918d] italic truncate max-w-[200px]" title={item.dispositionReason}>
-                              Reason: {item.dispositionReason}
-                            </p>
-                          )}
-                        </div>
-                      )}
+                        );
+                      })()}
                     </td>
                   </tr>
                 )})}
@@ -1341,14 +1545,15 @@ function ItemFulfillmentDrawer({
                 {(() => {
                   let runningReady = 0;
                   return relevantFulfillments.map((f, idx) => {
-                    const method = f.notice.fulfillmentMethod || "unknown";
+                    const li = f.lineItem!;
+                    const rawMethod = f.notice.fulfillmentMethod || li.fulfillmentMethod;
+                    const method = rawMethod && rawMethod !== "unknown" ? rawMethod : (li.carrier || f.notice.carrier ? "carrier" : "carrier");
                     const isPhysical = ["carrier", "vendor_truck"].includes(method);
                     let Icon = Package;
                     if (isPhysical) Icon = Truck;
                     else if (method === "digital") Icon = Monitor;
                     else if (method === "service") Icon = Wrench;
 
-                    const li = f.lineItem!;
                     runningReady += li.quantityReady || 0;
                     const remainingAtTime = Math.max(0, item.quantity - runningReady);
 
@@ -1426,9 +1631,27 @@ function ItemFulfillmentDrawer({
                       ? "bg-blue-50 text-blue-600 border-blue-200"
                       : "bg-gray-50 text-gray-600 border-gray-200";
 
+                    const isLineBackordered =
+                      receiptLineItem?.vendorDisposition === "backorder" ||
+                      receiptLineItem?.resolutionStatus === "backordered" ||
+                      matchingReceipt?.resolutionStatus === "backordered" ||
+                      allocations.some((a: any) => a.disposition === "backorder");
+
+                    const isLineForfeited =
+                      receiptLineItem?.vendorDisposition === "forfeit" ||
+                      receiptLineItem?.resolutionStatus === "forfeited" ||
+                      matchingReceipt?.resolutionStatus === "forfeited" ||
+                      allocations.some((a: any) => a.disposition === "forfeit");
+
                     if (hasLineExceptions && matchingReceipt?.companyActionRequired) {
                       badgeText = "Disputed · Action Required";
                       badgeColor = "bg-[#fdecee] text-[#d33d44] border-[#d33d44]/20";
+                    } else if (hasLineExceptions && isLineBackordered) {
+                      badgeText = "Backordered by Vendor";
+                      badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
+                    } else if (hasLineExceptions && isLineForfeited) {
+                      badgeText = "Forfeited by Vendor";
+                      badgeColor = "bg-gray-100 text-gray-700 border-gray-200";
                     } else if (hasLineExceptions && matchingReceipt?.vendorActionRequired) {
                       badgeText = matchingReceipt?.finalDecision ? "Ruling Issued · Awaiting Vendor" : "Awaiting Vendor Response";
                       badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
@@ -1445,22 +1668,6 @@ function ItemFulfillmentDrawer({
                     } else if (hasLineExceptions && isResolvedAfterDispute) {
                       badgeText = "Resolved After Dispute";
                       badgeColor = "bg-[#f0faf8] text-[#087f70] border-[#087f70]/20";
-                    } else if (
-                      hasLineExceptions &&
-                      (receiptLineItem?.vendorDisposition === "backorder" ||
-                      matchingReceipt?.resolutionStatus === "backordered" ||
-                      allocations.some((a: any) => a.disposition === "backorder"))
-                    ) {
-                      badgeText = "Backordered by Vendor";
-                      badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
-                    } else if (
-                      hasLineExceptions &&
-                      (receiptLineItem?.vendorDisposition === "forfeit" ||
-                      matchingReceipt?.resolutionStatus === "forfeited" ||
-                      allocations.some((a: any) => a.disposition === "forfeit"))
-                    ) {
-                      badgeText = "Forfeited by Vendor";
-                      badgeColor = "bg-gray-100 text-gray-700 border-gray-200";
                     } else if (hasLineExceptions) {
                       badgeText = "Confirmed with Exceptions";
                       badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
@@ -1502,12 +1709,12 @@ function ItemFulfillmentDrawer({
                               )}
                             </p>
                             <p className="text-xs text-[#89918d] mt-1">
-                              Via {methodLabel[method] || method}
-                              {f.notice.carrier && ` (${f.notice.carrier})`}
+                              Via {methodLabel[method] || (method === "vendor_truck" ? "Vendor Truck" : method.replace(/_/g, " "))}
+                              {(f.notice.carrier || li.carrier) && ` (${f.notice.carrier || li.carrier})`}
                               {(f.notice.shipmentReference || f.notice.fulfillmentReference) &&
                                 ` · Waybill ${f.notice.shipmentReference || f.notice.fulfillmentReference}`}
-                              {(f.notice.expectedDeliveryDate || f.notice.estimatedDeliveryDate) &&
-                                ` · Est. delivery ${formatDate(f.notice.expectedDeliveryDate || f.notice.estimatedDeliveryDate).split(",")[0]}`}
+                              {(f.notice.expectedDeliveryDate || f.notice.estimatedDeliveryDate || li.expectedDeliveryDate) &&
+                                ` · Est. delivery ${formatDate(f.notice.expectedDeliveryDate || f.notice.estimatedDeliveryDate || li.expectedDeliveryDate).split(",")[0]}`}
                               {matchingReceipt?.receiptNumber && ` · Receipt ${matchingReceipt.receiptNumber}`}
                             </p>
                             {(li.dispositionReason || item.dispositionReason) && (
@@ -1759,10 +1966,17 @@ function ActiveDeliveryActionCard({
   onReceive: () => void;
   poLineItems: any[];
 }) {
-  const method = notice.fulfillmentMethod || "carrier";
+  const lineMethods = Array.from(new Set((notice.lineItems || []).map((li: any) => li.fulfillmentMethod).filter(Boolean)));
+  const lineCarriers = Array.from(new Set((notice.lineItems || []).map((li: any) => li.carrier).filter(Boolean)));
+  const rawMethod = notice.fulfillmentMethod || (lineMethods.length === 1 ? lineMethods[0] : lineMethods.length > 1 ? "mixed" : "carrier");
+  const method = rawMethod || "carrier";
+  const carrierName = notice.carrier || (lineCarriers.length > 0 ? lineCarriers.join(", ") : "");
+  const lineExpectedDeliveryDate = (notice.lineItems || []).find((li: any) => li.expectedDeliveryDate)?.expectedDeliveryDate;
+  const effectiveExpectedDelivery = notice.expectedDeliveryDate || notice.estimatedDeliveryDate || lineExpectedDeliveryDate;
+
   const isDigital = method === "digital";
   const isService = method === "service";
-  const isPhysical = ["carrier", "vendor_truck"].includes(method);
+  const isPhysical = ["carrier", "vendor_truck", "mixed"].includes(method);
 
   let Icon = Package;
   if (isPhysical) Icon = Truck;
@@ -1829,8 +2043,8 @@ function ActiveDeliveryActionCard({
         <div>
           <span className="text-[#84908a] block font-medium">Delivery Method</span>
           <span className="font-semibold text-[#0b100e] mt-0.5 block capitalize">
-            {method === "vendor_truck" ? "Vendor Truck" : method}
-            {notice.carrier ? ` (${notice.carrier})` : ""}
+            {method === "vendor_truck" ? "Vendor Truck" : method === "mixed" ? "Mixed Delivery" : method}
+            {carrierName ? ` (${carrierName})` : ""}
           </span>
         </div>
         <div>
@@ -1857,8 +2071,8 @@ function ActiveDeliveryActionCard({
         <div>
           <span className="text-[#84908a] block font-medium">Expected Delivery</span>
           <span className="font-semibold text-[#0b100e] mt-0.5 block">
-            {notice.expectedDeliveryDate || notice.estimatedDeliveryDate
-              ? formatDate(notice.expectedDeliveryDate || notice.estimatedDeliveryDate).split(",")[0]
+            {effectiveExpectedDelivery
+              ? formatDate(effectiveExpectedDelivery).split(",")[0]
               : "—"}
           </span>
         </div>
@@ -1917,6 +2131,38 @@ function ActiveDisputeActionCard({
   receipt: DeliveryReceiptRecord;
   onResolve: () => void;
 }) {
+  const [showAllDisputed, setShowAllDisputed] = useState(false);
+  const disputeEvent = (receipt.decisionHistory as any[])
+    ?.slice()
+    .reverse()
+    .find((h: any) => h.event === "vendor_disputed");
+  const proposedItems: any[] = Array.isArray(disputeEvent?.proposedLineItems)
+    ? disputeEvent.proposedLineItems
+    : [];
+
+  const disputedLines = (receipt.lineItems || []).filter((li: any) => {
+    if (
+      li.vendorDisposition === "dispute" ||
+      li.resolutionStatus === "under_company_review" ||
+      li.resolutionStatus === "disputed"
+    ) {
+      return true;
+    }
+    return proposedItems.some(
+      (p: any) =>
+        (p.deliveryReceiptLineItemId && p.deliveryReceiptLineItemId === li.deliveryReceiptLineItemId) ||
+        (p.purchaseOrderLineItemId && p.purchaseOrderLineItemId === li.purchaseOrderLineItemId) ||
+        (p.name && p.name === li.name)
+    );
+  });
+
+  const visibleDisputedLines = showAllDisputed ? disputedLines : disputedLines.slice(0, 2);
+
+  const nonDisputedExceptionLines = (receipt.lineItems || []).filter((li: any) => {
+    const isExc = (Number(li.quantityRejected || 0) + Number(li.quantityMissing || 0)) > 0;
+    return isExc && !disputedLines.includes(li);
+  });
+
   return (
     <div className="rounded-[14px] border border-black/[0.08] bg-white overflow-hidden transition-all">
       <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -1929,8 +2175,7 @@ function ActiveDisputeActionCard({
               <h3 className="text-base font-bold text-[#0b100e]">
                 Review Vendor Dispute on Receipt {receipt.receiptNumber || "RCPT"}
               </h3>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#fdecee] text-[#d33d44] border border-[#d33d44]/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#d33d44]" />
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-[#d33d44] border border-red-200">
                 Vendor Disputed Findings
               </span>
             </div>
@@ -1949,14 +2194,122 @@ function ActiveDisputeActionCard({
         </button>
       </div>
 
-      {receipt.vendorResponseReason && (
+      {disputedLines.length > 0 ? (
+        <div className="px-5 sm:px-6 pb-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-[#0b100e]">
+              Disputed Items ({disputedLines.length}):
+            </p>
+            {disputedLines.length > 2 && (
+              <button
+                type="button"
+                onClick={() => setShowAllDisputed(!showAllDisputed)}
+                className="text-xs font-semibold text-[#087f70] hover:underline cursor-pointer"
+              >
+                {showAllDisputed ? "Show less" : `Show all (${disputedLines.length})`}
+              </button>
+            )}
+          </div>
+          <div className={`grid grid-cols-1 ${visibleDisputedLines.length > 1 ? "md:grid-cols-2" : ""} gap-2.5`}>
+            {visibleDisputedLines.map((li: any, idx: number) => {
+              const prop = proposedItems.find(
+                (p: any) =>
+                  (p.deliveryReceiptLineItemId && p.deliveryReceiptLineItemId === li.deliveryReceiptLineItemId) ||
+                  (p.purchaseOrderLineItemId && p.purchaseOrderLineItemId === li.purchaseOrderLineItemId) ||
+                  (p.name && p.name === li.name)
+              );
+              const lineReason =
+                li.vendorResponseReason ||
+                prop?.vendorResponseReason ||
+                prop?.reason ||
+                (!receipt.vendorResponseReason?.includes(" | ") ? receipt.vendorResponseReason : null);
+
+              const excCount = Number(li.quantityRejected || 0) + Number(li.quantityMissing || 0);
+
+              return (
+                <div
+                  key={li.deliveryReceiptLineItemId || idx}
+                  className="p-3.5 rounded-[12px] bg-[#fdecee]/35 border border-[#d33d44]/20 text-xs flex flex-col justify-between gap-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-[#0b100e] text-[13px]">{li.name || "Item"}</span>
+                      <span className="text-[11px] text-[#d33d44] font-medium ml-1.5">
+                        ({excCount} {excCount === 1 ? "unit" : "units"} disputed)
+                      </span>
+                    </div>
+                    {prop && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-[#f0faf8] text-[#087f70] border border-[#087f70]/20 shrink-0">
+                        Vendor proposes: {prop.quantityAccepted} accepted, {prop.quantityRejected} rejected
+                      </span>
+                    )}
+                  </div>
+                  {lineReason && (
+                    <div className="bg-white/80 p-2.5 rounded-[8px] border border-black/[0.04]">
+                      <p className="text-[11px] text-[#68726d] font-medium mb-0.5">Vendor Note:</p>
+                      <p className="text-xs italic text-[#111815]">&quot;{lineReason}&quot;</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {disputedLines.length > 2 && !showAllDisputed && (
+            <div className="flex justify-center pt-0.5">
+              <button
+                type="button"
+                onClick={() => setShowAllDisputed(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#087f70] bg-[#f0faf8] hover:bg-[#e3f5f1] border border-[#087f70]/20 transition-colors cursor-pointer"
+              >
+                + {disputedLines.length - 2} more disputed {disputedLines.length - 2 === 1 ? "item" : "items"} — Show all
+              </button>
+            </div>
+          )}
+
+          {nonDisputedExceptionLines.length > 0 && (
+            <div className="text-[11px] text-[#68726d] flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 border-t border-black/[0.04]">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+              <span>
+                {nonDisputedExceptionLines.map((li: any, idx: number) => {
+                  const allocs = li.dispositionAllocations || [];
+                  const backorderAlloc = allocs.find((a: any) => a.disposition === "backorder" || a.disposition === "backordered");
+                  const forfeitAlloc = allocs.find((a: any) => a.disposition === "forfeit" || a.disposition === "forfeited");
+                  const disp =
+                    li.vendorDisposition ||
+                    (backorderAlloc ? "backorder" : forfeitAlloc ? "forfeit" : null) ||
+                    (li.resolutionStatus === "backordered" ? "backorder" : li.resolutionStatus === "forfeited" ? "forfeit" : "settled");
+                  const expDate =
+                    li.expectedRedeliveryDate ||
+                    backorderAlloc?.expectedRedeliveryDate;
+                  const dateStr = expDate ? ` due ${formatDate(expDate).split(",")[0]}` : "";
+
+                  const dispositionLabel =
+                    disp === "backorder"
+                      ? `Vendor accepted backorder${dateStr}`
+                      : disp === "forfeit"
+                      ? "Vendor accepted forfeiture"
+                      : "Vendor accepted";
+
+                  return (
+                    <span key={li.deliveryReceiptLineItemId || idx}>
+                      <strong className="text-[#34413b]">{li.name || "Item"}</strong> was not disputed ({dispositionLabel})
+                      {idx < nonDisputedExceptionLines.length - 1 ? "; " : "."}
+                    </span>
+                  );
+                })}
+              </span>
+            </div>
+          )}
+        </div>
+      ) : receipt.vendorResponseReason ? (
         <div className="px-5 sm:px-6 pb-5">
           <div className="px-3.5 py-2.5 rounded-[12px] bg-[#f9faf9] border border-black/[0.06] text-xs text-[#34413b]">
             <span className="font-semibold text-[#0b100e]">Vendor Dispute Reason:</span>{" "}
             <span className="italic">&quot;{receipt.vendorResponseReason}&quot;</span>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="px-5 sm:px-6 py-3 bg-[#f9faf9] border-t border-black/[0.06] text-xs text-[#68726d]">
         <strong className="font-semibold text-[#0b100e]">Action Required:</strong> Review inspection photos and vendor evidence, then record the final binding allocation (uphold original finding, accept vendor dispute, or custom allocation).
@@ -2085,6 +2438,186 @@ function ActiveExceptionResolutionCard({
             <strong className="font-semibold text-[#0b100e]">Exception Resolved:</strong> The vendor acknowledged this exception without dispute and forfeited the remaining {totalForfeited} {totalForfeited === 1 ? "unit" : "units"}.
           </p>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ActiveAwaitingVendorResponseCard({
+  receipt,
+  vendorName,
+}: {
+  receipt: any;
+  vendorName: string;
+}) {
+  const [showAllExceptions, setShowAllExceptions] = useState(false);
+  const rejectedItems = (receipt.lineItems || []).filter(
+    (li: any) => Number(li.quantityRejected || 0) > 0 || Number(li.quantityMissing || 0) > 0
+  );
+
+  const visibleExceptions = showAllExceptions ? rejectedItems : rejectedItems.slice(0, 2);
+
+  const totalRejected = (receipt.lineItems || []).reduce(
+    (acc: number, li: any) => acc + Number(li.quantityRejected || 0),
+    0
+  );
+  const totalMissing = (receipt.lineItems || []).reduce(
+    (acc: number, li: any) => acc + Number(li.quantityMissing || 0),
+    0
+  );
+
+  const isLineResolved = (li: any) =>
+    Boolean(
+      li.vendorDisposition ||
+      li.resolutionStatus === "backordered" ||
+      li.resolutionStatus === "forfeited" ||
+      li.resolutionStatus === "resolved" ||
+      (li.dispositionAllocations && li.dispositionAllocations.length > 0)
+    );
+
+  const resolvedLines = rejectedItems.filter(isLineResolved);
+  const pendingLines = rejectedItems.filter((li: any) => !isLineResolved(li));
+  const isPartiallyResponded = resolvedLines.length > 0 && pendingLines.length > 0;
+
+  return (
+    <div className="rounded-[14px] border border-amber-200/80 bg-white overflow-hidden shadow-sm transition-all">
+      <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="w-10 h-10 rounded-[10px] bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0">
+            <Clock3 className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h3 className="text-base font-bold text-[#0b100e]">
+                Delivery Exceptions Submitted
+              </h3>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#fff9e6] text-[#b27b00] border border-[#ffe099]">
+                <Clock3 className="w-3.5 h-3.5 text-[#b27b00]" />
+                {isPartiallyResponded
+                  ? `Partially Responded (${resolvedLines.length}/${rejectedItems.length} items addressed)`
+                  : "Awaiting Vendor Response"}
+              </span>
+            </div>
+            <p className="text-xs text-[#68726d] mt-1">
+              Receipt {receipt.receiptNumber || "RCPT"} • Received {formatDate(receipt.receivedAt)}
+              {totalRejected > 0 && ` • ${totalRejected} rejected`}
+              {totalMissing > 0 && ` • ${totalMissing} missing`}
+              {receipt.fulfillmentReference ? ` (Fulfillment ${receipt.fulfillmentReference})` : ""}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Line Item Exceptions Submitted & Per-Line Vendor Progress */}
+      {rejectedItems.length > 0 && (
+        <div className="px-5 sm:px-6 pb-5 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-[#34413b]">
+              Exceptions Reported to Vendor ({rejectedItems.length}):
+            </p>
+            {rejectedItems.length > 2 && (
+              <button
+                type="button"
+                onClick={() => setShowAllExceptions(!showAllExceptions)}
+                className="text-xs font-semibold text-[#b27b00] hover:underline cursor-pointer"
+              >
+                {showAllExceptions ? "Show less" : `Show all (${rejectedItems.length})`}
+              </button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {visibleExceptions.map((li: any, idx: number) => {
+              const rej = Number(li.quantityRejected || 0);
+              const miss = Number(li.quantityMissing || 0);
+              const resolved = isLineResolved(li);
+              const disp = li.vendorDisposition || li.dispositionAllocations?.[0]?.disposition || "backorder";
+              const expDate = li.expectedRedeliveryDate || li.dispositionAllocations?.[0]?.expectedRedeliveryDate;
+              const vendorReason = li.vendorResponseReason || li.dispositionAllocations?.[0]?.reason;
+
+              if (resolved) {
+                return (
+                  <div
+                    key={li.deliveryReceiptLineItemId || idx}
+                    className="flex flex-col gap-1.5 p-3 rounded-[12px] bg-[#f9faf9] border border-black/[0.06] text-xs"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                        <span className="font-semibold text-[#0b100e]">{li.name || "Item"}</span>
+                        <span className="text-[#68726d]">
+                          ({rej > 0 && `${rej} rejected`}{rej > 0 && miss > 0 && ", "}{miss > 0 && `${miss} missing`})
+                        </span>
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#fff9e6] text-[#b27b00] border border-[#ffe099] self-start sm:self-auto">
+                        <CheckCircle2 className="w-3 h-3 text-[#b27b00]" />
+                        {disp === "backorder"
+                          ? `Backordered by Vendor${expDate ? ` (due ${formatDate(expDate).split(",")[0]})` : ""}`
+                          : "Forfeited by Vendor"}
+                      </span>
+                    </div>
+                    {vendorReason && (
+                      <p className="text-[11px] text-[#68726d] italic pl-4 border-l-2 border-amber-300">
+                        Vendor note: &quot;{vendorReason}&quot;
+                      </p>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={li.deliveryReceiptLineItemId || idx}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-[12px] bg-[#fffbfb] border border-red-200/60 text-xs"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#d33d44] shrink-0" />
+                    <span className="font-semibold text-[#0b100e]">{li.name || "Item"}</span>
+                    <span className="text-[#68726d]">
+                      ({rej > 0 && `${rej} rejected`}{rej > 0 && miss > 0 && ", "}{miss > 0 && `${miss} missing`})
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    {li.exceptionReason && (
+                      <span className="text-[11px] text-[#68726d] italic truncate max-w-xs">
+                        Reason: &quot;{li.exceptionReason}&quot;
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                      <Clock3 className="w-3 h-3" /> Awaiting Vendor Response
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {rejectedItems.length > 2 && !showAllExceptions && (
+            <div className="flex justify-center pt-0.5">
+              <button
+                type="button"
+                onClick={() => setShowAllExceptions(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#b27b00] bg-[#fff9e6] hover:bg-[#fff3cc] border border-[#ffe099] transition-colors cursor-pointer"
+              >
+                + {rejectedItems.length - 2} more {rejectedItems.length - 2 === 1 ? "exception" : "exceptions"} — Show all
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="px-5 sm:px-6 py-3 bg-[#fffdfa] border-t border-amber-200/60 text-xs text-[#68726d] flex items-start gap-2">
+        <Clock3 className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+        <p>
+          {isPartiallyResponded ? (
+            <>
+              The vendor (<strong className="font-semibold text-[#0b100e]">{vendorName}</strong>) has provided an initial response addressing <strong>{resolvedLines.length} of {rejectedItems.length}</strong> items. Awaiting vendor resolution on the remaining <strong>{pendingLines.length} {pendingLines.length === 1 ? "item" : "items"}</strong>.
+            </>
+          ) : (
+            <>
+              The vendor (<strong className="font-semibold text-[#0b100e]">{vendorName}</strong>) has been notified of these delivery exceptions and must review and respond with a resolution (replacing/backordering or crediting the rejected units).
+            </>
+          )}
+        </p>
       </div>
     </div>
   );
@@ -2392,10 +2925,20 @@ function ConfirmationDetailPage() {
     (rc) => rc.resolutionStatus === "under_company_review" || (po.companyActionRequired && rc.companyActionRequired)
   );
 
+  // Find any receipt with open exceptions awaiting vendor response
+  const activeAwaitingVendorReceipt = receiptConfirmations.find(
+    (rc) =>
+      rc.resolutionStatus === "awaiting_vendor_response" ||
+      (rc.vendorActionRequired && rc.resolutionStatus !== "resolved" && rc.resolutionStatus !== "resolved_after_dispute" && rc.resolutionStatus !== "under_company_review")
+  );
+
   // Find any receipt with open exceptions acknowledged/allocated by vendor that does not yet have a company final decision recorded
   const activeExceptionReceipt = receiptConfirmations.find(
     (rc) =>
       !rc.finalDecision &&
+      rc.resolutionStatus !== "resolved" &&
+      rc.resolutionStatus !== "resolved_after_dispute" &&
+      rc.resolutionStatus !== "awaiting_vendor_response" &&
       (rc.resolutionStatus === "backordered" ||
        rc.resolutionStatus === "forfeited" ||
        rc.vendorResponse === "acknowledged" ||
@@ -2806,13 +3349,19 @@ function ConfirmationDetailPage() {
       )}
 
       {/* Header */}
-      <div className="shrink-0 pt-9 sm:pt-11 px-9 sm:px-11 pb-6">
-        <div className="max-w-6xl mx-auto w-full flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="shrink-0 pt-6 sm:pt-8 px-6 sm:px-8 lg:px-10 pb-5 sm:pb-6">
+        <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-2xl font-bold text-[#0b100e]">{po.poNumber || "Purchase Order"}</h1>
               <div className="flex flex-wrap items-center gap-2">
                 {(() => {
+                  const hasOpenExceptions =
+                    Boolean(po.openExceptionCount && po.openExceptionCount > 0) ||
+                    stage === "partially_delivered_with_exceptions" ||
+                    stage === "delivered_with_exceptions" ||
+                    (po.deliveryOutcome || "").includes("exceptions");
+
                   const isStillPartial =
                     stage === "partially_delivered" ||
                     stage === "partially_delivered_with_exceptions" ||
@@ -2820,6 +3369,17 @@ function ConfirmationDetailPage() {
                   const outcomeKey = isStillPartial
                     ? stage || "partially_delivered"
                     : (po.deliveryOutcome || po.status || "").toLowerCase();
+
+                  if (hasOpenExceptions) {
+                    const label = isStillPartial
+                      ? "Partially Delivered (with Exceptions)"
+                      : "Delivered (with Exceptions)";
+                    return (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#fff9e6] text-[#b27b00] border border-[#ffe099]">
+                        {label}
+                      </span>
+                    );
+                  }
                   if (outcomeKey.includes("partially")) {
                     return (
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
@@ -2856,52 +3416,6 @@ function ConfirmationDetailPage() {
                     </span>
                   );
                 })()}
-                {po.companyActionRequired ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
-                    <Gavel className="w-3.5 h-3.5" />
-                    Action Needed: Review vendor dispute
-                  </span>
-                ) : po.vendorResponseRequired ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                    <Clock3 className="w-3.5 h-3.5" />
-                    Awaiting vendor response
-                    {(po.openExceptionCount ?? 0) > 0 && ` (${po.openExceptionCount} ${po.openExceptionCount === 1 ? "issue" : "issues"})`}
-                  </span>
-                ) : (() => {
-                  const isSettledAgreed = (po.receiptConfirmations || []).some((rc: any) =>
-                    rc.decisionHistory?.some((h: any) => h.event === "vendor_accepted_final_decision") ||
-                    (rc.finalDecision && !rc.vendorActionRequired)
-                  );
-                  const redeliveryDate = (po.receiptConfirmations || []).flatMap((rc: any) => [
-                    rc.expectedRedeliveryDate,
-                    ...(rc.decisionHistory || []).map((h: any) => h.expectedRedeliveryDate),
-                    ...(rc.lineItems || []).flatMap((li: any) => [
-                      li.expectedRedeliveryDate,
-                      ...(li.dispositionAllocations || []).map((a: any) => a.expectedRedeliveryDate),
-                    ]),
-                  ]).filter(Boolean)[0];
-                  const formattedDate = redeliveryDate ? formatDate(String(redeliveryDate)).split(",")[0] : null;
-
-                  if (isSettledAgreed) {
-                    return (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                        <Clock3 className="w-3.5 h-3.5" />
-                        Replacement Scheduled{formattedDate ? ` (due ${formattedDate})` : ""}
-                      </span>
-                    );
-                  }
-
-                  if ((po.openExceptionCount ?? 0) > 0) {
-                    return (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        {po.openExceptionCount} delivery {po.openExceptionCount === 1 ? "issue" : "issues"}
-                      </span>
-                    );
-                  }
-
-                  return null;
-                })()}
               </div>
             </div>
             <p className="text-sm text-[#68726d] mt-1.5">{po.vendor?.legalName || po.vendor?.displayName || "Vendor"}</p>
@@ -2921,8 +3435,8 @@ function ConfirmationDetailPage() {
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-9 sm:px-11 pb-9 sm:pb-11 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        <div className="max-w-6xl mx-auto w-full flex flex-col">
+      <div className="flex-1 overflow-y-auto min-h-0 px-6 sm:px-8 lg:px-10 pb-9 sm:pb-11 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto flex flex-col">
           <div className="flex flex-col lg:flex-row gap-6 items-start">
             {/* Left Column */}
             <div className="flex-1 flex flex-col min-w-0 space-y-6">
@@ -2939,6 +3453,11 @@ function ConfirmationDetailPage() {
                   index={activePendingToReceive.originalIndex}
                   onReceive={() => setActiveNotice(activePendingToReceive.notice)}
                   poLineItems={po.lineItems || []}
+                />
+              ) : activeAwaitingVendorReceipt ? (
+                <ActiveAwaitingVendorResponseCard
+                  receipt={activeAwaitingVendorReceipt}
+                  vendorName={po.vendor?.legalName || po.vendor?.displayName || "Vendor"}
                 />
               ) : activeExceptionReceipt ? (
                 <ActiveExceptionResolutionCard
@@ -3155,8 +3674,12 @@ function ConfirmationDetailPage() {
                               )}
 
                               {openIssueQty > 0 && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">
-                                  <AlertCircle className="w-3 h-3 text-amber-600" />
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap ${
+                                  rejectedFromReceipts > 0
+                                    ? "bg-red-50 text-[#d33d44] border border-red-200"
+                                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                                }`}>
+                                  <AlertCircle className={`w-3 h-3 ${rejectedFromReceipts > 0 ? "text-[#d33d44]" : "text-amber-600"}`} />
                                   {rejectedFromReceipts > 0 && missingFromReceipts > 0
                                     ? `${rejectedFromReceipts} Rejected · ${missingFromReceipts} Missing`
                                     : rejectedFromReceipts > 0

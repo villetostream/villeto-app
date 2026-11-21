@@ -392,7 +392,7 @@ export default function ConfirmReceiptModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden gap-0 bg-white border-0 shadow-2xl rounded-[16px]">
+      <DialogContent showCloseButton={false} className="max-w-xl p-0 overflow-hidden gap-0 bg-white border-0 shadow-2xl rounded-[16px]">
         {/* STEP 1: QUANTITY INPUT & LINE ITEMS */}
         {step === "input" && (
           <div className="flex flex-col max-h-[85vh]">

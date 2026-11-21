@@ -72,7 +72,7 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
       } else if (normalizedStatus === "partially_delivered") {
         defaultLabel = "Partially Delivered";
       } else if (normalizedStatus === "partially_delivered_with_exceptions") {
-        defaultLabel = "Partially Delivered";
+        defaultLabel = "Partially Delivered (Issues)";
       } else if (normalizedStatus === "delivered_with_exceptions") {
         defaultLabel = "Delivered (Issues)";
       } else if (normalizedStatus === "due") {

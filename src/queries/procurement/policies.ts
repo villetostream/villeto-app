@@ -141,12 +141,12 @@ export const useUpdateSpendProgramRuleDefinition = () => {
       );
       return res.data;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({
+    onSuccess: () => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(
           QUERY_KEYS.procurement.spendProgramRuleDefs(),
         ),
-        refetchType: "all",
+        refetchType: "active",
       });
     },
   });
@@ -162,12 +162,12 @@ export const useDeleteSpendProgramRuleDefinition = () => {
       );
       return res.data;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({
+    onSuccess: () => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(
           QUERY_KEYS.procurement.spendProgramRuleDefs(),
         ),
-        refetchType: "all",
+        refetchType: "active",
       });
     },
   });
@@ -183,12 +183,12 @@ export const useSeedDefaultRuleDefinitions = () => {
       );
       return res.data;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({
+    onSuccess: () => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(
           QUERY_KEYS.procurement.spendProgramRuleDefs(),
         ),
-        refetchType: "all",
+        refetchType: "active",
       });
     },
   });
@@ -220,12 +220,12 @@ export const useUpdateSpendProgramSettings = () => {
       );
       return res.data;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({
+    onSuccess: () => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(
           QUERY_KEYS.procurement.spendProgramSettings,
         ),
-        refetchType: "all",
+        refetchType: "active",
       });
     },
   });
@@ -525,10 +525,10 @@ export const useCreateSpendProgram = () => {
       const res = await axios.post(PROCUREMENT_KEYS.SPEND_PROGRAMS, payload);
       return res.data;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({
+    onSuccess: () => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
-        refetchType: "all",
+        refetchType: "active",
       });
     },
   });
@@ -547,14 +547,14 @@ export const useUpdateSpendProgram = (id: string) => {
       );
       return res.data;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({
+    onSuccess: () => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
-        refetchType: "all",
+        refetchType: "active",
       });
-      await qc.invalidateQueries({
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
-        refetchType: "all",
+        refetchType: "active",
       });
     },
   });
@@ -568,10 +568,10 @@ export const useDeleteSpendProgram = () => {
       const res = await axios.delete(PROCUREMENT_KEYS.SPEND_PROGRAM(id));
       return res.data;
     },
-    onSuccess: async (_, id) => {
-      await qc.invalidateQueries({
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
-        refetchType: "all",
+        refetchType: "active",
       });
       qc.removeQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
@@ -590,15 +590,15 @@ export const useApproveSpendProgram = () => {
       );
       return res.data;
     },
-    onSuccess: async (_data, id) => {
-      await qc.invalidateQueries({
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
-        refetchType: "all",
+        refetchType: "active",
       });
       // Invalidate individual cache so the detail view reflects the new status
-      await qc.invalidateQueries({
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
-        refetchType: "all",
+        refetchType: "active",
       });
     },
   });
@@ -622,16 +622,16 @@ export const useRejectSpendProgram = () => {
       );
       return res.data;
     },
-    onSuccess: async (_data, args) => {
+    onSuccess: (_data, args) => {
       const id = typeof args === "string" ? args : args.id;
-      await qc.invalidateQueries({
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
-        refetchType: "all",
+        refetchType: "active",
       });
       // Invalidate individual cache so the detail view reflects the new status
-      await qc.invalidateQueries({
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendProgram(id)),
-        refetchType: "all",
+        refetchType: "active",
       });
     },
   });
@@ -714,10 +714,10 @@ export const useToggleSpendProgramRuleStatus = () => {
       );
       return res.data;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({
+    onSuccess: () => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
-        refetchType: "all",
+        refetchType: "active",
       });
     },
   });
@@ -733,10 +733,10 @@ export const useDeleteSpendProgramDraft = () => {
       );
       return res.data;
     },
-    onSuccess: async (_, draftId) => {
-      await qc.invalidateQueries({
+    onSuccess: (_, draftId) => {
+      qc.invalidateQueries({
         queryKey: workspaceQueryKey(QUERY_KEYS.procurement.spendPrograms),
-        refetchType: "all",
+        refetchType: "active",
       });
       qc.removeQueries({
         queryKey: workspaceQueryKey([
