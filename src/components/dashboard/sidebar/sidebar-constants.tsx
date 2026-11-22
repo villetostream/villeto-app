@@ -115,6 +115,9 @@ export const navigationItems: NavItem[] = [
     href: "/procurement",
     // Visible if the user can read at least one PR scope (own/department/company)
     permissions: [
+      { resource: "procurement.purchase_order", action: "read_company" },
+      { resource: "procurement.purchase_order", action: "approval_decision" },
+      { resource: "procurement.purchase_order", action: "issue" },
       { resource: "procurement.purchase_request", action: "read_own" },
       { resource: "procurement.purchase_request", action: "read_department" },
       { resource: "procurement.purchase_request", action: "read_company" },
@@ -150,6 +153,15 @@ export const navigationItems: NavItem[] = [
           { resource: "procurement.purchase_order", action: "read_own" },
           { resource: "procurement.purchase_order", action: "read_department" },
           { resource: "procurement.purchase_order", action: "read_company" },
+        ],
+      },
+      {
+        label: "PO Change Requests",
+        href: "/procurement/po-change-requests",
+        permissions: [
+          { resource: "procurement.purchase_order", action: "read_company" },
+          { resource: "procurement.purchase_order", action: "approval_decision" },
+          { resource: "procurement.purchase_order", action: "issue" },
         ],
       },
       {
