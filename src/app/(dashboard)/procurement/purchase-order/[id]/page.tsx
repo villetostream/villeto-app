@@ -1,5 +1,6 @@
 "use client";
 
+import { PoChangeRequests } from "@/components/procurement/PoChangeRequests";
 import React, { useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, X, Loader2, XCircle, PackageCheck, Pencil, Plus, Trash2, AlertTriangle } from "lucide-react";
@@ -1244,7 +1245,7 @@ function PODetailPage() {
                       <td className="px-6 py-4 text-[#68726d]">{catName || "—"}</td>
                       <td className="px-6 py-4 text-center">{Number(item.quantity)}</td>
 
-                      <td className="px-6 py-4 text-right">{formatCurrency(item.unitPrice, po.currency)}</td>
+                      <td className="px-6 py-4 text-right">{item.pricingSegments?.length ? item.pricingSegments.map((segment: { from: string; to: string; unitPrice: string; revision: number }, index: number) => <div key={index}>{Number(segment.to) - Number(segment.from)} × {formatCurrency(segment.unitPrice, po.currency)} <span className="text-xs text-gray-500">(revision {segment.revision})</span></div>) : formatCurrency(item.unitPrice, po.currency)}</td>
                       <td className="px-6 py-4 text-right text-[#0b100e] font-medium">{formatCurrency(item.subtotal as string, po.currency as string)}</td>
                       {stage === "draft" && isSubmitterView && !isReadOnly && (
                         <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
@@ -1294,6 +1295,7 @@ function PODetailPage() {
               </div>
             </div>
           </div>
+          <PoChangeRequests purchaseOrderId={id} />
         </div>
 
         {/* Right Sidebar */}
