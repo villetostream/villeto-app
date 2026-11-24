@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   Scale,
   RotateCcw,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -29,7 +30,6 @@ import withPermissions from "@/components/permissions/permission-protected-route
 import {
   usePurchaseOrder,
   useConfirmPOReceipt,
-  useConfirmPOFinalBilling,
   useUploadFulfillmentReceiptEvidence,
   useUploadReceiptExceptionEvidence,
   type DeliveryReceiptRecord,
@@ -1198,7 +1198,7 @@ function FulfillmentHistoryCard({
                               </div>
                             )}
 
-                            {item.dispositionReason && (
+                            {outstandingAfterReceipt > 0 && item.dispositionReason && (
                               <p className="text-[11px] text-[#89918d] italic truncate max-w-[200px]" title={item.dispositionReason}>
                                 Batch note: &quot;{item.dispositionReason}&quot;
                               </p>
@@ -1487,6 +1487,10 @@ function ItemFulfillmentDrawer({
                 {acceptedCount >= orderedQty ? (
                   <span className="inline-flex text-xs text-[#087f70] bg-[#f0faf8] border border-[#087f70]/20 px-2 py-0.5 rounded-md font-medium whitespace-nowrap">
                     Fully Fulfilled
+                  </span>
+                ) : totalOutstanding === 0 && effectiveForfeited > 0 ? (
+                  <span className="inline-flex text-xs text-gray-700 bg-gray-100 border border-black/[0.08] px-2 py-0.5 rounded-md font-medium whitespace-nowrap">
+                    Delivered with Forfeiture
                   </span>
                 ) : openExceptionCount > 0 ? (
                   <div className="flex flex-col items-start gap-0.5">
@@ -2775,13 +2779,11 @@ function ConfirmationDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const receiptMut = useConfirmPOReceipt(id);
-  const finalizeBillingMut = useConfirmPOFinalBilling(id);
   const uploadFulfillmentEvidenceMut = useUploadFulfillmentReceiptEvidence(id);
   const uploadReceiptExceptionEvidenceMut = useUploadReceiptExceptionEvidence(id);
   const [activeNotice, setActiveNotice] = useState<any>(null);
   const [activeReceiptForDecision, setActiveReceiptForDecision] = useState<DeliveryReceiptRecord | null>(null);
   const [selectedItemForDrawer, setSelectedItemForDrawer] = useState<any>(null);
-  const [showFinalBillingModal, setShowFinalBillingModal] = useState(false);
 
   const { data, isLoading, isError } = usePurchaseOrder(id);
 
@@ -3301,11 +3303,6 @@ function ConfirmationDetailPage() {
     ] : [])
   ];
 
-  const closeBlockers = (po.closeBlockers || []) as string[];
-  const canConfirmFinalBilling =
-    stage === "delivered" &&
-    closeBlockers.includes("final_billing_confirmation_required");
-
   const handleAppendReceiptEvidence = async (deliveryReceiptId: string, file: File) => {
     try {
       await uploadReceiptExceptionEvidenceMut.mutateAsync({ deliveryReceiptId, file });
@@ -3317,36 +3314,6 @@ function ConfirmationDetailPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] -m-3 sm:-m-5 lg:-m-6 min-h-0 overflow-hidden bg-transparent">
-      {/* Final Billing Modal */}
-      {showFinalBillingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowFinalBillingModal(false)} />
-          <div className="relative bg-white rounded-[14px] shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
-            <div>
-              <h3 className="text-base font-bold text-[#0b100e]">Finalize billing</h3>
-              <p className="text-sm text-[#68726d] mt-1">Confirm that all invoices have been generated and no further vendor billing is expected. This unlocks the ability to close the PO.</p>
-            </div>
-            <div className="flex gap-3 pt-1">
-              <button onClick={() => setShowFinalBillingModal(false)} className="px-6 h-10 rounded-[12px] border border-black/[0.06] text-sm font-medium">Cancel</button>
-              <button
-                disabled={finalizeBillingMut.isPending}
-                onClick={async () => {
-                  try {
-                    await finalizeBillingMut.mutateAsync({ reason: "All invoices confirmed; no further billing expected." });
-                    toast.success("Final billing confirmed. The PO can now be closed.");
-                    setShowFinalBillingModal(false);
-                  } catch (err: any) {
-                    toast.error(err?.response?.data?.message || "Unable to confirm final billing.");
-                  }
-                }}
-                className="flex-1 h-10 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {finalizeBillingMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Billing Complete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <div className="shrink-0 pt-6 sm:pt-8 px-6 sm:px-8 lg:px-10 pb-5 sm:pb-6">
@@ -3422,14 +3389,19 @@ function ConfirmationDetailPage() {
           </div>
           {/* Header actions */}
           <div className="flex items-center gap-3">
-            {canConfirmFinalBilling && (
-              <button
-                onClick={() => setShowFinalBillingModal(true)}
-                className="h-9 px-4 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-              >
-                Finalize Billing
-              </button>
+            {po.finalBillingConfirmedAt && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#f0faf8] text-[#087f70] border border-[#087f70]/20">
+                <Check className="w-3.5 h-3.5" />
+                Billing Finalized
+              </span>
             )}
+            <Link
+              href={`/procurement/purchase-order/${po.purchaseOrderId || id}`}
+              className="h-9 px-3.5 rounded-lg border border-black/[0.08] bg-white hover:bg-[#f9faf9] text-xs font-semibold text-[#111815] transition-colors flex items-center gap-1.5"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-[#68726d]" />
+              View Purchase Order
+            </Link>
           </div>
         </div>
       </div>
@@ -3606,42 +3578,52 @@ function ConfirmationDetailPage() {
                           );
                     const awaitingReceiptQty = unconfirmedNoticeQty;
 
-                    const openIssueQty = Math.max(
-                      0,
-                      receiptLineEntries.length > 0
-                        ? openRejectedQty + openMissingQty
-                        : readyQty - acceptedQty - awaitingReceiptQty - effectiveForfeitedQty
+                    // Compute settled vs unfulfilled units on this order line
+                    const totalSettledQty = acceptedQty + effectiveForfeitedQty + cannotFulfillQty;
+                    const unfulfilledQty = Math.max(0, orderedQty - totalSettledQty);
+
+                    // Active open unresolved exceptions on receipts
+                    const activeOpenIssueQty = Math.min(
+                      unfulfilledQty,
+                      openRejectedQty + openMissingQty
                     );
-                    const remainingToShipQty = Math.max(
+
+                    // Units currently dispatched and awaiting receipt confirmation
+                    const activeAwaitingReceiptQty = Math.min(
+                      Math.max(0, unfulfilledQty - activeOpenIssueQty),
+                      awaitingReceiptQty
+                    );
+
+                    // Units that are still pending future fulfillment
+                    const remainingPendingFulfillment = Math.max(
                       0,
-                      orderedQty -
-                        acceptedQty -
-                        openIssueQty -
-                        backorderedExceptionQty -
-                        effectiveForfeitedQty -
-                        awaitingReceiptQty -
-                        cannotFulfillQty
+                      unfulfilledQty - activeOpenIssueQty - activeAwaitingReceiptQty
                     );
 
                     const isBackorderedState =
                       disp === "backordered" || item.fulfillmentState === "backordered";
                     const isCannotFulfillState = disp === "cannot_fulfill";
 
-                    const totalBackorderedQty =
-                      backorderedExceptionQty + (isBackorderedState ? remainingToShipQty : 0);
-                    const combinedBackorderDate = isBackorderedState
-                      ? (expDate || backorderedExceptionDate)
-                      : (backorderedExceptionDate || expDate);
+                    // Backordered units cannot exceed the outstanding unfulfilled quantity
+                    const totalBackorderedQty = Math.min(
+                      remainingPendingFulfillment,
+                      backorderedExceptionQty + (isBackorderedState ? remainingPendingFulfillment : 0)
+                    );
+                    const combinedBackorderDate = totalBackorderedQty > 0
+                      ? (isBackorderedState ? (expDate || backorderedExceptionDate) : (backorderedExceptionDate || expDate))
+                      : null;
 
-                    const totalForfeitedQty =
+                    const totalForfeitedQty = Math.min(
+                      Math.max(0, orderedQty - acceptedQty),
                       effectiveForfeitedQty +
-                      cannotFulfillQty +
-                      (isCannotFulfillState && cannotFulfillQty === 0 ? remainingToShipQty : 0);
+                        cannotFulfillQty +
+                        (isCannotFulfillState && cannotFulfillQty === 0 ? remainingPendingFulfillment : 0)
+                    );
 
-                    const unallocatedRemainingQty =
-                      !isBackorderedState && !isCannotFulfillState && cannotFulfillQty === 0
-                        ? remainingToShipQty
-                        : 0;
+                    const unallocatedRemainingQty = Math.max(
+                      0,
+                      remainingPendingFulfillment - totalBackorderedQty
+                    );
                     
                     return (
                       <tr 
@@ -3667,13 +3649,13 @@ function ConfirmationDetailPage() {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-1.5">
-                              {awaitingReceiptQty > 0 && (
+                              {activeAwaitingReceiptQty > 0 && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
-                                  {awaitingReceiptQty} Ready to confirm
+                                  {activeAwaitingReceiptQty} Ready to confirm
                                 </span>
                               )}
 
-                              {openIssueQty > 0 && (
+                              {activeOpenIssueQty > 0 && (
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap ${
                                   rejectedFromReceipts > 0
                                     ? "bg-red-50 text-[#d33d44] border border-red-200"
@@ -3683,10 +3665,10 @@ function ConfirmationDetailPage() {
                                   {rejectedFromReceipts > 0 && missingFromReceipts > 0
                                     ? `${rejectedFromReceipts} Rejected · ${missingFromReceipts} Missing`
                                     : rejectedFromReceipts > 0
-                                    ? `${openIssueQty} Rejected`
+                                    ? `${activeOpenIssueQty} Rejected`
                                     : missingFromReceipts > 0
-                                    ? `${openIssueQty} Missing`
-                                    : `${openIssueQty} Rejected / Missing`}
+                                    ? `${activeOpenIssueQty} Missing`
+                                    : `${activeOpenIssueQty} Rejected / Missing`}
                                 </span>
                               )}
 
@@ -3712,18 +3694,30 @@ function ConfirmationDetailPage() {
                                 </span>
                               )}
 
-                              {acceptedQty >= orderedQty && openIssueQty === 0 && (
+                              {acceptedQty >= orderedQty && activeOpenIssueQty === 0 && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-[#f0faf8] text-[#087f70] whitespace-nowrap">
                                   All units accepted
                                 </span>
                               )}
                             </div>
 
-                            {(item.dispositionReason || dispReason || backorderedExceptionNote) && (
-                              <p className="text-[11px] text-[#89918d] italic" title={item.dispositionReason || dispReason || backorderedExceptionNote || ""}>
-                                Vendor note: {item.dispositionReason || dispReason || backorderedExceptionNote}
-                              </p>
-                            )}
+                            {(() => {
+                              if (acceptedQty >= orderedQty && activeOpenIssueQty === 0) return null;
+                              const noteToShow =
+                                totalBackorderedQty > 0
+                                  ? (backorderedExceptionNote || dispReason || item.dispositionReason)
+                                  : totalForfeitedQty > 0
+                                  ? (item.dispositionReason || dispReason)
+                                  : unallocatedRemainingQty > 0
+                                  ? (dispReason || item.dispositionReason)
+                                  : null;
+                              if (!noteToShow) return null;
+                              return (
+                                <p className="text-[11px] text-[#89918d] italic" title={noteToShow}>
+                                  Vendor note: {noteToShow}
+                                </p>
+                              );
+                            })()}
                           </div>
                         </td>
                         <td className="px-4 py-4 text-right text-[#111815] whitespace-nowrap align-top">{formatCurrency(item.unitPrice, po.currency)}</td>

@@ -409,6 +409,28 @@ export default function LineItemBatchModal({
     await onEditSaved(buildPayload());
   };
 
+  const hasEditChanges = useMemo(() => {
+    if (!editInitial) return true;
+    const nameChanged = (form.name || "").trim() !== (editInitial.name || "").trim();
+    const descChanged = (form.description || "").trim() !== (editInitial.description || "").trim();
+    const catChanged = (form.categoryId || "") !== (editInitial.categoryId || "");
+    const qtyChanged = (parseNumber(form.quantity) || 0) !== Number(editInitial.quantity || 0);
+    const priceChanged = (parseNumber(form.unitPrice) || 0) !== Number(editInitial.unitPrice || 0);
+    const taxChanged = (parseNumber(form.taxAmount) || 0) !== Number(editInitial.taxAmount || 0);
+    const uomChanged = (form.unitOfMeasure || "").trim() !== (editInitial.unitOfMeasure || "").trim();
+    const skuChanged = (form.sku || "").trim() !== (editInitial.sku || "").trim();
+    return (
+      nameChanged ||
+      descChanged ||
+      catChanged ||
+      qtyChanged ||
+      priceChanged ||
+      taxChanged ||
+      uomChanged ||
+      skuChanged
+    );
+  }, [form, editInitial]);
+
   const handleClose = () => {
     setErrors({});
     if (stagingEditId) {
@@ -535,8 +557,8 @@ export default function LineItemBatchModal({
       {/* Action Buttons */}
       <div className="pt-2 mt-auto">
         {isEditMode ? (
-          <button type="button" onClick={handleEditSave} disabled={editSaving}
-            className="w-full h-10 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shadow-sm">
+          <button type="button" onClick={handleEditSave} disabled={editSaving || !hasEditChanges}
+            className="w-full h-10 rounded-lg bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shadow-sm">
             {editSaving && <Loader2 className="w-4 h-4 animate-spin" />}
             Save Changes
           </button>

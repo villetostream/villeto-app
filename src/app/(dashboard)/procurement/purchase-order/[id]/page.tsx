@@ -1,9 +1,10 @@
 "use client";
 
-import { PoChangeRequests } from "@/components/procurement/PoChangeRequests";
+import { POPriceChangeBanner } from "@/components/procurement/POPriceChangeBanner";
+import { POLinePricingDisplay } from "@/components/procurement/POLinePricingDisplay";
 import React, { useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, X, Loader2, XCircle, PackageCheck, Pencil, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { AlertCircle, X, Loader2, XCircle, PackageCheck, Pencil, Plus, Trash2, AlertTriangle, ReceiptText, Clock3, CheckCircle2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   usePurchaseOrder,
@@ -19,6 +20,7 @@ import {
   useShortClosePOLine,
   useConfirmPOFinalBilling,
 } from "@/queries/procurement/purchase-orders";
+import { useProcurementInvoices } from "@/queries/procurement/invoices";
 import { useGetProcurementCategories } from "@/queries/procurement/purchase-requests";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import LineItemBatchModal from "@/components/procurement/LineItemBatchModal";
@@ -342,6 +344,58 @@ function PODetailPage() {
   const deletePOMut = useDeletePurchaseOrder();
   const shortCloseMut = useShortClosePOLine(id);
   const finalBillingMut = useConfirmPOFinalBilling(id);
+
+  const { data: invoicesData } = useProcurementInvoices(undefined, {
+    purchaseOrderId: id,
+    enabled: Boolean(po && (po.status === "delivered" || po.status === "partially_delivered")),
+  });
+
+  const poInvoices = useMemo(() => {
+    const list = invoicesData?.data || [];
+    return list.filter(
+      (inv) =>
+        inv.purchaseOrderId === id ||
+        inv.purchaseOrder?.purchaseOrderId === id ||
+        (inv.poNumber && po?.poNumber && inv.poNumber === po.poNumber)
+    );
+  }, [invoicesData?.data, id, po?.poNumber]);
+
+  const totalInvoiceableAmount = useMemo(() => {
+    if (!po?.lineItems || po.lineItems.length === 0) return Number(po?.totalAmount || 0);
+    return po.lineItems.reduce((sum: number, item: any) => {
+      if (item.invoiceableSubtotal !== undefined && item.invoiceableSubtotal !== null) {
+        return sum + Number(item.invoiceableSubtotal);
+      }
+      const accepted = Number(item.quantityAccepted ?? item.quantityReceived ?? 0);
+      return sum + accepted * Number(item.unitPrice || 0);
+    }, 0);
+  }, [po?.lineItems, po?.totalAmount]);
+
+  const activeInvoices = useMemo(() => {
+    return poInvoices.filter((inv) => inv.status !== "rejected");
+  }, [poInvoices]);
+
+  const totalInvoicedAmount = useMemo(() => {
+    return activeInvoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
+  }, [activeInvoices]);
+
+  // All invoices created: at least one invoice exists and total invoiced covers total accepted invoiceable amount
+  const hasAllInvoicesCreated = useMemo(() => {
+    if (activeInvoices.length === 0) return false;
+    if (totalInvoiceableAmount <= 0) return activeInvoices.length > 0;
+    return totalInvoicedAmount >= totalInvoiceableAmount;
+  }, [activeInvoices.length, totalInvoicedAmount, totalInvoiceableAmount]);
+
+  // All invoices cleared: every active invoice must be paid / cleared
+  const hasAllInvoicesCleared = useMemo(() => {
+    if (!hasAllInvoicesCreated) return false;
+    return activeInvoices.every(
+      (inv) =>
+        inv.status === "paid" ||
+        inv.paymentStatus?.toLowerCase() === "paid" ||
+        Number(inv.outstandingAmount ?? 0) <= 0
+    );
+  }, [hasAllInvoicesCreated, activeInvoices]);
 
   const isPending = submitMut.isPending || issueMut.isPending || closeMut.isPending ||
     cancelMut.isPending || approvalMut.isPending || shortCloseMut.isPending || finalBillingMut.isPending;
@@ -691,7 +745,9 @@ function PODetailPage() {
   /** Close (close endpoint) — after approval, any time until already closed/cancelled */
   const closeBlockers = (po.closeBlockers || []) as string[];
   const canConfirmFinalBilling = canClosePO && stage === "delivered" &&
-    closeBlockers.length === 1 && closeBlockers[0] === "final_billing_confirmation_required";
+    closeBlockers.includes("final_billing_confirmation_required") &&
+    hasAllInvoicesCreated &&
+    hasAllInvoicesCleared;
   // Close PO is only available once billing is finalized (no blockers remaining)
   const showClose = stage === "delivered" && canClosePO && po.canClose === true && closeBlockers.length === 0;
   const statusLabel = getPOStatusLabel(stage, isSubmitterView);
@@ -1081,6 +1137,51 @@ function PODetailPage() {
             </div>
           )}
 
+          {/* Invoicing / Final Billing Readiness Banner */}
+          {stage === "delivered" && closeBlockers.includes("final_billing_confirmation_required") && (
+            <>
+              {!hasAllInvoicesCreated ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm">
+                  <div className="flex items-start gap-2.5">
+                    <ReceiptText className="w-4 h-4 mt-0.5 shrink-0 text-blue-700" />
+                    <div>
+                      <p className="font-semibold text-blue-950">Awaiting Vendor Invoicing</p>
+                      <p className="text-xs text-blue-800 mt-0.5">
+                        Goods have been received ({formatCurrency(totalInvoiceableAmount, po.currency)} payable). Finalize billing will only be available once all vendor invoices are created and cleared.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/procurement/invoices`)}
+                    className="h-8 px-3.5 rounded-lg border border-blue-300 bg-white hover:bg-blue-50 text-blue-800 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
+                  >
+                    View Invoices
+                  </button>
+                </div>
+              ) : !hasAllInvoicesCleared ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50/70 px-4 py-3 text-sm">
+                  <div className="flex items-start gap-2.5">
+                    <Clock3 className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" />
+                    <div>
+                      <p className="font-semibold text-amber-950">Invoices Pending Payment Clearance</p>
+                      <p className="text-xs text-amber-800 mt-0.5">
+                        {activeInvoices.length} invoice(s) created for this order. Finalize billing will unlock once all invoices are paid and cleared.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/procurement/invoices`)}
+                    className="h-8 px-3.5 rounded-lg border border-amber-300 bg-white hover:bg-amber-50 text-amber-800 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
+                  >
+                    View Invoices
+                  </button>
+                </div>
+              ) : null}
+            </>
+          )}
+
           {/* Policy Justification */}
           {!!(po as any).policyJustification && (
             <div className="flex items-start gap-2.5 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
@@ -1148,6 +1249,15 @@ function PODetailPage() {
               )}
             </div>
           </div>
+
+          {/* Contextual Price Change Proposal Banner (Hidden on drafts and POs without change requests) */}
+          <POPriceChangeBanner
+            purchaseOrderId={id}
+            stage={stage}
+            poStatus={po.status as string}
+            poAcknowledgedAt={po.acknowledgedAt as string | null}
+            vendorName={po?.vendor?.displayName || po?.vendor?.legalName}
+          />
 
           {/* Line Items */}
           <div className="bg-white rounded-[14px] border border-black/[0.06] overflow-hidden">
@@ -1245,7 +1355,13 @@ function PODetailPage() {
                       <td className="px-6 py-4 text-[#68726d]">{catName || "—"}</td>
                       <td className="px-6 py-4 text-center">{Number(item.quantity)}</td>
 
-                      <td className="px-6 py-4 text-right">{item.pricingSegments?.length ? item.pricingSegments.map((segment: { from: string; to: string; unitPrice: string; revision: number }, index: number) => <div key={index}>{Number(segment.to) - Number(segment.from)} × {formatCurrency(segment.unitPrice, po.currency)} <span className="text-xs text-gray-500">(revision {segment.revision})</span></div>) : formatCurrency(item.unitPrice, po.currency)}</td>
+                      <td className="px-6 py-4 text-right">
+                        <POLinePricingDisplay
+                          unitPrice={item.unitPrice}
+                          currency={po.currency as string}
+                          pricingSegments={item.pricingSegments}
+                        />
+                      </td>
                       <td className="px-6 py-4 text-right text-[#0b100e] font-medium">{formatCurrency(item.subtotal as string, po.currency as string)}</td>
                       {stage === "draft" && isSubmitterView && !isReadOnly && (
                         <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
@@ -1295,7 +1411,6 @@ function PODetailPage() {
               </div>
             </div>
           </div>
-          <PoChangeRequests purchaseOrderId={id} />
         </div>
 
         {/* Right Sidebar */}

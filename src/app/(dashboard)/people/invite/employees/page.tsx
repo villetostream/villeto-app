@@ -73,11 +73,8 @@ function InviteEmployeesPage() {
   const usersApi = usePeopleStatistics(step === "directory");
   const axiosInstance = useAxios();
 
-  const directoryTotalCount = Math.max(0,
-    (usersApi.data?.directoryUsers ?? 0) - (usersApi.data?.totalUsers ?? 0),
-  );
-  // Empty if <= 1 (threshold updated from > 2)
-  const hasDirectoryData = directoryTotalCount > 1;
+  const directoryTotalCount = usersApi.data?.directoryUsers ?? 0;
+  const hasDirectoryData = directoryTotalCount > 0;
 
   const handleDownloadTemplate = async (
     format: "csv" | "xlsx",

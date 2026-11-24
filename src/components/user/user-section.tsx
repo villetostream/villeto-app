@@ -1005,6 +1005,19 @@ export function UserSection() {
         return;
       }
 
+      // Check if accessed from PO Change Requests queue
+      const fromParam = searchParams.get("from");
+      if (
+        fromParam === "po-change-requests" ||
+        (poReturnUrl && poReturnUrl.includes("/procurement/po-change-requests"))
+      ) {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("poReturnUrl");
+        }
+        router.push("/procurement/po-change-requests");
+        return;
+      }
+
       // Check if accessed from a Purchase Request
       const prTarget = (poReturnUrl && poReturnUrl.includes("/procurement/purchase-request"))
         ? poReturnUrl
