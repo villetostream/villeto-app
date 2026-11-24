@@ -85,7 +85,7 @@ interface InvoiceListResponse {
 
 export function useProcurementInvoices(
   status?: string,
-  options?: { enabled?: boolean; refetchInterval?: number | false; page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: "asc" | "desc" },
+  options?: { enabled?: boolean; refetchInterval?: number | false; page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; purchaseOrderId?: string },
 ) {
   const axios = useAxios();
   const { enabled = true, refetchInterval, ...params } = options ?? {};
@@ -96,7 +96,16 @@ export function useProcurementInvoices(
       (
         await axios.get("procurement/invoices", {
           signal,
-          params: { view: "summary", page: options?.page ?? 1, limit: options?.limit ?? 20, search: options?.search, sortBy: options?.sortBy, sortOrder: options?.sortOrder, ...(status ? { status } : {}) },
+          params: {
+            view: "summary",
+            page: options?.page ?? 1,
+            limit: options?.limit ?? 50,
+            search: options?.search,
+            sortBy: options?.sortBy,
+            sortOrder: options?.sortOrder,
+            ...(status ? { status } : {}),
+            ...(options?.purchaseOrderId ? { purchaseOrderId: options.purchaseOrderId } : {}),
+          },
         })
       ).data,
     staleTime: STALE_TIMES.LIVE,

@@ -13,6 +13,7 @@ import {
 import { buildPODetailUrl } from "@/lib/permissions/purchase-order-permissions";
 import { Pagination } from "@/components/ui/custom-pagination";
 import { usePurchaseOrders, usePurchaseOrderApprovalDecision, useIssuePurchaseOrder, type PurchaseOrderRecord } from "@/queries/procurement/purchase-orders";
+import { usePoChangeRequests } from "@/queries/procurement/po-change-requests";
 import { useGetVendors } from "@/queries/procurement/purchase-requests";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -319,6 +320,20 @@ function POTable({
   );
   const awaitingCount = showPOApprovalCount ? ((approvalCountData as unknown as number) ?? 0) : 0;
 
+  // Active vendor price change proposals pending buyer review
+  const { data: pendingChangesData } = usePoChangeRequests(
+    { status: "pending_review", limit: 100 },
+    { staleTime: 30_000 }
+  );
+
+  const pendingChangePoIds = useMemo(() => {
+    const set = new Set<string>();
+    (pendingChangesData?.data || []).forEach((req) => {
+      if (req.purchaseOrderId) set.add(req.purchaseOrderId);
+    });
+    return set;
+  }, [pendingChangesData?.data]);
+
   // Filter out drafts from All POs view — drafts are private to the creator and
   // only belong in the My POs tab. The backend doesn't support an exclude-status
   // param, so we strip them client-side when scope is not "own".
@@ -556,6 +571,8 @@ function POTable({
                     ? (po.fulfillmentState === "fully_ready" ? "ready_for_delivery" : "issued")
                     : (po.deliveryOutcome && po.deliveryOutcome !== "not_delivered" ? po.deliveryOutcome : po.status);
 
+                const hasPendingChange = pendingChangePoIds.has(id);
+
                 return (
                   <tr
                     key={id}
@@ -564,7 +581,17 @@ function POTable({
                       needsAction ? "border-l-4 border-l-[#087f70] bg-[#f0faf8]/40 hover:bg-[#f0faf8]/60" : ""
                     }`}
                   >
-                    <td className="px-5 py-4 font-semibold text-[#0b100e] text-[13px] whitespace-nowrap">{po.poNumber}</td>
+                    <td className="px-5 py-4 font-semibold text-[#0b100e] text-[13px] whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span>{po.poNumber}</span>
+                        {hasPendingChange && (
+                          <span
+                            title="Vendor price change pending review"
+                            className="w-2 h-2 rounded-full bg-[#ff7b6b] shrink-0"
+                          />
+                        )}
+                      </div>
+                    </td>
                     {showRequester && <td className="px-5 py-4 text-[13px] text-[#0b100e] whitespace-nowrap">{requester || "—"}</td>}
                     <td className="px-5 py-4 text-[13px] text-[#68726d] whitespace-nowrap">{vendorLabel}</td>
                     <td className="px-5 py-4 text-[13px] text-[#68726d]">{po.departmentName || "N/A"}</td>
@@ -572,7 +599,17 @@ function POTable({
                     <td className="px-5 py-4 text-[13px] font-semibold text-[#0b100e]">
                       {Number(po.totalAmount).toLocaleString("en-US", { style: "currency", currency: po.currency || "USD" })}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap"><StatusBadge status={effectiveStatus} /></td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <div className="flex flex-col items-start gap-1">
+                        <StatusBadge status={effectiveStatus} />
+                        {hasPendingChange && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            Price Change Pending
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                       {isMyScope ? (
                         <MyPOActionMenu onView={() => navigateToDetail(id)} />

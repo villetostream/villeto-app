@@ -293,6 +293,30 @@ function LineItemModal({
   const subtotal = (form.quantity || 0) * (form.unitPrice || 0);
   const set = (k: keyof LocalItem, v: string | number) => setForm(p => ({ ...p, [k]: v }));
 
+  const hasChanges = useMemo(() => {
+    if (!initial) return true;
+    const nameChanged = (form.name || "").trim() !== (initial.name || "").trim();
+    const descChanged = (form.description || "").trim() !== (initial.description || "").trim();
+    const catChanged = (form.categoryId || "") !== (initial.categoryId || "");
+    const deptChanged = (form.departmentId || "") !== (initial.departmentId || "");
+    const qtyChanged = Number(form.quantity || 0) !== Number(initial.quantity || 0);
+    const priceChanged = Number(form.unitPrice || 0) !== Number(initial.unitPrice || 0);
+    const taxChanged = Number(form.taxAmount || 0) !== Number(initial.taxAmount || 0);
+    const uomChanged = (form.unitOfMeasure || "").trim() !== (initial.unitOfMeasure || "").trim();
+    const skuChanged = (form.sku || "").trim() !== (initial.sku || "").trim();
+    return (
+      nameChanged ||
+      descChanged ||
+      catChanged ||
+      deptChanged ||
+      qtyChanged ||
+      priceChanged ||
+      taxChanged ||
+      uomChanged ||
+      skuChanged
+    );
+  }, [form, initial]);
+
   const handleSave = () => {
     if (!form.name?.trim()) { toast.error("Item name is required"); return; }
     if (!form.quantity || form.quantity <= 0) { toast.error("Quantity must be > 0"); return; }
@@ -382,8 +406,8 @@ function LineItemModal({
           )}
         </div>
         <div className="px-6 py-4 border-t border-black/[0.06] bg-white z-10 shrink-0 rounded-b-2xl">
-          <button type="button" onClick={handleSave}
-            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+          <button type="button" onClick={handleSave} disabled={initial ? !hasChanges : false}
+            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             {initial ? "Save Changes" : "Add Item"}
           </button>
         </div>

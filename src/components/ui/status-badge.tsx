@@ -30,6 +30,7 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     // Teal (Success)
     case "active":
     case "approved":
+    case "applied":
     case "posted":
     case "verified":
     case "delivered":
@@ -39,6 +40,7 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "partially_converted_to_po":
     case "matched":
       colorClasses = "text-[#087f70] bg-[#f0faf8] border-[#c8ece4]";
+      if (normalizedStatus === "applied") defaultLabel = "Applied";
       if (normalizedStatus === "posted") defaultLabel = "Posted";
       if (normalizedStatus === "converted_to_po") defaultLabel = "Converted to PO";
       if (normalizedStatus === "partially_converted_to_po") defaultLabel = "Partially Converted to PO";
@@ -55,6 +57,8 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "submitted":
     case "resubmitted":
     case "pending_approval":
+    case "pending_review":
+    case "returned_for_correction":
     case "pending_policy_check":
     case "under_review":
     case "awaiting_authorization":
@@ -67,6 +71,10 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
       colorClasses = "text-[#b27b00] bg-[#fff9e6] border-[#ffe099]";
       if (normalizedStatus === "resubmitted") {
         defaultLabel = "Resubmitted";
+      } else if (normalizedStatus === "pending_review") {
+        defaultLabel = "Pending Review";
+      } else if (normalizedStatus === "returned_for_correction") {
+        defaultLabel = "Returned for Correction";
       } else if (["pending_approval", "pending_policy_check", "under_review", "awaiting_authorization"].includes(normalizedStatus)) {
         defaultLabel = "Pending";
       } else if (normalizedStatus === "partially_delivered") {
@@ -98,10 +106,12 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "acknowledged":
     case "ready_for_delivery":
     case "ready_to_issue":
+    case "approved_pending_issue":
     case "upcoming":
       colorClasses = "text-[#0066cc] bg-[#f0f6ff] border-[#d6e7ff]";
       if (normalizedStatus === "ready_for_delivery") defaultLabel = "Ready for Delivery";
       if (normalizedStatus === "ready_to_issue") defaultLabel = "Ready to Issue";
+      if (normalizedStatus === "approved_pending_issue") defaultLabel = "Awaiting Final Issue";
       if (normalizedStatus === "upcoming") defaultLabel = "Upcoming";
       break;
       
@@ -123,14 +133,16 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
       colorClasses = "text-[#7c3aed] bg-[#f5f3ff] border-[#ddd6fe]";
       break;
       
-    // Gray (Dormant / Inactive / Skipped / Ended)
+    // Gray (Dormant / Inactive / Skipped / Ended / Expired)
     case "inactive":
     case "deactivated":
     case "skipped":
     case "ended":
+    case "expired":
       colorClasses = "text-[#68726d] bg-[#f5f7f6] border-[#e2e5e4]";
       if (normalizedStatus === "skipped") defaultLabel = "Skipped";
       if (normalizedStatus === "ended") defaultLabel = "Ended";
+      if (normalizedStatus === "expired") defaultLabel = "Expired";
       break;
 
     default:

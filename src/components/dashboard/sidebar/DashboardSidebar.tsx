@@ -46,6 +46,7 @@ import { logger } from "@/lib/logger";
 import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 import { useGetPurchaseRequests } from "@/queries/procurement/purchase-requests";
 import { usePurchaseOrders, useConfirmationOrders } from "@/queries/procurement/purchase-orders";
+import { usePoChangeRequests } from "@/queries/procurement/po-change-requests";
 import {
   needsReceiptConfirmation,
   needsCompanyExceptionDecision,
@@ -337,6 +338,16 @@ export function DashboardSidebar({
       ).length
     : 0;
 
+  const canReviewPoChanges =
+    policies.purchaseOrders.canApprove ||
+    policies.purchaseOrders.canReadCompany;
+
+  const { data: poChangeData } = usePoChangeRequests(
+    { status: "pending_review", limit: 1 },
+    { enabled: canReviewPoChanges && badgesReady, refetchInterval: POLL_INTERVALS.BADGE, staleTime: STALE_TIMES.LIVE }
+  );
+  const totalPoChangeCount = poChangeData?.meta?.totalCount ?? 0;
+
   const expenseScope = policies.expenses.reportScope;
   const isExpenseManager = expenseScope !== "own";
   const expenseCounts = useListStatistics("reports", QUERY_KEYS.expenses.reports(expenseScope || "own"),
@@ -357,7 +368,7 @@ export function DashboardSidebar({
         }
         if (currentItem.href === "/procurement") {
           const totalProcurement =
-            totalPRActionCount + totalPOActionCount + totalConfirmationCount;
+            totalPRActionCount + totalPOActionCount + totalConfirmationCount + totalPoChangeCount;
           if (totalProcurement > 0)
             currentItem.badge = totalProcurement.toString();
         }
@@ -388,6 +399,11 @@ export function DashboardSidebar({
                 totalPOActionCount > 0
               )
                 currentSub.badge = totalPOActionCount.toString();
+              if (
+                currentSub.label === "PO Change Requests" &&
+                totalPoChangeCount > 0
+              )
+                currentSub.badge = totalPoChangeCount.toString();
               if (
                 currentSub.label === "Confirmation" &&
                 totalConfirmationCount > 0

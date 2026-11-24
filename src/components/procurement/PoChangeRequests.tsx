@@ -1,615 +1,578 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAxios } from "@/hooks/useAxios";
+import { format } from "date-fns";
+import {
+  AlertCircle,
+  Calendar,
+  Check,
+  Clock,
+  Eye,
+  FileCheck2,
+  Filter,
+  Info,
+  Loader2,
+  RefreshCw,
+  Search,
+  Settings2,
+  SlidersHorizontal,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Pagination } from "@/components/ui/custom-pagination";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuthStore } from "@/stores/auth-stores";
 import {
   useEntityWorkspaceStore,
-  workspaceQueryKey,
   workspaceReadOnly,
 } from "@/features/entity-workspace/store";
-import { toast } from "sonner";
+import {
+  PoChangeRequestSummary,
+  usePoChangeRequests,
+  usePoChangeSettings,
+  useUpdatePoChangeSettings,
+} from "@/queries/procurement/po-change-requests";
+import { PoChangeRequestDrawer } from "@/components/procurement/PoChangeRequestDrawer";
+import { formatCurrency } from "@/lib/utils/currency";
 
-type Summary = {
-  priceChangeRequestId: string;
-  purchaseOrderId: string;
-  poNumber: string;
-  vendorName: string;
-  vendorLegalName: string;
-  status: string;
-  version: number;
-  difference: string;
-  currency: string;
-  expiresAt: string;
-};
-type Pricing = {
-  from: string;
-  to: string;
-  unitPrice: string;
-  revision: number;
-};
-type Detail = {
-  priceChangeRequestId: string;
-  purchaseOrderId: string;
-  version: number;
-  status: string;
-  expiresAt: string;
-  basisRevision: number;
-  proposal: {
-    reason: string;
-    supportingDocuments: { name: string; url: string }[];
-  };
-  comparison: {
-    currency: string;
-    previousTotal: string;
-    totalAmount: string;
-    difference: string;
-    taxAmount: string;
-    previousTaxAmount: string;
-    discountAmount: string;
-    chargeAmount: string;
-    lineItems: {
-      purchaseOrderLineItemId: string;
-      name: string;
-      quantity: string;
-      proposedUnitPrice: string;
-      previousAmount: string;
-      proposedAmount: string;
-      eligibleQuantity: string;
-      pricing: Pricing[];
-    }[];
-  };
-  history: {
-    version: number;
-    action: string;
-    at: string;
-    actorType: string;
-    reason: string | null;
-  }[];
-  policyEvaluation: {
-    resolution?: string;
-    violations?: { ruleId: string; message: string }[];
-  } | null;
-  controls: { availableBudget: string; contractValidation: string };
-};
-const root = "/procurement/po-change-requests";
-const label = (value: string) => value === "approved_pending_issue" ? "awaiting final approval" : value.replaceAll("_", " ");
-const money = (value: string, currency: string) =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency }).format(
-    Number(value),
-  );
-const errorMessage = (error: unknown) => {
-  const data = (
-    error as {
-      response?: {
-        data?: { message?: string | string[]; issues?: { message: string }[] };
-      };
-    }
-  ).response?.data;
-  return (
-    data?.issues?.map((issue) => issue.message).join(" ") ||
-    (Array.isArray(data?.message) ? data.message.join(" ") : data?.message) ||
-    (error instanceof Error
-      ? error.message
-      : "Unable to complete this action. Please refresh and try again.")
-  );
-};
-const button =
-  "rounded-lg border px-3 py-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed";
+type QueueTab = "needs_review" | "awaiting_vendor" | "resolved" | "all";
 
-function ScopedPoChangeRequests({
-  purchaseOrderId,
-}: {
+interface PoChangeRequestsProps {
   purchaseOrderId?: string;
-}) {
-  const axios = useAxios();
-  const client = useQueryClient();
+}
+
+export function PoChangeRequests({ purchaseOrderId }: PoChangeRequestsProps) {
   const can = useAuthStore((state) => state.canPermission);
   const authorization = useAuthStore((state) => state.authorization);
-  const selection = useEntityWorkspaceStore((state) => state.selection);
-  const generation = useEntityWorkspaceStore((state) => state.generation);
-  const scopePrefix = workspaceQueryKey([]);
-  const [status, setStatus] = useState("");
-  const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [reason, setReason] = useState("");
-  const [justification, setJustification] = useState("");
-  const [validity, setValidity] = useState<number | null>(null);
+  const readonly = workspaceReadOnly();
+
   const canRead =
     Boolean(authorization) &&
     ["read_company", "approval_decision", "issue"].some((action) =>
-      can(`procurement.purchase_order.${action}`),
+      can(`procurement.purchase_order.${action}`)
     );
-  const readonly = workspaceReadOnly();
-  const query = useQuery({
-    queryKey: workspaceQueryKey([
-      "po-change-requests",
-      purchaseOrderId,
-      status,
-      page,
-      generation,
-    ]),
-    enabled: canRead,
-    queryFn: async () =>
-      (
-        await axios.get<{
-          data: Summary[];
-          meta: { totalPages: number; totalCount: number };
-        }>(root, {
-          params: {
-            page,
-            limit: 20,
-            status: status || undefined,
-            purchaseOrderId,
-            legalEntityId:
-              selection && selection !== "all" ? selection : undefined,
-          },
-        })
-      ).data,
-  });
-  const detail = useQuery({
-    queryKey: workspaceQueryKey(["po-change-request", selected, generation]),
-    enabled: canRead && !!selected,
-    staleTime: 30_000,
-    queryFn: async () =>
-      (await axios.get<{ data: Detail }>(`${root}/${selected}`)).data.data,
-  });
-  const settings = useQuery({
-    queryKey: workspaceQueryKey(["po-change-settings", generation]),
-    enabled: canRead && !purchaseOrderId,
-    queryFn: async () =>
-      (await axios.get<{ data: { validityDays: number } }>(`${root}/settings`))
-        .data.data,
-  });
-  const mutation = useMutation({
-    mutationFn: async (action: string) => {
-      const current = detail.data;
-      if (!current || readonly)
-        throw new Error("Select an editable legal entity and request.");
-      return (
-        await axios.post<{ data: Detail }>(
-          `${root}/${current.priceChangeRequestId}/${action}`,
-          {
-            expectedVersion: current.version,
-            reason: reason.trim() || undefined,
-            spendProgramJustification: justification.trim() || undefined,
-          },
-        )
-      ).data.data;
-    },
-    onSuccess: async (result) => {
-      toast.success(result.status === "applied"
-        ? "Approved and issued. Revised prices are now effective."
-        : result.status === "pending_review"
-          ? "Approval recorded. Waiting for the remaining required approvals."
-          : `Request is now ${label(result.status)}.`);
-      setReason("");
-      setJustification("");
-      client.setQueryData([...scopePrefix, "po-change-request", result.priceChangeRequestId, generation], result);
-      await client.invalidateQueries({
-        predicate: (q) => scopePrefix.every((part, index) => q.queryKey[index] === part) && (
-          (q.queryKey.some(part => typeof part === "string" && part.startsWith("po-change")) &&
-            !q.queryKey.includes("po-change-settings") && !q.queryKey.includes("po-change-request")) ||
-          (result.status === "applied" && q.queryKey.some(part => typeof part === "string" && (part.includes("purchaseOrder") || part.includes("purchase-order"))))
-        ),
-      });
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-  const saveSettings = useMutation({
-    mutationFn: async () => {
-      await axios.put(`${root}/settings`, {
-        validityDays: validity ?? settings.data?.validityDays ?? 14,
-      });
-    },
-    onSuccess: async () => {
-      await settings.refetch();
-      toast.success("Validity updated for future submissions and corrections.");
-    },
-    onError: (e) => toast.error(errorMessage(e)),
-  });
-  if (!canRead)
-    return purchaseOrderId ? null : (
-      <p className="p-6">
-        You do not have permission to view PO change requests.
-      </p>
-    );
-  const current = detail.data;
-  return (
-    <section className="space-y-5 rounded-2xl border bg-white p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">PO Change Requests</h1>
-          <p className="text-sm text-gray-600">
-            Review vendor price proposals. Final approval automatically issues
-            the revised order and applies its prices.
-          </p>
-        </div>
-        <button className={button} onClick={() => void query.refetch()}>
-          Refresh
-        </button>
-      </div>
-      {readonly && (
-        <p className="rounded-lg bg-amber-50 p-3 text-sm">
-          Select a legal entity to approve and issue, reject, or return a change.
-        </p>
-      )}
-      {!purchaseOrderId && settings.data && (
-        <details className="rounded-lg border p-3">
-          <summary>
-            Request validity: {settings.data.validityDays} calendar days
-          </summary>
-          <p className="my-2 text-sm text-gray-600">
-            Starts at submission, restarts on corrected resubmission, and must
-            remain valid until revised-order issue. Setting changes affect
-            future submissions.
-          </p>
-          {can("procurement_spend_program.manage") && (
-            <div className="flex gap-2">
-              <label>
-                Calendar days{" "}
-                <input
-                  className="ml-2 w-20 rounded border p-2"
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={validity ?? settings.data.validityDays}
-                  onChange={(e) => setValidity(Number(e.target.value))}
-                />
-              </label>
-              <button
-                className={button}
-                disabled={readonly || saveSettings.isPending}
-                onClick={() => saveSettings.mutate()}
-              >
-                Save validity
-              </button>
-            </div>
-          )}
-        </details>
-      )}
-      <label className="block text-sm">
-        Status{" "}
-        <select
-          className="ml-2 rounded-lg border p-2"
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(1);
-            setSelected(null);
-          }}
-        >
-          {[
-            "",
-            "pending_review",
-            "returned_for_correction",
-            "approved_pending_issue",
-            "applied",
-            "rejected",
-            "withdrawn",
-            "cancelled",
-            "expired",
-          ].map((s) => (
-            <option key={s} value={s}>
-              {s ? label(s) : "All statuses"}
-            </option>
-          ))}
-        </select>
-      </label>
-      {query.isLoading && <p role="status">Loading requests…</p>}
-      {query.isError && (
-        <p role="alert" className="text-red-700">
-          {errorMessage(query.error)}
-        </p>
-      )}
-      {query.data && (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="p-2">Order / vendor</th>
-                  <th>Status</th>
-                  <th>Proposed difference</th>
-                  <th>Valid until</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {query.data.data.map((row) => (
-                  <tr key={row.priceChangeRequestId} className="border-b">
-                    <td className="p-2">
-                      <Link
-                        className="font-medium text-emerald-800 underline"
-                        href={`/procurement/purchase-order/${row.purchaseOrderId}`}
-                      >
-                        {row.poNumber}
-                      </Link>
-                      <div>{row.vendorName || row.vendorLegalName}</div>
-                    </td>
-                    <td>{label(row.status)}</td>
-                    <td>{money(row.difference, row.currency)}</td>
-                    <td>{new Date(row.expiresAt).toLocaleString()}</td>
-                    <td>
-                      <button
-                        className={button}
-                        onClick={() => {
-                          setSelected(row.priceChangeRequestId);
-                          setReason("");
-                          setJustification("");
-                        }}
-                      >
-                        Review
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {!query.data.data.length && (
-            <p className="text-gray-600">
-              No price change requests in this view.
-            </p>
-          )}
-          <div className="flex items-center gap-3">
-            <button
-              className={button}
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </button>
-            <span>
-              Page {page} · {query.data.meta.totalCount} requests
-            </span>
-            <button
-              className={button}
-              disabled={page >= query.data.meta.totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </div>
-        </>
-      )}
-      {detail.isLoading && <p>Loading request details…</p>}
-      {detail.isError && (
-        <p role="alert" className="text-red-700">
-          {errorMessage(detail.error)}
-        </p>
-      )}
-      {current && (
-        <div className="space-y-4 border-t pt-5">
-          <div className="flex justify-between">
-            <h2 className="font-semibold">
-              Request version {current.version} · Based on PO revision{" "}
-              {current.basisRevision} · {label(current.status)}
-            </h2>
-            <button className={button} onClick={() => setSelected(null)}>
-              Close
-            </button>
-          </div>
-          <p className="whitespace-pre-wrap">{current.proposal.reason}</p>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <p>
-              Before this change
-              <br />
-              <strong>
-                {money(
-                  current.comparison.previousTotal,
-                  current.comparison.currency,
-                )}
-              </strong>
-            </p>
-            <p>
-              Proposed commitment
-              <br />
-              <strong>
-                {money(
-                  current.comparison.totalAmount,
-                  current.comparison.currency,
-                )}
-              </strong>
-            </p>
-            <p>
-              Difference
-              <br />
-              <strong>
-                {money(
-                  current.comparison.difference,
-                  current.comparison.currency,
-                )}
-              </strong>
-            </p>
-          </div>
-          <p className="text-sm">
-            Tax:{" "}
-            {money(
-              current.comparison.previousTaxAmount,
-              current.comparison.currency,
-            )}{" "}
-            → {money(current.comparison.taxAmount, current.comparison.currency)}
-            . Discounts:{" "}
-            {money(
-              current.comparison.discountAmount,
-              current.comparison.currency,
-            )}
-            . Charges:{" "}
-            {money(
-              current.comparison.chargeAmount,
-              current.comparison.currency,
-            )}
-            .
-          </p>
-          <p className="rounded-lg bg-amber-50 p-3 text-sm">
-            Available-budget and contract validation are unavailable in V1.
-            Taxes follow the order’s existing effective tax rate. Current orders
-            have no separately configured discount or charge terms.
-          </p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Affected quantity</th>
-                  <th>Previous affected value</th>
-                  <th>Proposed unit price</th>
-                  <th>Proposed affected value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {current.comparison.lineItems.map((line) => (
-                  <tr key={line.purchaseOrderLineItemId} className="border-t">
-                    <td className="py-2">{line.name}</td>
-                    <td>{line.quantity}</td>
-                    <td>
-                      {money(line.previousAmount, current.comparison.currency)}
-                    </td>
-                    <td>
-                      {money(
-                        line.proposedUnitPrice,
-                        current.comparison.currency,
-                      )}
-                    </td>
-                    <td>
-                      {money(line.proposedAmount, current.comparison.currency)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {current.proposal.supportingDocuments.map((doc) => (
-            <a
-              key={doc.url}
-              className="block text-emerald-800 underline"
-              href={doc.url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {doc.name}
-            </a>
-          ))}
-          {current.policyEvaluation && (
-            <div>
-              <h3 className="font-medium">
-                Purchasing controls: {current.policyEvaluation.resolution}
-              </h3>
-              {current.policyEvaluation.violations?.map((v, i) => (
-                <p key={`${v.ruleId}-${i}`} className="text-sm">
-                  {v.message}
-                </p>
-              ))}
-            </div>
-          )}
-          {[
-            "pending_review",
-            "returned_for_correction",
-            "approved_pending_issue",
-          ].includes(current.status) && (
-            <>
-              <label className="block text-sm">
-                Decision reason
-                <textarea
-                  className="mt-1 w-full rounded-lg border p-2"
-                  maxLength={4000}
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                />
-              </label>
-              <label className="block text-sm">
-                Purchasing policy justification
-                <textarea
-                  className="mt-1 w-full rounded-lg border p-2"
-                  maxLength={4000}
-                  value={justification}
-                  onChange={(e) => setJustification(e.target.value)}
-                />
-              </label>
-              <p className="text-sm text-gray-600">The final required approval automatically issues the revised PO and makes its prices effective.</p>
-              <div className="flex flex-wrap gap-2">
-                {["pending_review", "approved_pending_issue"].includes(current.status) &&
-                  can("procurement.purchase_order.approval_decision") && (
-                    <button className={button} disabled={readonly || mutation.isPending} onClick={() => mutation.mutate("approve")}>
-                      Approve and issue revised PO
-                    </button>
-                  )}
-                {current.status === "pending_review" &&
-                  can("procurement.purchase_order.approval_decision") && (
-                    <>
-                      <button
-                        className={button}
-                        disabled={
-                          readonly || mutation.isPending || !reason.trim()
-                        }
-                        onClick={() => mutation.mutate("reject")}
-                      >
-                        Reject
-                      </button>
-                      <button
-                        className={button}
-                        disabled={
-                          readonly || mutation.isPending || !reason.trim()
-                        }
-                        onClick={() => mutation.mutate("return")}
-                      >
-                        Return for correction
-                      </button>
-                    </>
-                  )}
-                {current.status === "approved_pending_issue" && (
-                  <>
-                    {can("procurement.purchase_order.cancel") && (
-                      <button
-                        className={button}
-                        disabled={
-                          readonly || mutation.isPending || !reason.trim()
-                        }
-                        onClick={() => mutation.mutate("cancel")}
-                      >
-                        Cancel approved change
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-            </>
-          )}
-          <details>
-            <summary className="cursor-pointer font-medium">
-              Submission and decision history
-            </summary>
-            <ol className="mt-3 space-y-2">
-              {current.history.map((entry, i) => (
-                <li key={i} className="rounded border p-3 text-sm">
-                  Version {entry.version} · {label(entry.action)} ·{" "}
-                  {entry.actorType} · {new Date(entry.at).toLocaleString()}
-                  {entry.reason && (
-                    <p className="whitespace-pre-wrap">{entry.reason}</p>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </details>
-        </div>
-      )}
-    </section>
-  );
-}
 
-export function PoChangeRequests({
-  purchaseOrderId,
-}: {
-  purchaseOrderId?: string;
-}) {
-  const generation = useEntityWorkspaceStore((state) => state.generation);
+  const canManageSettings = can("procurement_spend_program.manage");
+
+  // State
+  const [activeTab, setActiveTab] = useState<QueueTab>("needs_review");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+
+  // Settings dialog
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [validityDaysInput, setValidityDaysInput] = useState<number | "">("");
+
+  // Queries
+  const { data: settingsData } = usePoChangeSettings({
+    enabled: canRead && !purchaseOrderId,
+  });
+
+  const updateSettingsMutation = useUpdatePoChangeSettings();
+
+  // Determine query status parameter based on tab & dropdown
+  const queryStatusParam = useMemo(() => {
+    if (statusFilter !== "all") {
+      return statusFilter;
+    }
+    if (activeTab === "needs_review") {
+      return undefined; // Filter client-side or fetch all
+    }
+    if (activeTab === "awaiting_vendor") {
+      return "returned_for_correction";
+    }
+    return undefined;
+  }, [activeTab, statusFilter]);
+
+  const {
+    data: responseData,
+    isLoading,
+    isRefetching,
+    refetch,
+    error,
+  } = usePoChangeRequests(
+    {
+      page,
+      limit: perPage,
+      status: queryStatusParam,
+      purchaseOrderId,
+    },
+    { enabled: canRead }
+  );
+
+  const { data: needsReviewData } = usePoChangeRequests(
+    { status: "pending_review", limit: 1 },
+    { enabled: canRead, staleTime: 30_000 }
+  );
+  const needsReviewCount = needsReviewData?.meta?.totalCount ?? 0;
+
+  const allItems = responseData?.data || [];
+
+  // Filter items based on activeTab and searchQuery
+  const filteredItems = useMemo(() => {
+    return allItems.filter((item) => {
+      // Tab filter
+      if (statusFilter === "all") {
+        if (activeTab === "needs_review") {
+          if (!["pending_review", "approved_pending_issue"].includes(item.status)) {
+            return false;
+          }
+        } else if (activeTab === "awaiting_vendor") {
+          if (item.status !== "returned_for_correction") {
+            return false;
+          }
+        } else if (activeTab === "resolved") {
+          if (
+            ["pending_review", "approved_pending_issue", "returned_for_correction"].includes(
+              item.status
+            )
+          ) {
+            return false;
+          }
+        }
+      }
+
+      // Search query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const poMatch = item.poNumber?.toLowerCase().includes(q);
+        const vendorMatch =
+          item.vendorName?.toLowerCase().includes(q) ||
+          item.vendorLegalName?.toLowerCase().includes(q);
+        if (!poMatch && !vendorMatch) return false;
+      }
+
+      return true;
+    });
+  }, [allItems, activeTab, statusFilter, searchQuery]);
+
+  if (!canRead) {
+    return (
+      <div className="p-8 text-center bg-white rounded-2xl border border-border">
+        <AlertCircle className="w-8 h-8 text-amber-600 mx-auto mb-2" />
+        <h3 className="text-base font-semibold text-[#0b100e]">Access Restricted</h3>
+        <p className="text-sm text-[#68726d] mt-1">
+          You do not have permission to view purchase order price change requests.
+        </p>
+      </div>
+    );
+  }
+
+  const handleOpenSettings = () => {
+    if (settingsData?.validityDays) {
+      setValidityDaysInput(settingsData.validityDays);
+    }
+    setIsSettingsOpen(true);
+  };
+
+  const handleSaveSettings = () => {
+    const days = Number(validityDaysInput);
+    if (!days || days < 1 || days > 365) return;
+    updateSettingsMutation.mutate(days, {
+      onSuccess: () => setIsSettingsOpen(false),
+    });
+  };
+
   return (
-    <ScopedPoChangeRequests
-      key={`${generation}:${purchaseOrderId ?? "queue"}`}
-      purchaseOrderId={purchaseOrderId}
-    />
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#0b100e]">
+            PO Price Change Requests
+          </h1>
+          <p className="text-sm text-[#68726d] mt-0.5">
+            Review vendor price proposals. Approvals issue revised purchase orders with updated pricing.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {!purchaseOrderId && settingsData && canManageSettings && (
+            <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenSettings}
+                  className="gap-1.5 text-xs text-[#374151] rounded-lg h-8 px-3 border border-black/[0.12]"
+                >
+                  <Settings2 className="w-3.5 h-3.5 text-[#68726d]" />
+                  <span>Validity: {settingsData.validityDays} Days</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md bg-white">
+                <DialogHeader>
+                  <DialogTitle className="text-base font-semibold text-[#0b100e]">
+                    Price Change Proposal Validity
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-[#68726d]">
+                    Sets the calendar days a vendor price proposal remains valid from submission or corrected resubmission.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="py-4 space-y-2">
+                  <label className="text-xs font-medium text-[#374151]">
+                    Validity Period (Calendar Days)
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={validityDaysInput}
+                    onChange={(e) =>
+                      setValidityDaysInput(
+                        e.target.value === "" ? "" : Number(e.target.value)
+                      )
+                    }
+                    placeholder="14"
+                    className="text-sm"
+                  />
+                  <p className="text-[11px] text-[#68726d]">
+                    Applies to new submissions and vendor corrections.
+                  </p>
+                </div>
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsSettingsOpen(false)}
+                    className="rounded-lg h-8 px-3 text-xs border border-black/[0.12]"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    disabled={
+                      readonly ||
+                      updateSettingsMutation.isPending ||
+                      !validityDaysInput ||
+                      Number(validityDaysInput) < 1
+                    }
+                    onClick={handleSaveSettings}
+                    className="rounded-lg h-8 px-3.5 text-xs bg-[#087f70] hover:bg-[#076c5f] text-white disabled:opacity-40"
+                  >
+                    {updateSettingsMutation.isPending && (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                    )}
+                    Save Setting
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isRefetching || isLoading}
+            className="gap-1.5 text-xs text-[#374151] rounded-lg h-8 px-3 border border-black/[0.12]"
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 text-[#68726d] ${
+                isRefetching ? "animate-spin" : ""
+              }`}
+            />
+            <span>Refresh</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Readonly alert */}
+      {readonly && (
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
+          <Info className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            Workspace is in a multi-entity or read-only view. Select a specific active legal entity to approve, reject, or return price changes.
+          </span>
+        </div>
+      )}
+
+      {/* Filters and Tabs Bar */}
+      <div className="bg-white rounded-2xl border border-border p-4 space-y-4 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          {/* Tabs */}
+          <div className="flex items-center gap-1 p-1 bg-[#f5f7f6] rounded-xl self-start">
+            <button
+              onClick={() => {
+                setActiveTab("needs_review");
+                setStatusFilter("all");
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === "needs_review"
+                  ? "bg-white text-[#087f70] shadow-xs"
+                  : "text-[#68726d] hover:text-[#0b100e]"
+              }`}
+            >
+              <span>Needs Review</span>
+              {needsReviewCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold bg-[#ff7b6b] text-white leading-none shadow-[0_2px_8px_rgba(255,123,107,0.25)]">
+                  {needsReviewCount > 99 ? "99+" : needsReviewCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("awaiting_vendor");
+                setStatusFilter("all");
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === "awaiting_vendor"
+                  ? "bg-white text-[#087f70] shadow-xs"
+                  : "text-[#68726d] hover:text-[#0b100e]"
+              }`}
+            >
+              Awaiting Vendor
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("resolved");
+                setStatusFilter("all");
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === "resolved"
+                  ? "bg-white text-[#087f70] shadow-xs"
+                  : "text-[#68726d] hover:text-[#0b100e]"
+              }`}
+            >
+              Resolved
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("all");
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === "all"
+                  ? "bg-white text-[#087f70] shadow-xs"
+                  : "text-[#68726d] hover:text-[#0b100e]"
+              }`}
+            >
+              All Requests
+            </button>
+          </div>
+
+          {/* Search & Status Filter */}
+          <div className="flex items-center gap-2.5">
+            <div className="relative w-full sm:w-60">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#68726d]" />
+              <Input
+                placeholder="Search PO or Vendor..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 text-xs h-9 bg-white"
+              />
+            </div>
+
+            <Select
+              value={statusFilter}
+              onValueChange={(val) => {
+                setStatusFilter(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger size="sm" className="h-9 min-w-[130px] text-xs bg-white">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending_review">Pending Review</SelectItem>
+                <SelectItem value="approved_pending_issue">Awaiting Final Issue</SelectItem>
+                <SelectItem value="returned_for_correction">Returned for Correction</SelectItem>
+                <SelectItem value="applied">Applied</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="expired">Expired</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto rounded-xl border border-border/70">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-border bg-[#f9faf9] text-[#68726d]">
+                <th className="px-5 py-3 font-semibold">Purchase Order & Vendor</th>
+                <th className="px-4 py-3 font-semibold">Revision / Version</th>
+                <th className="px-4 py-3 font-semibold text-right">Proposed Difference</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
+                <th className="px-4 py-3 font-semibold">Valid Until</th>
+                <th className="px-5 py-3 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60 bg-white">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-[#68726d]">
+                    <Loader2 className="w-6 h-6 animate-spin text-[#087f70] mx-auto mb-2" />
+                    <span>Loading price change proposals...</span>
+                  </td>
+                </tr>
+              ) : filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12">
+                    <EmptyState
+                      icon={<FileCheck2 className="w-6 h-6 text-[#68726d]" />}
+                      title="No price change requests found"
+                      description={
+                        searchQuery.trim()
+                          ? "No proposals match your search query."
+                          : activeTab === "needs_review"
+                          ? "There are no pending price revisions requiring buyer review."
+                          : activeTab === "awaiting_vendor"
+                          ? "No proposals are currently awaiting vendor correction."
+                          : "No price change requests in this view."
+                      }
+                    />
+                  </td>
+                </tr>
+              ) : (
+                filteredItems.map((row) => {
+                  const diffVal = Number(row.difference || 0);
+                  const isIncrease = diffVal > 0;
+                  const isDecrease = diffVal < 0;
+                  const isActionable = [
+                    "pending_review",
+                    "approved_pending_issue",
+                  ].includes(row.status);
+
+                  return (
+                    <tr
+                      key={row.priceChangeRequestId}
+                      onClick={() => setSelectedRequestId(row.priceChangeRequestId)}
+                      className="hover:bg-black/[0.015] cursor-pointer transition-colors"
+                    >
+                      <td className="px-5 py-3.5">
+                        <Link
+                          href={`/procurement/purchase-order/${row.purchaseOrderId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-semibold text-[#087f70] hover:underline"
+                        >
+                          {row.poNumber}
+                        </Link>
+                        <p className="text-xs text-[#374151] font-medium mt-0.5">
+                          {row.vendorName || row.vendorLegalName || "Vendor"}
+                        </p>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-[#374151]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-[#0b100e]">
+                            Version {row.version}
+                          </span>
+                          {row.version > 1 ? (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#eff6ff] text-[#1d4ed8] border border-[#bfdbfe]">
+                              Amendment
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#f3f4f6] text-[#6b7280]">
+                              Initial
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-right font-medium">
+                        <span
+                          className={`font-semibold ${
+                            isIncrease
+                              ? "text-amber-800"
+                              : isDecrease
+                              ? "text-emerald-700"
+                              : "text-[#0b100e]"
+                          }`}
+                        >
+                          {isIncrease ? "+" : ""}
+                          {formatCurrency(row.difference, row.currency)}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <StatusBadge status={row.status} />
+                      </td>
+
+                      <td className="px-4 py-3.5 text-[#68726d]">
+                        {row.expiresAt ? (
+                          format(new Date(row.expiresAt), "MMM dd, yyyy")
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+
+                      <td
+                        className="px-5 py-3.5 text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRequestId(row.priceChangeRequestId)}
+                          className={
+                            isActionable
+                              ? "h-8 px-3 rounded-lg bg-[#087f70] hover:bg-[#076c5f] text-white text-xs font-semibold transition-colors shadow-xs"
+                              : "h-8 px-3 rounded-lg border border-black/[0.12] bg-white hover:bg-black/[0.03] text-[#374151] text-xs font-semibold transition-colors"
+                          }
+                        >
+                          {isActionable ? "Review" : "View"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {responseData?.meta && responseData.meta.totalCount > 0 && (
+          <Pagination
+            total={responseData.meta.totalCount}
+            page={page}
+            perPage={perPage}
+            totalPages={responseData.meta.totalPages}
+            onPage={setPage}
+            onPerPage={setPerPage}
+          />
+        )}
+      </div>
+
+      {/* Review & Audit Modal */}
+      <PoChangeRequestDrawer
+        requestId={selectedRequestId}
+        onClose={() => setSelectedRequestId(null)}
+        vendorName={
+          allItems.find((r) => r.priceChangeRequestId === selectedRequestId)?.vendorName ||
+          allItems.find((r) => r.priceChangeRequestId === selectedRequestId)?.vendorLegalName
+        }
+      />
+    </div>
   );
 }

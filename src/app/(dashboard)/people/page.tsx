@@ -25,7 +25,6 @@ function People() {
 
     const statistics = usePeopleStatistics(canManageUsers || canViewRoles);
     const directoryTotalCount = statistics.data?.directoryUsers ?? 0;
-    const hasDirectoryData    = directoryTotalCount > 0;
 
     const statCards = [
         ...(canManageUsers ? [
@@ -239,11 +238,7 @@ function People() {
                     }}
                     onContinue={() => {
                         setIsInviteModalOpen(false);
-                        router.push(
-                            hasDirectoryData
-                                ? "/people/invite/employees"
-                                : "/people/invite/employees?step=upload"
-                        );
+                        router.push("/people/invite/employees");
                     }}
                 />
 

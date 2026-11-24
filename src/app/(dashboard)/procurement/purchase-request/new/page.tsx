@@ -443,6 +443,30 @@ function LineItemModal({
             : currency;
   const subtotal = form.quantity * (form.unitPrice || 0);
 
+  const hasChanges = useMemo(() => {
+    if (!initial) return true;
+    const nameChanged = (form.name || "").trim() !== (initial.name || "").trim();
+    const descChanged = (form.description || "").trim() !== (initial.description || "").trim();
+    const catChanged = (form.categoryId || "") !== (initial.categoryId || "");
+    const deptChanged = (form.departmentId || "") !== (initial.departmentId || "");
+    const qtyChanged = Number(form.quantity || 0) !== Number(initial.quantity || 0);
+    const priceChanged = Number(form.unitPrice || 0) !== Number(initial.unitPrice || 0);
+    const taxChanged = Number(form.taxAmount || 0) !== Number(initial.taxAmount || 0);
+    const uomChanged = (form.unitOfMeasure || "").trim() !== (initial.unitOfMeasure || "").trim();
+    const skuChanged = (form.sku || "").trim() !== (initial.sku || "").trim();
+    return (
+      nameChanged ||
+      descChanged ||
+      catChanged ||
+      deptChanged ||
+      qtyChanged ||
+      priceChanged ||
+      taxChanged ||
+      uomChanged ||
+      skuChanged
+    );
+  }, [form, initial]);
+
   const set = (k: keyof ModalItem, v: string | number | undefined) =>
     setForm((p) => ({ ...p, [k]: v }));
 
@@ -611,9 +635,10 @@ function LineItemModal({
               loading ||
               !(form.name || "").trim() ||
               !form.categoryId ||
-              form.quantity <= 0
+              form.quantity <= 0 ||
+              (initial ? !hasChanges : false)
             }
-            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-95 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {initial ? "Save Changes" : "Add Item"}

@@ -52,3 +52,24 @@ export const COUNTRY_CURRENCY_CONFIG: Record<string, CurrencyConfig> = {
 export function getCurrencyConfig(countryCode: string): CurrencyConfig {
   return COUNTRY_CURRENCY_CONFIG[countryCode] ?? COUNTRY_CURRENCY_CONFIG["NGA"];
 }
+
+export function formatCurrency(
+  amount: string | number | null | undefined,
+  currency: string = "NGN"
+): string {
+  const num = Number(amount) || 0;
+  try {
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: currency || "NGN",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(num);
+  } catch {
+    return `${currency || "NGN"} ${num.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+}
+

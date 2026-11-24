@@ -45,6 +45,28 @@ export function LineItemDetailModal({ isOpen, onClose, item, currency = "USD", o
     }
   }, [isOpen, item, startInEditMode]);
 
+  const hasChanges = useMemo(() => {
+    if (!item) return false;
+    const nameChanged = (form.name ?? "").trim() !== (item.name ?? "").trim();
+    const categoryChanged = (form.categoryId ?? "") !== (item.categoryId ?? "");
+    const qtyChanged = Number(form.quantity ?? 0) !== Number(item.quantity ?? 0);
+    const unitPriceChanged = Number(form.unitPrice ?? 0) !== Number(item.unitPrice ?? 0);
+    const taxChanged = Number(form.taxAmount ?? 0) !== Number(item.taxAmount ?? 0);
+    const uomChanged = (form.unitOfMeasure ?? "").trim() !== (item.unitOfMeasure ?? "").trim();
+    const descChanged = (form.description ?? "").trim() !== (item.description ?? "").trim();
+    const skuChanged = (form.sku ?? "").trim() !== (item.sku ?? "").trim();
+    return (
+      nameChanged ||
+      categoryChanged ||
+      qtyChanged ||
+      unitPriceChanged ||
+      taxChanged ||
+      uomChanged ||
+      descChanged ||
+      skuChanged
+    );
+  }, [form, item]);
+
   if (!isOpen || !item) return null;
 
   const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
@@ -260,8 +282,8 @@ export function LineItemDetailModal({ isOpen, onClose, item, currency = "USD", o
                 className="h-10 px-5 rounded-[10px] bg-[#f5f7f6] text-[#0b100e] text-sm font-semibold hover:bg-[#e8ebe9] transition-colors disabled:opacity-60">
                 Cancel
               </button>
-              <button onClick={handleSave} disabled={isSaving}
-                className="h-10 px-5 rounded-[10px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2">
+              <button onClick={handleSave} disabled={isSaving || !hasChanges}
+                className="h-10 px-5 rounded-[10px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Save Changes
               </button>

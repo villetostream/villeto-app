@@ -461,6 +461,30 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
   const set = (k: keyof ModalItem, v: string | number | undefined) => setForm(p => ({ ...p, [k]: v }));
   const subtotal = form.quantity * (form.unitPrice || 0);
 
+  const hasChanges = useMemo(() => {
+    if (!initial) return true;
+    const nameChanged = (form.name || "").trim() !== (initial.name || "").trim();
+    const descChanged = (form.description || "").trim() !== (initial.description || "").trim();
+    const catChanged = (form.categoryId || "") !== (initial.categoryId || "");
+    const deptChanged = (form.departmentId || "") !== (initial.departmentId || "");
+    const qtyChanged = Number(form.quantity || 0) !== Number(initial.quantity || 0);
+    const priceChanged = Number(form.unitPrice || 0) !== Number(initial.unitPrice || 0);
+    const taxChanged = Number(form.taxAmount || 0) !== Number(initial.taxAmount || 0);
+    const uomChanged = (form.unitOfMeasure || "").trim() !== (initial.unitOfMeasure || "").trim();
+    const skuChanged = (form.sku || "").trim() !== (initial.sku || "").trim();
+    return (
+      nameChanged ||
+      descChanged ||
+      catChanged ||
+      deptChanged ||
+      qtyChanged ||
+      priceChanged ||
+      taxChanged ||
+      uomChanged ||
+      skuChanged
+    );
+  }, [form, initial]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
@@ -520,7 +544,7 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
           )}
         </div>
         <div className="px-6 py-4 border-t border-black/[0.06] bg-white z-10 shrink-0 rounded-b-2xl">
-          <button type="button" disabled={loading}
+          <button type="button" disabled={loading || (initial ? !hasChanges : false)}
             onClick={() => {
               if (!(form.name || "").trim()) { toast.error("Item name required"); return; }
               if (!form.quantity || form.quantity <= 0) { toast.error("Quantity must be > 0"); return; }
@@ -534,7 +558,7 @@ function LineItemModal({ onClose, onSave, initial, loading, departments: _depart
                 accountingResolutionStatus: "unresolved",
               });
             }}
-            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity">
+            className="w-full h-11 rounded-[12px] bg-[#087f70] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {initial ? "Save Changes" : "Add Item"}
           </button>
