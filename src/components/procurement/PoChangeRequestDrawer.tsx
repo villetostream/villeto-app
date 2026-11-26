@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-stores";
 import { workspaceReadOnly } from "@/features/entity-workspace/store";
 import {
@@ -37,9 +38,15 @@ import {
   usePoChangeRequestDetail,
   usePoChangeEligibility,
   usePoRevisions,
+  extractApiErrorMessage,
 } from "@/queries/procurement/po-change-requests";
 import { useGetAllUsersApi } from "@/queries/users/get-all-users";
 import { formatCurrency } from "@/lib/utils/currency";
+import {
+  isProcurementPolicyViolationError,
+  getProcurementPolicyViolations,
+  type ProcurementPolicyViolation,
+} from "@/lib/types/api-error";
 
 interface PoChangeRequestModalProps {
   requestId: string | null;
@@ -95,15 +102,82 @@ export function PoChangeRequestModal({
 
   const [reason, setReason] = useState("");
   const [justification, setJustification] = useState("");
+  const [policyError, setPolicyError] = useState<{
+    message: string;
+    violations?: ProcurementPolicyViolation[];
+  } | null>(null);
+
+  const hardBlocks = useMemo(
+    () => (policyError?.violations || []).filter((v) => v.resolution === "BLOCK"),
+    [policyError]
+  );
+  const softWarnings = useMemo(
+    () => (policyError?.violations || []).filter((v) => v.resolution !== "BLOCK"),
+    [policyError]
+  );
+  const hasHardBlock = hardBlocks.length > 0;
+  const hasSoftWarnings = !hasHardBlock && softWarnings.length > 0;
+
+  const violatingItemNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const v of policyError?.violations || []) {
+      for (const li of v.lineItems || []) {
+        if (li.lineItemName) {
+          names.add(String(li.lineItemName).toLowerCase().trim());
+        }
+      }
+    }
+    return names;
+  }, [policyError]);
 
   const resetForm = () => {
     setReason("");
     setJustification("");
+    setPolicyError(null);
   };
 
   const handleClose = () => {
     resetForm();
     onClose();
+  };
+
+  const handleApprove = () => {
+    if (!detail) return;
+    if (hasHardBlock) {
+      toast.error(
+        "Cannot approve: This proposal exceeds spend control policy limits. Return for correction or reject."
+      );
+      return;
+    }
+    if (hasSoftWarnings && !justification.trim()) {
+      toast.error(
+        "Spend policy warning: Please provide a justification before approving."
+      );
+      return;
+    }
+    setPolicyError(null);
+    mutation.mutate(
+      {
+        detail,
+        action: "approve",
+        reason,
+        spendProgramJustification: justification,
+        spendProgramWarningsAccepted: hasSoftWarnings ? true : undefined,
+      },
+      {
+        onError: (err: any) => {
+          if (isProcurementPolicyViolationError(err)) {
+            const violations = getProcurementPolicyViolations(err);
+            setPolicyError({
+              message: extractApiErrorMessage(err),
+              violations: violations.length > 0 ? violations : undefined,
+            });
+          } else {
+            toast.error(extractApiErrorMessage(err));
+          }
+        },
+      }
+    );
   };
 
   const canApproveOrReject = can("procurement.purchase_order.approval_decision");
@@ -436,11 +510,27 @@ export function PoChangeRequestModal({
                         const oldPrice = Number(line.previousAmount) / Number(line.quantity || 1);
                         const newPrice = Number(line.proposedUnitPrice || 0);
                         const lineDiff = Number(line.proposedAmount) - Number(line.previousAmount);
+                        const isViolatingLine = violatingItemNames.has(line.name.toLowerCase().trim());
 
                         return (
-                          <tr key={line.purchaseOrderLineItemId} className="hover:bg-black/[0.01]">
+                          <tr
+                            key={line.purchaseOrderLineItemId}
+                            className={`transition-colors ${
+                              isViolatingLine
+                                ? "bg-red-50/60 hover:bg-red-50/80 border-l-4 border-l-red-500"
+                                : "hover:bg-black/[0.01]"
+                            }`}
+                          >
                             <td className="px-5 py-3.5">
-                              <p className="font-semibold text-sm text-[#0b100e]">{line.name}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold text-sm text-[#0b100e]">{line.name}</p>
+                                {isViolatingLine && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-200">
+                                    <AlertCircle className="w-3 h-3 text-red-600" />
+                                    Exceeds Spend Control
+                                  </span>
+                                )}
+                              </div>
                               {line.eligibleQuantity && (
                                 <p className="text-[11px] text-[#68726d] mt-0.5">
                                   Eligible outstanding: {line.eligibleQuantity}
@@ -576,32 +666,216 @@ export function PoChangeRequestModal({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-[#374151] mb-1">
-                        Decision Note / Reason{" "}
-                        <span className="text-[#68726d] font-normal">(Required for rejection or return)</span>
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-medium text-[#374151]">
+                          Decision Note / Reason{" "}
+                          <span className="text-[#68726d] font-normal">
+                            (Required for rejection or return)
+                          </span>
+                        </label>
+                        {hasHardBlock && !reason.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const firstMsg =
+                                hardBlocks[0]?.message || policyError?.message || "";
+                              setReason(
+                                `Exceeds spend control limit: ${firstMsg}. Please revise pricing before resubmitting.`
+                              );
+                            }}
+                            className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                          >
+                            Use policy error as note
+                          </button>
+                        )}
+                      </div>
                       <textarea
                         placeholder="Provide reasoning for approval, rejection, or instructions for correction..."
                         value={reason}
-                        onChange={(e) => setReason(e.target.value)}
+                        onChange={(e) => {
+                          setReason(e.target.value);
+                          if (policyError && !hasHardBlock && !hasSoftWarnings) {
+                            setPolicyError(null);
+                          }
+                        }}
                         className="w-full text-xs min-h-[75px] rounded-lg border border-black/[0.12] p-2.5 text-[#0b100e] placeholder:text-[#9ca3af] focus:outline-none focus:border-[#087f70] transition-colors resize-none"
                         maxLength={4000}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-[#374151] mb-1">
-                        Spend Policy Justification <span className="text-[#68726d] font-normal">(Optional)</span>
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-medium text-[#374151]">
+                          Spend Policy Justification{" "}
+                          {hasHardBlock ? (
+                            <span className="text-red-600 font-semibold">
+                              (Not applicable for Hard Blocks)
+                            </span>
+                          ) : hasSoftWarnings ? (
+                            <span className="text-amber-700 font-semibold">
+                              (Required to approve exception)
+                            </span>
+                          ) : (
+                            <span className="text-[#68726d] font-normal">
+                              (Optional)
+                            </span>
+                          )}
+                        </label>
+                      </div>
                       <textarea
-                        placeholder="Optional policy justification or commercial exception note..."
+                        placeholder={
+                          hasHardBlock
+                            ? "Spend policy hard blocks cannot be bypassed with a justification. Return for correction or reject the proposal."
+                            : hasSoftWarnings
+                            ? "Explain the business reason / exception for exceeding spend policy limits to approve..."
+                            : "Optional policy justification or commercial exception note..."
+                        }
                         value={justification}
-                        onChange={(e) => setJustification(e.target.value)}
-                        className="w-full text-xs min-h-[75px] rounded-lg border border-black/[0.12] p-2.5 text-[#0b100e] placeholder:text-[#9ca3af] focus:outline-none focus:border-[#087f70] transition-colors resize-none"
+                        disabled={hasHardBlock}
+                        onChange={(e) => {
+                          setJustification(e.target.value);
+                          if (policyError && !hasHardBlock) setPolicyError(null);
+                        }}
+                        className={`w-full text-xs min-h-[75px] rounded-lg border p-2.5 text-[#0b100e] placeholder:text-[#9ca3af] transition-colors resize-none ${
+                          hasHardBlock
+                            ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
+                            : hasSoftWarnings
+                            ? "border-amber-400 bg-amber-50/20 focus:border-amber-600 focus:outline-none"
+                            : "border-black/[0.12] focus:border-[#087f70] focus:outline-none"
+                        }`}
                         maxLength={4000}
                       />
                     </div>
                   </div>
+
+                  {/* Spend Control Policy Error / Hard Block Banner */}
+                  {hasHardBlock && (
+                    <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs space-y-3">
+                      <div className="flex items-start gap-2.5">
+                        <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-red-900 text-sm">
+                              Spend Control Policy Hard Block
+                            </p>
+                            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] font-bold tracking-wide uppercase border border-red-200">
+                              Hard Block
+                            </span>
+                          </div>
+                          <p className="text-red-800 leading-relaxed font-medium">
+                            {policyError?.message}
+                          </p>
+
+                          <div className="space-y-1.5 pt-1">
+                            {hardBlocks.map((v, i) => (
+                              <div
+                                key={i}
+                                className="text-xs bg-white/90 p-2.5 rounded-lg border border-red-200/80 space-y-1"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-red-950">
+                                    {v.policyName || "Spend Program"}
+                                  </span>
+                                  <span className="text-[11px] font-medium text-red-700">
+                                    • {v.rule}
+                                  </span>
+                                </div>
+                                <p className="text-red-900">{v.message}</p>
+                                {v.details && (
+                                  <div className="flex items-center gap-3 text-[11px] text-red-700 pt-0.5 font-medium">
+                                    <span>
+                                      Proposed: {v.details.currency}{" "}
+                                      {v.details.actualAmount?.toLocaleString()}
+                                    </span>
+                                    <span>
+                                      Limit: {v.details.thresholdCurrency}{" "}
+                                      {v.details.threshold?.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-red-200/60">
+                            <p className="text-red-700 text-[11px]">
+                              Approval is blocked. <strong>Return for Correction</strong> to ask the vendor to adjust prices within limits, or <strong>Reject</strong> the proposal.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const firstMsg =
+                                  hardBlocks[0]?.message || policyError?.message || "";
+                                setReason(
+                                  `Exceeds spend control limit: ${firstMsg}. Please revise pricing before resubmitting.`
+                                );
+                              }}
+                              className="text-[11px] font-semibold text-red-800 hover:text-red-950 underline self-start sm:self-auto cursor-pointer"
+                            >
+                              Copy reason into Return note
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Spend Control Policy Warning / Soft Exception Banner */}
+                  {hasSoftWarnings && (
+                    <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-3">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-amber-900 text-sm">
+                              Spend Policy Warning — Exception Justification Required
+                            </p>
+                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold tracking-wide uppercase border border-amber-200">
+                              Exception Allowed
+                            </span>
+                          </div>
+                          <p className="text-amber-800 leading-relaxed">
+                            {policyError?.message}
+                          </p>
+
+                          <div className="space-y-1.5 pt-1">
+                            {softWarnings.map((v, i) => (
+                              <div
+                                key={i}
+                                className="text-xs bg-white/90 p-2.5 rounded-lg border border-amber-200/80 space-y-1"
+                              >
+                                <span className="font-semibold text-amber-950">
+                                  {v.policyName || "Spend Program"}: {v.rule}
+                                </span>
+                                <p className="text-amber-900">{v.message}</p>
+                              </div>
+                            ))}
+                          </div>
+
+                          <p className="text-[11px] text-amber-700 pt-1">
+                            Provide a <strong>Spend Policy Justification</strong> above to record the commercial exception and proceed with approval.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fallback Generic Policy Error Banner */}
+                  {policyError && !hasHardBlock && !hasSoftWarnings && (
+                    <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs space-y-2">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <p className="font-semibold text-red-900">
+                            Spend Control Policy Restriction
+                          </p>
+                          <p className="text-red-800 leading-relaxed">
+                            {policyError.message}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="pt-2 flex flex-wrap items-center justify-end gap-2.5 border-t border-border/50">
                     {/* Reject Proposal */}
@@ -616,7 +890,7 @@ export function PoChangeRequestModal({
                             reason,
                           })
                         }
-                        className="h-9 px-4 rounded-lg border border-red-300 bg-white hover:bg-red-50 text-[#d33d44] text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        className="h-9 px-4 rounded-lg border border-red-300 bg-white hover:bg-red-50 text-[#d33d44] text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
                       >
                         Reject Proposal
                       </button>
@@ -634,7 +908,11 @@ export function PoChangeRequestModal({
                             reason,
                           })
                         }
-                        className="h-9 px-4 rounded-lg border border-amber-300 bg-white hover:bg-amber-50 text-amber-800 text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        className={`h-9 px-4 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer ${
+                          hasHardBlock
+                            ? "bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                            : "border border-amber-300 bg-white hover:bg-amber-50 text-amber-800"
+                        }`}
                       >
                         Return for Correction
                       </button>
@@ -644,21 +922,23 @@ export function PoChangeRequestModal({
                     {canApproveOrReject && (
                       <button
                         type="button"
-                        disabled={mutation.isPending || hasStaleLines}
+                        disabled={
+                          mutation.isPending ||
+                          hasStaleLines ||
+                          hasHardBlock ||
+                          (hasSoftWarnings && !justification.trim())
+                        }
                         title={
-                          hasStaleLines
+                          hasHardBlock
+                            ? "Cannot approve: Proposal exceeds hard spend control limits. Return for correction or reject."
+                            : hasStaleLines
                             ? "Cannot approve: requested quantities exceed remaining eligible balance. Return for correction."
+                            : hasSoftWarnings && !justification.trim()
+                            ? "Provide a spend policy justification to approve this exception."
                             : undefined
                         }
-                        onClick={() =>
-                          mutation.mutate({
-                            detail,
-                            action: "approve",
-                            reason,
-                            spendProgramJustification: justification,
-                          })
-                        }
-                        className="h-9 px-5 rounded-lg bg-[#087f70] hover:bg-[#076a5e] text-white text-xs font-semibold transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        onClick={handleApprove}
+                        className="h-9 px-5 rounded-lg bg-[#087f70] hover:bg-[#076a5e] text-white text-xs font-semibold transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
                       >
                         {mutation.isPending ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />

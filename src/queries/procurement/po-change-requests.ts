@@ -331,11 +331,13 @@ export function useDecidePoChangeRequest() {
       action,
       reason,
       spendProgramJustification,
+      spendProgramWarningsAccepted,
     }: {
       detail: PoChangeRequestDetail;
       action: "approve" | "reject" | "return" | "cancel";
       reason?: string;
       spendProgramJustification?: string;
+      spendProgramWarningsAccepted?: boolean;
     }) => {
       if (readonly) {
         throw new Error("Select an active editable legal entity to perform this action.");
@@ -346,7 +348,9 @@ export function useDecidePoChangeRequest() {
           expectedVersion: detail.version,
           reason: reason?.trim() || undefined,
           spendProgramJustification: spendProgramJustification?.trim() || undefined,
-        }
+          spendProgramWarningsAccepted: spendProgramWarningsAccepted ? true : undefined,
+        },
+        { _skipErrorToast: true } as any
       );
       return response.data.data;
     },

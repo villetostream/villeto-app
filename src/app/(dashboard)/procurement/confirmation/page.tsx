@@ -31,6 +31,7 @@ import { useAuthorizationPolicies } from "@/features/auth/use-authorization-poli
 import { STALE_TIMES, POLL_INTERVALS } from "@/lib/constants/stale-times";
 
 const labels: Record<string, string> = {
+  awaiting_confirmation: "Awaiting confirmation",
   ready_for_delivery: "Awaiting delivery",
   not_delivered: "Not delivered",
   partially_delivered: "Partially delivered",
@@ -463,20 +464,28 @@ function ConfirmationPage() {
             <div className="divide-y divide-black/[0.055]">
               {paginated.map((item) => {
                 const id = item.purchaseOrderId || item.id || "";
-                const isStillPartial =
-                  item.status === "partially_delivered" ||
-                  item.status === "partially_delivered_with_exceptions" ||
-                  (item.closeBlockers || []).includes("delivery_incomplete");
+                const hasReceivedAny = Number(item.quantityAccepted ?? item.quantityReceived ?? 0) > 0;
+                const isAwaitingReceipt = needsReceiptConfirmation(item);
                 const hasOpenExceptions =
                   (item.openExceptionCount ?? 0) > 0 ||
                   Boolean(item.vendorResponseRequired);
-                const deliveryOutcomeKey = isStillPartial
-                  ? hasOpenExceptions
-                    ? "partially_delivered_with_exceptions"
-                    : "partially_delivered"
-                  : item.deliveryOutcome && item.deliveryOutcome !== "not_delivered"
-                    ? item.deliveryOutcome
-                    : item.status || "ready_for_delivery";
+
+                const isStillPartial =
+                  (item.status === "partially_delivered" || item.status === "partially_delivered_with_exceptions") ||
+                  (hasReceivedAny && (
+                    Number(item.quantityOutstanding ?? 0) > 0 ||
+                    (item.closeBlockers || []).includes("delivery_incomplete")
+                  ));
+
+                const deliveryOutcomeKey = hasOpenExceptions
+                  ? (isStillPartial ? "partially_delivered_with_exceptions" : "delivered_with_exceptions")
+                  : isAwaitingReceipt && !hasReceivedAny
+                    ? "awaiting_confirmation"
+                    : isStillPartial
+                      ? "partially_delivered"
+                      : item.deliveryOutcome && item.deliveryOutcome !== "not_delivered"
+                        ? item.deliveryOutcome
+                        : item.status || "ready_for_delivery";
                 const displayForfeited =
                   isStillPartial && (item.quantityOutstanding ?? 0) === 0
                     ? 0
@@ -583,7 +592,11 @@ function ConfirmationPage() {
                       )}
                     </div>
                     <div className="hidden lg:flex lg:items-center lg:justify-end">
-                      {deliveryOutcomeKey === "ready_for_delivery" || deliveryOutcomeKey === "not_delivered" ? (
+                      {deliveryOutcomeKey === "awaiting_confirmation" ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#fff9e6] text-[#b27b00] border border-[#ffe099] whitespace-nowrap">
+                          Awaiting confirmation
+                        </span>
+                      ) : deliveryOutcomeKey === "ready_for_delivery" || deliveryOutcomeKey === "not_delivered" ? (
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f0faf8] text-[#087f70] whitespace-nowrap">
                           Awaiting delivery
                         </span>

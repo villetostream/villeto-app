@@ -101,6 +101,7 @@ export function DashboardSidebar({
       if (p.startsWith("/settings")) return ["Settings"];
       if (p.startsWith("/policies")) return ["Policies"];
       if (p.startsWith("/bill-pay")) return ["Bill Pay"];
+      if (p.startsWith("/vendors")) return ["Vendors"];
     }
     return [];
   });
@@ -133,6 +134,7 @@ export function DashboardSidebar({
       setExpandedMenus(["Procurement"]);
     else if (location.startsWith("/settings")) setExpandedMenus(["Settings"]);
     else if (location.startsWith("/policies")) setExpandedMenus(["Policies"]);
+    else if (location.startsWith("/vendors")) setExpandedMenus(["Vendors"]);
     else if (location.startsWith("/bill-pay")) {
       setExpandedMenus(["Bill Pay"]);
       if (location.startsWith("/bill-pay/demo")) {
@@ -202,6 +204,19 @@ export function DashboardSidebar({
       )
         return false;
       return location.startsWith(basePath);
+    }
+
+    if (basePath === "/vendors") {
+      if (location.startsWith("/vendors/master")) return false;
+      if (location.startsWith("/vendors/") && searchParams.get("from") === "master")
+        return false;
+      return location === "/vendors" || location.startsWith("/vendors/");
+    }
+
+    if (basePath === "/vendors/master") {
+      if (location.startsWith("/vendors/") && searchParams.get("from") === "master")
+        return true;
+      return location === "/vendors/master" || location.startsWith("/vendors/master");
     }
 
     if (basePath === "/bill-pay") {
@@ -426,7 +441,12 @@ export function DashboardSidebar({
             filteredSubs.length === 0
           )
             return null;
-          currentItem.subItems = filteredSubs;
+          if (currentItem.label === "Vendors" && filteredSubs.length <= 1) {
+            currentItem.href = filteredSubs[0]?.href || "/vendors";
+            delete currentItem.subItems;
+          } else {
+            currentItem.subItems = filteredSubs;
+          }
           return currentItem;
         } else {
           if (!hasNavPermission(currentItem.permissions)) return null;

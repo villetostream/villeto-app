@@ -56,6 +56,7 @@ export const PERMISSIONS = {
     deactivate: "vendor.deactivate",
     delete: "vendor.delete",
     entityConfigurationManage: "vendor.entity_configuration.manage",
+    masterListManage: "vendor.master_list.manage",
   },
   purchaseRequest: {
     create: "procurement.purchase_request.create",
@@ -217,6 +218,7 @@ export function buildAuthorizationPolicies(snapshot: AuthorizationSnapshot | nul
         PERMISSIONS.vendor.sensitiveRead,
         PERMISSIONS.vendor.entityConfigurationManage,
       ].every((permission) => has(permissionSet, permission)),
+      canManageMasterList: has(permissionSet, PERMISSIONS.vendor.masterListManage),
       canCreate: has(permissionSet, PERMISSIONS.vendor.create),
       canInvite: has(permissionSet, PERMISSIONS.vendor.invite),
       canReview: has(permissionSet, PERMISSIONS.vendor.review),

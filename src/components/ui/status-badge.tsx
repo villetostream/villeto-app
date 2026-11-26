@@ -58,6 +58,8 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
     case "resubmitted":
     case "pending_approval":
     case "pending_review":
+    case "awaiting_confirmation":
+    case "pending_confirmation":
     case "returned_for_correction":
     case "pending_policy_check":
     case "under_review":
@@ -73,6 +75,8 @@ export function StatusBadge({ status, className, label }: StatusBadgeProps) {
         defaultLabel = "Resubmitted";
       } else if (normalizedStatus === "pending_review") {
         defaultLabel = "Pending Review";
+      } else if (normalizedStatus === "awaiting_confirmation" || normalizedStatus === "pending_confirmation") {
+        defaultLabel = "Awaiting Confirmation";
       } else if (normalizedStatus === "returned_for_correction") {
         defaultLabel = "Returned for Correction";
       } else if (["pending_approval", "pending_policy_check", "under_review", "awaiting_authorization"].includes(normalizedStatus)) {

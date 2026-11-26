@@ -310,8 +310,30 @@ export const navigationItems: NavItem[] = [
     icon: <Shop />,
     label: "Vendors",
     href: "/vendors",
-    permissions: [{ resource: "vendor.directory", action: "read" }],
+    permissions: [
+      { resource: "vendor.directory", action: "read" },
+      { resource: "vendor", action: "read_company" },
+      { resource: "vendor.master_list", action: "manage" },
+    ],
     section: "MANAGEMENT",
+    subItems: [
+      {
+        label: "My Vendors",
+        href: "/vendors",
+        permissions: [
+          { resource: "vendor.directory", action: "read" },
+          { resource: "vendor", action: "read_company" },
+        ],
+      },
+      {
+        label: "Master Vendor List",
+        href: "/vendors/master",
+        permissions: [
+          { resource: "vendor.master_list", action: "manage" },
+          { resource: "vendor.entity_configuration", action: "manage" },
+        ],
+      },
+    ],
   },
   {
     icon: <Profile2User />,

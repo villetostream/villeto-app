@@ -1,999 +1,150 @@
 "use client";
 
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { FindVendorDialog } from "@/components/vendors/FindVendorDialog";
-import { useAuthStore } from "@/stores/auth-stores";
-import { useState, useEffect, useMemo, useRef } from "react";
-import { createPortal } from "react-dom";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StatsCard } from "@/components/dashboard/landing/StatCard";
-import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
-  asRecord,
-  getApiErrorMessage,
-  getString,
-  pickString,
-} from "@/lib/types/api-error";
-import { useAxios } from "@/hooks/useAxios";
-import { toast } from "sonner";
-import { logger } from "@/lib/logger";
-import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
-import {
-  useVendorNetworkList,
-  useVendorLookup,
-  useInviteVendorV2,
-} from "@/queries/vendors/vendor-network";
-import withPermissions from "@/components/permissions/permission-protected-routes";
-import {
-  MoreHorizontal,
-  Eye,
-  Mail,
-  X,
-  ChevronDown,
-  Building2,
   Users,
+  BadgeCheck,
   Clock,
   XCircle,
-  BadgeCheck,
   Search,
-  CheckCircle2,
-  ArrowUp,
-  ArrowDown,
-  ChevronsUpDown,
+  SlidersHorizontal,
+  ChevronDown,
+  Building2,
 } from "lucide-react";
+import { format } from "date-fns";
+import { AddVendorDialog } from "@/components/vendors/AddVendorDialog";
+import {
+  useMyVendorsList,
+  resolveVendorLifecycleStatus,
+  type VendorLifecycleStatus,
+} from "@/queries/vendors/vendor-network";
+import { useHeaderActionStore } from "@/stores/useHeaderActionStore";
+import { useDateFilterStore } from "@/stores/useDateFilterStore";
+import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
+import withPermissions from "@/components/permissions/permission-protected-routes";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { asRecord, getString, pickString } from "@/lib/types/api-error";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+type MyVendorTab = "all" | "verified" | "invited" | "under_review" | "rejected";
 
-type VendorStatus =
-  | "active"
-  | "deactivated"
-  | "pending"
-  | "resubmitted"
-  | "invited"
-  | "onboarding"
-  | "flagged"
-  | "rejected"
-  | "approved";
-
-interface Vendor {
+interface MyVendorItem {
   id: string;
-  vendorName: string;
+  name: string;
   regNo: string;
   email: string;
   invitedOn: string;
-  status: VendorStatus;
+  invitedAtMs: number;
+  lifecycleStatus: VendorLifecycleStatus;
   lastUpdated: string;
 }
 
-// ─── Status config ────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG: Record<
-  VendorStatus,
-  {
-    label: string;
-    classes: string;
-    actionLabel: string;
-    actionIcon: React.ReactNode;
-  }
+const LIFECYCLE_BADGE_MAP: Record<
+  VendorLifecycleStatus,
+  { label: string; className: string }
 > = {
   active: {
     label: "Active",
-    classes: "text-[#087f70] bg-[#f0faf8] border border-[#e7f6f2]",
-    actionLabel: "View Details",
-    actionIcon: <Eye className="w-4 h-4" />,
+    className: "bg-[#e7f6f2] text-[#087f70]",
   },
-  deactivated: {
-    label: "Deactivated",
-    classes: "text-[#68726d] bg-[#f9faf9] border border-black/[0.08]",
-    actionLabel: "View Details",
-    actionIcon: <Eye className="w-4 h-4" />,
+  pending_company_approval: {
+    label: "Under Review",
+    className: "bg-[#fff9e6] text-[#b27b00]",
   },
-  approved: {
-    label: "Approved",
-    classes: "text-[#087f70] bg-[#f0faf8] border border-[#e7f6f2]",
-    actionLabel: "View Details",
-    actionIcon: <Eye className="w-4 h-4" />,
-  },
-  pending: {
-    label: "Pending",
-    classes: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]",
-    actionLabel: "View Details",
-    actionIcon: <Eye className="w-4 h-4" />,
-  },
-  resubmitted: {
-    label: "Resubmitted",
-    classes: "text-[#b27b00] bg-[#fff9e6] border border-[#ffe099]",
-    actionLabel: "View Details",
-    actionIcon: <Eye className="w-4 h-4" />,
-  },
-  flagged: {
-    label: "Flagged",
-    classes: "text-[#d33d44] bg-[#fdf2f2] border border-[#fbd5d5]",
-    actionLabel: "View Details",
-    actionIcon: <Eye className="w-4 h-4" />,
+  pending_vendor_action: {
+    label: "Pending Vendor",
+    className: "bg-[#fff9e6] text-[#b27b00]",
   },
   invited: {
     label: "Invited",
-    classes: "text-[#68726d] bg-[#f9faf9] border border-black/[0.08]",
-    actionLabel: "View Details",
-    actionIcon: <Eye className="w-4 h-4" />,
-  },
-  onboarding: {
-    label: "Onboarding",
-    classes: "text-[#0066cc] bg-[#f0f6ff] border border-[#d6e7ff]",
-    actionLabel: "View Details",
-    actionIcon: <Eye className="w-4 h-4" />,
+    className: "bg-[#f5f7f6] text-[#68726d]",
   },
   rejected: {
     label: "Rejected",
-    classes: "text-[#d33d44] bg-[#fdf2f2] border border-[#fbd5d5]",
-    actionLabel: "View Details",
-    actionIcon: <Eye className="w-4 h-4" />,
+    className: "bg-[#fdf2f2] text-[#d33d44]",
+  },
+  suspended: {
+    label: "Suspended",
+    className: "bg-[#fdf2f2] text-[#d33d44]",
+  },
+  inactive: {
+    label: "Inactive",
+    className: "bg-[#f5f7f6] text-[#68726d]",
   },
 };
 
-// ─── Status Badge ─────────────────────────────────────────────────────────────
-
-import { StatusBadge } from "@/components/ui/status-badge";
-
-// ─── Action Menu ──────────────────────────────────────────────────────────────
-
-function ActionMenu({
-  vendor,
-  onAction,
-}: {
-  vendor: Vendor;
-  onAction: (v: Vendor, label: string) => void;
-}) {
-  const canConfigure = useAuthStore((state) => state.can("vendor.entity_configuration", "manage"));
-  const canInvite = useAuthStore((state) => state.can("vendor", "invite"));
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const cfg = STATUS_CONFIG[vendor.status];
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
-        setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((v) => !v);
-        }}
-        className="w-8 h-8 rounded-[8px] flex items-center justify-center text-[#84908a] hover:bg-[#f5f7f6] hover:text-[#0b100e] transition-colors cursor-pointer border border-transparent hover:border-black/[0.08]"
-      >
-        <MoreHorizontal className="w-4 h-4" />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-9 z-50 bg-white border border-black/[0.08] rounded-[12px] shadow-[0_4px_24px_rgba(0,0,0,0.10)] w-48 overflow-hidden p-1">
-          <button
-            onClick={() => {
-              onAction(vendor, cfg.actionLabel);
-              setOpen(false);
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 text-[13px] text-[#0b100e] hover:bg-[#f5f7f6] rounded-[6px] transition-colors"
-          >
-            {cfg.actionIcon}
-            {cfg.actionLabel}
-          </button>
-          {canConfigure && <button className="w-full rounded px-3 py-2 text-left text-[13px] hover:bg-[#f5f7f6]" onClick={(event) => { event.stopPropagation(); onAction(vendor, "Manage legal entities"); setOpen(false); }}>Manage legal entities</button>}
-          {vendor.status === "invited" && canInvite && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAction(vendor, "Resend Invitation");
-                setOpen(false);
-              }}
-              className="w-full flex items-center gap-3 px-3 py-2 text-[13px] text-[#0b100e] hover:bg-[#f5f7f6] rounded-[6px] transition-colors"
-            >
-              <Mail className="w-4 h-4" />
-              Resend Invitation
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
+function formatShortDate(rawValue: unknown): string {
+  const str = getString(rawValue);
+  if (!str) return "—";
+  const parsed = new Date(str);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return format(parsed, "dd-MM-yyyy");
 }
 
-// ─── Empty State ──────────────────────────────────────────────────────────────
-
-function VendorEmptyState({ filtered = false }: { filtered?: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-      <div className="w-16 h-16 bg-muted/50 rounded-2xl flex items-center justify-center mb-5">
-        <Building2 className="w-8 h-8 text-muted-foreground/50" />
-      </div>
-      <h3 className="text-base font-semibold text-foreground mb-1.5">
-        {filtered ? "No vendors match this filter" : "No vendors onboarded yet"}
-      </h3>
-      <p className="text-sm text-muted-foreground max-w-xs">
-        {filtered
-          ? "Try switching to a different tab or clearing your search."
-          : "Use the Invite Vendor button to start onboarding your first vendor."}
-      </p>
-    </div>
-  );
-}
-
-// ─── Invite Modal ─────────────────────────────────────────────────────────────
-
-interface InviteModalProps {
-  open: boolean;
-  onClose: () => void;
-  onSuccess?: () => void;
-}
-
-function AddVendorModal(props: InviteModalProps) {
-  const [step, setStep] = useState<"directory" | "invite">("directory");
-  const [initialEmail, setInitialEmail] = useState("");
-  return (
-    <>
-      <FindVendorDialog
-        open={props.open && step === "directory"}
-        onClose={props.onClose}
-        onInvite={(email) => { setInitialEmail(email); setStep("invite"); }}
-      />
-      <InviteVendorModal
-        {...props}
-        open={props.open && step === "invite"}
-        initialEmail={initialEmail}
-        onBack={() => setStep("directory")}
-      />
-    </>
-  );
-}
-
-function InviteVendorModal({ open, onClose, onSuccess, onBack, initialEmail }: InviteModalProps & { onBack: () => void; initialEmail: string }) {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [legalName, setLegalName] = useState("");
-  const [sponsorVerification, setSponsorVerification] = useState(false);
-  const [method, setMethod] = useState("cac");
-  const [identifier, setIdentifier] = useState("");
-  const [methodOpen, setMethodOpen] = useState(false);
-  const methodRef = useRef<HTMLDivElement>(null);
-
-  const [success, setSuccess] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (methodRef.current && !methodRef.current.contains(e.target as Node))
-        setMethodOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  // Lookup
-  const [debouncedEmail, setDebouncedEmail] = useState("");
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedEmail(email), 500);
-    return () => clearTimeout(timer);
-  }, [email]);
-
-  const { data: lookupResult, isFetching: isLookingUp } = useVendorLookup(
-    "email",
-    debouncedEmail,
-    open && !!debouncedEmail && debouncedEmail.includes("@"),
-  );
-
-  const existingVendor = lookupResult?.data?.vendor?.email?.toLowerCase() === email.trim().toLowerCase()
-    ? lookupResult.data.vendor : null;
-  const inviteMutation = useInviteVendorV2();
-
-  useEffect(() => {
-    if (!open) return;
-    queueMicrotask(() => {
-      setEmail(initialEmail);
-      setLegalName("");
-      setSponsorVerification(false);
-      setMethod("cac");
-      setIdentifier("");
-      setMethodOpen(false);
-      setErrors({});
-      setSuccess(false);
-      setDebouncedEmail("");
-    });
-  }, [open, initialEmail]);
-
-  const validate = () => {
-    const e: Record<string, string> = {};
-    if (!email.trim()) e.email = "Required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      e.email = "Invalid email";
-
-    if (!legalName.trim()) e.legalName = "Required";
-
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleSubmit = async () => {
-    if (existingVendor?.vendorId) {
-      onClose();
-      router.push(`/vendors/${existingVendor.vendorId}`);
-      return;
-    }
-    if (!validate()) return;
-
-    const payload = {
-      email,
-      legalName,
-      verificationRequested: sponsorVerification,
-      ...(sponsorVerification && identifier.trim()
-        ? { method, identifier: identifier.trim() }
-        : {}),
-      // If vendor already verified in the past based on lookup
-      ...(lookupResult?.data?.vendor?.verificationId
-        ? { verificationId: lookupResult.data.vendor.verificationId }
-        : {}),
-    };
-
-    try {
-      const result = await inviteMutation.mutateAsync(payload);
-      if (result.data?.invitationCreated === false) {
-        onClose();
-        router.push(`/vendors/${result.data.vendorId}`);
-      } else {
-        setSuccess(true);
-      }
-      if (onSuccess) onSuccess();
-    } catch (err: unknown) {
-      logger.error("Invite vendor error", err);
-      const msg = getApiErrorMessage(err, "Failed to invite vendor");
-      if (
-        msg.toLowerCase().includes("already exists") &&
-        msg.toLowerCase().includes(email.toLowerCase())
-      ) {
-        setErrors((prev) => ({ ...prev, email: msg }));
-      } else {
-        toast.error(msg);
-      }
-    }
-  };
-  const isFormValid =
-    email.trim() &&
-    legalName.trim() &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-  if (!open) return null;
-
-  return (
-    <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
-      <DialogContent showCloseButton={false} className="max-w-[480px] p-0 bg-white rounded-[14px]">
-        {success ? (
-          <div className="p-10 flex flex-col items-center text-center">
-            <div className="relative mb-6">
-              {[
-                "top-0 left-4 bg-orange-400",
-                "top-2 right-6 bg-blue-500",
-                "bottom-4 left-2 bg-primary",
-                "bottom-0 right-4 bg-amber-400",
-              ].map((cls, i) => (
-                <span
-                  key={i}
-                  className={`absolute w-2 h-2 rounded-full ${cls}`}
-                />
-              ))}
-              <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-                <CheckCircle2 className="w-8 h-8 text-white" />
-              </div>
-            </div>
-            <DialogTitle className="text-[18px] font-bold text-[#0b100e] mb-2">
-              Invitation created
-            </DialogTitle>
-            <DialogDescription className="text-[13px] text-[#68726d] leading-relaxed mb-8">
-              An onboarding invitation has been created. Other legal entities
-              can reuse this vendor without inviting it again.
-            </DialogDescription>
-            <button
-              onClick={onClose}
-              className="w-full h-10 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        ) : (
-          <div className="p-6">
-            <div className="flex items-start justify-between mb-1">
-              <div>
-                <DialogTitle className="text-[18px] font-bold text-[#0b100e]">
-                  Invite a new vendor
-                </DialogTitle>
-                <DialogDescription className="text-[13px] text-[#68726d] mt-0.5">
-                  Send one onboarding invitation. Other legal entities can reuse this vendor.
-                </DialogDescription>
-              </div>
-              <button
-                onClick={onClose}
-                aria-label="Close invitation"
-                className="w-8 h-8 rounded-[8px] bg-[#f9faf9] hover:bg-[#f5f7f6] flex items-center justify-center transition-colors border border-black/[0.08] ml-4 shrink-0"
-              >
-                <X className="w-4 h-4 text-[#68726d]" />
-              </button>
-            </div>
-
-            <button type="button" onClick={onBack} className="mt-3 text-sm font-semibold text-[#087f70] underline">
-              Back to directory search
-            </button>
-            <div className="w-full h-px bg-black/[0.08] my-5" />
-
-            <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2 pb-2">
-              {/* Email */}
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0b100e]">
-                  Email address
-                </label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setErrors((err) => ({ ...err, email: "" }));
-                    }}
-                    placeholder="e.g. vendor@acme.com"
-                    className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
-                      errors.email ? "border-[#d33d44]" : "border-black/[0.08]"
-                    }`}
-                  />
-                  {isLookingUp && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-[#087f70]/30 border-t-[#087f70] animate-spin" />
-                  )}
-                </div>
-                {errors.email && (
-                  <p className="text-[11px] text-[#d33d44]">{errors.email}</p>
-                )}
-
-                {existingVendor && (
-                  <div className="mt-2 p-2.5 rounded-lg border border-[#e7f6f2] bg-[#f0faf8] flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-[#087f70] mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-[12px] font-medium text-[#087f70]">
-                        Vendor already in your organization
-                      </p>
-                      <p className="text-[11px] text-[#087f70]/80 mt-0.5">
-                        {existingVendor.legalName} •{" "}
-                        {existingVendor.country || "Existing organization supplier"}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Legal Name */}
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0b100e]">
-                  Legal Name
-                </label>
-                <input
-                  type="text"
-                  value={legalName}
-                  onChange={(e) => {
-                    setLegalName(e.target.value);
-                    setErrors((err) => ({ ...err, legalName: "" }));
-                  }}
-                  placeholder="e.g. Acme Supplies Limited"
-                  className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
-                    errors.legalName
-                      ? "border-[#d33d44]"
-                      : "border-black/[0.08]"
-                  }`}
-                />
-                {errors.legalName && (
-                  <p className="text-[11px] text-[#d33d44]">
-                    {errors.legalName}
-                  </p>
-                )}
-              </div>
-
-              <div className="w-full h-px bg-black/[0.04]" />
-
-              {/* Verification Toggle */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="pr-4">
-                    <label className="text-[13px] font-semibold text-[#0b100e]">
-                      Do you want the vendor to require a verification?
-                    </label>
-                    <p className="text-[11px] text-[#68726d] mt-0.5">
-                      Sponsor a verification check using a business registration
-                      or tax identifier.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSponsorVerification(!sponsorVerification)}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${sponsorVerification ? "bg-[#087f70]" : "bg-gray-200"}`}
-                  >
-                    <span className="sr-only">Toggle verification</span>
-                    <span
-                      aria-hidden="true"
-                      className={`pointer-events-none absolute left-0.5 inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${sponsorVerification ? "translate-x-4" : "translate-x-0"}`}
-                    />
-                  </button>
-                </div>
-
-                {sponsorVerification && (
-                  <div className="grid grid-cols-[130px_1fr] gap-3 mt-3 animate-in slide-in-from-top-2 fade-in duration-200">
-                    <div className="space-y-1.5" ref={methodRef}>
-                      <label className="text-[12px] font-semibold text-[#0b100e]">
-                        Method
-                      </label>
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setMethodOpen((v) => !v)}
-                          className="w-full h-10 px-3 rounded-[8px] border text-[13px] text-left flex items-center justify-between transition-colors border-black/[0.08] hover:border-black/[0.12] text-[#0b100e] bg-white focus:outline-none focus:border-[#087f70]"
-                        >
-                          {method === "cac" ? "Business Reg." : "Tax ID"}
-                          <ChevronDown
-                            className={`w-4 h-4 text-[#84908a] transition-transform ${methodOpen ? "rotate-180" : ""}`}
-                          />
-                        </button>
-                        {methodOpen && (
-                          <div className="absolute left-0 right-0 bottom-full mb-1 z-50 bg-white border border-black/[0.08] rounded-[10px] shadow-lg overflow-hidden p-1 animate-in fade-in zoom-in-95 duration-100">
-                            {[
-                              { value: "cac", label: "Business Reg." },
-                              { value: "tin", label: "Tax ID" },
-                            ].map((opt) => (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => {
-                                  setMethod(opt.value);
-                                  setMethodOpen(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 text-[13px] rounded-[6px] transition-colors ${
-                                  method === opt.value
-                                    ? "bg-[#f0faf8] text-[#087f70] font-medium"
-                                    : "text-[#0b100e] hover:bg-[#f5f7f6]"
-                                }`}
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-[#0b100e]">
-                        Identifier
-                      </label>
-                      <input
-                        type="text"
-                        value={identifier}
-                        onChange={(e) => {
-                          setIdentifier(e.target.value);
-                          setErrors((err) => ({ ...err, identifier: "" }));
-                        }}
-                        placeholder={
-                          method === "cac"
-                            ? "e.g. Registration number"
-                            : "e.g. Tax identifier"
-                        }
-                        className={`w-full h-10 px-3 rounded-[8px] border text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors ${
-                          errors.identifier
-                            ? "border-[#d33d44]"
-                            : "border-black/[0.08]"
-                        }`}
-                      />
-                      {errors.identifier && (
-                        <p className="text-[11px] text-[#d33d44]">
-                          {errors.identifier}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <button
-              onClick={handleSubmit}
-              disabled={
-                inviteMutation.isPending ||
-                isLookingUp ||
-                (!existingVendor && !isFormValid)
-              }
-              className="mt-6 w-full h-10 rounded-[8px] bg-[#087f70] text-white text-[13px] font-semibold hover:bg-[#076b5e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
-            >
-              {inviteMutation.isPending ? (
-                <>
-                  <svg
-                    className="w-4 h-4 animate-spin"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
-                    />
-                  </svg>
-                  Sending...
-                </>
-              ) : existingVendor ? (
-                "Open existing vendor"
-              ) : (
-                "Send invitation"
-              )}
-            </button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// Removed VendorDetailsModal as it's now its own page
-
-// ─── Vendor Table ─────────────────────────────────────────────────────────────
-
-function SortableHeader({
-  title,
-  sortKey,
-  currentSort,
-  onSort,
-  className,
-}: {
-  title: string;
-  sortKey: string;
-  currentSort: { key: string; direction: "asc" | "desc" } | null;
-  onSort: (key: string) => void;
-  className?: string;
-}) {
-  const isSorted = currentSort?.key === sortKey;
-
-  if (sortKey === "action") {
-    return (
-      <th
-        className={`px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap bg-[#f9faf9] ${className || ""}`}
-      >
-        {title}
-      </th>
-    );
+function buildVisiblePages(current: number, total: number): (number | "...")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
   }
-
-  return (
-    <th
-      className={`px-5 py-4 text-left text-[11px] font-bold text-[#84908a] uppercase tracking-widest whitespace-nowrap bg-[#f9faf9] cursor-pointer hover:bg-black/[0.02] transition-colors select-none ${className || ""}`}
-      onClick={() => onSort(sortKey)}
-    >
-      <div className="flex items-center gap-1.5">
-        <span className={isSorted ? "text-[#0b100e]" : ""}>{title}</span>
-        {isSorted ? (
-          currentSort.direction === "asc" ? (
-            <ArrowUp className="w-3.5 h-3.5 text-[#087f70]" />
-          ) : (
-            <ArrowDown className="w-3.5 h-3.5 text-[#087f70]" />
-          )
-        ) : (
-          <ChevronsUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
-        )}
-      </div>
-    </th>
-  );
+  const pages: (number | "...")[] = [1];
+  if (current > 3) pages.push("...");
+  for (
+    let p = Math.max(2, current - 1);
+    p <= Math.min(total - 1, current + 1);
+    p++
+  ) {
+    pages.push(p);
+  }
+  if (current < total - 2) pages.push("...");
+  pages.push(total);
+  return pages;
 }
 
-function VendorTable({
-  vendors,
-  isLoading,
-  onAction,
-  currentPage,
-  onPageChange,
-  search,
-  onSearchChange,
-  totalPages,
-  sortConfig,
-  onSort,
-}: {
-  vendors: Vendor[];
-  isLoading: boolean;
-  onAction: (v: Vendor, label: string) => void;
-  currentPage: number;
-  onPageChange: (page: number) => void;
-  search: string;
-  onSearchChange: (search: string) => void;
-  totalPages: number;
-  sortConfig: { key: string; direction: "asc" | "desc" } | null;
-  onSort: (key: string) => void;
-}) {
-  const filtered = vendors;
-  const paginatedData = vendors;
-  const handleSort = onSort;
-
-  const portalTarget =
-    typeof window !== "undefined"
-      ? document.getElementById("tab-actions")
-      : null;
-
-  const searchBar = (
-    <div className="flex sm:flex-row flex-col items-center gap-2">
-      <div className="relative w-full sm:w-64">
-        <Search
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          size={18}
-        />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search vendors..."
-          className="w-full h-9 pl-9 pr-4 rounded-[8px] border border-black/[0.08] bg-white text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors"
-        />
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="space-y-4 mt-2 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
-      {/* Portal search into tab-actions slot (same as People/Policies), fallback inline */}
-      {portalTarget ? createPortal(searchBar, portalTarget) : searchBar}
-
-      {/* Table */}
-      {isLoading ? (
-        <div className="space-y-3 mt-4" aria-label="Loading vendors">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full rounded-lg" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <VendorEmptyState filtered={vendors.length > 0} />
-      ) : (
-        <div className="rounded-[14px] border border-black/[0.08] overflow-hidden bg-white shadow-sm flex-1 flex flex-col min-h-0">
-          <div className="flex-1 overflow-auto bg-white min-h-0">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-[#f9faf9] shadow-[0_1px_0_rgba(0,0,0,0.08)]">
-                <tr className="border-b border-black/[0.08]">
-                  <SortableHeader
-                    title="VENDOR NAME"
-                    sortKey="vendorName"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableHeader
-                    title="REG NO."
-                    sortKey="regNo"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableHeader
-                    title="EMAIL"
-                    sortKey="email"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableHeader
-                    title="INVITED ON"
-                    sortKey="invitedOn"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableHeader
-                    title="STATUS"
-                    sortKey="status"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableHeader
-                    title="LAST UPDATED"
-                    sortKey="lastUpdated"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
-                  <SortableHeader
-                    title="ACTION"
-                    sortKey="action"
-                    currentSort={sortConfig}
-                    onSort={handleSort}
-                  />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/[0.06]">
-                {paginatedData.map((v) => (
-                  <tr
-                    key={v.id}
-                    onClick={() => onAction(v, "View Details")}
-                    className="hover:bg-[#f5f7f6] transition-colors cursor-pointer group"
-                  >
-                    <td className="px-5 py-4 font-semibold text-[#0b100e]">
-                      {v.vendorName}
-                    </td>
-                    <td className="px-5 py-4 text-[#68726d]">{v.regNo}</td>
-                    <td className="px-5 py-4 text-[#68726d]">{v.email}</td>
-                    <td className="px-5 py-4 text-[#68726d] whitespace-nowrap">
-                      {v.invitedOn}
-                    </td>
-                    <td className="px-5 py-4">
-                      <StatusBadge status={v.status} />
-                    </td>
-                    <td className="px-5 py-4 text-[#68726d] whitespace-nowrap">
-                      {v.lastUpdated}
-                    </td>
-                    <td className="px-5 py-4">
-                      <ActionMenu vendor={v} onAction={onAction} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination row */}
-          <div className="px-5 py-3 border-t border-black/[0.08] flex items-center justify-between text-[13px] text-[#68726d] bg-[#f9faf9] shrink-0">
-            <span>
-              Showing {paginatedData.length} entries on page {currentPage} of {totalPages}
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                disabled={currentPage <= 1}
-                onClick={() => onPageChange(currentPage - 1)}
-                className={`px-3 py-1.5 rounded-[8px] transition-colors border border-transparent ${
-                  currentPage <= 1
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-white hover:border-black/[0.08] hover:text-[#0b100e]"
-                }`}
-              >
-                Previous
-              </button>
-              <button className="px-3 py-1.5 rounded-[8px] transition-colors bg-[#087f70] text-white font-semibold">
-                {currentPage}
-              </button>
-              <button
-                disabled={currentPage >= totalPages}
-                onClick={() => onPageChange(currentPage + 1)}
-                className={`px-3 py-1.5 rounded-[8px] transition-colors border border-transparent ${
-                  currentPage >= totalPages
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-white hover:border-black/[0.08] hover:text-[#0b100e]"
-                }`}
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
-export default withPermissions(VendorPage, [
-  { resource: "vendor.directory", action: "read" },
-]);
-
-function VendorPage() {
+function MyVendorsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { setAction, clearAction } = useHeaderActionStore();
   const policies = useAuthorizationPolicies();
+  const { setAction, clearAction } = useHeaderActionStore();
+  const { fromDate, toDate } = useDateFilterStore();
+
   const canInviteVendor =
-    policies.vendors.canInvite && policies.vendors.canCreate;
+    policies.vendors.canInvite || policies.vendors.canCreate;
 
-  const activeTab = searchParams.get("tab") || "all";
-  const [page, setPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<MyVendorTab>("all");
   const [search, setSearch] = useState("");
-  const [sortConfig, setSortConfig] = useState<{
-    key: string;
-    direction: "asc" | "desc";
-  } | null>(null);
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [_selectedVendorId, _setSelectedVendorId] = useState<string | null>(
-    null,
-  );
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [pageSize, setPageSize] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const axiosInstance = useAxios();
-  const vendorsApi = useVendorNetworkList({
-    limit: 10,
-    page,
-    search,
-    view: activeTab,
-    sortBy: sortConfig?.key,
-    sortDirection: sortConfig?.direction,
-  });
-  const isLoading = vendorsApi.isLoading;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const vendors = useMemo(() => {
-    const json = vendorsApi.data;
-    if (!json) return [];
-
-    return (json.data?.data || []).map((raw: unknown) => {
-      const v = asRecord(raw);
-      let computedStatus: VendorStatus = "invited";
-
-      const status = getString(v.status);
-      const onboardingStatus = getString(v.onboardingStatus);
-      const approvalStatus = getString(v.approvalStatus);
-      const nextAction = getString(v.nextAction);
-      const normalizedStatus = status.toLowerCase();
-
-      const isAwaitingReview =
-        nextAction === "awaiting_company_review" ||
-        (onboardingStatus === "submitted" && approvalStatus !== "approved");
-
-      if (isAwaitingReview) {
-        // If previously rejected, tag as resubmitted to clearly notify reviewer
-        computedStatus = approvalStatus === "rejected" ? "resubmitted" : "pending";
-      } else if (approvalStatus === "rejected") {
-        computedStatus = "rejected";
-      } else if (approvalStatus === "approved") {
-        if (normalizedStatus === "active") {
-          computedStatus = "active";
-        } else if (v.deactivatedAt) {
-          computedStatus = "deactivated"; // Stage 6
-        } else {
-          computedStatus = "approved"; // Stage 4
-        }
-      } else {
-        // approvalStatus === "pending" — use onboardingStatus to distinguish
-        if (!onboardingStatus || onboardingStatus === "invited") {
-          // null/undefined onboardingStatus means just invited, not yet started
-          computedStatus = "invited";
-        } else if (onboardingStatus === "submitted") {
-          computedStatus = "pending"; // ready for admin review
-        } else {
-          computedStatus = "onboarding"; // in_progress states
-        }
-      }
-
-      return {
-        id: getString(v.vendorId),
-        vendorName: pickString(v, "legalName", "displayName") || "Unknown",
-        regNo: getString(v.registrationNumber) || getString(v.tin) || "N/A",
-        email: getString(v.email),
-        invitedOn: v.invitedAt
-          ? new Date(getString(v.invitedAt)).toLocaleDateString()
-          : "N/A",
-        status: computedStatus,
-        lastUpdated: v.updatedAt
-          ? new Date(getString(v.updatedAt)).toLocaleDateString()
-          : "N/A",
-      };
-    });
-  }, [vendorsApi.data]);
-
-  const handleTabChange = (newTab: string) => {
-    setPage(1);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", newTab);
-    router.replace(`?${params.toString()}`, { scroll: false });
-  };
-
-  // Header CTA — only show "Invite Vendor" to users who can actually invite.
-  // Without this, a read-only vendor viewer would see a button whose click
-  // opens a modal that POSTs to an endpoint they don't have permission to call.
   useEffect(() => {
     if (!canInviteVendor) {
       clearAction();
       return;
     }
     setAction({
-      label: "Add vendor",
-      onClick: () => setShowInviteModal(true),
+      label: "Add Vendor",
+      onClick: () => setShowAddModal(true),
       secondaryAction: {
         label: "Bulk invite",
         iconName: "upload",
@@ -1001,193 +152,456 @@ function VendorPage() {
       },
     });
     return () => clearAction();
-  }, [setAction, clearAction, router, canInviteVendor]);
+  }, [canInviteVendor, setAction, clearAction, router]);
 
-  // Stats
-  const summary = vendorsApi.data?.data?.summary;
-  const stats = {
-    total: summary?.total || 0,
-    verified: summary?.approved || 0,
-    pending: summary?.pending || 0,
-    rejected: summary?.rejected || 0,
-  };
-  const filteredByTab = vendors;
+  const perPageNum = parseInt(pageSize, 10) || 10;
 
-  const handleAction = async (vendor: Vendor, actionLabel: string) => {
-    if (actionLabel === "Manage legal entities") { router.push(`/vendors/${vendor.id}/configuration`); return; }
-    if (actionLabel === "Resend Invitation") {
-      try {
-        await axiosInstance.post(`/vendors/${vendor.id}/invitations/resend`);
-        toast.success("Invitation resent successfully");
-      } catch (err) {
-        logger.error("Failed to resend invitation", err);
-        toast.error("Failed to resend invitation. Please try again.");
+  // The API only accepts page/limit on this endpoint (view, lifecycleStatus,
+  // dates are rejected with HTTP 400), so fetch one wide page and filter,
+  // search and paginate locally.
+  const vendorsApi = useMyVendorsList({ page: 1, limit: 100 });
+
+  const mappedVendors: MyVendorItem[] = useMemo(() => {
+    const list = vendorsApi.data?.data?.data || [];
+    return list.map((raw, idx) => {
+      const v = asRecord(raw);
+      const id = getString(v.vendorId) || getString(v.id) || `v-${idx}`;
+      const name =
+        pickString(v, "legalName", "displayName", "name") || "Unnamed Vendor";
+      const email = getString(v.email) || "—";
+      const regNo =
+        getString(v.registrationNumber) ||
+        getString(v.cacNumber) ||
+        getString(v.tin) ||
+        "—";
+
+      return {
+        id,
+        name,
+        regNo,
+        email,
+        invitedOn: formatShortDate(v.invitedAt ?? v.createdAt),
+        invitedAtMs: new Date(
+          getString(v.invitedAt) || getString(v.createdAt),
+        ).getTime(),
+        lifecycleStatus: resolveVendorLifecycleStatus(v),
+        lastUpdated: formatShortDate(v.updatedAt ?? v.invitedAt),
+      };
+    });
+  }, [vendorsApi.data]);
+
+  const filteredVendors = useMemo(() => {
+    const query = debouncedSearch.toLowerCase();
+    const fromMs = fromDate ? new Date(fromDate).setHours(0, 0, 0, 0) : null;
+    const toMs = toDate ? new Date(toDate).setHours(23, 59, 59, 999) : null;
+    return mappedVendors.filter((v) => {
+      if (statusFilter !== "all" && v.lifecycleStatus !== statusFilter) {
+        return false;
       }
-      return;
+      if (activeTab === "verified" && v.lifecycleStatus !== "active")
+        return false;
+      if (
+        activeTab === "invited" &&
+        v.lifecycleStatus !== "invited" &&
+        v.lifecycleStatus !== "pending_vendor_action"
+      )
+        return false;
+      if (
+        activeTab === "under_review" &&
+        v.lifecycleStatus !== "pending_company_approval"
+      )
+        return false;
+      if (
+        activeTab === "rejected" &&
+        v.lifecycleStatus !== "rejected" &&
+        v.lifecycleStatus !== "suspended" &&
+        v.lifecycleStatus !== "inactive"
+      )
+        return false;
+      if (query) {
+        const haystack = `${v.name} ${v.email} ${v.regNo}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      if (!Number.isNaN(v.invitedAtMs)) {
+        if (fromMs !== null && v.invitedAtMs < fromMs) return false;
+        if (toMs !== null && v.invitedAtMs > toMs) return false;
+      }
+      return true;
+    });
+  }, [mappedVendors, activeTab, statusFilter, debouncedSearch, fromDate, toDate]);
+
+  const summary = vendorsApi.data?.data?.summary;
+  const totalEntries = filteredVendors.length;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / perPageNum));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedVendors = filteredVendors.slice(
+    (safePage - 1) * perPageNum,
+    safePage * perPageNum,
+  );
+
+  const computedCounts = useMemo(() => {
+    if (summary) {
+      return {
+        total: summary.total,
+        verified: summary.approved,
+        pending: summary.pending,
+        rejected: summary.rejected,
+      };
     }
-    router.push(
-      `/vendors/${vendor.id}`,
-    );
-  };
+    return {
+      total: vendorsApi.data?.data?.meta?.totalCount ?? mappedVendors.length,
+      verified: mappedVendors.filter((v) => v.lifecycleStatus === "active").length,
+      pending: mappedVendors.filter(
+        (v) => v.lifecycleStatus === "pending_company_approval",
+      ).length,
+      rejected: mappedVendors.filter((v) => v.lifecycleStatus === "rejected")
+        .length,
+    };
+  }, [summary, mappedVendors, vendorsApi.data]);
 
   const statCards = [
     {
       title: "Total Vendors",
-      value: stats.total.toString(),
-      accent: "#0b100e",
-      icon: Users,
-      subtitle: (
-        <span className="text-[11px] text-[#68726d]">All vendors added</span>
-      ),
-    },
-    {
-      title: "Approved Vendors",
-      value: stats.verified.toString(),
+      value: computedCounts.total.toString(),
       accent: "#087f70",
-      icon: BadgeCheck,
-      subtitle: (
-        <span className="text-[11px] text-[#68726d]">
-          Vendors fully approved
-        </span>
-      ),
+      icon: Users,
+      subtitle: "All vendors added",
     },
     {
-      title: "Approval Pending",
-      value: stats.pending.toString(),
-      accent: "#f0b132",
+      title: "Verified Vendors",
+      value: computedCounts.verified.toString(),
+      accent: "#9333ea",
+      icon: BadgeCheck,
+      subtitle: "Vendors fully approved",
+    },
+    {
+      title: "Verification Pending",
+      value: computedCounts.pending.toString(),
+      accent: "#d97706",
       icon: Clock,
-      subtitle: (
-        <span className="text-[11px] text-[#68726d]">
-          Vendors who submitted onboarding
-        </span>
-      ),
+      subtitle: "Vendors who submitted onboarding",
     },
     {
       title: "Rejected Vendors",
-      value: stats.rejected.toString(),
-      accent: "#d33d44",
+      value: computedCounts.rejected.toString(),
+      accent: "#ef4444",
       icon: XCircle,
-      subtitle: (
-        <span className="text-[11px] text-[#68726d]">
-          Total number of vendors rejected
-        </span>
-      ),
+      subtitle: "Total number of vendors rejected",
     },
   ];
 
-  if (vendorsApi.isError) return <div role="alert" className="rounded-xl border bg-white p-6"><p>Could not load the organization vendor directory.</p><button className="mt-3 underline" onClick={() => void vendorsApi.refetch()}>Try again</button></div>;
+  const startEntry =
+    totalEntries === 0 ? 0 : Math.min((safePage - 1) * perPageNum + 1, totalEntries);
+  const endEntry = Math.min(safePage * perPageNum, totalEntries);
+  const visiblePages = buildVisiblePages(safePage, totalPages);
 
   return (
     <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-hidden h-full">
-      {showInviteModal && (
-        <AddVendorModal
-          open
-          onClose={() => setShowInviteModal(false)}
-          onSuccess={() => vendorsApi.refetch()}
-        />
-      )}
+      {/* Add Vendor Dialog */}
+      <AddVendorDialog
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={() => void vendorsApi.refetch()}
+      />
 
-      <div className="rounded-xl border bg-white p-3 text-sm text-[#5e6863]">
-        Organization vendor directory · Invite a supplier once. Each legal
-        entity approves its own relationship, sites and transaction purposes.
-      </div>
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+      {/* 4 Stat Cards in a row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
         {statCards.map((s) => (
-          <StatsCard
+          <div
             key={s.title}
-            isLoading={isLoading}
-            title={s.title}
-            value={s.value}
-            accentColor={s.accent}
-            icon={<s.icon className="w-4 h-4" style={{ color: s.accent }} />}
-            subtitle={s.subtitle}
-          />
+            className="flex flex-col justify-between rounded-[14px] border border-black/[0.06] bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)]"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[13px] font-medium text-[#68726d]">{s.title}</p>
+                {vendorsApi.isLoading ? (
+                  <Skeleton className="h-7 w-14 mt-2 rounded-[6px]" />
+                ) : (
+                  <p className="text-[26px] font-bold text-[#0b100e] mt-2 leading-none">
+                    {s.value}
+                  </p>
+                )}
+              </div>
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                style={{ backgroundColor: `${s.accent}15` }}
+              >
+                <s.icon className="w-5 h-5" style={{ color: s.accent }} />
+              </div>
+            </div>
+            <p className="text-[12px] text-[#84908a] mt-4">{s.subtitle}</p>
+          </div>
         ))}
       </div>
 
-      {/* Tabs + Table */}
-      <Tabs
-        value={activeTab}
-        onValueChange={handleTabChange}
-        className="flex-1 flex flex-col min-h-0 overflow-hidden"
-      >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-          <TabsList className="bg-[#f5f7f6] p-1 h-10 rounded-[10px] inline-flex max-w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide shrink-0">
-            <TabsTrigger
-              value="all"
-              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
-            >
-              All Vendors
-            </TabsTrigger>
-            <TabsTrigger
-              value="verified"
-              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
-            >
-              Approved
-            </TabsTrigger>
-            <TabsTrigger
-              value="invited"
-              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
-            >
-              Invited
-            </TabsTrigger>
-            <TabsTrigger
-              value="under_review"
-              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
-            >
-              Pending
-            </TabsTrigger>
-            <TabsTrigger
-              value="rejected"
-              className="data-[state=active]:bg-white data-[state=active]:text-[#0b100e] data-[state=active]:shadow-sm text-[#68726d] rounded-[6px] px-5 text-[13px] font-semibold h-full"
-            >
-              Rejected
-            </TabsTrigger>
-          </TabsList>
+      {/* Main Table Card */}
+      <div className="flex-1 flex flex-col min-h-0 bg-white rounded-[16px] border border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.03)] overflow-hidden">
+        {/* Table Filter Tabs & Search Bar */}
+        <div className="p-4 sm:p-5 border-b border-black/[0.06] flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0">
+          {/* Tabs Pill Group */}
+          <div className="inline-flex p-1 rounded-[10px] bg-[#f5f7f6] overflow-x-auto max-w-full">
+            {(
+              [
+                { id: "all", label: "All Vendors" },
+                { id: "verified", label: "Verified" },
+                { id: "invited", label: "Invited" },
+                { id: "under_review", label: "Under Review" },
+                { id: "rejected", label: "Rejected" },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setCurrentPage(1);
+                }}
+                className={`px-4 py-1.5 rounded-[8px] text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+                  activeTab === tab.id
+                    ? "bg-white text-[#0b100e] shadow-xs font-semibold"
+                    : "text-[#68726d] hover:text-[#0b100e]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-          {/* Search bar portals here */}
-          <div id="tab-actions" className="flex items-center gap-2" />
+          {/* Right Controls: Search & Custom Filter */}
+          <div className="flex items-center gap-3">
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-[#84908a] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search..."
+                className="w-full h-9 pl-9 pr-3 rounded-[8px] border border-black/[0.08] bg-white text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] transition-colors"
+              />
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="h-9 px-3 rounded-[8px] border border-black/[0.08] bg-white text-[13px] text-[#0b100e] hover:bg-[#f9faf9] transition-colors flex items-center gap-2 cursor-pointer shrink-0"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#68726d]" />
+                  <span>Filter</span>
+                  <ChevronDown className="w-3 h-3 text-[#84908a]" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 p-1">
+                {(
+                  [
+                    { value: "all", label: "All Statuses" },
+                    { value: "active", label: "Active" },
+                    { value: "pending_company_approval", label: "Under Review" },
+                    { value: "pending_vendor_action", label: "Pending Vendor" },
+                    { value: "invited", label: "Invited" },
+                    { value: "rejected", label: "Rejected" },
+                    { value: "suspended", label: "Suspended" },
+                  ] as const
+                ).map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => {
+                      setStatusFilter(opt.value);
+                      setCurrentPage(1);
+                    }}
+                    className={`text-[12px] cursor-pointer ${
+                      statusFilter === opt.value
+                        ? "font-semibold text-[#087f70]"
+                        : ""
+                    }`}
+                  >
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
-        {["all", "verified", "invited", "under_review", "rejected"].map(
-          (tab) => (
-            <TabsContent
-              key={tab}
-              value={tab}
-              className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden m-0"
+        {/* Table Content */}
+        <div className="flex-1 overflow-auto">
+          {vendorsApi.isError ? (
+            <div
+              role="alert"
+              className="flex flex-col items-center justify-center py-20 px-6 text-center"
             >
-              <VendorTable
-                vendors={tab === activeTab ? filteredByTab : []}
-                isLoading={isLoading}
-                onAction={handleAction}
-                currentPage={page}
-                onPageChange={setPage}
-                search={search}
-                onSearchChange={(value) => {
-                  setSearch(value);
-                  setPage(1);
+              <p className="text-[14px] font-semibold text-[#0b100e]">
+                Could not load your legal entity&apos;s vendor list.
+              </p>
+              <button
+                type="button"
+                onClick={() => void vendorsApi.refetch()}
+                className="mt-3 h-9 px-4 rounded-[8px] border border-black/[0.12] text-[13px] font-semibold text-[#087f70] hover:bg-[#f0faf8] cursor-pointer"
+              >
+                Try again
+              </button>
+            </div>
+          ) : vendorsApi.isLoading ? (
+            <div className="p-5 space-y-3">
+              {[1, 2, 3, 4, 5].map((row) => (
+                <Skeleton key={row} className="h-12 w-full rounded-[8px]" />
+              ))}
+            </div>
+          ) : filteredVendors.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[#f5f7f6] flex items-center justify-center mb-4">
+                <Building2 className="w-7 h-7 text-[#84908a]" />
+              </div>
+              <h3 className="text-[15px] font-semibold text-[#0b100e]">
+                {debouncedSearch || activeTab !== "all" || statusFilter !== "all"
+                  ? "No vendors match this filter"
+                  : "No vendors onboarded yet"}
+              </h3>
+              <p className="text-[13px] text-[#68726d] mt-1 max-w-xs">
+                {debouncedSearch || activeTab !== "all" || statusFilter !== "all"
+                  ? "Try switching tabs or clearing your search criteria."
+                  : "Use the Add Vendor button above to invite or connect a supplier."}
+              </p>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-black/[0.06] text-[11px] font-bold text-[#84908a] uppercase tracking-wider">
+                  <th className="py-3.5 px-5">VENDOR NAME</th>
+                  <th className="py-3.5 px-5">REG NO.</th>
+                  <th className="py-3.5 px-5">EMAIL</th>
+                  <th className="py-3.5 px-5">INVITED ON</th>
+                  <th className="py-3.5 px-5">STATUS</th>
+                  <th className="py-3.5 px-5">LAST UPDATED</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/[0.04]">
+                {pagedVendors.map((vendor) => {
+                  const badge =
+                    LIFECYCLE_BADGE_MAP[vendor.lifecycleStatus] ||
+                    LIFECYCLE_BADGE_MAP.invited;
+                  return (
+                    <tr
+                      key={vendor.id}
+                      onClick={() =>
+                        router.push(
+                          `/vendors/${vendor.id}?from=my-vendors&relationship=connected`,
+                        )
+                      }
+                      className="hover:bg-[#f9faf9] transition-colors cursor-pointer text-[13px]"
+                    >
+                      <td className="py-3.5 px-5 font-semibold text-[#0b100e]">
+                        {vendor.name}
+                      </td>
+                      <td className="py-3.5 px-5 font-normal text-[#68726d]">
+                        {vendor.regNo}
+                      </td>
+                      <td className="py-3.5 px-5 font-normal text-[#68726d]">
+                        {vendor.email}
+                      </td>
+                      <td className="py-3.5 px-5 font-normal text-[#68726d]">
+                        {vendor.invitedOn}
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${badge.className}`}
+                        >
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5 font-normal text-[#68726d]">
+                        {vendor.lastUpdated}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Custom Pagination Footer */}
+        <div className="p-4 sm:p-5 border-t border-black/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 text-[13px] text-[#68726d]">
+          <div className="flex items-center gap-2">
+            <span>
+              Showing {startEntry}-{endEntry} of {totalEntries} entries
+            </span>
+            <div className="w-18">
+              <Select
+                value={pageSize}
+                onValueChange={(val) => {
+                  setPageSize(val);
+                  setCurrentPage(1);
                 }}
-                totalPages={Math.max(
-                  1,
-                  vendorsApi.data?.data?.meta?.totalPages || 1,
-                )}
-                sortConfig={sortConfig}
-                onSort={(key) => {
-                  setSortConfig({
-                    key,
-                    direction:
-                      sortConfig?.key === key && sortConfig.direction === "asc"
-                        ? "desc"
-                        : "asc",
-                  });
-                  setPage(1);
-                }}
-              />
-            </TabsContent>
-          ),
-        )}
-      </Tabs>
+              >
+                <SelectTrigger className="h-8 rounded-[8px] border-black/[0.1] text-[12px] bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="min-w-[4.5rem]">
+                  <SelectItem value="10" className="text-[12px]">
+                    10
+                  </SelectItem>
+                  <SelectItem value="20" className="text-[12px]">
+                    20
+                  </SelectItem>
+                  <SelectItem value="50" className="text-[12px]">
+                    50
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 self-end sm:self-auto">
+            <button
+              type="button"
+              disabled={safePage <= 1}
+              onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+              className="px-2.5 h-8 rounded-[6px] text-[12px] text-[#68726d] hover:bg-[#f5f7f6] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer font-medium"
+            >
+              Previous
+            </button>
+
+            {visiblePages.map((p, idx) =>
+              p === "..." ? (
+                <span
+                  key={`ellipsis-${idx}`}
+                  className="w-8 h-8 inline-flex items-center justify-center text-[12px] text-[#84908a]"
+                >
+                  …
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setCurrentPage(p)}
+                  className={`w-8 h-8 rounded-[6px] text-[12px] font-semibold transition-colors cursor-pointer ${
+                    safePage === p
+                      ? "bg-[#00a389] text-white"
+                      : "text-[#68726d] hover:bg-[#f5f7f6]"
+                  }`}
+                >
+                  {p}
+                </button>
+              ),
+            )}
+
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
+              onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+              className="px-2.5 h-8 rounded-[6px] text-[12px] text-[#68726d] hover:bg-[#f5f7f6] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer font-medium"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
+
+export default withPermissions(MyVendorsPage, [
+  { resource: "vendor.directory", action: "read" },
+  { resource: "vendor", action: "read_company" },
+]);
