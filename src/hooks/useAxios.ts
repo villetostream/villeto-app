@@ -47,6 +47,7 @@ const BASEURL = "/api/bff";
 const apiClient = axios.create({
   baseURL: BASEURL,
   withCredentials: true,
+  timeout: 30000,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -231,61 +232,71 @@ apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) =>
   if (waitMs > 0) await sleep(waitMs, config);
   await acquireSlot(config);
   // Selection can change between acquiring a slot and this continuation.
-  throwIfRequestCanceled(config);
-  return config;
+  try {
+    throwIfRequestCanceled(config);
+    return config;
+  } catch (err) {
+    releaseSlot(config);
+    throw err;
+  }
 });
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const workspace = useEntityWorkspaceStore.getState();
-  const optionalDetail = optionalWorkspaceDetail(
-    config.url || "",
-    config.method,
-  );
-  const scoped =
-    optionalDetail ||
-    workspaceRoute(config.url || "", config.method) ||
-    reportReviewRoute(config.url || "", config.params);
-  if (workspace.snapshot?.enabled && scoped) {
-    if (!workspace.selection && !optionalDetail)
-      throw requestCancellation(
-        config,
-        "A legal entity assignment or workspace selection is required",
-      );
-    if (
-      config._workspaceGeneration !== undefined &&
-      config._workspaceGeneration !== workspace.generation
-    )
-      throw requestCancellation(
-        config,
-        "Workspace changed before the request could be retried",
-      );
-    config._workspaceGeneration = workspace.generation;
-    if (workspace.selection)
-      config.headers.set("X-Villeto-Legal-Entity", workspace.selection);
-    const mutation =
-      !["get", "head", "options"].includes(config.method || "get") ||
-      /notifications\/mark/.test(config.url || "");
-    if (mutation && workspaceReadOnly())
-      throw requestCancellation(
-        config,
-        "Select an active legal entity before performing this action",
-      );
-    if (workspace.selection === "all") {
-      config.url = stripAllEntityFilter(config.url || "");
-      if (config.params?.legalEntityId === "all") {
-        config.params = { ...config.params };
-        delete config.params.legalEntityId;
+  try {
+    const workspace = useEntityWorkspaceStore.getState();
+    const optionalDetail = optionalWorkspaceDetail(
+      config.url || "",
+      config.method,
+    );
+    const scoped =
+      optionalDetail ||
+      workspaceRoute(config.url || "", config.method) ||
+      reportReviewRoute(config.url || "", config.params);
+    if (workspace.snapshot?.enabled && scoped) {
+      if (!workspace.selection && !optionalDetail)
+        throw requestCancellation(
+          config,
+          "A legal entity assignment or workspace selection is required",
+        );
+      if (
+        config._workspaceGeneration !== undefined &&
+        config._workspaceGeneration !== workspace.generation
+      )
+        throw requestCancellation(
+          config,
+          "Workspace changed before the request could be retried",
+        );
+      config._workspaceGeneration = workspace.generation;
+      if (workspace.selection)
+        config.headers.set("X-Villeto-Legal-Entity", workspace.selection);
+      const mutation =
+        !["get", "head", "options"].includes(config.method || "get") ||
+        /notifications\/mark/.test(config.url || "");
+      if (mutation && workspaceReadOnly())
+        throw requestCancellation(
+          config,
+          "Select an active legal entity before performing this action",
+        );
+      if (workspace.selection === "all") {
+        config.url = stripAllEntityFilter(config.url || "");
+        if (config.params?.legalEntityId === "all") {
+          config.params = { ...config.params };
+          delete config.params.legalEntityId;
+        }
+      }
+      if (mutation && !config._workspaceMutation) {
+        config._workspaceMutation = true;
+        workspace.mutationStarted();
       }
     }
-    if (mutation && !config._workspaceMutation) {
-      config._workspaceMutation = true;
-      workspace.mutationStarted();
+    if (config.url?.startsWith("/api/bff/") || config.url === "/api/bff") {
+      config.baseURL = "";
     }
+    return config;
+  } catch (err) {
+    releaseSlot(config);
+    throw err;
   }
-  if (config.url?.startsWith("/api/bff/") || config.url === "/api/bff") {
-    config.baseURL = "";
-  }
-  return config;
 });
 
 apiClient.interceptors.response.use(

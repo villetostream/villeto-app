@@ -37,6 +37,7 @@ import {
 import ConfirmReceiptModal from "@/components/procurement/modals/ConfirmReceiptModal";
 import CompanyFinalDecisionModal from "@/components/procurement/modals/CompanyFinalDecisionModal";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { needsReceiptConfirmation } from "@/lib/types/purchase-request-helpers";
 
 const RESOLUTION_STATUS_LABELS: Record<string, string> = {
   not_required: "No Exceptions",
@@ -3323,6 +3324,8 @@ function ConfirmationDetailPage() {
               <h1 className="text-2xl font-bold text-[#0b100e]">{po.poNumber || "Purchase Order"}</h1>
               <div className="flex flex-wrap items-center gap-2">
                 {(() => {
+                  const hasReceivedAny = Number(po.quantityAccepted ?? po.quantityReceived ?? 0) > 0;
+                  const isAwaitingReceipt = needsReceiptConfirmation(po) || Boolean(pendingFulfillmentToReceive);
                   const hasOpenExceptions =
                     Boolean(po.openExceptionCount && po.openExceptionCount > 0) ||
                     stage === "partially_delivered_with_exceptions" ||
@@ -3330,9 +3333,12 @@ function ConfirmationDetailPage() {
                     (po.deliveryOutcome || "").includes("exceptions");
 
                   const isStillPartial =
-                    stage === "partially_delivered" ||
-                    stage === "partially_delivered_with_exceptions" ||
-                    (po.closeBlockers || []).includes("delivery_incomplete");
+                    (stage === "partially_delivered" || stage === "partially_delivered_with_exceptions") ||
+                    (hasReceivedAny && (
+                      Number(po.quantityOutstanding ?? 0) > 0 ||
+                      (po.closeBlockers || []).includes("delivery_incomplete")
+                    ));
+
                   const outcomeKey = isStillPartial
                     ? stage || "partially_delivered"
                     : (po.deliveryOutcome || po.status || "").toLowerCase();
@@ -3344,6 +3350,13 @@ function ConfirmationDetailPage() {
                     return (
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#fff9e6] text-[#b27b00] border border-[#ffe099]">
                         {label}
+                      </span>
+                    );
+                  }
+                  if (isAwaitingReceipt && !hasReceivedAny) {
+                    return (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#fff9e6] text-[#b27b00] border border-[#ffe099]">
+                        Awaiting Confirmation
                       </span>
                     );
                   }

@@ -1,34 +1,60 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useAxios } from "@/hooks/useAxios";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
-import { CheckCircle2, XCircle, X, FileText, Clock, CreditCard } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  XCircle,
+  X,
+  FileText,
+  Loader2,
+  MapPin,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuthorizationPolicies } from "@/features/auth/use-authorization-policies";
 import { useAuthStore } from "@/stores/auth-stores";
+import { useEntityWorkspaceStore } from "@/features/entity-workspace/store";
 import { toast } from "sonner";
 import withPermissions from "@/components/permissions/permission-protected-routes";
 import {
   asArray,
   asRecord,
+  getApiErrorMessage,
   getString,
   isRecord,
   pickString,
 } from "@/lib/types/api-error";
 import {
   useVendorNetworkDetail,
+  useMasterVendorDetail,
+  useVendorSitesV2,
+  useVendorEntityRelationships,
   useVendorReview,
+  useApproveEntityRelationshipV2,
   useVendorStatusUpdate,
   useCompanyPaymentTermsList,
   useVendorPaymentTerms,
-  useApprovePaymentTerms,
-  useRejectPaymentTerms,
-  VendorPaymentTerm,
+  resolveVendorLifecycleStatus,
+  normalizeConnectedLegalEntities,
+  type VendorPaymentTerm,
+  type RawEntityRelationship,
 } from "@/queries/vendors/vendor-network";
 import { VendorSummary } from "@/components/vendors/VendorSummary";
-
+import { ConnectToEntityDialog } from "@/components/vendors/ConnectToEntityDialog";
+import { DeactivateVendorOrgDialog } from "@/components/vendors/DeactivateVendorOrgDialog";
+import { useHeaderBackStore } from "@/stores/useHeaderBackStore";
 
 import Link from "next/link";
 import { Rnd } from "react-rnd";
@@ -38,34 +64,99 @@ const PdfViewer = dynamic(() => import("@/components/ui/pdf-viewer"), {
   ssr: false,
 });
 
+function formatDocDate(value: unknown): string {
+  const str = getString(value);
+  if (!str) return "N/A";
+  const parsed = new Date(str);
+  if (Number.isNaN(parsed.getTime())) return "N/A";
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+const PURPOSE_LABEL: Record<string, string> = {
+  purchasing: "Purchasing",
+  invoicing: "Invoicing",
+  remit_to: "Remit-to",
+  payment: "Remit-to",
+};
+
+const PURPOSE_STYLES: Record<string, string> = {
+  purchasing: "bg-[#e7f6f2] text-[#087f70] border-[#c8eee6]",
+  invoicing: "bg-[#eaf3ff] text-[#1b64da] border-[#cce0ff]",
+  remit_to: "bg-[#f5eefc] text-[#7828c8] border-[#ebd6fc]",
+  payment: "bg-[#f5eefc] text-[#7828c8] border-[#ebd6fc]",
+};
+
 function VendorDetailsPage() {
   const { vendorId } = useParams() as { vendorId: string };
   const router = useRouter();
-  const axiosInstance = useAxios();
+  const searchParams = useSearchParams();
   const policies = useAuthorizationPolicies();
+  const workspaceSelection = useEntityWorkspaceStore((s) => s.selection);
+
   const canManageEntityConfiguration = useAuthStore((state) =>
     state.can("vendor.entity_configuration", "manage"),
   );
+  const canManageMasterList = useAuthStore(
+    (state) =>
+      state.can("vendor.master_list", "manage") ||
+      state.can("vendor.entity_configuration", "manage"),
+  );
 
-  const [requestInfoModalOpen, setRequestInfoModalOpen] = useState(false);
-  const [infoMessage, setInfoMessage] = useState("");
+  const relationshipParam = searchParams.get("relationship");
+  const fromMaster = searchParams.get("from") === "master";
+
+  const { setBackHandler, clearBackHandler } = useHeaderBackStore();
+
+  useEffect(() => {
+    setBackHandler(() => {
+      if (fromMaster) {
+        router.push("/vendors/master");
+      } else {
+        router.push("/vendors");
+      }
+    });
+    return () => {
+      clearBackHandler();
+    };
+  }, [fromMaster, router, setBackHandler, clearBackHandler]);
+
+  const [relationshipOverride, setRelationshipOverride] = useState<
+    string | null
+  >(null);
+  const [connectModalOpen, setConnectModalOpen] = useState(false);
+  const [deactivateOrgModalOpen, setDeactivateOrgModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-  const [paymentTermsModalOpen, setPaymentTermsModalOpen] = useState(false);
-  const [paymentTermsRejectReason, setPaymentTermsRejectReason] = useState("");
-  const [isPaymentTermsRejecting, setIsPaymentTermsRejecting] = useState(false);
-  const [showPaymentTermsHistoryModal, setShowPaymentTermsHistoryModal] = useState(false);
+  const [approveWithTerms, setApproveWithTerms] = useState(true);
+
   const [previewDocUrl, setPreviewDocUrl] = useState<string | null>(null);
   const [previewDocName, setPreviewDocName] = useState<string | null>(null);
 
+  const { data: vendorResponse, isLoading: isVendorLoading } =
+    useVendorNetworkDetail(vendorId);
+  const { data: masterResponse, isLoading: isMasterLoading } =
+    useMasterVendorDetail(vendorId, canManageMasterList);
+  const { data: vendorSites = [], isLoading: isSitesLoading } =
+    useVendorSitesV2(vendorId);
   const {
-    data: vendorResponse,
-    isLoading: isVendorLoading,
-  } = useVendorNetworkDetail(vendorId);
-  const vendor = vendorResponse?.data || null;
-  const isLoading = isVendorLoading;
+    data: entityRelationships = [],
+    isLoading: isRelationshipsLoading,
+  } = useVendorEntityRelationships(vendorId, !fromMaster);
 
-  // Lock body scroll when preview modal is open
+  const rawVendor = asRecord(vendorResponse?.data ?? vendorResponse);
+  const rawMaster = asRecord(masterResponse?.data ?? masterResponse);
+  const hasVendorData =
+    Object.keys(rawVendor).length > 0 || Object.keys(rawMaster).length > 0;
+  const isLoading = isVendorLoading && (canManageMasterList ? isMasterLoading : true);
+
+  const reviewMutation = useVendorReview(vendorId);
+  const relationshipApprovalMutation = useApproveEntityRelationshipV2(vendorId);
+  const statusMutation = useVendorStatusUpdate(vendorId);
+
   useEffect(() => {
     if (previewDocUrl) {
       document.body.style.overflow = "hidden";
@@ -77,24 +168,15 @@ function VendorDetailsPage() {
     };
   }, [previewDocUrl]);
 
-  const reviewMutation = useVendorReview(vendorId);
-  const statusMutation = useVendorStatusUpdate(vendorId);
-
-  // ── Payment Terms ─────────────────────────────────────────────────────────
-  // Query all payment terms awaiting or carrying company decisions
-  const {
-    data: companyPaymentTerms = [],
-    isLoading: isPaymentTermsListLoading,
-  } = useCompanyPaymentTermsList();
-
-  // Match the shared supplier identity; names are not unique identifiers.
+  // Payment Terms Query
+  const { data: companyPaymentTerms = [] } = useCompanyPaymentTermsList();
   const matchingPaymentTerms = useMemo(
     () => companyPaymentTerms.filter((term) => term.vendorId === vendorId),
     [companyPaymentTerms, vendorId],
   );
 
   const paymentTermFromList = useMemo(() => {
-    if (!matchingPaymentTerms || matchingPaymentTerms.length === 0) return null;
+    if (matchingPaymentTerms.length === 0) return null;
     return (
       matchingPaymentTerms.find((t) => t.status === "pending_review") ||
       matchingPaymentTerms.find((t) => t.isCurrent) ||
@@ -104,1349 +186,1055 @@ function VendorDetailsPage() {
     );
   }, [matchingPaymentTerms]);
 
-  // 2. Fall back to any embedded payment term in the vendor object
   const paymentTermFromVendor = useMemo<Partial<VendorPaymentTerm> | null>(() => {
     const raw =
-      vendor?.paymentTerm ||
-      vendor?.paymentTerms ||
-      vendor?.currentPaymentTerm ||
-      vendor?.pendingPaymentTerm;
+      rawVendor.paymentTerm ||
+      rawVendor.paymentTerms ||
+      rawVendor.currentPaymentTerm ||
+      rawVendor.pendingPaymentTerm;
     const candidate = Array.isArray(raw) ? raw[0] : raw;
-    return isRecord(candidate) ? candidate as Partial<VendorPaymentTerm> : null;
-  }, [vendor]);
+    return isRecord(candidate) ? (candidate as Partial<VendorPaymentTerm>) : null;
+  }, [rawVendor]);
 
-  // 3. Fall back to any explicit paymentTermId on vendor object
   const pendingPaymentTermId =
     paymentTermFromList?.paymentTermId ||
     paymentTermFromVendor?.paymentTermId ||
-    getString(vendor?.currentPaymentTermId) ||
-    getString(vendor?.pendingPaymentTermId) ||
-    getString(vendor?.paymentTermId) ||
-    getString(vendor?.vendorPaymentTermId) ||
+    getString(rawVendor.currentPaymentTermId) ||
+    getString(rawVendor.pendingPaymentTermId) ||
+    getString(rawVendor.paymentTermId) ||
+    getString(rawVendor.vendorPaymentTermId) ||
     null;
 
   const { data: paymentTermData } = useVendorPaymentTerms(
     paymentTermFromList ? null : pendingPaymentTermId,
   );
+  const paymentTerm =
+    paymentTermFromList || paymentTermData || paymentTermFromVendor;
 
-  const paymentTerm: Partial<VendorPaymentTerm> | null =
-    paymentTermFromList ||
-    paymentTermData ||
-    paymentTermFromVendor ||
-    null;
-
-  const approvePaymentTermsMutation = useApprovePaymentTerms(
-    paymentTerm?.paymentTermId ?? "",
-    vendorId,
-  );
-  const rejectPaymentTermsMutation = useRejectPaymentTerms(
-    paymentTerm?.paymentTermId ?? "",
-    vendorId,
+  const { legalEntityCount, legalEntities: connectedLegalEntities } = useMemo(
+    () =>
+      normalizeConnectedLegalEntities(
+        Object.keys(rawMaster).length > 0 ? rawMaster : rawVendor,
+      ),
+    [rawMaster, rawVendor],
   );
 
-  const isSubmitting =
-    reviewMutation.isPending ||
-    statusMutation.isPending ||
-    approvePaymentTermsMutation.isPending ||
-    rejectPaymentTermsMutation.isPending;
+  const activeEntityId =
+    workspaceSelection && workspaceSelection !== "all"
+      ? workspaceSelection
+      : null;
 
-  const handleDecision = async (
-    decision: "approved" | "rejected",
-    customNote?: string,
-  ) => {
-    if (!vendor) return;
-    const note =
-      customNote ||
-      (decision === "approved"
-        ? "KYC and banking details reviewed."
-        : `Vendor ${decision} by admin.`);
-    try {
-      await reviewMutation.mutateAsync({ decision, note });
-      if (decision === "rejected") {
-        setRejectModalOpen(false);
-        setRejectReason("");
+  const activeRelationship = useMemo(() => {
+    if (!activeEntityId) return null;
+    const found = entityRelationships.find((r) => {
+      const le = r.legalEntity;
+      return (
+        le?.legalEntityId === activeEntityId ||
+        r.legalEntityId === activeEntityId
+      );
+    });
+    if (found) return found;
+
+    const rels = asArray(rawVendor.entityRelationships).filter(isRecord);
+    const matched = rels.find((rel) => {
+      const le = asRecord(rel.legalEntity);
+      return (
+        getString(le.legalEntityId) === activeEntityId ||
+        getString(rel.legalEntityId) === activeEntityId
+      );
+    });
+    return (matched as unknown as RawEntityRelationship) || null;
+  }, [entityRelationships, rawVendor, activeEntityId]);
+
+  const siteAssignmentMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    if (!activeRelationship?.siteAssignments) return map;
+    for (const assignment of activeRelationship.siteAssignments) {
+      const siteId =
+        assignment.vendorSiteId ||
+        assignment.site?.vendorSiteId ||
+        getString(asRecord(assignment).siteId);
+      if (!siteId) continue;
+      if (assignment.status === "inactive") continue;
+      if (assignment.effectiveTo) {
+        const to = new Date(assignment.effectiveTo).getTime();
+        if (!Number.isNaN(to) && to <= Date.now()) continue;
       }
-      toast.success(
-        decision === "approved"
-          ? "Supplier onboarding approved"
-          : "Supplier onboarding rejected",
-      );
-    } catch (err) {
-      logger.error(`Failed to ${decision} vendor`, err);
-      toast.error(`Failed to ${decision} vendor. Please try again.`);
+      const current = map.get(siteId) || [];
+      const p = String(assignment.purpose).toLowerCase();
+      if (!current.includes(p)) {
+        current.push(p);
+      }
+      map.set(siteId, current);
     }
-  };
+    return map;
+  }, [activeRelationship]);
 
-  const handleStatusUpdate = async (statusPayload: "Active" | "Inactive") => {
-    try {
-      await statusMutation.mutateAsync({ status: statusPayload });
-      toast.success(
-        `Vendor ${statusPayload === "Active" ? "activated" : "deactivated"} successfully`,
-      );
-    } catch (err) {
-      logger.error(`Failed to update vendor status to ${statusPayload}`, err);
-      toast.error(
-        `Failed to ${statusPayload === "Active" ? "activate" : "deactivate"} vendor. Please try again.`,
-      );
+  const activeEntityRelationshipId = useMemo(() => {
+    if (activeRelationship?.vendorEntityRelationshipId) {
+      return activeRelationship.vendorEntityRelationshipId;
     }
-  };
+    const directId =
+      getString(rawVendor.vendorEntityRelationshipId) ||
+      getString(rawVendor.relationshipId);
+    if (directId) return directId;
+    return null;
+  }, [activeRelationship, rawVendor]);
 
-  const handleResendInvitation = async () => {
-    try {
-      await axiosInstance.post(`/vendors/${vendorId}/invitations/resend`);
-      toast.success("Invitation resent successfully");
-    } catch (err) {
-      logger.error(`Failed to resend invitation`, err);
-      toast.error("Failed to resend invitation. Please try again.");
+  const lifecycleStatus = useMemo(
+    () =>
+      resolveVendorLifecycleStatus(
+        Object.keys(rawVendor).length > 0 ? rawVendor : rawMaster,
+      ),
+    [rawVendor, rawMaster],
+  );
+
+  // Derive effective relationship state
+  const derivedRelationship = useMemo(() => {
+    if (relationshipOverride) return relationshipOverride;
+    if (relationshipParam === "not_connected") {
+      if (
+        activeEntityId &&
+        connectedLegalEntities.some((e) => e.legalEntityId === activeEntityId)
+      ) {
+        return "connected";
+      }
+      return "not_connected";
     }
-  };
-
-  const handleRequestInfo = async () => {
-    logger.log("Request info sent:", infoMessage);
-    setRequestInfoModalOpen(false);
-    setInfoMessage("");
-  };
+    if (
+      activeEntityId &&
+      connectedLegalEntities.length > 0 &&
+      !connectedLegalEntities.some((e) => e.legalEntityId === activeEntityId)
+    ) {
+      return "not_connected";
+    }
+    if (lifecycleStatus === "pending_vendor_action") return "pending_connection";
+    if (lifecycleStatus === "pending_company_approval") return "under_review";
+    if (lifecycleStatus === "suspended") return "suspended";
+    if (lifecycleStatus === "inactive") return "inactive";
+    if (lifecycleStatus === "rejected") return "rejected";
+    if (lifecycleStatus === "invited") return "invited";
+    return "connected";
+  }, [
+    relationshipOverride,
+    relationshipParam,
+    activeEntityId,
+    connectedLegalEntities,
+    lifecycleStatus,
+  ]);
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-16 rounded-[8px]" />
-        <Skeleton className="h-12 w-1/3 rounded-[8px]" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Skeleton className="h-[400px] w-full rounded-[14px]" />
-          <Skeleton className="h-[400px] w-full rounded-[14px]" />
+        <Skeleton className="h-14 w-1/3 rounded-[10px]" />
+        <Skeleton className="h-10 w-56 rounded-[10px]" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <Skeleton className="lg:col-span-7 h-[420px] w-full rounded-[14px]" />
+          <Skeleton className="lg:col-span-5 h-[420px] w-full rounded-[14px]" />
         </div>
       </div>
     );
   }
 
-  if (!vendor) {
+  if (!hasVendorData) {
     return (
-      <div>
-        <p className="text-[#84908a]">Vendor not found.</p>
+      <div className="rounded-[14px] border border-black/[0.08] bg-white p-6">
+        <p className="text-[14px] font-medium text-[#68726d]">
+          Vendor not found.
+        </p>
       </div>
     );
   }
 
-  const profile = asRecord(vendor.profile);
-  const banking = asRecord(vendor.bankingDetails);
-  const business = asRecord(vendor.businessDetails);
+  const merged = { ...rawMaster, ...rawVendor };
+  const profile = asRecord(merged.profile);
+  const banking = asRecord(merged.bankingDetails);
+  const business = asRecord(merged.businessDetails);
 
-  const status = getString(vendor.status);
-  const onboardingStatus = getString(vendor.onboardingStatus);
-  const approvalStatus = getString(vendor.approvalStatus);
-  const deactivatedAt = vendor.deactivatedAt;
-
-  const bankName =
-    getString(banking.bankName) ||
-    getString(vendor.bankName) ||
-    getString(profile.bankName);
-  const bankAccountNumber =
-    getString(banking.maskedAccountNumber) ||
-    getString(banking.accountNumber) ||
-    getString(vendor.bankAccountNumber) ||
-    getString(profile.bankAccountNumber);
-  const accountName =
-    getString(banking.accountName) ||
-    getString(vendor.accountName) ||
-    getString(profile.accountName);
   const legalName =
     getString(business.legalName) ||
-    getString(vendor.legalName) ||
+    getString(merged.legalName) ||
     getString(profile.legalName);
   const displayName =
     getString(business.displayName) ||
-    getString(vendor.displayName) ||
+    getString(merged.displayName) ||
     getString(profile.displayName);
   const email =
     getString(business.email) ||
-    getString(vendor.email) ||
+    getString(merged.email) ||
     getString(profile.email);
   const taxId =
     getString(business.registrationNumber) ||
     getString(business.tin) ||
-    getString(vendor.taxId) ||
+    getString(merged.registrationNumber) ||
+    getString(merged.cacNumber) ||
+    getString(merged.tin) ||
+    getString(merged.taxId) ||
     getString(profile.taxId);
   const country =
     getString(business.country) ||
-    getString(vendor.country) ||
+    getString(merged.country) ||
     getString(profile.country);
   const address =
     getString(business.businessAddress) ||
-    getString(vendor.address) ||
+    getString(merged.address) ||
     getString(profile.address);
-  const contactFirstName =
-    getString(vendor.contactFirstName) || getString(profile.contactFirstName);
-  const contactLastName =
-    getString(vendor.contactLastName) || getString(profile.contactLastName);
-  const decisionNote =
-    getString(vendor.decisionNote) ||
-    getString(vendor.rejectionReason) ||
-    getString(vendor.note);
-  const createdBy = asRecord(vendor.createdBy);
-  const approvedBy = asRecord(vendor.approvedBy);
-  const vendorDocs = asArray(vendor.documents);
+  const bankName =
+    getString(banking.bankName) ||
+    getString(merged.bankName) ||
+    getString(profile.bankName);
+  const bankAccountNumber =
+    getString(banking.maskedAccountNumber) ||
+    getString(banking.accountNumber) ||
+    getString(merged.bankAccountNumber) ||
+    getString(profile.bankAccountNumber);
+
+  const vendorDisplayName = legalName || displayName || "Unnamed Vendor";
+  const vendorDisplayEmail = email || "—";
+
+  const vendorInitials =
+    vendorDisplayName
+      .split(" ")
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "VN";
+
+  const vendorDocs = asArray(merged.documents);
   const profileDocs = asArray(profile.documents);
-  const documents = (vendorDocs.length > 0 ? vendorDocs : profileDocs).filter(
-    isRecord,
-  );
-  const createdByName =
-    `${pickString(createdBy, "firstName")} ${pickString(createdBy, "lastName")}`.trim();
-  const approvedByName =
-    `${pickString(approvedBy, "firstName")} ${pickString(approvedBy, "lastName")}`.trim();
+  const documents = (
+    vendorDocs.length > 0 ? vendorDocs : profileDocs
+  ).filter(isRecord);
 
-  const rawStatus = status.toLowerCase();
-  const nextAction = getString(vendor.nextAction);
+  const hasBankVerified = Boolean(bankName && bankAccountNumber);
+  const hasRegVerified = Boolean(taxId);
+  const riskLevel =
+    derivedRelationship === "connected" && !hasBankVerified ? "High" : "Low";
 
-  // A vendor is awaiting review if:
-  // 1. nextAction is "awaiting_company_review", OR
-  // 2. onboardingStatus is "submitted" and they are not yet approved
-  const isAwaitingReview =
-    nextAction === "awaiting_company_review" ||
-    (onboardingStatus === "submitted" && approvalStatus !== "approved");
+  const handleApproveVendor = async () => {
+    try {
+      if (activeEntityRelationshipId) {
+        await relationshipApprovalMutation.mutateAsync({
+          relationshipId: activeEntityRelationshipId,
+          decision: "approved",
+          reason: "Compliance checks completed",
+          ...(paymentTerm?.status === "pending_review" && approveWithTerms
+            ? {
+                paymentTermsDecision: "approved",
+                paymentTermsReason: "Payment terms approved",
+              }
+            : {}),
+        });
+      } else {
+        const activeSiteIds = vendorSites
+          .filter((s) => s.status === "active")
+          .map((s) => s.vendorSiteId);
+        await reviewMutation.mutateAsync({
+          decision: "approve",
+          ...(activeSiteIds.length > 0 ? { siteIds: activeSiteIds } : {}),
+        });
+      }
+      toast.success(`${vendorDisplayName} has been approved.`);
+      setRelationshipOverride("connected");
+    } catch (err) {
+      logger.error("Failed to approve vendor:", err);
+      toast.error(getApiErrorMessage(err, "Failed to approve vendor."));
+    }
+  };
 
-  // Specifically resubmitted after being previously rejected:
-  const isResubmitted = isAwaitingReview && approvalStatus === "rejected";
-  const isUnderReview = isAwaitingReview;
+  const handleRejectVendor = async () => {
+    if (!rejectReason.trim()) {
+      toast.error("Provide a reason so the vendor knows what to correct.");
+      return;
+    }
+    try {
+      if (activeEntityRelationshipId) {
+        await relationshipApprovalMutation.mutateAsync({
+          relationshipId: activeEntityRelationshipId,
+          decision: "rejected",
+          reason: rejectReason.trim(),
+        });
+      } else {
+        await reviewMutation.mutateAsync({
+          decision: "rejected",
+          note: rejectReason.trim(),
+          reason: rejectReason.trim(),
+        });
+      }
+      toast.success("Vendor submission returned for correction.");
+      setRejectModalOpen(false);
+      setRejectReason("");
+      setRelationshipOverride("pending_connection");
+    } catch (err) {
+      logger.error("Failed to reject vendor:", err);
+      toast.error(getApiErrorMessage(err, "Failed to reject vendor."));
+    }
+  };
 
-  const isRejected = approvalStatus === "rejected" && !isAwaitingReview;
+  const handleSuspendEntityRelationship = async () => {
+    try {
+      await statusMutation.mutateAsync({
+        status: "Suspended",
+        legalEntityId: activeEntityId,
+      });
+      toast.success("Vendor relationship suspended for the selected entity.");
+      setRelationshipOverride("suspended");
+    } catch (err) {
+      logger.error("Failed to suspend vendor:", err);
+      toast.error(getApiErrorMessage(err, "Failed to suspend vendor."));
+    }
+  };
 
-  const isInvited =
-    !isAwaitingReview &&
-    approvalStatus === "pending" &&
-    (!onboardingStatus || onboardingStatus === "invited");
-  const isOnboarding =
-    !isAwaitingReview &&
-    approvalStatus === "pending" &&
-    !["invited", "submitted", ""].includes(onboardingStatus);
-  // Vendor approved (Stage 1 done) but never yet activated — awaiting payment
-  // terms review (Stage 2). A deactivatedAt timestamp means they were active
-  // before and were explicitly deactivated, so this is a reactivation scenario.
-  const isApprovedPhase4 =
-    approvalStatus === "approved" && rawStatus !== "active" && !deactivatedAt;
-  // If payment term is explicitly rejected, vendor is awaiting resubmission.
-  const isPaymentTermRejected = paymentTerm?.status === "rejected";
-  // Stage 2: Approved in Stage 1, awaiting payment terms approval to activate.
-  const isPendingPaymentTerms = isApprovedPhase4 && !isPaymentTermRejected;
-  const isDeactivated =
-    approvalStatus === "approved" && rawStatus !== "active" && !!deactivatedAt;
-  const isActive = approvalStatus === "approved" && rawStatus === "active";
+  const handleReactivateVendor = async () => {
+    try {
+      await statusMutation.mutateAsync({
+        status: "Active",
+        legalEntityId: activeEntityId,
+        organizationWide: fromMaster,
+      });
+      toast.success(
+        fromMaster
+          ? "Vendor reactivated across the company."
+          : "Vendor relationship reactivated.",
+      );
+      setRelationshipOverride("connected");
+    } catch (err) {
+      logger.error("Failed to reactivate vendor:", err);
+      toast.error(getApiErrorMessage(err, "Failed to reactivate vendor."));
+    }
+  };
 
-  const isEligibleForRiskCheck = isUnderReview || isApprovedPhase4 || isActive;
-  const hasBankMismatch =
-    isEligibleForRiskCheck && (!bankName || !bankAccountNumber);
-  const riskLevel = hasBankMismatch ? "High" : "Low";
+  const isActionPending =
+    reviewMutation.isPending ||
+    relationshipApprovalMutation.isPending ||
+    statusMutation.isPending;
+
+  const configurationHref = fromMaster
+    ? `/vendors/${vendorId}/configuration?from=master`
+    : `/vendors/${vendorId}/configuration`;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* ── Header ── */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-[18px] font-semibold text-[#0b100e]">
-              {legalName || displayName}
-            </h1>
-            {isOnboarding && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#f0f6ff] text-[#0066cc] text-xs font-semibold border border-[#d6e7ff]">
-                Onboarding
-              </span>
-            )}
-            {isResubmitted ? (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#fff9e6] text-[#b27b00] text-xs font-semibold border border-[#ffe099] flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                Resubmitted for Review
-              </span>
-            ) : isUnderReview ? (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#fff9e6] text-[#b27b00] text-xs font-semibold border border-[#ffe099]">
-                Under Review
-              </span>
-            ) : null}
-            {isActive && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#f0faf8] text-[#087f70] text-xs font-semibold border border-[#e7f6f2]">
-                Active
-              </span>
-            )}
-            {isApprovedPhase4 && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#f0faf8] text-[#087f70] text-xs font-semibold border border-[#e7f6f2]">
-                Approved
-              </span>
-            )}
-            {isDeactivated && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#f9faf9] text-[#68726d] text-xs font-semibold border border-black/[0.08]">
-                Deactivated
-              </span>
-            )}
-            {isRejected && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#fdf2f2] text-[#d33d44] text-xs font-semibold border border-[#fbd5d5]">
-                Rejected
-              </span>
-            )}
-            {isInvited && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#f9faf9] text-[#68726d] text-xs font-semibold border border-black/[0.08]">
-                Invited
-              </span>
+    <div className="space-y-5 animate-in fade-in duration-300">
+      {/* ── Sticky Profile Header & Sub Navigation Tabs ── */}
+      <div className="sticky -top-3 sm:-top-5 lg:-top-6 z-20 -mx-3 px-3 -mt-3 pt-3 sm:-mx-5 sm:px-5 sm:-mt-5 sm:pt-5 lg:-mx-6 lg:px-6 lg:-mt-6 lg:pt-6 pb-4 bg-[#f4f7f5]/95 backdrop-blur-xs space-y-5">
+        {/* ── Profile Header ── */}
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          {/* Avatar Circle */}
+          <div className="w-14 h-14 rounded-full bg-[#dff5ef] text-[#087f70] flex items-center justify-center font-bold text-[18px] shrink-0">
+            {vendorInitials}
+          </div>
+
+          <div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-[20px] font-bold text-[#0b100e]">
+                {vendorDisplayName}
+              </h1>
+
+              {/* Canonical Lifecycle / Relationship Badge */}
+              {derivedRelationship === "not_connected" ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#f5f7f6] text-[#68726d] border border-black/[0.08]">
+                  Not connected
+                </span>
+              ) : derivedRelationship === "pending_connection" ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#fff9e6] text-[#b27b00] border border-[#ffe099]">
+                  Pending connection
+                </span>
+              ) : derivedRelationship === "under_review" ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#fff9e6] text-[#b27b00] border border-[#ffe099]">
+                  Under Review
+                </span>
+              ) : derivedRelationship === "invited" ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#f5f7f6] text-[#68726d] border border-black/[0.08]">
+                  Invited
+                </span>
+              ) : derivedRelationship === "rejected" ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#fdf2f2] text-[#d33d44] border border-[#fbd5d5]">
+                  Rejected
+                </span>
+              ) : derivedRelationship === "suspended" ||
+                derivedRelationship === "inactive" ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#fdf2f2] text-[#d33d44] border border-[#fbd5d5]">
+                  {derivedRelationship === "inactive" ? "Inactive" : "Suspended"}
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#e7f6f2] text-[#087f70] border border-[#c8ece4]">
+                  {fromMaster ? "Connected" : "Active"}
+                </span>
+              )}
+            </div>
+
+            <p className="text-[13px] text-[#68726d] mt-0.5">
+              {vendorDisplayEmail}
+            </p>
+
+            {/* View transaction history button */}
+            {derivedRelationship === "connected" && (
+              <button
+                type="button"
+                onClick={() => router.push(`/vendors/${vendorId}/transactions`)}
+                className="h-8 px-3.5 rounded-[6px] bg-[#00a389] hover:bg-[#008f78] text-white text-[12px] font-semibold flex items-center gap-1.5 transition-colors mt-2.5 cursor-pointer shadow-2xs"
+              >
+                <span>View transaction history</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
-          <p className="text-[13px] font-medium text-[#68726d] mt-1">{email}</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Approve / Reject / Request Info */}
-          {isUnderReview && policies.vendors.canReject && (
+        {/* Action Buttons Top Right */}
+        <div className="flex flex-wrap items-center gap-3">
+          {derivedRelationship === "not_connected" ? (
             <button
-              disabled={isSubmitting}
-              onClick={() => setRejectModalOpen(true)}
-              className="px-4 h-9 rounded-[8px] border border-[#d33d44] text-[#d33d44] font-semibold text-[13px] hover:bg-[#fdf2f2] transition-colors disabled:opacity-50"
+              type="button"
+              onClick={() => setConnectModalOpen(true)}
+              className="h-10 px-6 rounded-[8px] bg-[#00a389] hover:bg-[#008f78] text-white text-[13px] font-semibold transition-colors shadow-2xs cursor-pointer"
             >
-              Reject vendor
+              Connect to Entity
             </button>
-          )}
-
-          {isUnderReview && policies.vendors.canApprove && (
-            <button
-              disabled={isSubmitting}
-              onClick={() => handleDecision("approved")}
-              className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm"
-            >
-              {reviewMutation.isPending ? "Processing..." : "Approve vendor"}
-            </button>
-          )}
-          {/* Stage 2: Approve Payment Terms (newly onboarded, never yet active) */}
-          {isPendingPaymentTerms && (policies.vendors.canApprove || policies.vendors.canActivate) && (
-            <button
-              disabled={isSubmitting}
-              onClick={() => {
-                setIsPaymentTermsRejecting(false);
-                setPaymentTermsRejectReason("");
-                setPaymentTermsModalOpen(true);
-              }}
-              className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm flex items-center gap-2 cursor-pointer"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Approve payment terms
-            </button>
-          )}
-          {isApprovedPhase4 && isPaymentTermRejected && (
-            <span className="px-3 py-1.5 rounded-[8px] bg-[#fff9e6] text-[#b27b00] text-[12px] font-semibold border border-[#ffe099]">
-              Payment terms rejected — awaiting vendor resubmission
+          ) : derivedRelationship === "pending_connection" ? (
+            <span className="h-10 px-4 inline-flex items-center rounded-[8px] bg-[#fff9e6] text-[#b27b00] border border-[#ffe099] text-[12px] font-semibold">
+              Awaiting vendor acceptance
             </span>
-          )}
-          {/* Reactivate — deactivated vendors use the old status endpoint */}
-          {isDeactivated && policies.vendors.canActivate && (
-            <button
-              disabled={isSubmitting}
-              onClick={() => handleStatusUpdate("Active")}
-              className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm"
-            >
-              {statusMutation.isPending ? "Processing..." : "Reactivate organization vendor"}
-            </button>
-          )}
-          {/* Deactivate */}
-          {isActive && policies.vendors.canDeactivate && (
-            <button
-              disabled={isSubmitting}
-              onClick={() => handleStatusUpdate("Inactive")}
-              className="px-4 h-9 rounded-[8px] border border-[#d33d44] text-[#d33d44] font-semibold text-[13px] hover:bg-[#fdf2f2] transition-colors disabled:opacity-50"
-            >
-              {statusMutation.isPending
-                ? "Processing..."
-                : "Deactivate organization vendor"}
-            </button>
-          )}
-          {/* Resend Invitation */}
-          {(isInvited || isOnboarding) && policies.vendors.canInvite && (
-            <button
-              disabled={isSubmitting}
-              onClick={handleResendInvitation}
-              className="px-4 h-9 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
-            >
-              {isSubmitting ? "Sending..." : "Resend Invitation"}
-            </button>
+          ) : derivedRelationship === "under_review" ? (
+            <>
+              {policies.vendors.canReject && (
+                <button
+                  type="button"
+                  disabled={isActionPending}
+                  onClick={() => setRejectModalOpen(true)}
+                  className="h-10 px-5 rounded-[8px] border border-[#d33d44] text-[#d33d44] hover:bg-[#fdf2f2] text-[13px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Return for correction
+                </button>
+              )}
+              {policies.vendors.canApprove && (
+                <button
+                  type="button"
+                  disabled={isActionPending}
+                  onClick={() => void handleApproveVendor()}
+                  className="h-10 px-5 rounded-[8px] bg-[#00a389] hover:bg-[#008f78] text-white text-[13px] font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isActionPending && (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  )}
+                  Approve vendor
+                </button>
+              )}
+            </>
+          ) : derivedRelationship === "suspended" ||
+            derivedRelationship === "inactive" ? (
+            policies.vendors.canActivate && (
+              <button
+                type="button"
+                disabled={isActionPending}
+                onClick={() => void handleReactivateVendor()}
+                className="h-10 px-5 rounded-[8px] bg-[#00a389] hover:bg-[#008f78] text-white text-[13px] font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+              >
+                Reactivate vendor
+              </button>
+            )
+          ) : (
+            <>
+              {canManageMasterList && workspaceSelection === "all" && (
+                <button
+                  type="button"
+                  onClick={() => setConnectModalOpen(true)}
+                  className="h-10 px-4 rounded-[8px] border border-[#00a389] text-[#00a389] hover:bg-[#f0faf8] text-[13px] font-semibold transition-colors cursor-pointer"
+                >
+                  Connect Another Entity
+                </button>
+              )}
+              {policies.vendors.canDeactivate && (
+                <>
+                  {/* <button
+                    type="button"
+                    disabled={isActionPending}
+                    onClick={() => void handleSuspendEntityRelationship()}
+                    className="h-10 px-5 rounded-[8px] border border-[#f59e0b] text-[#d97706] hover:bg-[#fffbeb] text-[13px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    Suspend vendor
+                  </button> */}
+                  <button
+                    type="button"
+                    disabled={isActionPending}
+                    onClick={() => setDeactivateOrgModalOpen(true)}
+                    className="h-10 px-5 rounded-[8px] bg-[#d33d44] hover:bg-[#be2f36] text-white text-[13px] font-semibold transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                  >
+                    Deactivate vendor
+                  </button>
+                </>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* ── Resubmission Notice Banner ── */}
-      {isResubmitted && (
-        <div className="rounded-[14px] border border-[#ffe099] bg-[#fffdf5] p-4 flex items-start gap-3 shadow-sm">
-          <Clock className="h-5 w-5 text-[#b27b00] mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <h3 className="text-[13px] font-semibold text-[#8a5f00]">
-              Application Resubmitted for Review
-            </h3>
-            <p className="text-[12px] text-[#8a5f00]/90 mt-0.5 leading-relaxed">
-              This vendor was previously rejected, but has updated their details/documents and resubmitted for review. You can inspect their latest information below and click &ldquo;Approve vendor&rdquo; or &ldquo;Reject vendor&rdquo; above.
-            </p>
+        {/* ── Sub Navigation Tabs ── */}
+        {!fromMaster && (
+          <div className="flex items-center gap-1 p-1 rounded-[10px] bg-[#f5f7f6] w-fit">
+            <button
+              type="button"
+              className="px-5 py-1.5 rounded-[8px] bg-white text-[13px] font-semibold text-[#0b100e] shadow-xs cursor-pointer"
+            >
+              Profile
+            </button>
+            {canManageEntityConfiguration &&
+              derivedRelationship !== "not_connected" && (
+                <Link
+                  href={configurationHref}
+                  className="px-5 py-1.5 rounded-[8px] text-[13px] font-medium text-[#68726d] hover:text-[#0b100e] transition-colors"
+                >
+                  Entity configuration
+                </Link>
+              )}
           </div>
-        </div>
-      )}
-
-      {/* ── Rejection Notice Banner ── */}
-      {isRejected && (
-        <div className="rounded-[14px] border border-[#fbd5d5] bg-[#fdf2f2] p-4 flex items-start gap-3 shadow-sm">
-          <XCircle className="h-5 w-5 text-[#d33d44] mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <h3 className="text-[13px] font-semibold text-[#9b1c1c]">
-              Vendor Application Rejected
-            </h3>
-            {decisionNote ? (
-              <p className="text-[12px] text-[#9b1c1c]/90 mt-1 leading-relaxed font-medium">
-                <span className="font-semibold text-[#771d1d]">Rejection Reason:</span>{" "}
-                {decisionNote}
-              </p>
-            ) : (
-              <p className="text-[12px] text-[#9b1c1c]/90 mt-0.5 leading-relaxed">
-                This vendor application was rejected during review.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      <nav
-        aria-label="Vendor sections"
-        className="flex w-fit items-center gap-1 rounded-[10px] border border-black/[0.08] bg-white p-1 shadow-sm"
-      >
-        <span className="rounded-[7px] bg-[#e8f7f2] px-3 py-2 text-[12px] font-semibold text-[#087f70]">
-          Profile
-        </span>
-        {canManageEntityConfiguration && (
-          <Link
-            href={`/vendors/${vendorId}/configuration`}
-            className="rounded-[7px] px-3 py-2 text-[12px] font-semibold text-[#5e6863] transition-colors hover:bg-[#f5f7f6] hover:text-[#0b100e]"
-          >
-            Entity configuration
-          </Link>
         )}
-      </nav>
+      </div>
 
-      {/* ── Content Grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-        {/* ══ Left Column ══ */}
-        <div className="space-y-5">
-          <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
-            <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em] mb-4">
-              IDENTITY VERIFICATION
+      {/* ── Content Grid (2 Columns) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left Column */}
+        <div className="lg:col-span-7 space-y-5">
+          {/* VENDOR IDENTITY */}
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+            <h2 className="text-[12px] font-bold text-[#0b100e] uppercase tracking-wide mb-4">
+              VENDOR IDENTITY
             </h2>
-
-            <div className="space-y-3">
-              {/* Row 1 */}
-              <div className="border border-black/[0.06] rounded-[10px] p-4">
+            <div className="space-y-3.5">
+              <div className="border border-black/[0.06] rounded-[10px] p-4 bg-white">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[13px] font-medium text-[#68726d] mb-0.5">
+                    <p className="text-[12px] text-[#68726d] mb-1">
                       Business Name
                     </p>
-                    <p className="text-[13px] font-semibold text-[#0b100e]">
-                      {legalName || "N/A"}
+                    <p className="text-[14px] font-semibold text-[#0b100e]">
+                      {vendorDisplayName}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[13px] font-medium text-[#68726d] mb-0.5">
+                    <p className="text-[12px] text-[#68726d] mb-1">
                       Registration Number
                     </p>
-                    <p className="text-[13px] font-semibold text-[#0b100e]">
-                      {taxId || "N/A"}
+                    <p className="text-[14px] font-semibold text-[#0b100e]">
+                      {taxId || "—"}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Row 3 */}
-              <div className="border border-black/[0.06] rounded-[10px] p-4">
+              <div className="border border-black/[0.06] rounded-[10px] p-4 bg-white">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[13px] font-medium text-[#68726d] mb-0.5">
-                      Country
-                    </p>
-                    <p className="text-[13px] font-semibold text-[#0b100e]">
-                      {country || "N/A"}
+                    <p className="text-[12px] text-[#68726d] mb-1">Country</p>
+                    <p className="text-[14px] font-semibold text-[#0b100e]">
+                      {country || "—"}
                     </p>
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-[13px] font-medium text-[#68726d] mb-0.5">
-                      Address
-                    </p>
+                    <p className="text-[12px] text-[#68726d] mb-1">Address</p>
                     <p
-                      className="text-[13px] font-semibold text-[#0b100e] truncate"
-                      title={address}
+                      className="text-[14px] font-semibold text-[#0b100e] truncate"
+                      title={address || undefined}
                     >
-                      {address || "N/A"}
+                      {address || "—"}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Row 4 */}
-              {(createdByName || approvedByName) && (
-                <div className="border border-black/[0.06] rounded-[10px] p-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    {createdByName && (
-                      <div>
-                        <p className="text-[13px] font-medium text-[#68726d] mb-0.5">
-                          Invited By
-                        </p>
-                        <p className="text-[13px] font-semibold text-[#0b100e]">
-                          {createdByName}
-                        </p>
-                      </div>
-                    )}
-                    {approvedByName && (
-                      <div>
-                        <p className="text-[13px] font-medium text-[#68726d] mb-0.5">
-                          Approved By
-                        </p>
-                        <p className="text-[13px] font-semibold text-[#0b100e]">
-                          {approvedByName}
-                        </p>
-                      </div>
-                    )}
+              {/* Connected Legal Entities (per V2 Master Directory Spec) */}
+              {(connectedLegalEntities.length > 0 || legalEntityCount > 0) && (
+                <div className="border border-black/[0.06] rounded-[10px] p-4 bg-[#f9faf9]/60">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <p className="text-[12px] font-semibold text-[#0b100e] flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-[#087f70]" />
+                      Connected Legal Entities
+                    </p>
+                    <span className="text-[11px] font-semibold text-[#087f70]">
+                      {legalEntityCount}{" "}
+                      {legalEntityCount === 1 ? "entity" : "entities"}
+                    </span>
                   </div>
+                  {connectedLegalEntities.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {connectedLegalEntities.map((entity) => (
+                        <div
+                          key={entity.legalEntityId}
+                          className="inline-flex items-center gap-2 rounded-[8px] border border-black/[0.08] bg-white px-3 py-1.5 text-[12px]"
+                        >
+                          <span className="font-semibold text-[#0b100e]">
+                            {entity.legalName}
+                          </span>
+                          <span
+                            className="font-mono text-[10px] text-[#84908a]"
+                            title={entity.legalEntityId}
+                          >
+                            {entity.legalEntityId.slice(0, 8)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[12px] text-[#68726d]">
+                      Connected across {legalEntityCount} legal{" "}
+                      {legalEntityCount === 1 ? "entity" : "entities"}.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
-          <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
-            <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em] mb-4">
-              COMPANY BANK ACCOUNT
-            </h2>
-            <div className="border border-black/[0.06] rounded-[10px] p-4 bg-[#f9faf9]/50">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-[13px] font-medium text-[#68726d] mb-0.5">
-                    Bank Name
+          {/* OPERATING SITES & PERMITTED PURPOSES */}
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-[12px] font-bold text-[#0b100e] uppercase tracking-wide">
+                  {!fromMaster ? "OPERATING SITES & PURPOSES" : "VENDOR SITES"}
+                </h2>
+                {!fromMaster && activeRelationship?.legalEntity?.legalName && (
+                  <p className="text-[11px] text-[#68726d] mt-0.5">
+                    Configured for {activeRelationship.legalEntity.legalName}
                   </p>
-                  <p className="text-[13px] font-semibold text-[#0b100e]">
-                    {bankName || "N/A"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[13px] font-medium text-[#68726d] mb-0.5">
-                    Account Name
-                  </p>
-                  <p className="text-[13px] font-semibold text-[#0b100e]">
-                    {accountName || "N/A"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[13px] font-medium text-[#68726d] mb-0.5">
-                    Account Number
-                  </p>
-                  <p className="text-[13px] font-semibold text-[#0b100e]">
-                    {bankAccountNumber || "N/A"}
-                  </p>
-                </div>
+                )}
               </div>
+              {!fromMaster &&
+                canManageEntityConfiguration &&
+                derivedRelationship !== "not_connected" && (
+                  <Link
+                    href={configurationHref}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#00a389] hover:text-[#008f78] transition-colors"
+                  >
+                    <span>Edit in Entity configuration</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
             </div>
-          </div>
 
-          <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
-            <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em] mb-4">
-              VERIFICATION DOCUMENTS
-            </h2>
-            {documents.length > 0 ? (
+            {isSitesLoading || (!fromMaster && isRelationshipsLoading) ? (
+              <div className="space-y-2.5">
+                <Skeleton className="h-16 w-full rounded-[10px]" />
+                <Skeleton className="h-16 w-full rounded-[10px]" />
+              </div>
+            ) : vendorSites.length === 0 ? (
+              <p className="rounded-[10px] border border-dashed border-black/[0.1] p-4 text-[13px] text-[#68726d]">
+                No operating sites have been submitted by this vendor yet.
+              </p>
+            ) : (
               <div className="space-y-3">
-                {documents.map((doc) => {
-                  const docId = getString(doc.vendorDocumentId);
-                  const originalName =
-                    pickString(doc, "originalName") || "Document.pdf";
-                  const documentType = getString(doc.documentType).replace(
-                    /_/g,
-                    " ",
-                  );
-                  const fileUrl = getString(doc.fileUrl);
-                  const rawIssuedAt = doc.issuedAt;
-                  const rawExpiresAt = doc.expiresAt;
-                  const formatDate = (value: unknown) => {
-                    if (!value || typeof value !== "string") return "N/A";
-                    const d = new Date(value);
-                    return isNaN(d.getTime())
-                      ? "N/A"
-                      : d.toLocaleDateString(undefined, {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        });
-                  };
+                {vendorSites.map((site) => {
+                  const assignedPurposes =
+                    siteAssignmentMap.get(site.vendorSiteId) || [];
+                  const isAssigned = assignedPurposes.length > 0;
+
                   return (
                     <div
-                      key={docId || originalName}
-                      className="p-3.5 rounded-[10px] border border-black/[0.06] bg-white space-y-3"
+                      key={site.vendorSiteId}
+                      className="rounded-[10px] border border-black/[0.06] p-3.5 space-y-2.5"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#f0faf8] flex items-center justify-center shrink-0">
-                            <CheckCircle2 className="w-4 h-4 text-[#087f70]" />
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2 min-w-0">
+                          <MapPin className="w-4 h-4 shrink-0 text-[#087f70]" />
+                          <span className="text-[13px] font-semibold text-[#0b100e]">
+                            {site.name}
+                          </span>
+                          {site.code && (
+                            <span className="text-[11px] font-mono text-[#68726d]">
+                              ({site.code})
+                            </span>
+                          )}
+                          {site.isPrimary && (
+                            <span className="px-2 py-0.5 rounded-full bg-[#e7f6f2] text-[#087f70] text-[10px] font-semibold border border-[#c8eee6]">
+                              Primary
+                            </span>
+                          )}
+                          {site.status === "inactive" && (
+                            <span className="px-2 py-0.5 rounded-full bg-[#f5f7f6] text-[#68726d] text-[10px] font-semibold">
+                              Inactive
+                            </span>
+                          )}
+                        </div>
+
+                        {!fromMaster ? (
+                          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                            {isAssigned ? (
+                              assignedPurposes.map((p) => (
+                                <span
+                                  key={p}
+                                  className={`px-2 py-0.5 rounded-[6px] border text-[11px] font-semibold ${
+                                    PURPOSE_STYLES[p] ||
+                                    "bg-[#f5f7f6] text-[#68726d] border-black/[0.08]"
+                                  }`}
+                                >
+                                  {PURPOSE_LABEL[p] || p}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[11px] text-[#84908a] italic">
+                                Not assigned to this entity
+                              </span>
+                            )}
                           </div>
-                          <div>
-                            <p className="text-[13px] font-semibold text-[#0b100e] leading-tight">
-                              {originalName}
-                            </p>
-                            <p className="text-[12px] text-[#84908a] capitalize mt-0.5">
-                              {documentType}
-                            </p>
+                        ) : (
+                          <div className="text-right shrink-0">
+                            <span className="text-[11px] font-medium text-[#68726d]">
+                              {site.legalEntityCount}{" "}
+                              {site.legalEntityCount === 1
+                                ? "entity"
+                                : "entities"}
+                            </span>
                           </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setPreviewDocUrl(fileUrl);
-                            setPreviewDocName(originalName);
-                          }}
-                          className="px-4 py-1.5 rounded-[6px] border border-[#087f70] text-[#087f70] text-[12px] font-semibold hover:bg-[#f0faf8] transition-colors"
-                        >
-                          View
-                        </button>
+                        )}
                       </div>
-                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-black/[0.05]">
-                        <div>
-                          <p className="text-[11px] font-medium text-[#a0aaa5] mb-0.5">
-                            Issue Date
-                          </p>
-                          <p className="text-[12px] font-semibold text-[#39423e]">
-                            {formatDate(rawIssuedAt)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-medium text-[#a0aaa5] mb-0.5">
-                            Expiry Date
-                          </p>
-                          <p className="text-[12px] font-semibold text-[#39423e]">
-                            {formatDate(rawExpiresAt)}
-                          </p>
-                        </div>
-                      </div>
+
+                      <p className="text-[12px] text-[#68726d] pl-6">
+                        {[
+                          site.addressLine1,
+                          site.city,
+                          site.stateOrProvince,
+                          site.countryCode,
+                        ]
+                          .filter(Boolean)
+                          .join(", ") || "—"}
+                      </p>
                     </div>
                   );
                 })}
+
+                {/* Footer Purchasing State for the Active Entity */}
+                {!fromMaster && activeRelationship && (
+                  <div className="pt-2.5 border-t border-black/[0.06] flex items-center justify-between text-[12px]">
+                    {activeRelationship.purchasingEnabled ? (
+                      <div className="flex items-center gap-1.5 font-medium text-[#087f70]">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Purchasing is active for this entity</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 font-medium text-[#d97706]">
+                        <AlertCircle className="w-4 h-4" />
+                        <span>Purchasing access is on hold</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            ) : (
-              <p className="text-[13px] font-medium text-[#68726d]">
-                No documents uploaded.
-              </p>
             )}
           </div>
 
-          <div className="rounded-xl border bg-white p-5 text-sm">
-            Payment eligibility and beneficiary setup are specific to each legal
-            entity.{" "}
-            {canManageEntityConfiguration && (
-              <Link
-                className="underline"
-                href={`/vendors/${vendorId}/configuration`}
-              >
-                Open entity configuration
-              </Link>
+          {/* VERIFICATION DOCUMENTS */}
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+            <h2 className="text-[12px] font-bold text-[#0b100e] uppercase tracking-wide mb-4">
+              VERIFICATION DOCUMENTS
+            </h2>
+            {documents.length === 0 ? (
+              <p className="rounded-[10px] border border-dashed border-black/[0.1] p-4 text-[13px] text-[#68726d]">
+                No verification documents uploaded yet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-black/[0.06] text-[11px] font-semibold text-[#84908a]">
+                      <th className="py-2.5 px-2">Name</th>
+                      <th className="py-2.5 px-4">Issue date</th>
+                      <th className="py-2.5 px-4">Expiry date</th>
+                      <th className="py-2.5 px-2 text-right"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.04]">
+                    {documents.map((doc, idx) => {
+                      const originalName =
+                        pickString(doc, "originalName", "fileName", "name") ||
+                        "Document";
+                      const docType =
+                        getString(doc.documentType).replace(/_/g, " ") ||
+                        "Verification Document";
+                      const fileUrl = getString(doc.fileUrl);
+                      return (
+                        <tr
+                          key={getString(doc.vendorDocumentId) || idx}
+                          className="text-[13px]"
+                        >
+                          <td className="py-3 px-2 flex items-center gap-3">
+                            <FileText className="w-5 h-5 text-[#68726d] shrink-0" />
+                            <div>
+                              <p className="font-semibold text-[#0b100e] text-[13px]">
+                                {originalName}
+                              </p>
+                              <p className="text-[11px] text-[#84908a] capitalize">
+                                {docType}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-[#68726d] text-[12px]">
+                            {formatDocDate(doc.issuedAt)}
+                          </td>
+                          <td className="py-3 px-4 text-[#68726d] text-[12px]">
+                            {formatDocDate(doc.expiresAt)}
+                          </td>
+                          <td className="py-3 px-2 text-right">
+                            {fileUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPreviewDocUrl(fileUrl);
+                                  setPreviewDocName(originalName);
+                                }}
+                                className="px-3.5 py-1 rounded-[6px] border border-[#00a389] text-[#00a389] hover:bg-[#e7f6f2] text-[12px] font-medium transition-colors cursor-pointer"
+                              >
+                                View
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-[#84908a]">
+                                —
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
 
-        {/* ══ Right Column ══ */}
-        <div className="space-y-5">
-          <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
-            <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em] mb-4">
-              RISK ANALYSIS
-            </h2>
-
+        {/* Right Column */}
+        <div className="lg:col-span-5 space-y-5">
+          {/* RISK ANALYSIS */}
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-[13px] font-semibold text-[#0b100e]">
-                Risk Level
-              </span>
+              <h2 className="text-[12px] font-bold text-[#0b100e] uppercase tracking-wide">
+                RISK ANALYSIS
+              </h2>
               <span
-                className={`px-3 py-1 rounded-[6px] text-[11px] font-bold ${riskLevel === "Low" ? "bg-[#087f70] text-white" : "bg-[#d33d44] text-white"}`}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white ${
+                  riskLevel === "Low" ? "bg-[#22c55e]" : "bg-[#d33d44]"
+                }`}
               >
                 {riskLevel}
               </span>
             </div>
 
             <div
-              className={`rounded-[10px] px-4 py-3 flex items-center gap-3 mb-6 ${
-                riskLevel === "High"
-                  ? "bg-[#fdf2f2] text-[#d33d44] border border-[#fbd5d5]"
-                  : "bg-[#f0faf8] text-[#087f70] border border-[#e7f6f2]"
+              className={`p-3 rounded-[8px] text-[13px] font-medium flex items-center gap-2 mb-4 border ${
+                riskLevel === "Low"
+                  ? "bg-[#edfbf6] border-[#b2ebd8] text-[#087f70]"
+                  : "bg-[#fdf2f2] border-[#fbd5d5] text-[#d33d44]"
               }`}
             >
-              {riskLevel === "High" ? (
-                <XCircle className="w-5 h-5 shrink-0" />
+              {riskLevel === "Low" ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-[#087f70]" />
               ) : (
-                <CheckCircle2 className="w-5 h-5 shrink-0" />
+                <XCircle className="w-4 h-4 shrink-0 text-[#d33d44]" />
               )}
-              <span className="text-[13px] font-semibold">
-                {riskLevel === "High"
-                  ? "Bank name mismatch"
-                  : "The account details match"}
+              <span>
+                {hasBankVerified
+                  ? "The account details match"
+                  : "Bank verification pending"}
               </span>
             </div>
 
-            <h3 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em] mb-3">
+            <p className="text-[11px] font-bold text-[#84908a] uppercase tracking-wider mb-2.5">
               CHECK PASSED
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                {riskLevel === "High" ? (
-                  <XCircle className="w-4 h-4 text-[#d33d44] shrink-0" />
+            </p>
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2.5 text-[13px] text-[#0b100e]">
+                {hasBankVerified ? (
+                  <CheckCircle2 className="w-4 h-4 text-[#22c55e] shrink-0" />
                 ) : (
-                  <CheckCircle2 className="w-4 h-4 text-[#087f70] shrink-0" />
+                  <XCircle className="w-4 h-4 text-[#84908a] shrink-0" />
                 )}
-                <span className="text-[13px] font-semibold text-[#0b100e]">
-                  Bank account{" "}
-                  {riskLevel === "High" ? "unverified" : "verified"}
+                <span>
+                  {hasBankVerified
+                    ? "Bank account verified"
+                    : "Bank account pending verification"}
                 </span>
-                {riskLevel === "High" && (
-                  <span className="px-2 py-0.5 rounded-[4px] bg-[#f9faf9] border border-black/[0.06] text-[10px] font-semibold text-[#68726d]">
-                    Holder: {contactFirstName} {contactLastName}
-                  </span>
-                )}
               </div>
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-4 h-4 text-[#087f70] shrink-0" />
-                <span className="text-[13px] font-semibold text-[#0b100e]">
-                  Business registration confirmed
+              <div className="flex items-center gap-2.5 text-[13px] text-[#0b100e]">
+                {hasRegVerified ? (
+                  <CheckCircle2 className="w-4 h-4 text-[#22c55e] shrink-0" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-[#84908a] shrink-0" />
+                )}
+                <span>
+                  {hasRegVerified
+                    ? "Business registration confirmed"
+                    : "Business registration pending"}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* ── Payment Terms Card ── */}
-          <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-[#68726d]" />
-                <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em]">
-                  ORGANIZATION PAYMENT TERMS
-                </h2>
-              </div>
-              {paymentTerm && (
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
-                      paymentTerm.status === "approved"
-                        ? "text-[#087f70] bg-[#f0faf8] border-[#c8ece4]"
-                        : paymentTerm.status === "rejected"
-                        ? "text-[#d33d44] bg-[#fdf2f2] border-[#fbd5d5]"
-                        : "text-[#b27b00] bg-[#fff9e6] border-[#ffe099]"
-                    }`}
-                  >
-                    {paymentTerm.status === "approved"
-                      ? "Approved"
-                      : paymentTerm.status === "rejected"
-                      ? "Rejected"
-                      : "Pending Review"}
-                  </span>
-                  {matchingPaymentTerms.length > 1 && (
-                    <button
-                      onClick={() => setShowPaymentTermsHistoryModal(true)}
-                      className="text-[11px] font-semibold text-[#087f70] hover:underline cursor-pointer"
-                    >
-                      History ({matchingPaymentTerms.length})
-                    </button>
-                  )}
+          {/* PAYMENT INFO */}
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+            <h2 className="text-[12px] font-bold text-[#0b100e] uppercase tracking-wide mb-4">
+              PAYMENT INFO
+            </h2>
+            <div className="border border-black/[0.06] rounded-[10px] p-4 bg-white">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[12px] text-[#68726d] mb-1">Bank</p>
+                  <p className="text-[14px] font-semibold text-[#0b100e]">
+                    {bankName || "—"}
+                  </p>
                 </div>
-              )}
-            </div>
-
-            {isPaymentTermsListLoading ? (
-              <div className="space-y-3 py-2">
-                <Skeleton className="h-4 w-full rounded" />
-                <Skeleton className="h-4 w-3/4 rounded" />
+                <div>
+                  <p className="text-[12px] text-[#68726d] mb-1">Account</p>
+                  <p className="text-[14px] font-semibold text-[#0b100e]">
+                    {bankAccountNumber || "—"}
+                  </p>
+                </div>
               </div>
-            ) : paymentTerm ? (
-              <div className="space-y-3">
-                <div className="border border-black/[0.06] rounded-[10px] p-4 bg-[#f9faf9]/50">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[12px] font-medium text-[#68726d] mb-0.5">
-                        Term Name
-                      </p>
-                      <p className="text-[13px] font-semibold text-[#0b100e]">
-                        {paymentTerm.name || "Net 30"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[12px] font-medium text-[#68726d] mb-0.5">
-                        Payment Window
-                      </p>
-                      <p className="text-[13px] font-semibold text-[#0b100e]">
-                        {paymentTerm.days === 0
-                          ? "Due on receipt (0 days)"
-                          : paymentTerm.days != null
-                          ? `Net ${paymentTerm.days} (${paymentTerm.days} days)`
-                          : "—"}
-                      </p>
-                    </div>
-                  </div>
+            </div>
+          </div>
 
-                  <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-black/[0.05]">
-                    <div>
-                      <p className="text-[12px] font-medium text-[#68726d] mb-0.5">
-                        Revision
-                      </p>
-                      <p className="text-[13px] font-semibold text-[#0b100e]">
-                        v{paymentTerm.revision ?? 1} {paymentTerm.isCurrent && "(Current)"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[12px] font-medium text-[#68726d] mb-0.5">
-                        {paymentTerm.reviewedAt ? "Reviewed On" : "Submitted On"}
-                      </p>
-                      <p className="text-[13px] font-semibold text-[#0b100e]">
-                        {paymentTerm.reviewedAt || paymentTerm.submittedAt
-                          ? new Date(
-                              (paymentTerm.reviewedAt || paymentTerm.submittedAt)!,
-                            ).toLocaleDateString(undefined, {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })
-                          : "—"}
-                      </p>
-                    </div>
-                  </div>
+          {/* PAYMENT TERM */}
+          <div className="bg-white rounded-[14px] border border-black/[0.06] p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+            <h2 className="text-[12px] font-bold text-[#0b100e] uppercase tracking-wide mb-4">
+              PAYMENT TERM
+            </h2>
+            <div className="border border-black/[0.06] rounded-[10px] p-4 space-y-4 bg-white">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[12px] text-[#68726d] mb-1">Preferred</p>
+                  <p className="text-[14px] font-semibold text-[#0b100e]">
+                    {paymentTerm?.name || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[12px] text-[#68726d] mb-1">
+                    Payment window
+                  </p>
+                  <p className="text-[14px] font-semibold text-[#0b100e]">
+                    {paymentTerm?.days != null
+                      ? `${paymentTerm.days} days`
+                      : "—"}
+                  </p>
+                </div>
+              </div>
 
-                  {paymentTerm.status === "rejected" && paymentTerm.rejectionReason && (
-                    <div className="mt-3 p-3 rounded-[8px] bg-[#fdf2f2] border border-[#fbd5d5] text-[12px] text-[#d33d44]">
-                      <span className="font-semibold">Rejection reason: </span>
-                      {paymentTerm.rejectionReason}
-                    </div>
-                  )}
+              <div className="grid grid-cols-2 gap-4 pt-3.5 border-t border-black/[0.05]">
+                <div>
+                  <p className="text-[12px] text-[#68726d] mb-1">Version</p>
+                  <p className="text-[14px] font-semibold text-[#0b100e]">
+                    {paymentTerm?.revision ? `V${paymentTerm.revision}` : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[12px] text-[#68726d] mb-1">Review date</p>
+                  <p className="text-[14px] font-semibold text-[#0b100e]">
+                    {formatDocDate(
+                      paymentTerm?.reviewedAt ?? paymentTerm?.submittedAt,
+                    )}
+                  </p>
+                </div>
+              </div>
 
-                  {isPendingPaymentTerms && (
-                    <div className="mt-3 pt-3 border-t border-black/[0.05] flex items-center justify-between">
-                      <span className="text-[12px] font-medium text-[#b27b00]">
-                        Action required: Payment terms await review
+              {derivedRelationship === "under_review" &&
+                paymentTerm?.status === "pending_review" && (
+                  <div className="pt-3 border-t border-black/[0.05]">
+                    <label className="flex items-center gap-2 text-[12px] text-[#0b100e] cursor-pointer">
+                      <Checkbox
+                        checked={approveWithTerms}
+                        onCheckedChange={(val) =>
+                          setApproveWithTerms(val === true)
+                        }
+                      />
+                      <span>
+                        Approve submitted payment terms alongside relationship
                       </span>
-                      <button
-                        onClick={() => {
-                          setIsPaymentTermsRejecting(false);
-                          setPaymentTermsRejectReason("");
-                          setPaymentTermsModalOpen(true);
-                        }}
-                        className="px-3 h-7 rounded-[6px] bg-[#087f70] text-white text-[11px] font-semibold hover:bg-[#076b5e] transition-colors cursor-pointer"
-                      >
-                        Review Terms
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="border border-black/[0.06] rounded-[10px] p-4 bg-[#f9faf9]/50 text-center">
-                <p className="text-[13px] font-medium text-[#68726d]">
-                  No payment terms recorded for this vendor yet.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Vendor Note */}
-          {(isUnderReview ||
-            isRejected ||
-            isApprovedPhase4 ||
-            isActive ||
-            isDeactivated) &&
-            decisionNote && (
-              <div
-                className={`rounded-[14px] p-5 shadow-sm border ${
-                  isRejected
-                    ? "bg-[#fdf2f2] border-[#fbd5d5]"
-                    : isResubmitted
-                      ? "bg-[#fffdf5] border-[#ffe099]"
-                      : "bg-[#f0faf8] border-[#e7f6f2]"
-                }`}
-              >
-                <h2
-                  className={`text-[10px] font-bold uppercase tracking-[0.1em] mb-3 ${
-                    isRejected
-                      ? "text-[#9b1c1c]"
-                      : isResubmitted
-                        ? "text-[#b27b00]"
-                        : "text-[#84908a]"
-                  }`}
-                >
-                  {isRejected
-                    ? "REJECTION REASON"
-                    : isResubmitted
-                      ? "PREVIOUS REJECTION REASON / FEEDBACK NOTE"
-                      : "VENDOR NOTE"}
-                </h2>
-                <p
-                  className={`text-[13px] leading-relaxed font-medium ${
-                    isRejected ? "text-[#771d1d]" : "text-[#0b100e]"
-                  }`}
-                >
-                  {decisionNote}
-                </p>
-              </div>
-            )}
-
-          {/* Recent Transactions */}
-          {(isActive || isDeactivated) && !isApprovedPhase4 && (
-            <div className="bg-white rounded-[14px] border border-black/[0.08] p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-[10px] font-bold text-[#84908a] uppercase tracking-[0.1em]">
-                  RECENT TRANSACTIONS
-                </h2>
-                <button
-                  onClick={() =>
-                    router.push(`/vendors/${vendorId}/transactions`)
-                  }
-                  className="px-3 h-8 rounded-[6px] bg-[#087f70] text-white text-[12px] font-bold hover:bg-[#076b5e] transition-colors"
-                >
-                  View all
-                </button>
-              </div>
-              <div className="divide-y divide-black/[0.06]">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between py-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-[8px] bg-[#f9faf9] flex items-center justify-center shrink-0 border border-black/[0.06]">
-                        <FileText className="w-4 h-4 text-[#84908a]" />
-                      </div>
-                      <div>
-                        <p className="text-[13px] font-semibold text-[#0b100e]">
-                          In-234-53
-                        </p>
-                        <p className="text-[12px] font-medium text-[#84908a]">
-                          Jan 31, 2026
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-[13px] font-bold text-[#0b100e]">
-                      NGN 200,000.0
-                    </span>
+                    </label>
                   </div>
-                ))}
-              </div>
+                )}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* ── Request Info Modal ── */}
-      {requestInfoModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4 animate-in fade-in">
-          <div className="bg-white rounded-[14px] shadow-xl w-full max-w-md p-6 relative border border-black/[0.08]">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[18px] font-bold text-[#0b100e]">
-                Request Info
-              </h2>
-              <button
-                onClick={() => setRequestInfoModalOpen(false)}
-                className="w-8 h-8 rounded-[8px] bg-[#f9faf9] hover:bg-[#f5f7f6] flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4 text-[#68726d]" />
-              </button>
-            </div>
-            <div className="mb-6">
-              <label className="block text-[13px] font-semibold text-[#0b100e] mb-2">
-                Message
-              </label>
-              <textarea
-                value={infoMessage}
-                onChange={(e) => setInfoMessage(e.target.value)}
-                placeholder="Enter message here..."
-                rows={5}
-                className="w-full p-4 rounded-[8px] border border-black/[0.08] text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#087f70] resize-none"
-              />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => setRequestInfoModalOpen(false)}
-                className="flex-1 h-10 rounded-[8px] border border-black/[0.08] text-[#68726d] font-semibold text-[13px] hover:bg-[#f9faf9] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRequestInfo}
-                disabled={!infoMessage.trim()}
-                className="flex-1 h-10 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50"
-              >
-                Send message
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Connect to Entity Dialog ── */}
+      <ConnectToEntityDialog
+        open={connectModalOpen}
+        onClose={() => setConnectModalOpen(false)}
+        vendorName={vendorDisplayName}
+        vendorId={vendorId}
+        connectedLegalEntities={connectedLegalEntities}
+        onConnected={() => setRelationshipOverride("pending_connection")}
+      />
 
-      {/* ── Reject Vendor Modal ── */}
-      {rejectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4 animate-in fade-in">
-          <div className="bg-white rounded-[14px] shadow-xl w-full max-w-md p-6 relative border border-black/[0.08]">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[18px] font-bold text-[#0b100e]">
-                Reject Vendor
-              </h2>
-              <button
-                onClick={() => setRejectModalOpen(false)}
-                className="w-8 h-8 rounded-[8px] bg-[#f9faf9] hover:bg-[#f5f7f6] flex items-center justify-center transition-colors"
+      {/* ── Deactivate Vendor Dialog ── */}
+      <DeactivateVendorOrgDialog
+        open={deactivateOrgModalOpen}
+        onClose={() => setDeactivateOrgModalOpen(false)}
+        vendorName={vendorDisplayName}
+        vendorId={vendorId}
+        organizationWide={fromMaster}
+        legalEntityId={activeEntityId}
+        onDeactivated={() => setRelationshipOverride("inactive")}
+      />
+
+      {/* ── Return for Correction / Reject Dialog ── */}
+      <Dialog
+        open={rejectModalOpen}
+        onOpenChange={(val) => !val && setRejectModalOpen(false)}
+      >
+        <DialogContent className="max-w-[460px] p-6 rounded-[18px] bg-white border border-black/[0.08]">
+          <DialogHeader className="space-y-1.5 text-left">
+            <DialogTitle className="text-[18px] font-bold text-[#0b100e]">
+              Return vendor submission for correction?
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-[#68726d]">
+              The relationship will return to{" "}
+              <span className="font-semibold text-[#0b100e]">
+                pending vendor action
+              </span>{" "}
+              so {vendorDisplayName} can update its documents, banking, or
+              payment terms and resubmit.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-2">
+              <label
+                htmlFor="vendor-reject-reason"
+                className="text-[13px] font-medium text-[#0b100e] block"
               >
-                <X className="w-4 h-4 text-[#68726d]" />
-              </button>
-            </div>
-            <div className="mb-6">
-              <label className="block text-[13px] font-semibold text-[#0b100e] mb-2">
-                Reason for Rejection
+                Reason <span className="text-[#84908a]">(Required)</span>
               </label>
               <textarea
+                id="vendor-reject-reason"
+                rows={4}
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="e.g. Bank name mismatch, invalid tax ID, etc."
-                rows={5}
-                className="w-full p-4 rounded-[8px] border border-black/[0.08] text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#d33d44] resize-none"
+                placeholder="e.g. The requested tax clearance certificate has expired"
+                className="w-full p-3.5 rounded-[8px] border border-black/[0.12] bg-white text-[13px] text-[#0b100e] placeholder:text-[#84908a] focus:outline-none focus:border-[#d33d44] resize-none"
               />
-              <p className="text-[11px] text-[#84908a] mt-2">
-                This note will be sent to the vendor.
-              </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex items-center justify-end gap-3">
               <button
+                type="button"
                 onClick={() => setRejectModalOpen(false)}
-                className="flex-1 h-10 rounded-[8px] border border-black/[0.08] text-[#68726d] font-semibold text-[13px] hover:bg-[#f9faf9] transition-colors"
+                className="h-10 px-5 rounded-[8px] border border-black/[0.15] bg-white text-[13px] font-semibold text-[#0b100e] hover:bg-[#f5f7f6] cursor-pointer"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleDecision("rejected", rejectReason)}
-                disabled={!rejectReason.trim() || isSubmitting}
-                className="flex-1 h-10 rounded-[8px] bg-[#d33d44] text-white font-semibold text-[13px] hover:bg-[#c33339] transition-colors disabled:opacity-50"
+                type="button"
+                disabled={!rejectReason.trim() || isActionPending}
+                onClick={() => void handleRejectVendor()}
+                className="h-10 px-5 rounded-[8px] bg-[#d33d44] hover:bg-[#be2f36] text-white text-[13px] font-semibold disabled:opacity-50 cursor-pointer flex items-center gap-2"
               >
-                {isSubmitting ? "Processing..." : "Reject Vendor"}
+                {isActionPending && (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                )}
+                Return for Correction
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ── Payment Terms History Modal ── */}
-      {showPaymentTermsHistoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4 animate-in fade-in">
-          <div className="bg-white rounded-[16px] shadow-2xl w-full max-w-lg border border-black/[0.08] overflow-hidden flex flex-col max-h-[80vh]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] bg-[#f9faf9] flex-shrink-0">
-              <div>
-                <h2 className="text-[15px] font-bold text-[#0b100e]">
-                  Payment Terms History
-                </h2>
-                <p className="text-[12px] text-[#68726d]">
-                  All payment terms recorded for {legalName || displayName}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowPaymentTermsHistoryModal(false)}
-                className="w-8 h-8 rounded-[8px] bg-white hover:bg-[#f5f7f6] border border-black/[0.08] flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4 text-[#68726d]" />
-              </button>
-            </div>
-            <div className="p-6 space-y-3 overflow-y-auto">
-              {matchingPaymentTerms.map((term, idx) => (
-                <div
-                  key={term.paymentTermId || idx}
-                  className="p-4 rounded-[10px] border border-black/[0.08] bg-[#f9faf9]/50 space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-semibold text-[#0b100e]">
-                      {term.name || "Payment Term"} (v{term.revision ?? 1})
-                    </span>
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
-                        term.status === "approved"
-                          ? "text-[#087f70] bg-[#f0faf8] border-[#c8ece4]"
-                          : term.status === "rejected"
-                          ? "text-[#d33d44] bg-[#fdf2f2] border-[#fbd5d5]"
-                          : "text-[#b27b00] bg-[#fff9e6] border-[#ffe099]"
-                      }`}
-                    >
-                      {term.status === "approved"
-                        ? "Approved"
-                        : term.status === "rejected"
-                        ? "Rejected"
-                        : "Pending Review"}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[12px] text-[#68726d]">
-                    <div>
-                      Window:{" "}
-                      <span className="font-medium text-[#0b100e]">
-                        {term.days === 0 ? "Due on receipt" : `${term.days} days`}
-                      </span>
-                    </div>
-                    {term.submittedAt && (
-                      <div className="text-right">
-                        Submitted:{" "}
-                        <span className="font-medium text-[#0b100e]">
-                          {new Date(term.submittedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  {term.rejectionReason && (
-                    <p className="text-[11px] text-[#d33d44] bg-[#fdf2f2] p-2 rounded">
-                      Reason: {term.rejectionReason}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Payment Terms Review Modal (Stage 2) ── */}
-      {paymentTermsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4 animate-in fade-in">
-          <div className="bg-white rounded-[20px] shadow-2xl w-full max-w-lg border border-black/[0.08] overflow-hidden max-h-[85vh] flex flex-col">
-            {/* Header (fixed) */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06] bg-[#f9faf9] flex-shrink-0">
-              <div>
-                <h2 className="text-[16px] font-bold text-[#0b100e]">
-                  {isPaymentTermsRejecting
-                    ? "Reject Payment Terms"
-                    : "Approve Payment Terms"}
-                </h2>
-                <p className="text-[12px] text-[#68726d] mt-0.5">
-                  {isPaymentTermsRejecting
-                    ? "Specify the reason so the vendor can update and resubmit"
-                    : "Stage 2 of 2 — Approving also activates this vendor"}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setPaymentTermsModalOpen(false);
-                  setPaymentTermsRejectReason("");
-                  setIsPaymentTermsRejecting(false);
-                }}
-                className="w-8 h-8 rounded-[8px] bg-white hover:bg-[#f5f7f6] border border-black/[0.08] flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4 text-[#68726d]" />
-              </button>
-            </div>
-
-            {/* Scrollable Content Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-              {/* Step indicator */}
-              <div className="flex items-center gap-0 pb-1">
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-[#087f70] flex items-center justify-center">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                  </span>
-                  <span className="text-[12px] font-semibold text-[#087f70]">
-                    Vendor Info (Approved)
-                  </span>
-                </div>
-                <div className="flex-1 h-px bg-[#087f70] mx-3" />
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-[#087f70] text-white text-[11px] font-bold flex items-center justify-center">
-                    2
-                  </span>
-                  <span className="text-[12px] font-semibold text-[#087f70]">
-                    Payment Terms
-                  </span>
-                </div>
-              </div>
-
-              {/* Payment term details summary card */}
-              {isPaymentTermsListLoading ? (
-                <div className="space-y-3 py-4">
-                  <Skeleton className="h-5 w-full rounded" />
-                  <Skeleton className="h-5 w-3/4 rounded" />
-                  <Skeleton className="h-5 w-1/2 rounded" />
-                </div>
-              ) : paymentTerm ? (
-                <div className="bg-[#f9faf9] rounded-[12px] border border-black/[0.06] p-4 space-y-2.5">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[12px] font-medium text-[#68726d]">
-                      Term Name
-                    </span>
-                    <span className="text-[13px] font-semibold text-[#0b100e]">
-                      {paymentTerm.name || "—"}
-                    </span>
-                  </div>
-                  <div className="h-px bg-black/[0.05]" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-[12px] font-medium text-[#68726d]">
-                      Payment Window
-                    </span>
-                    <span className="text-[13px] font-semibold text-[#0b100e]">
-                      {paymentTerm.days === 0
-                        ? "Due immediately (0 days)"
-                        : paymentTerm.days != null
-                        ? `Net ${paymentTerm.days} (${paymentTerm.days} days)`
-                        : "—"}
-                    </span>
-                  </div>
-                  {paymentTerm.submittedAt && (
-                    <>
-                      <div className="h-px bg-black/[0.05]" />
-                      <div className="flex justify-between items-center">
-                        <span className="text-[12px] font-medium text-[#68726d]">
-                          Submitted
-                        </span>
-                        <span className="text-[13px] text-[#0b100e]">
-                          {new Intl.DateTimeFormat(undefined, {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                          }).format(new Date(paymentTerm.submittedAt))}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                  {paymentTerm.revision != null && (
-                    <>
-                      <div className="h-px bg-black/[0.05]" />
-                      <div className="flex justify-between items-center">
-                        <span className="text-[12px] font-medium text-[#68726d]">
-                          Revision
-                        </span>
-                        <span className="text-[13px] text-[#0b100e]">
-                          #{paymentTerm.revision ?? 1}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="bg-[#f9faf9] rounded-[12px] border border-black/[0.06] p-4 text-center">
-                  <p className="text-[13px] font-semibold text-[#0b100e]">
-                    Standard Payment Terms
-                  </p>
-                  <p className="text-[12px] text-[#68726d] mt-1">
-                    No custom payment terms were submitted by this vendor. Approving will activate the vendor with standard terms.
-                  </p>
-                </div>
-              )}
-
-              {/* Vendor context note (only when not in rejection mode) */}
-              {!isPaymentTermsRejecting && (
-                <div className="flex items-start gap-3 bg-[#f0faf8] border border-[#e7f6f2] rounded-[10px] px-4 py-3">
-                  <CheckCircle2 className="w-4 h-4 text-[#087f70] mt-0.5 flex-shrink-0" />
-                  <p className="text-[12px] text-[#087f70] leading-relaxed">
-                    <strong>{legalName || displayName}</strong> has been approved (Stage 1). Approving payment terms will activate the vendor and enable payments.
-                  </p>
-                </div>
-              )}
-
-              {/* Rejection reason form — ONLY displayed when Reject Terms is clicked */}
-              {isPaymentTermsRejecting && (
-                <div className="space-y-2 pt-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-[12px] font-semibold text-[#0b100e]">
-                      Rejection Reason <span className="text-[#d33d44]">*</span>
-                    </label>
-                    <span className="text-[11px] text-[#68726d]">
-                      Visible to vendor
-                    </span>
-                  </div>
-                  <textarea
-                    autoFocus
-                    value={paymentTermsRejectReason}
-                    onChange={(e) =>
-                      setPaymentTermsRejectReason(e.target.value)
-                    }
-                    placeholder="e.g. Please use our standard Net 30 arrangement."
-                    rows={3}
-                    className="w-full p-3 rounded-[8px] border border-black/[0.12] text-[13px] placeholder:text-[#84908a] focus:outline-none focus:border-[#d33d44] focus:ring-1 focus:ring-[#d33d44] resize-none"
-                  />
-                  <p className="text-[11px] text-[#68726d]">
-                    The vendor will remain on the onboarding screen and can resubmit revised terms.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Actions (fixed footer) */}
-            <div className="flex flex-col sm:flex-row gap-3 px-6 py-4 border-t border-black/[0.06] bg-[#f9faf9] flex-shrink-0">
-              {isPaymentTermsRejecting ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPaymentTermsRejecting(false);
-                      setPaymentTermsRejectReason("");
-                    }}
-                    disabled={isSubmitting}
-                    className="flex-1 h-10 rounded-[8px] border border-black/[0.15] bg-white text-[#303834] font-semibold text-[13px] hover:bg-[#f5f7f6] transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!paymentTermsRejectReason.trim() || !paymentTerm?.paymentTermId) return;
-                      try {
-                        await rejectPaymentTermsMutation.mutateAsync({
-                          reason: paymentTermsRejectReason,
-                          paymentTermId: paymentTerm.paymentTermId,
-                        });
-                        toast.success(
-                          "Payment terms rejected — vendor will resubmit",
-                        );
-                        setPaymentTermsModalOpen(false);
-                        setPaymentTermsRejectReason("");
-                        setIsPaymentTermsRejecting(false);
-                      } catch {
-                        toast.error(
-                          "Failed to reject payment terms. Please try again.",
-                        );
-                      }
-                    }}
-                    disabled={!paymentTermsRejectReason.trim() || isSubmitting}
-                    className="flex-1 h-10 rounded-[8px] bg-[#d33d44] text-white font-semibold text-[13px] hover:bg-[#c33339] transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm cursor-pointer"
-                  >
-                    {rejectPaymentTermsMutation.isPending
-                      ? "Rejecting..."
-                      : "Confirm Rejection"}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {paymentTerm && (
-                    <button
-                      type="button"
-                      onClick={() => setIsPaymentTermsRejecting(true)}
-                      disabled={isSubmitting}
-                      className="flex-1 h-10 rounded-[8px] border border-[#d33d44] text-[#d33d44] font-semibold text-[13px] hover:bg-[#fdf2f2] transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      Reject Terms
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        if (paymentTerm?.paymentTermId) {
-                          await approvePaymentTermsMutation.mutateAsync(
-                            paymentTerm.paymentTermId,
-                          );
-                          toast.success(
-                            "Payment terms approved — vendor is now active",
-                          );
-                        } else {
-                          await handleStatusUpdate("Active");
-                        }
-                        setPaymentTermsModalOpen(false);
-                      } catch {
-                        toast.error(
-                          "Failed to approve payment terms. Please try again.",
-                        );
-                      }
-                    }}
-                    disabled={isSubmitting}
-                    className="flex-1 h-10 rounded-[8px] bg-[#087f70] text-white font-semibold text-[13px] hover:bg-[#076b5e] transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    {approvePaymentTermsMutation.isPending || statusMutation.isPending
-                      ? "Approving..."
-                      : "Approve & Activate"}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Document Preview Modal ── */}
       {previewDocUrl && (
@@ -1493,7 +1281,7 @@ function VendorDetailsPage() {
                       setPreviewDocUrl(null);
                       setPreviewDocName(null);
                     }}
-                    className="w-9 h-9 rounded-[8px] bg-[#f5f7f6] hover:bg-[#ebeeed] flex items-center justify-center transition-colors"
+                    className="w-9 h-9 rounded-[8px] bg-[#f5f7f6] hover:bg-[#ebeeed] flex items-center justify-center transition-colors cursor-pointer"
                   >
                     <X className="w-5 h-5 text-[#0b100e]" />
                   </button>
@@ -1519,7 +1307,9 @@ function VendorDetailsPage() {
                         previewDocUrl
                           .split("?")[0]
                           .match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)
-                          ? `https://docs.google.com/viewer?url=${encodeURIComponent(previewDocUrl)}&embedded=true`
+                          ? `https://docs.google.com/viewer?url=${encodeURIComponent(
+                              previewDocUrl,
+                            )}&embedded=true`
                           : previewDocUrl
                       }
                       className="w-full h-full border-0"
@@ -1539,11 +1329,16 @@ function VendorDetailsPage() {
 function OrganizationVendorDetails() {
   const canReadProfile = useAuthStore(
     (state) =>
-      state.can("vendor", "read_company") &&
-      state.can("vendor", "sensitive.read"),
+      state.can("vendor", "read_company") ||
+      state.can("vendor.master_list", "manage") ||
+      (state.can("vendor.directory", "read") &&
+        state.can("vendor", "sensitive.read")),
   );
   return canReadProfile ? <VendorDetailsPage /> : <VendorSummary />;
 }
+
 export default withPermissions(OrganizationVendorDetails, [
   { resource: "vendor.directory", action: "read" },
+  { resource: "vendor", action: "read_company" },
+  { resource: "vendor.master_list", action: "manage" },
 ]);

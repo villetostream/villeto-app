@@ -610,6 +610,9 @@ function getCurrentSectionLabel(pathname: string, tab?: string | null): string {
     return "Procurement Policy";
   if (pathname.startsWith("/policies/governance")) return "Policy Governance";
 
+  if (pathname === "/vendors/master") return "Master Vendor List";
+  if (pathname === "/vendors") return "My Vendors";
+
   const exactMatch = navigationItems.find((item) => {
     if (item.href === "/dashboard") return pathname === "/dashboard";
     return item.href === pathname;
@@ -659,7 +662,10 @@ export function UserSection() {
       pathname === "/procurement/confirmation" ||
       pathname === "/procurement/invoices";
     const isExpensesListPageNow = pathname === "/expenses";
-    if (!isExpensesListPageNow && !isProcurementListPage) resetDates();
+    const isVendorListPageNow =
+      pathname === "/vendors" || pathname === "/vendors/master";
+    if (!isExpensesListPageNow && !isProcurementListPage && !isVendorListPageNow)
+      resetDates();
     clearAction();
     // Any registered in-page back handler belongs to the page we're leaving.
     clearBackHandler();
@@ -695,6 +701,7 @@ export function UserSection() {
     expenseIdFromPath,
     isExpensesListPage,
     isProcurementListPage,
+    isVendorListPage,
     isUploadReceiptPage,
     isNewExpensePage,
     isNewReportPage,
@@ -708,6 +715,7 @@ export function UserSection() {
     isConfirmationDetailPage,
     isInvoiceDetailPage,
     isVendorDetailPage,
+    isVendorSubPage,
     isBillPaySubRoute,
     isBackButtonPage,
   } = useMemo(() => {
@@ -737,6 +745,8 @@ export function UserSection() {
       pathname === "/procurement/purchase-order" ||
       pathname === "/procurement/confirmation" ||
       pathname === "/procurement/invoices";
+    const vendorListPage =
+      pathname === "/vendors" || pathname === "/vendors/master";
     const uploadPage = pathname === "/expenses/new-expense/upload";
     const newExpPage = pathname === "/expenses/new-expense";
     const newReportPage = pathname === "/expenses/new-report";
@@ -758,7 +768,11 @@ export function UserSection() {
       pathname,
     );
     const vendorDetailMatch =
-      /^\/vendors\/[^/]+$/.test(pathname) && !vendorBulkPage;
+      /^\/vendors\/[^/]+$/.test(pathname) &&
+      !vendorBulkPage &&
+      pathname !== "/vendors/master";
+    const vendorSubMatch =
+      /^\/vendors\/[^/]+\/(?:configuration|transactions)$/.test(pathname);
     const billPaySubRouteMatch =
       pathname.startsWith("/bill-pay/") &&
       pathname !== "/bill-pay" &&
@@ -781,6 +795,7 @@ export function UserSection() {
       viewRolePage ||
       vendorBulkPage ||
       vendorDetailMatch ||
+      vendorSubMatch ||
       newPRPage ||
       newPOPage ||
       prDetailMatch ||
@@ -805,6 +820,7 @@ export function UserSection() {
       expenseIdFromPath: expIdMatch,
       isExpensesListPage: expListPage,
       isProcurementListPage: procListPage,
+      isVendorListPage: vendorListPage,
       isUploadReceiptPage: uploadPage,
       isNewExpensePage: newExpPage,
       isNewReportPage: newReportPage,
@@ -818,6 +834,7 @@ export function UserSection() {
       isConfirmationDetailPage: confirmDetailMatch,
       isInvoiceDetailPage: invoiceDetailMatch,
       isVendorDetailPage: vendorDetailMatch,
+      isVendorSubPage: vendorSubMatch,
       isBillPaySubRoute: billPaySubRouteMatch,
       isBackButtonPage: backButtonPage,
     };
@@ -952,7 +969,28 @@ export function UserSection() {
       else router.push("/people");
       return;
     }
+    if (isVendorSubPage) {
+      const match = pathname.match(/^(\/vendors\/[^/]+)\//);
+      const from =
+        searchParams.get("from") ||
+        (typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("from")
+          : null);
+      if (match?.[1]) {
+        router.push(from ? `${match[1]}?from=${encodeURIComponent(from)}` : match[1]);
+        return;
+      }
+    }
     if (isVendorBulkInvitePage || isVendorDetailPage) {
+      const from =
+        searchParams.get("from") ||
+        (typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("from")
+          : null);
+      if (from === "master") {
+        router.push("/vendors/master");
+        return;
+      }
       router.push("/vendors");
       return;
     }
@@ -1110,8 +1148,8 @@ export function UserSection() {
 
       {/* ── Right ── */}
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-        {/* Date range picker — expenses list & procurement list pages */}
-        {(isExpensesListPage || isProcurementListPage) && (
+        {/* Date range picker — expenses, procurement & vendor list pages */}
+        {(isExpensesListPage || isProcurementListPage || isVendorListPage) && (
           <DateRangePicker
             fromDate={fromDate ?? undefined}
             toDate={toDate ?? undefined}

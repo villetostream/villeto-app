@@ -4,6 +4,14 @@ import type { ProcurementPolicyViolation } from "@/lib/types/api-error";
 import { useGetProcurementCategories } from "@/queries/procurement/purchase-requests";
 import { toast } from "sonner";
 import { UnitOfMeasureCombobox } from "@/components/procurement/UnitOfMeasureCombobox";
+import { formatCurrency } from "@/lib/utils/currency";
+
+export interface PricingSegment {
+  from: string | number;
+  to: string | number;
+  unitPrice: string | number;
+  revision: number;
+}
 
 export interface LineItemForDetail {
   purchaseRequestLineItemId?: string;
@@ -19,6 +27,8 @@ export interface LineItemForDetail {
   unitOfMeasure?: string;
   sku?: string;
   purchaseOrderLineItemId?: string;
+  pricingSegments?: PricingSegment[] | null;
+  pricing?: PricingSegment[] | null;
   policyViolations?: { type: string; message: string; ruleType?: string; actionText?: string }[] | null;
   index?: number;
 }
@@ -38,19 +48,66 @@ export function LineItemDetailModal({ isOpen, onClose, item, currency = "USD", o
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState<Partial<LineItemForDetail>>({});
 
+  const segments = useMemo(() => {
+    return (item?.pricingSegments || item?.pricing || []) as PricingSegment[];
+  }, [item?.pricingSegments, item?.pricing]);
+
+  const pricingDetails = useMemo(() => {
+    if (!item) {
+      return {
+        effectiveUnitPrice: 0,
+        isRevised: false,
+        revisionNumber: 1,
+        originalUnitPrice: 0,
+      };
+    }
+
+    const originalUnitPrice = Number(item.unitPrice ?? 0);
+    let effectiveUnitPrice = originalUnitPrice;
+    let revisionNumber = 1;
+    let isRevised = false;
+
+    if (segments.length === 1 && Number(segments[0].unitPrice) > 0) {
+      effectiveUnitPrice = Number(segments[0].unitPrice);
+      revisionNumber = segments[0].revision;
+      isRevised = revisionNumber > 1 || Math.abs(effectiveUnitPrice - originalUnitPrice) > 0.01;
+    } else if (segments.length > 1) {
+      effectiveUnitPrice = Number(item.quantity) > 0 
+        ? ((item.subtotal != null ? Number(item.subtotal) : segments.reduce((sum, s) => sum + (Math.max(0, Number(s.to) - Number(s.from)) * Number(s.unitPrice)), 0)) / Number(item.quantity))
+        : originalUnitPrice;
+      isRevised = true;
+      revisionNumber = Math.max(...segments.map(s => s.revision));
+    } else if (item.quantity > 0 && item.subtotal != null && Math.abs(Number(item.subtotal) - (Number(item.quantity) * originalUnitPrice)) > 0.01) {
+      effectiveUnitPrice = Number(item.subtotal) / Number(item.quantity);
+      isRevised = true;
+      revisionNumber = 2;
+    }
+
+    return {
+      effectiveUnitPrice,
+      isRevised,
+      revisionNumber,
+      originalUnitPrice,
+    };
+  }, [item, segments]);
+
   useEffect(() => {
     if (isOpen && item) {
       setIsEditing(startInEditMode);
-      setForm({ ...item });
+      setForm({ 
+        ...item,
+        unitPrice: pricingDetails.effectiveUnitPrice || item.unitPrice,
+      });
     }
-  }, [isOpen, item, startInEditMode]);
+  }, [isOpen, item, startInEditMode, pricingDetails.effectiveUnitPrice]);
 
   const hasChanges = useMemo(() => {
     if (!item) return false;
+    const basePrice = pricingDetails.effectiveUnitPrice || Number(item.unitPrice ?? 0);
     const nameChanged = (form.name ?? "").trim() !== (item.name ?? "").trim();
     const categoryChanged = (form.categoryId ?? "") !== (item.categoryId ?? "");
     const qtyChanged = Number(form.quantity ?? 0) !== Number(item.quantity ?? 0);
-    const unitPriceChanged = Number(form.unitPrice ?? 0) !== Number(item.unitPrice ?? 0);
+    const unitPriceChanged = Number(form.unitPrice ?? 0) !== basePrice;
     const taxChanged = Number(form.taxAmount ?? 0) !== Number(item.taxAmount ?? 0);
     const uomChanged = (form.unitOfMeasure ?? "").trim() !== (item.unitOfMeasure ?? "").trim();
     const descChanged = (form.description ?? "").trim() !== (item.description ?? "").trim();
@@ -65,14 +122,15 @@ export function LineItemDetailModal({ isOpen, onClose, item, currency = "USD", o
       descChanged ||
       skuChanged
     );
-  }, [form, item]);
+  }, [form, item, pricingDetails.effectiveUnitPrice]);
 
   if (!isOpen || !item) return null;
 
+  const hasMultipleSegments = segments.length > 1;
   const currencySymbol = currency === "USD" ? "$" : currency === "NGN" ? "₦" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : currency;
   const displaySubtotal = isEditing 
     ? (Number(form.quantity || 0) * Number(form.unitPrice || 0)) 
-    : (item.subtotal ?? item.quantity * item.unitPrice);
+    : (item.subtotal != null ? Number(item.subtotal) : (item.quantity * pricingDetails.effectiveUnitPrice));
     
   const hasViolations = !!(item.policyViolations && item.policyViolations.length > 0);
   const hasBlock = hasViolations && item.policyViolations!.some(v => v.type === "hard_block");
@@ -231,9 +289,39 @@ export function LineItemDetailModal({ isOpen, onClose, item, currency = "USD", o
               ) : (
                 <>
                   <DetailField icon={<Hash className="w-3.5 h-3.5" />} label="Quantity" value={item.quantity.toLocaleString("en-US")} />
-                  <DetailField icon={<DollarSign className="w-3.5 h-3.5" />} label="Unit Price" value={`${currencySymbol}${item.unitPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}`} />
+                  <DetailField 
+                    icon={<DollarSign className="w-3.5 h-3.5" />} 
+                    label="Unit Price" 
+                    value={
+                      hasMultipleSegments
+                        ? `${formatCurrency(pricingDetails.effectiveUnitPrice, currency)} (Avg)`
+                        : formatCurrency(pricingDetails.effectiveUnitPrice, currency)
+                    }
+                    badge={
+                      segments.length === 1 && segments[0].revision > 1 ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#e7f6f2] text-[#087f70] border border-[#c8ece4]">
+                          Revision {segments[0].revision}
+                        </span>
+                      ) : hasMultipleSegments ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#e7f6f2] text-[#087f70] border border-[#c8ece4]">
+                          Segmented
+                        </span>
+                      ) : pricingDetails.isRevised ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#e7f6f2] text-[#087f70] border border-[#c8ece4]">
+                          Revision {pricingDetails.revisionNumber}
+                        </span>
+                      ) : null
+                    }
+                    subtitle={
+                      pricingDetails.isRevised && Math.abs(pricingDetails.effectiveUnitPrice - pricingDetails.originalUnitPrice) > 0.01 ? (
+                        <span className="text-xs text-[#68726d] font-normal">
+                          Original: {formatCurrency(pricingDetails.originalUnitPrice, currency)} (Rev 1)
+                        </span>
+                      ) : null
+                    }
+                  />
                   {item.taxAmount != null && item.taxAmount > 0 && (
-                    <DetailField icon={<Tag className="w-3.5 h-3.5" />} label="Tax" value={`${currencySymbol}${item.taxAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`} />
+                    <DetailField icon={<Tag className="w-3.5 h-3.5" />} label="Tax" value={formatCurrency(item.taxAmount, currency)} />
                   )}
                   {item.unitOfMeasure && (
                     <DetailField icon={<Package className="w-3.5 h-3.5" />} label="Unit of Measure" value={item.unitOfMeasure} />
@@ -241,6 +329,38 @@ export function LineItemDetailModal({ isOpen, onClose, item, currency = "USD", o
                 </>
               )}
             </div>
+
+            {/* Segmented Pricing Breakdown Schedule */}
+            {!isEditing && hasMultipleSegments && (
+              <div className="mt-3.5 p-3.5 bg-[#f9faf9] rounded-[10px] border border-black/[0.04] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-[#68726d] uppercase tracking-wider">
+                    Pricing Schedule Breakdown
+                  </span>
+                  <span className="text-xs text-[#68726d]">
+                    {segments.length} revisions
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {segments.map((seg, idx) => {
+                    const segQty = Math.max(0, Number(seg.to) - Number(seg.from));
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between text-xs py-1.5 px-3 rounded-md bg-white border border-black/[0.04]"
+                      >
+                        <span className="text-[#0b100e] font-medium">
+                          {segQty} {item.unitOfMeasure || "units"} @ {formatCurrency(seg.unitPrice, currency)}
+                        </span>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#e7f6f2] text-[#087f70] border border-[#c8ece4]">
+                          Revision {seg.revision}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {isEditing ? (
               <div className="pt-2">
@@ -268,7 +388,7 @@ export function LineItemDetailModal({ isOpen, onClose, item, currency = "USD", o
             <div className="flex items-center justify-between px-4 py-3 bg-[#f9faf9] rounded-[10px] border border-black/[0.04] mt-4">
               <span className="text-sm font-medium text-[#68726d]">Line Subtotal</span>
               <span className="text-[15px] font-bold text-[#0b100e]">
-                {currencySymbol}{displaySubtotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                {formatCurrency(displaySubtotal, currency)}
               </span>
             </div>
           </div>
@@ -310,15 +430,33 @@ export function LineItemDetailModal({ isOpen, onClose, item, currency = "USD", o
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-function DetailField({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function DetailField({
+  icon,
+  label,
+  value,
+  badge,
+  subtitle,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  badge?: React.ReactNode;
+  subtitle?: React.ReactNode;
+}) {
   return (
     <div className="flex items-start gap-2.5">
       <div className="w-7 h-7 rounded-[8px] bg-[#f5f7f6] flex items-center justify-center shrink-0 text-[#68726d] mt-0.5">
         {icon}
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[11px] text-[#68726d] font-semibold uppercase tracking-wider">{label}</p>
-        <p className="text-[15px] font-bold text-[#0b100e] mt-0.5 truncate">{value}</p>
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          <div className="text-[15px] font-bold text-[#0b100e] truncate">{value}</div>
+          {badge}
+        </div>
+        {subtitle && (
+          <div className="mt-0.5">{subtitle}</div>
+        )}
       </div>
     </div>
   );
